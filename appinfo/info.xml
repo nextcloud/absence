@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!--
+ - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>absence</id>
+	<name>Absence</name>
+	<summary>Vacation approval workflow for your company</summary>
+	<description><![CDATA[
+Absence is a self-service leave-management app: employees apply for vacation, line
+managers approve or reject, and HR gets a company-wide overview with statistics and
+exports.
+
+* 🌴 Apply for annual, sick, unpaid or special leave — full balance tracking with carry-over
+* ✅ Manager approval with team-coverage conflict warnings
+* ⏰ Automatic escalation to HR when a manager does not respond
+* 📊 HR overview: per-employee balances, company-wide statistics and CSV/Excel export
+* 📅 Approved leave synced to Nextcloud Calendar (personal + shared team calendar)
+* 🔔 Notifications, email and activity for every step
+	]]></description>
+	<version>1.0.4</version>
+	<licence>agpl</licence>
+	<author mail="frank@nextcloud.com">Frank Karlitschek</author>
+	<namespace>Absence</namespace>
+	<category>organization</category>
+	<category>tools</category>
+	<bugs>https://github.com/nextcloud/server/issues</bugs>
+	<dependencies>
+		<nextcloud min-version="34" max-version="36"/>
+	</dependencies>
+	<background-jobs>
+		<job>OCA\Absence\BackgroundJob\EscalationJob</job>
+		<job>OCA\Absence\BackgroundJob\ReminderJob</job>
+		<job>OCA\Absence\BackgroundJob\YearRolloverJob</job>
+	</background-jobs>
+	<repair-steps>
+		<install>
+			<step>OCA\Absence\Migration\SeedLeaveTypes</step>
+			<step>OCA\Absence\Migration\EnableAuditLogging</step>
+		</install>
+		<post-migration>
+			<step>OCA\Absence\Migration\EnableAuditLogging</step>
+		</post-migration>
+		<uninstall>
+			<step>OCA\Absence\Migration\DisableAuditLogging</step>
+		</uninstall>
+	</repair-steps>
+	<settings>
+		<admin>OCA\Absence\Settings\Admin</admin>
+		<admin-section>OCA\Absence\Settings\AdminSection</admin-section>
+	</settings>
+	<activity>
+		<settings>
+			<setting>OCA\Absence\Activity\Setting</setting>
+		</settings>
+		<providers>
+			<provider>OCA\Absence\Activity\Provider</provider>
+		</providers>
+	</activity>
+	<navigations>
+		<navigation>
+			<id>absence</id>
+			<name>Absence</name>
+			<route>absence.page.index</route>
+			<icon>app.svg</icon>
+			<order>80</order>
+		</navigation>
+	</navigations>
+</info>

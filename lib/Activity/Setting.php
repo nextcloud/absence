@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Absence\Activity;
+
+use OCA\Absence\Service\ConfigService;
+use OCP\Activity\ISetting;
+use OCP\IL10N;
+
+class Setting implements ISetting {
+	public function __construct(
+		private IL10N $l,
+	) {
+	}
+
+	public function getIdentifier(): string {
+		return ConfigService::APP_ID;
+	}
+
+	public function getName(): string {
+		return $this->l->t('Leave requests and approvals');
+	}
+
+	public function getPriority(): int {
+		return 60;
+	}
+
+	public function canChangeStream(): bool {
+		return true;
+	}
+
+	public function isDefaultEnabledStream(): bool {
+		return true;
+	}
+
+	public function canChangeMail(): bool {
+		return true;
+	}
+
+	public function isDefaultEnabledMail(): bool {
+		return false;
+	}
+}
