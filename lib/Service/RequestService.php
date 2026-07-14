@@ -107,14 +107,39 @@ class RequestService {
 		);
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
-		if ($request->getReplacementUid() !== null) {
-			$user = $this->userManager->get($request->getReplacementUid());
-			$detail['replacementName'] = $user !== null ? $user->getDisplayName() : $request->getReplacementUid();
-		}
+		$detail = $this->withReplacementName($detail, $request);
 		if ($detail['canDecide']) {
 			$detail['coverage'] = $this->coverage->getRequestCoverage($request);
 		}
 		return $detail;
+	}
+
+	/**
+	 * Serialize a list of requests, resolving the replacement display name so
+	 * the client can show and reuse it (e.g. prefill a likely replacement).
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function listSerialized(string $actorUid, array $filters, ?int $limit, ?int $offset): array {
+		return array_map(
+			fn (LeaveRequest $r) => $this->withReplacementName($r->jsonSerialize(), $r),
+			$this->list($actorUid, $filters, $limit, $offset),
+		);
+	}
+
+	/**
+	 * Add the replacement's display name to a serialized request, falling back
+	 * to the uid when the user no longer exists.
+	 *
+	 * @param array<string,mixed> $data
+	 * @return array<string,mixed>
+	 */
+	private function withReplacementName(array $data, LeaveRequest $request): array {
+		if ($request->getReplacementUid() !== null) {
+			$user = $this->userManager->get($request->getReplacementUid());
+			$data['replacementName'] = $user !== null ? $user->getDisplayName() : $request->getReplacementUid();
+		}
+		return $data;
 	}
 
 	/**
