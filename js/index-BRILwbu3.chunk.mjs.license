@@ -1,0 +1,43 @@
+SPDX-License-Identifier: (ISC AND CC-BY-3.0)
+SPDX-License-Identifier: ISC
+SPDX-License-Identifier: MIT
+SPDX-FileCopyrightText: Behrang Noruzi Niya
+SPDX-FileCopyrightText: Iskren Ivov Chernev <iskren.chernev@gmail.com> (https://github.com/ichernev)
+SPDX-FileCopyrightText: Tim Wood <washwithcare@gmail.com> (http://timwoodcreates.com/)
+SPDX-FileCopyrightText: commenthol <commenthol@gmail.com>
+SPDX-FileCopyrightText: deepmerge developers
+
+This file is generated from multiple sources. Included packages:
+- astronomia
+	- version: 4.2.0
+	- license: MIT
+- caldate
+	- version: 2.0.5
+	- license: ISC
+- date-bengali-revised
+	- version: 2.0.2
+	- license: MIT
+- date-chinese
+	- version: 2.1.4
+	- license: MIT
+- date-easter
+	- version: 1.0.3
+	- license: MIT
+- date-holidays
+	- version: 3.33.0
+	- license: (ISC AND CC-BY-3.0)
+- date-holidays-parser
+	- version: 3.4.7
+	- license: ISC
+- deepmerge
+	- version: 4.3.1
+	- license: MIT
+- jalaali-js
+	- version: 1.2.8
+	- license: MIT
+- moment
+	- version: 2.30.1
+	- license: MIT
+- moment-timezone
+	- version: 0.5.48
+	- license: MIT

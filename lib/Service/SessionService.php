@@ -23,6 +23,7 @@ class SessionService {
 		private PermissionService $permission,
 		private ManagerResolver $managerResolver,
 		private LeaveRequestMapper $requestMapper,
+		private PersonalDefaultsService $personalDefaults,
 	) {
 	}
 
@@ -39,9 +40,13 @@ class SessionService {
 		$reports = $this->managerResolver->getDirectReports($uid);
 		$isManager = $reports !== [];
 		$managerUid = $this->managerResolver->getManagerUid($uid);
+		$defaults = $this->personalDefaults->resolve($uid);
 
 		return [
 			'uid' => $uid,
+			'workWeekdays' => $defaults['workWeekdays'],
+			'holidayCountry' => $defaults['holidayCountry'],
+			'holidayRegion' => $defaults['holidayRegion'],
 			'displayName' => $user->getDisplayName(),
 			'isHr' => $isHr,
 			'isManager' => $isManager,

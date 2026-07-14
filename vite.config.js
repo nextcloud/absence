@@ -9,6 +9,7 @@ import { createAppConfig } from '@nextcloud/vite-config'
 export default createAppConfig({
 	main: 'src/main.js',
 	'admin-settings': 'src/admin-settings.js',
+	'personal-settings': 'src/personal-settings.js',
 }, {
 	// Inject component CSS from the JS entries (relative injection also covers
 	// lazily-loaded chunk CSS), so a single Util::addScript() styles the whole app.

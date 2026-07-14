@@ -50,6 +50,7 @@ exports.
 	<settings>
 		<admin>OCA\Absence\Settings\Admin</admin>
 		<admin-section>OCA\Absence\Settings\AdminSection</admin-section>
+		<personal>OCA\Absence\Settings\Personal</personal>
 	</settings>
 	<activity>
 		<settings>
