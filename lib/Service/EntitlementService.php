@@ -88,6 +88,24 @@ class EntitlementService {
 	}
 
 	/**
+	 * Create (or fetch) the entitlement row for a single employee and apply the
+	 * given values (HR). Unlike bulkSet() this never touches other employees.
+	 *
+	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentNote?:string} $data
+	 */
+	public function setForEmployee(string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
+		if ($this->userManager->get($employeeUid) === null) {
+			throw new ValidationException('Unknown employee.');
+		}
+		$type = $this->leaveTypeMapper->find($typeId);
+		if (!$type->getCountsAgainstBalance()) {
+			throw new ValidationException('Entitlements only apply to leave types that count against the balance.');
+		}
+		$ent = $this->balanceService->ensureEntitlement($employeeUid, $year, $typeId);
+		return $this->update($actorUid, $ent->getId(), $data);
+	}
+
+	/**
 	 * Bulk-set the base entitlement for a whole group (or everyone) for a year,
 	 * for a given counting leave type (§6.1).
 	 *
@@ -132,7 +150,22 @@ class EntitlementService {
 		// never fabricate balances for users/types HR never granted (§6.1/§6.2).
 		foreach ($this->entitlementMapper->findForYear($fromYear) as $prior) {
 			$carry = $this->computeCarryOver($prior->getEmployeeUid(), $fromYear, $prior->getTypeId(), $policy);
-			$next = $this->balanceService->ensureEntitlement($prior->getEmployeeUid(), $toYear, $prior->getTypeId());
+			try {
+				$next = $this->entitlementMapper->findFor($prior->getEmployeeUid(), $toYear, $prior->getTypeId());
+			} catch (DoesNotExistException) {
+				// The new year continues the prior year's base — never the global
+				// default, which would silently override HR-set custom entitlements.
+				$now = new \DateTime();
+				$next = new Entitlement();
+				$next->setEmployeeUid($prior->getEmployeeUid());
+				$next->setYear($toYear);
+				$next->setTypeId($prior->getTypeId());
+				$next->setBaseDays($prior->getBaseDays());
+				$next->setCarryOverDays(0.0);
+				$next->setManualAdjustment(0.0);
+				$next->setCreatedAt($now);
+				$next = $this->entitlementMapper->insert($next);
+			}
 			$next->setCarryOverDays($carry);
 			$next->setUpdatedAt(new \DateTime());
 			$this->entitlementMapper->update($next);

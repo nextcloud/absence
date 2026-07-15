@@ -387,6 +387,10 @@ class RequestService {
 		if (array_key_exists('workingDays', $data) && $data['workingDays'] !== null) {
 			$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays']));
 		}
+		if ($request->getEndDate() < $request->getStartDate()) {
+			throw new ValidationException('The end date must be on or after the start date.');
+		}
+		$this->assertNoOverlap($request->getEmployeeUid(), $request->getStartDate(), $request->getEndDate(), $this->chainExcludeIds($request));
 		$request->setUpdatedAt(new \DateTime());
 		$request = $this->requestMapper->update($request);
 
