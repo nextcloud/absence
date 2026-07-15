@@ -358,7 +358,34 @@ export default {
 				const today = toIso(new Date())
 				this.startIso = today
 				this.endIso = today
+				// Prefill the replacement used last time (self-service only).
+				if (!this.hrMode) {
+					this.selectedReplacement = this.pastReplacements()[0] || null
+				}
 			}
+			// Offer colleagues used before so the dropdown isn't empty (self-service).
+			if (!this.hrMode) {
+				this.replacementOptions = this.pastReplacements()
+				// Keep the current selection pickable even if it isn't in that list.
+				if (this.selectedReplacement && !this.replacementOptions.some((o) => o.uid === this.selectedReplacement.uid)) {
+					this.replacementOptions = [this.selectedReplacement, ...this.replacementOptions]
+				}
+			}
+		},
+		// Distinct colleagues used as replacement in the user's past requests, newest first.
+		pastReplacements() {
+			const seen = new Set()
+			const list = []
+			const own = store.requests
+				.filter((r) => r.employeeUid === store.session.uid && r.replacementUid)
+				.sort((a, b) => b.id - a.id)
+			for (const r of own) {
+				if (!seen.has(r.replacementUid)) {
+					seen.add(r.replacementUid)
+					list.push({ uid: r.replacementUid, displayName: r.replacementName || r.replacementUid })
+				}
+			}
+			return list
 		},
 		async onEmployeeSearch(query) {
 			if (!query || query.length < 2) {

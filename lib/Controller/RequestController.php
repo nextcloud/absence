@@ -38,17 +38,14 @@ class RequestController extends Controller {
 		int $limit = 200,
 		int $offset = 0,
 	): DataResponse {
-		return $this->handle(fn () => array_map(
-			static fn ($r) => $r->jsonSerialize(),
-			$this->service->list((string)$this->userId, [
-				'scope' => $scope,
-				'status' => $status,
-				'typeId' => $typeId,
-				'from' => $from,
-				'to' => $to,
-				'employeeUid' => $employeeUid,
-			], $limit, $offset),
-		));
+		return $this->handle(fn () => $this->service->listSerialized((string)$this->userId, [
+			'scope' => $scope,
+			'status' => $status,
+			'typeId' => $typeId,
+			'from' => $from,
+			'to' => $to,
+			'employeeUid' => $employeeUid,
+		], $limit, $offset));
 	}
 
 	#[NoAdminRequired]
