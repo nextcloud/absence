@@ -77,13 +77,23 @@
 				<label class="dialog__label">
 					{{ t('absence', 'Working days') }}<span class="dialog__req">*</span>
 				</label>
-				<NcTextField v-model="workingDays"
+				<NcTextField :model-value="workingDays"
 					type="number"
 					min="0"
 					step="0.5"
 					:label="t('absence', 'Working days')"
-					:label-visible="false" />
-				<p class="dialog__hint">{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays). Your manager will verify it.') }}</p>
+					:label-visible="false"
+					@update:model-value="onWorkingDaysInput" />
+				<p class="dialog__hint">
+					<template v-if="prefillActive">
+						{{ t('absence', 'Prefilled from your') }}
+						<a :href="settingsUrl" target="_blank" rel="noreferrer noopener" class="dialog__link">{{ t('absence', 'working days and public holidays') }}</a>
+						{{ t('absence', '— adjust it if needed. Your manager will verify it.') }}
+					</template>
+					<template v-else>
+						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays). Your manager will verify it.') }}
+					</template>
+				</p>
 			</div>
 
 			<div v-if="balanceRow && !hrMode && workingDaysNum > 0" class="preview" :style="{ '--type-color': typeColor }">
@@ -113,10 +123,10 @@
 			</div>
 
 			<div class="dialog__actions">
-				<NcButton type="tertiary" @click="$emit('close')">
+				<NcButton variant="tertiary" @click="$emit('close')">
 					{{ t('absence', 'Cancel') }}
 				</NcButton>
-				<NcButton type="primary" :disabled="!canSubmit || submitting" @click="submit">
+				<NcButton variant="primary" :disabled="!canSubmit || submitting" @click="submit">
 					<template #icon>
 						<NcLoadingIcon v-if="submitting" :size="20" />
 						<Send v-else :size="20" />
@@ -140,8 +150,10 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Send from 'vue-material-design-icons/Send.vue'
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
 import { store } from '../store.js'
-import { toIso } from '../utils/dates.js'
+import { countWorkingDays, parseWeekdays, toIso } from '../utils/dates.js'
+import { makeHolidayChecker } from '../utils/holidays.js'
 import api from '../api.js'
 
 export default {
@@ -169,6 +181,10 @@ export default {
 			startIso: null,
 			endIso: null,
 			workingDays: '',
+			// True once the user edits the field by hand — stops auto-prefill from
+			// overwriting their number (§7: prefilled but manually changeable).
+			workingDaysTouched: false,
+			holidayChecker: null,
 			reason: '',
 			submitting: false,
 			selectedEmployee: null,
@@ -238,6 +254,14 @@ export default {
 			const v = parseFloat(this.workingDays)
 			return Number.isFinite(v) ? v : 0
 		},
+		// The prefill note (with a link to the settings) only shows while the value
+		// is still auto-filled; once edited or when editing, use the plain text.
+		prefillActive() {
+			return !this.isEdit && !this.workingDaysTouched
+		},
+		settingsUrl() {
+			return generateUrl('/settings/user/availability')
+		},
 		balanceRow() {
 			// The store holds the current user's balance, so only meaningful for self-service.
 			if (!this.selectedType || this.hrMode) {
@@ -276,14 +300,42 @@ export default {
 			return true
 		},
 	},
+	watch: {
+		startIso() {
+			this.recomputePrefill()
+		},
+		endIso() {
+			this.recomputePrefill()
+		},
+	},
 	async mounted() {
 		await this.initFromProps()
 		if (!this.hrMode && !store.balance.balances.length) {
 			await store.loadMyBalance()
 		}
+		// Holiday data is heavy, so it loads in the background; prefill refreshes
+		// once it is ready. Weekday counting works immediately without it.
+		try {
+			this.holidayChecker = await makeHolidayChecker(store.session.holidayCountry, store.session.holidayRegion)
+			this.recomputePrefill()
+		} catch (e) {
+			// No holiday region / load failed — prefill stays weekday-only.
+		}
 	},
 	methods: {
 		t,
+		onWorkingDaysInput(v) {
+			this.workingDays = v
+			this.workingDaysTouched = true
+		},
+		/** Prefill the working-day count from the picked range, unless edited/editing. */
+		recomputePrefill() {
+			if (this.isEdit || this.workingDaysTouched || !this.startIso || !this.endIso) {
+				return
+			}
+			const weekdays = parseWeekdays(store.session.workWeekdays || '1,2,3,4,5')
+			this.workingDays = String(countWorkingDays(this.startIso, this.endIso, weekdays, this.holidayChecker))
+		},
 		formatDays(v) {
 			if (v === null || v === undefined) {
 				return '—'
@@ -418,6 +470,10 @@ export default {
 		margin: 4px 0 0;
 		font-size: 0.8rem;
 		color: var(--color-text-maxcontrast);
+	}
+
+	&__link {
+		text-decoration: underline;
 	}
 
 	&__actions {

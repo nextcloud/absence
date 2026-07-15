@@ -14,10 +14,12 @@
 		</ignoreFiles>
 	</projectFiles>
 	<issueHandlers>
-		<!-- The dav app's CalDavBackend is not part of the OCP stubs; resolved lazily at runtime. -->
+		<!-- dav app classes are not part of the OCP stubs; resolved lazily at runtime. -->
 		<UndefinedClass>
 			<errorLevel type="suppress">
 				<referencedClass name="OCA\DAV\CalDAV\CalDavBackend" />
+				<referencedClass name="OCA\DAV\Db\PropertyMapper" />
+				<referencedClass name="OCA\DAV\CalDAV\Schedule\Plugin" />
 			</errorLevel>
 		</UndefinedClass>
 	</issueHandlers>

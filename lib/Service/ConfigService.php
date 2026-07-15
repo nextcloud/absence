@@ -9,12 +9,22 @@ declare(strict_types=1);
 namespace OCA\Absence\Service;
 
 use OCP\IAppConfig;
+use OCP\IConfig;
 
 /**
  * Typed access to the app's admin settings (§12) and per-user personal settings.
  */
 class ConfigService {
 	public const APP_ID = 'absence';
+
+	// Per-user setting keys with defaults. Used to prefill the "Working days"
+	// field on new requests (weekday counting minus public holidays).
+	public const KEY_WORK_WEEKDAYS = 'work_weekdays';
+	public const KEY_HOLIDAY_COUNTRY = 'holiday_country';
+	public const KEY_HOLIDAY_REGION = 'holiday_region';
+
+	// ISO weekdays that count as working days by default: Mon–Fri (1..5, Sun=7).
+	public const DEFAULT_WORK_WEEKDAYS = '1,2,3,4,5';
 
 	// Admin setting keys with defaults.
 	public const KEY_HR_GROUP = 'hr_group';
@@ -35,6 +45,7 @@ class ConfigService {
 
 	public function __construct(
 		private IAppConfig $appConfig,
+		private IConfig $config,
 	) {
 	}
 
@@ -103,6 +114,25 @@ class ConfigService {
 			self::KEY_CALDAV_SHARED => $this->isCalDavSharedEnabled(),
 			self::KEY_SHARED_VISIBILITY => $this->getSharedCalendarVisibility(),
 		];
+	}
+
+	/**
+	 * Per-user settings used to prefill the "Working days" field (§7 prefill).
+	 *
+	 * @return array{work_weekdays: string, holiday_country: string, holiday_region: string}
+	 */
+	public function getPersonalConfig(string $uid): array {
+		return [
+			// Empty means "no override" — resolve() then uses the detected Availability,
+			// falling back to Mon–Fri only when nothing is detected.
+			self::KEY_WORK_WEEKDAYS => $this->config->getUserValue($uid, self::APP_ID, self::KEY_WORK_WEEKDAYS, ''),
+			self::KEY_HOLIDAY_COUNTRY => $this->config->getUserValue($uid, self::APP_ID, self::KEY_HOLIDAY_COUNTRY, ''),
+			self::KEY_HOLIDAY_REGION => $this->config->getUserValue($uid, self::APP_ID, self::KEY_HOLIDAY_REGION, ''),
+		];
+	}
+
+	public function setPersonalValue(string $uid, string $key, string $value): void {
+		$this->config->setUserValue($uid, self::APP_ID, $key, $value);
 	}
 
 	public function setAdminValue(string $key, mixed $value): void {
