@@ -39,8 +39,13 @@ class BalanceService {
 	 * @return array<int,array<int,array{used:float,pending:float}>> [typeId][year] => buckets
 	 */
 	private function computeUsage(string $employeeUid): array {
+		$requests = $this->requestMapper->findAllForEmployee($employeeUid);
+		$byId = [];
+		foreach ($requests as $request) {
+			$byId[$request->getId()] = $request;
+		}
 		$usage = [];
-		foreach ($this->requestMapper->findAllForEmployee($employeeUid) as $request) {
+		foreach ($requests as $request) {
 			$status = $request->getStatus();
 			$isUsed = in_array($status, LeaveRequest::USED_STATUSES, true);
 			$isPending = in_array($status, LeaveRequest::PENDING_STATUSES, true);
@@ -50,8 +55,22 @@ class BalanceService {
 			$typeId = $request->getTypeId();
 			// Working days are entered manually; attribute them to the year the leave starts.
 			$year = (int)substr($request->getStartDate(), 0, 4);
+			$days = $request->getWorkingDays();
+			// A pending edit of approved leave (§5.3) supersedes a request that is
+			// still counted itself, so only the extra days it asks for are genuinely
+			// pending — otherwise the same leave is deducted twice until the edit
+			// is decided. Netting only applies within the same type and year.
+			if ($isPending && $request->getSupersedesId() !== null) {
+				$original = $byId[$request->getSupersedesId()] ?? null;
+				if ($original !== null
+					&& in_array($original->getStatus(), LeaveRequest::ACTIVE_STATUSES, true)
+					&& $original->getTypeId() === $typeId
+					&& (int)substr($original->getStartDate(), 0, 4) === $year) {
+					$days = max(0.0, $days - $original->getWorkingDays());
+				}
+			}
 			$usage[$typeId][$year] ??= ['used' => 0.0, 'pending' => 0.0];
-			$usage[$typeId][$year][$isUsed ? 'used' : 'pending'] += $request->getWorkingDays();
+			$usage[$typeId][$year][$isUsed ? 'used' : 'pending'] += $days;
 		}
 		return $usage;
 	}
@@ -180,12 +199,16 @@ class BalanceService {
 		try {
 			return $this->entitlementMapper->findFor($employeeUid, $year, $typeId);
 		} catch (DoesNotExistException) {
+			// Mirror buildRow(): only the primary annual type inherits the configured
+			// default; other counting types start at zero, so creating the row never
+			// changes the computed balance (§6.1).
+			$type = $this->leaveTypeMapper->find($typeId);
 			$now = new \DateTime();
 			$ent = new Entitlement();
 			$ent->setEmployeeUid($employeeUid);
 			$ent->setYear($year);
 			$ent->setTypeId($typeId);
-			$ent->setBaseDays($this->config->getDefaultEntitlement());
+			$ent->setBaseDays($type->getKey() === 'annual' ? $this->config->getDefaultEntitlement() : 0.0);
 			$ent->setCarryOverDays(0.0);
 			$ent->setManualAdjustment(0.0);
 			$ent->setCreatedAt($now);

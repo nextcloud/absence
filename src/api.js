@@ -29,6 +29,7 @@ export default {
 	getMyBalance: (year) => axios.get(url('/api/balance'), { params: { year } }).then((r) => r.data),
 	getEmployeeBalance: (uid, year) => axios.get(url(`/api/employees/${encodeURIComponent(uid)}/balance`), { params: { year } }).then((r) => r.data),
 	listEntitlements: (employeeUid, year) => axios.get(url('/api/entitlements'), { params: { employeeUid, year } }).then((r) => r.data),
+	createEntitlement: (data) => axios.post(url('/api/entitlements'), data).then((r) => r.data),
 	updateEntitlement: (id, data) => axios.put(url(`/api/entitlements/${id}`), data).then((r) => r.data),
 	bulkEntitlements: (data) => axios.post(url('/api/entitlements/bulk'), data).then((r) => r.data),
 

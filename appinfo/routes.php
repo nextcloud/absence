@@ -25,6 +25,7 @@ return [
 		['name' => 'balance#mine', 'url' => '/api/balance', 'verb' => 'GET'],
 		['name' => 'balance#forEmployee', 'url' => '/api/employees/{uid}/balance', 'verb' => 'GET'],
 		['name' => 'entitlement#index', 'url' => '/api/entitlements', 'verb' => 'GET'],
+		['name' => 'entitlement#create', 'url' => '/api/entitlements', 'verb' => 'POST'],
 		['name' => 'entitlement#update', 'url' => '/api/entitlements/{id}', 'verb' => 'PUT'],
 		['name' => 'entitlement#bulk', 'url' => '/api/entitlements/bulk', 'verb' => 'POST'],
 

@@ -161,18 +161,21 @@ export default {
 		async save() {
 			this.saving = true
 			try {
-				let id = this.form.entitlementId
-				if (!id) {
-					// Create it via bulk-set for this single employee's group-less default, then refetch.
-					await api.bulkEntitlements({ year: this.year, typeId: this.editing.typeId, baseDays: Number(this.form.baseDays) })
-					const list = await api.listEntitlements(this.editing.employeeUid, this.year)
-					id = (list.find((e) => e.typeId === this.editing.typeId) || {}).id
-				}
-				await api.updateEntitlement(id, {
+				const data = {
 					baseDays: Number(this.form.baseDays),
 					manualAdjustment: Number(this.form.manualAdjustment),
 					adjustmentNote: this.form.adjustmentNote,
-				})
+				}
+				if (this.form.entitlementId) {
+					await api.updateEntitlement(this.form.entitlementId, data)
+				} else {
+					await api.createEntitlement({
+						employeeUid: this.editing.employeeUid,
+						year: this.year,
+						typeId: this.editing.typeId,
+						...data,
+					})
+				}
 				showSuccess(t('absence', 'Entitlement updated'))
 				this.editing = null
 				await this.reload()

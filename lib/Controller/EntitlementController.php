@@ -37,6 +37,20 @@ class EntitlementController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	public function create(string $employeeUid, int $year, int $typeId, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?string $adjustmentNote = null): DataResponse {
+		return $this->handle(function () use ($employeeUid, $year, $typeId, $baseDays, $carryOverDays, $manualAdjustment, $adjustmentNote) {
+			$this->permission->assertHr((string)$this->userId);
+			$data = array_filter([
+				'baseDays' => $baseDays,
+				'carryOverDays' => $carryOverDays,
+				'manualAdjustment' => $manualAdjustment,
+				'adjustmentNote' => $adjustmentNote,
+			], static fn ($v) => $v !== null);
+			return $this->service->setForEmployee((string)$this->userId, $employeeUid, $year, $typeId, $data)->jsonSerialize();
+		});
+	}
+
+	#[NoAdminRequired]
 	public function update(int $id, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?string $adjustmentNote = null): DataResponse {
 		return $this->handle(function () use ($id, $baseDays, $carryOverDays, $manualAdjustment, $adjustmentNote) {
 			$this->permission->assertHr((string)$this->userId);
