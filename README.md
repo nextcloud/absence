@@ -12,7 +12,8 @@ Built to the specification in [SPECIFICATION.md](./SPECIFICATION.md).
 ## Features
 
 - **Apply** for annual, sick, unpaid or special leave (configurable types) with a live
-  balance preview from the manually entered working-day count.
+  balance preview. The working-day count is prefilled from your availability and
+  public holidays in personal settings.
 - **Approve / reject** as a line manager, with team-coverage conflict warnings.
 - **Escalation**: pending requests a manager ignores are automatically escalated to HR.
 - **Full balance tracking**: entitlement, used, pending, remaining and carry-over,
@@ -34,7 +35,7 @@ Built to the specification in [SPECIFICATION.md](./SPECIFICATION.md).
 
 ![My leave](screenshots/2.png)
 
-**Request time off** — leave type, replacement picker, dates and manually entered working days:
+**Request time off** — leave type, replacement picker, dates and prefilled (editable) working days:
 
 ![Request time off dialog](screenshots/3.png)
 
@@ -139,9 +140,13 @@ The default leave types (annual, sick, unpaid, special) are seeded on install.
 
 Admin settings live under **Administration settings → Absence** (HR group, default
 entitlement, escalation window, carry-over policy, coverage threshold, CalDAV targets).
-There are **no personal settings** — working days are entered manually per request
-(no per-user holiday region), and notification preferences defer to the global
-Nextcloud notification settings.
+
+Personal settings are appended to the built-in **Personal settings → Availability**
+page. They prefill the "Working days" field on new requests: working weekdays come
+from the user's Availability (overridable), and a chosen country/region marks the
+public holidays that should not be counted as working days. The last replacement is
+also remembered and prefilled. Every prefilled value stays editable on the request
+itself. Notification preferences defer to the global Nextcloud notification settings.
 
 ## Audit logging
 
