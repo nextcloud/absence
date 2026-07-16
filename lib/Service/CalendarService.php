@@ -150,7 +150,7 @@ class CalendarService {
 
 	private function sharedTitle(LeaveRequest $request): string {
 		$name = $this->displayName($request->getEmployeeUid());
-		if ($this->config->getSharedCalendarVisibility() === 'reveal') {
+		if ($this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL) {
 			return $name . ' — ' . $this->typeLabel($request);
 		}
 		return $name . ' — Absent';

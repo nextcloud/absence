@@ -42,6 +42,7 @@ exports.
 		</install>
 		<post-migration>
 			<step>OCA\Absence\Migration\EnableAuditLogging</step>
+			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
 		</post-migration>
 		<uninstall>
 			<step>OCA\Absence\Migration\DisableAuditLogging</step>
