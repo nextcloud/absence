@@ -12,6 +12,7 @@ use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Dashboard\AbsenceWidget;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Notification\Notifier;
+use OCA\Absence\Settings\AdminDeclarativeSettings;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -27,6 +28,7 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
 		$context->registerConfigLexicon(ConfigLexicon::class);
+		$context->registerDeclarativeSettings(AdminDeclarativeSettings::class);
 		$context->registerNotifierService(Notifier::class);
 		$context->registerDashboardWidget(AbsenceWidget::class);
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);

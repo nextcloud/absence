@@ -10,8 +10,6 @@ const url = (path) => generateUrl('/apps/absence' + path)
 export default {
 	// Session & config
 	getSession: () => axios.get(url('/api/session')).then((r) => r.data),
-	getAdminConfig: () => axios.get(url('/api/admin/config')).then((r) => r.data),
-	updateAdminConfig: (values) => axios.put(url('/api/admin/config'), { values }).then((r) => r.data),
 	getPersonalConfig: () => axios.get(url('/api/personal/config')).then((r) => r.data),
 	updatePersonalConfig: (values) => axios.put(url('/api/personal/config'), { values }).then((r) => r.data),
 

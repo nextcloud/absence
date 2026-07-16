@@ -47,8 +47,6 @@ return [
 
 		// Bootstrap: who am I / config for the SPA
 		['name' => 'config#session', 'url' => '/api/session', 'verb' => 'GET'],
-		['name' => 'config#admin', 'url' => '/api/admin/config', 'verb' => 'GET'],
-		['name' => 'config#updateAdmin', 'url' => '/api/admin/config', 'verb' => 'PUT'],
 		['name' => 'config#personal', 'url' => '/api/personal/config', 'verb' => 'GET'],
 		['name' => 'config#updatePersonal', 'url' => '/api/personal/config', 'verb' => 'PUT'],
 	],

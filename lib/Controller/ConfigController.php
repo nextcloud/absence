@@ -15,7 +15,6 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
-use Psr\Log\LoggerInterface;
 
 class ConfigController extends Controller {
 	use ApiControllerTrait;
@@ -27,7 +26,6 @@ class ConfigController extends Controller {
 		private ConfigService $config,
 		private PersonalDefaultsService $personalDefaults,
 		private SessionService $sessionService,
-		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -61,36 +59,6 @@ class ConfigController extends Controller {
 				}
 			}
 			return $this->personalDefaults->resolve($uid);
-		});
-	}
-
-	/** Read the admin configuration (admin only). */
-	public function admin(): DataResponse {
-		return $this->handle(fn () => $this->config->getAdminConfig());
-	}
-
-	/**
-	 * Update admin configuration (admin only).
-	 *
-	 * @param array<string,mixed> $values
-	 */
-	public function updateAdmin(array $values): DataResponse {
-		return $this->handle(function () use ($values) {
-			$allowed = array_keys($this->config->getAdminConfig());
-			$changed = [];
-			foreach ($values as $key => $value) {
-				if (in_array($key, $allowed, true)) {
-					$this->config->setAdminValue($key, $value);
-					$changed[] = $key;
-				}
-			}
-			$this->logger->info('Absence action: admin_config_updated', [
-				'app' => 'absence',
-				'action' => 'admin_config_updated',
-				'actor' => $this->userId,
-				'changedKeys' => $changed,
-			]);
-			return $this->config->getAdminConfig();
 		});
 	}
 }
