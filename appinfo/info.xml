@@ -20,7 +20,7 @@ exports.
 * 📅 Approved leave synced to Nextcloud Calendar (personal + shared team calendar)
 * 🔔 Notifications, email and activity for every step
 	]]></description>
-	<version>1.0.4</version>
+	<version>1.0.5</version>
 	<licence>agpl</licence>
 	<author mail="frank@nextcloud.com">Frank Karlitschek</author>
 	<namespace>Absence</namespace>
@@ -49,7 +49,6 @@ exports.
 		</uninstall>
 	</repair-steps>
 	<settings>
-		<admin>OCA\Absence\Settings\Admin</admin>
 		<admin-section>OCA\Absence\Settings\AdminSection</admin-section>
 		<personal>OCA\Absence\Settings\Personal</personal>
 	</settings>

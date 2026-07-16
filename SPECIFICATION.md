@@ -881,17 +881,17 @@ apps/absence/
 │   ├── Exception/          # AbsenceException + Validation/Forbidden/NotFound/Conflict
 │   ├── Migration/          # Version1000Date… schema; Version1001/1002/1003 (columns);
 │   │                       # SeedLeaveTypes; EnableAuditLogging / DisableAuditLogging (§11)
-│   ├── Settings/           # Admin + AdminSection (no personal settings)
+│   ├── Settings/           # AdminDeclarativeSettings (server-rendered form) + AdminSection + Personal
 │   └── Listener/UserDeletedListener.php   # GDPR purge (§17)
 ├── src/                    # Vue 3 SPA: App.vue, router, store, api,
 │   │                       # utils/ (dates),
-│   │                       # views/ (MyLeave, Approvals, Team, hr/*, settings/AdminSettings),
+│   │                       # views/ (MyLeave, Approvals, Team, hr/*, settings/PersonalSettings),
 │   │                       # components/ (BalanceRing, BalanceCard, StatusChip, LeaveTypeChip,
 │   │                       # RequestListItem, RequestDialog, RequestSidebar, RequestStepper,
 │   │                       # CoveragePanel, TeamTimeline, SkeletonList,
 │   │                       # PalmIllustration, DonutChart, LineChart, BarChart)
-│   └── {main,admin-settings}.js
-├── templates/              # main.php, admin-settings.php (mount points)
+│   └── {main,personal-settings}.js
+├── templates/              # main.php, personal-settings.php (mount points)
 ├── tests/                  # phpunit.xml
 ├── README.md
 └── SPECIFICATION.md        # this file
