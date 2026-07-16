@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\AppInfo;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Dashboard\AbsenceWidget;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Notification\Notifier;
@@ -25,6 +26,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		$context->registerConfigLexicon(ConfigLexicon::class);
 		$context->registerNotifierService(Notifier::class);
 		$context->registerDashboardWidget(AbsenceWidget::class);
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);

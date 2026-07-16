@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\BackgroundJob;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EntitlementService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -33,10 +34,10 @@ class YearRolloverJob extends TimedJob {
 		$currentYear = (int)date('Y');
 
 		// Carry-over from last year into this year — run once per year.
-		$lastRollover = $this->appConfig->getValueInt(ConfigService::APP_ID, 'last_rollover_year', 0);
+		$lastRollover = $this->appConfig->getValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_LAST_ROLLOVER_YEAR);
 		if ($lastRollover < $currentYear) {
 			$this->entitlementService->rollover($currentYear - 1);
-			$this->appConfig->setValueInt(ConfigService::APP_ID, 'last_rollover_year', $currentYear);
+			$this->appConfig->setValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_LAST_ROLLOVER_YEAR, $currentYear);
 		}
 
 		// Expire carry-over that has passed its configured expiry date (safe to run daily).

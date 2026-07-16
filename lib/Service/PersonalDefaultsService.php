@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\DAV\CalDAV\Schedule\Plugin;
 use OCA\DAV\Db\PropertyMapper;
 use OCP\Accounts\IAccountManager;
@@ -66,9 +67,9 @@ class PersonalDefaultsService {
 	 */
 	public function resolve(string $uid): array {
 		$stored = $this->appConfig->getPersonalConfig($uid);
-		$overrideWeekdays = $stored[ConfigService::KEY_WORK_WEEKDAYS];
-		$overrideCountry = $stored[ConfigService::KEY_HOLIDAY_COUNTRY];
-		$region = $stored[ConfigService::KEY_HOLIDAY_REGION];
+		$overrideWeekdays = $stored[ConfigLexicon::KEY_WORK_WEEKDAYS];
+		$overrideCountry = $stored[ConfigLexicon::KEY_HOLIDAY_COUNTRY];
+		$region = $stored[ConfigLexicon::KEY_HOLIDAY_REGION];
 
 		$detectedWeekdays = $this->detectWorkingWeekdays($uid);
 		$detectedCsv = $detectedWeekdays !== null ? implode(',', $detectedWeekdays) : null;
