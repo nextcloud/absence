@@ -33,7 +33,7 @@ class CalendarController extends Controller {
 	public function index(string $from, string $to, string $scope = 'team'): DataResponse {
 		return $this->handle(function () use ($from, $to, $scope) {
 			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope);
-			$coverage = $this->service->getCoverage($uids, $from, $to);
+			$coverage = $this->service->getCoverage($uids, $from, $to, null, (string)$this->userId);
 			return ['events' => $coverage['events']];
 		});
 	}

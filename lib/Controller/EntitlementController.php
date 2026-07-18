@@ -12,6 +12,7 @@ use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -37,6 +38,7 @@ class EntitlementController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function create(string $employeeUid, int $year, int $typeId, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?string $adjustmentNote = null): DataResponse {
 		return $this->handle(function () use ($employeeUid, $year, $typeId, $baseDays, $carryOverDays, $manualAdjustment, $adjustmentNote) {
 			$this->permission->assertHr((string)$this->userId);
@@ -51,6 +53,7 @@ class EntitlementController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function update(int $id, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?string $adjustmentNote = null): DataResponse {
 		return $this->handle(function () use ($id, $baseDays, $carryOverDays, $manualAdjustment, $adjustmentNote) {
 			$this->permission->assertHr((string)$this->userId);
@@ -65,6 +68,7 @@ class EntitlementController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
 	public function bulk(int $year, int $typeId, float $baseDays, ?string $group = null): DataResponse {
 		return $this->handle(function () use ($year, $typeId, $baseDays, $group) {
 			$this->permission->assertHr((string)$this->userId);

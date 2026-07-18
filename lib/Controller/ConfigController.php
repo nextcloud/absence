@@ -13,6 +13,7 @@ use OCA\Absence\Service\PersonalDefaultsService;
 use OCA\Absence\Service\SessionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -49,6 +50,7 @@ class ConfigController extends Controller {
 	 * @param array<string,mixed> $values
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function updatePersonal(array $values): DataResponse {
 		return $this->handle(function () use ($values) {
 			$uid = (string)$this->userId;
