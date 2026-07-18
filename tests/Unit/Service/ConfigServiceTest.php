@@ -13,19 +13,23 @@ use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ConfigService;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
+use OCP\IGroupManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class ConfigServiceTest extends TestCase {
 	private IAppConfig&MockObject $appConfig;
+	private IGroupManager&MockObject $groupManager;
 	private ConfigService $service;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->appConfig = $this->createMock(IAppConfig::class);
+		$this->groupManager = $this->createMock(IGroupManager::class);
 		$this->service = new ConfigService(
 			$this->appConfig,
 			$this->createMock(IUserConfig::class),
+			$this->groupManager,
 		);
 	}
 
@@ -90,5 +94,25 @@ class ConfigServiceTest extends TestCase {
 		$this->appConfig->expects($this->once())->method('setValueBool')
 			->with(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, false);
 		$this->service->setAdminValue(ConfigLexicon::KEY_CALDAV_SHARED, false);
+	}
+
+	public function testExistingHrGroupIsStored(): void {
+		$this->groupManager->method('groupExists')->with('hr-team')->willReturn(true);
+		$this->appConfig->expects($this->once())->method('setValueString')
+			->with(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr-team');
+		$this->service->setAdminValue(ConfigLexicon::KEY_HR_GROUP, 'hr-team');
+	}
+
+	public function testUnknownHrGroupIsRejected(): void {
+		$this->groupManager->method('groupExists')->with('ghosts')->willReturn(false);
+		$this->appConfig->expects($this->never())->method('setValueString');
+		$this->expectException(ValidationException::class);
+		$this->service->setAdminValue(ConfigLexicon::KEY_HR_GROUP, 'ghosts');
+	}
+
+	public function testEmptyHrGroupIsRejected(): void {
+		$this->appConfig->expects($this->never())->method('setValueString');
+		$this->expectException(ValidationException::class);
+		$this->service->setAdminValue(ConfigLexicon::KEY_HR_GROUP, '');
 	}
 }

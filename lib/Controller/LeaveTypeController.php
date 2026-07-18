@@ -11,16 +11,23 @@ namespace OCA\Absence\Controller;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\NotFoundException;
+use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 
 class LeaveTypeController extends Controller {
 	use ApiControllerTrait;
+
+	// Must stay within the column lengths in Version1000Date20260710000000.
+	private const MAX_KEY_LENGTH = 32;
+	private const MAX_LABEL_LENGTH = 128;
+	private const MAX_ICON_LENGTH = 16;
 
 	public function __construct(
 		string $appName,
@@ -42,9 +49,14 @@ class LeaveTypeController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function create(string $key, string $label, string $color = '#0082c9', string $icon = '🌴', bool $countsAgainstBalance = false, bool $requiresApproval = true, bool $requiresNote = false, bool $requiresReplacement = false, bool $employeeRequestable = true, int $sortOrder = 0): DataResponse {
 		return $this->handle(function () use ($key, $label, $color, $icon, $countsAgainstBalance, $requiresApproval, $requiresNote, $requiresReplacement, $employeeRequestable, $sortOrder) {
 			$this->permission->assertHr((string)$this->userId);
+			$this->assertValidColor($color);
+			$this->assertValidText('key', $key, self::MAX_KEY_LENGTH, required: true);
+			$this->assertValidText('label', $label, self::MAX_LABEL_LENGTH, required: true);
+			$this->assertValidText('icon', $icon, self::MAX_ICON_LENGTH, required: false);
 			$type = new LeaveType();
 			$type->setKey($key);
 			$type->setLabel($label);
@@ -64,6 +76,7 @@ class LeaveTypeController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function update(int $id, ?string $label = null, ?string $color = null, ?string $icon = null, ?bool $countsAgainstBalance = null, ?bool $requiresApproval = null, ?bool $requiresNote = null, ?bool $requiresReplacement = null, ?bool $employeeRequestable = null, ?bool $enabled = null, ?int $sortOrder = null): DataResponse {
 		return $this->handle(function () use ($id, $label, $color, $icon, $countsAgainstBalance, $requiresApproval, $requiresNote, $requiresReplacement, $employeeRequestable, $enabled, $sortOrder) {
 			$this->permission->assertHr((string)$this->userId);
@@ -73,12 +86,15 @@ class LeaveTypeController extends Controller {
 				throw new NotFoundException('Leave type not found');
 			}
 			if ($label !== null) {
+				$this->assertValidText('label', $label, self::MAX_LABEL_LENGTH, required: true);
 				$type->setLabel($label);
 			}
 			if ($color !== null) {
+				$this->assertValidColor($color);
 				$type->setColor($color);
 			}
 			if ($icon !== null) {
+				$this->assertValidText('icon', $icon, self::MAX_ICON_LENGTH, required: false);
 				$type->setIcon($icon);
 			}
 			if ($countsAgainstBalance !== null) {
@@ -108,7 +124,36 @@ class LeaveTypeController extends Controller {
 		});
 	}
 
+	/**
+	 * The color is rendered into CSS on the client (custom properties and a
+	 * `color-mix(...)` background). Restrict it to a plain hex color so no other CSS
+	 * tokens (e.g. an attacker-hosted `url(...)`) can be smuggled through.
+	 *
+	 * @throws ValidationException
+	 */
+	private function assertValidColor(string $color): void {
+		if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $color) !== 1) {
+			throw new ValidationException('The color must be a hex value like #0082c9.');
+		}
+	}
+
+	/**
+	 * Reject text that is empty (when required) or longer than its database column,
+	 * so an over-long value is a clean 422 rather than a database exception.
+	 *
+	 * @throws ValidationException
+	 */
+	private function assertValidText(string $field, string $value, int $maxLength, bool $required): void {
+		if ($required && trim($value) === '') {
+			throw new ValidationException("The $field cannot be empty.");
+		}
+		if (mb_strlen($value) > $maxLength) {
+			throw new ValidationException("The $field is too long (max $maxLength characters).");
+		}
+	}
+
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function destroy(int $id): DataResponse {
 		return $this->handle(function () use ($id) {
 			$this->permission->assertHr((string)$this->userId);

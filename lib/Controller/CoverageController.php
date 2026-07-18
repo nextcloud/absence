@@ -30,7 +30,7 @@ class CoverageController extends Controller {
 	public function index(string $from, string $to, string $scope = 'team'): DataResponse {
 		return $this->handle(function () use ($from, $to, $scope) {
 			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope);
-			return $this->service->getCoverage($uids, $from, $to);
+			return $this->service->getCoverage($uids, $from, $to, null, (string)$this->userId);
 		});
 	}
 }

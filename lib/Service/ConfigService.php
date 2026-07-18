@@ -12,6 +12,7 @@ use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Exception\ValidationException;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
+use OCP\IGroupManager;
 
 /**
  * Typed access to the app's admin settings (§12) and per-user personal settings.
@@ -34,6 +35,7 @@ class ConfigService {
 	public function __construct(
 		private IAppConfig $appConfig,
 		private IUserConfig $userConfig,
+		private IGroupManager $groupManager,
 	) {
 	}
 
@@ -169,7 +171,14 @@ class ConfigService {
 				$this->appConfig->setValueString(self::APP_ID, $key, $expiry);
 				break;
 			case ConfigLexicon::KEY_HR_GROUP:
-				$this->appConfig->setValueString(self::APP_ID, $key, (string)$value);
+				$gid = (string)$value;
+				// Reject an empty or unknown group: an empty HR group silently disables
+				// the HR role (nobody can act on escalations), and a typo'd group name
+				// would do the same without any feedback.
+				if ($gid === '' || !$this->groupManager->groupExists($gid)) {
+					throw new ValidationException('The chosen HR group does not exist.');
+				}
+				$this->appConfig->setValueString(self::APP_ID, $key, $gid);
 				break;
 			default:
 				throw new ValidationException('Unknown setting: ' . $key);

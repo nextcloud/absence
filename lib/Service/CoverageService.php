@@ -16,6 +16,8 @@ use OCP\IUserManager;
  * Team coverage / who's-off computation and conflict detection (spec §8).
  */
 class CoverageService {
+	use DateRangeTrait;
+
 	public const SCOPE_TEAM = 'team';
 	public const SCOPE_COMPANY = 'company';
 
@@ -52,10 +54,19 @@ class CoverageService {
 	/**
 	 * Who's-off events + per-day concurrency for a set of employees in a range.
 	 *
+	 * The leave *type* of another employee is only revealed when the admin set the
+	 * shared-calendar visibility to "reveal"; under the default "neutral" policy the
+	 * viewer sees that a colleague is absent but not the category (e.g. sick leave),
+	 * mirroring {@see CalendarService::sharedTitle}. The viewer always sees their own
+	 * types. When no viewer is given, types are neutralised for everyone under the
+	 * neutral policy (fail-closed).
+	 *
 	 * @param string[] $employeeUids
 	 * @return array{events:list<array<string,mixed>>,byDate:array<string,int>,maxConcurrent:int,threshold:int,conflict:bool}
 	 */
-	public function getCoverage(array $employeeUids, string $from, string $to, ?int $excludeRequestId = null): array {
+	public function getCoverage(array $employeeUids, string $from, string $to, ?int $excludeRequestId = null, ?string $viewerUid = null): array {
+		[$from, $to] = $this->assertValidRange($from, $to);
+		$revealTypes = $this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL;
 		$statuses = [LeaveRequest::STATUS_APPROVED, LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED, LeaveRequest::STATUS_WITHDRAWAL_PENDING];
 		$requests = $this->requestMapper->findForEmployeesInRange($employeeUids, $from, $to, $statuses);
 
@@ -65,11 +76,12 @@ class CoverageService {
 			if ($excludeRequestId !== null && $request->getId() === $excludeRequestId) {
 				continue;
 			}
+			$ownEvent = $viewerUid !== null && $request->getEmployeeUid() === $viewerUid;
 			$events[] = [
 				'requestId' => $request->getId(),
 				'employeeUid' => $request->getEmployeeUid(),
 				'displayName' => $this->displayName($request->getEmployeeUid()),
-				'typeId' => $request->getTypeId(),
+				'typeId' => ($revealTypes || $ownEvent) ? $request->getTypeId() : null,
 				'status' => $request->getStatus(),
 				'start' => $request->getStartDate(),
 				'end' => $request->getEndDate(),
@@ -99,10 +111,10 @@ class CoverageService {
 	 *
 	 * @return array<string,mixed>
 	 */
-	public function getRequestCoverage(LeaveRequest $request): array {
+	public function getRequestCoverage(LeaveRequest $request, ?string $viewerUid = null): array {
 		$team = $this->teamOf($request->getEmployeeUid(), $request->getManagerUid());
 		$others = array_values(array_filter($team, static fn (string $uid): bool => $uid !== $request->getEmployeeUid()));
-		$coverage = $this->getCoverage($others, $request->getStartDate(), $request->getEndDate(), $request->getId());
+		$coverage = $this->getCoverage($others, $request->getStartDate(), $request->getEndDate(), $request->getId(), $viewerUid);
 
 		$threshold = $this->config->getMaxConcurrentAbsences();
 		// Approving this request would add one concurrent absence on top of others.
