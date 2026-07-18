@@ -23,9 +23,16 @@ trait ApiControllerTrait {
 		try {
 			return new DataResponse($fn());
 		} catch (AbsenceException $e) {
+			// Domain exceptions carry deliberate, user-safe messages.
 			return new DataResponse(['message' => $e->getMessage()], $e->getHttpStatus());
 		} catch (\Throwable $e) {
-			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			// Never leak internal exception text (DB errors, paths, class names) to the
+			// client. Log the detail for operators and return a generic message.
+			\OCP\Server::get(\Psr\Log\LoggerInterface::class)->error(
+				'Absence: unhandled error in API request',
+				['exception' => $e, 'app' => 'absence'],
+			);
+			return new DataResponse(['message' => 'An unexpected error occurred.'], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 }

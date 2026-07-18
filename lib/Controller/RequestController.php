@@ -91,21 +91,25 @@ class RequestController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function cancel(int $id): DataResponse {
 		return $this->handle(fn () => $this->service->cancel((string)$this->userId, $id)->jsonSerialize());
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function approve(int $id, ?string $comment = null): DataResponse {
 		return $this->handle(fn () => $this->service->approve((string)$this->userId, $id, $comment)->jsonSerialize());
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function reject(int $id, string $comment): DataResponse {
 		return $this->handle(fn () => $this->service->reject((string)$this->userId, $id, $comment)->jsonSerialize());
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function addComment(int $id, string $body): DataResponse {
 		return $this->handle(fn () => $this->service->addComment((string)$this->userId, $id, $body)->jsonSerialize());
 	}

@@ -29,6 +29,10 @@ use Psr\Log\LoggerInterface;
  * calendar, notifications and activity.
  */
 class RequestService {
+	/** Cap on free-text fields to keep rows bounded and prevent storage abuse. */
+	private const MAX_REASON_LENGTH = 2000;
+	private const MAX_COMMENT_LENGTH = 4000;
+
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
 		private RequestCommentMapper $commentMapper,
@@ -109,7 +113,7 @@ class RequestService {
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
 		$detail = $this->withReplacementName($detail, $request);
 		if ($detail['canDecide']) {
-			$detail['coverage'] = $this->coverage->getRequestCoverage($request);
+			$detail['coverage'] = $this->coverage->getRequestCoverage($request, $actorUid);
 		}
 		return $detail;
 	}
@@ -296,6 +300,7 @@ class RequestService {
 
 	private function editInPlace(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
 		$type = $this->resolveType((int)($data['typeId'] ?? $request->getTypeId()));
+		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $request->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $request->getEndDate()));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? $request->getReason() ?? ''), (string)($data['attachmentNote'] ?? $request->getAttachmentNote() ?? ''));
@@ -329,6 +334,7 @@ class RequestService {
 
 	private function createSuperseding(string $actorUid, LeaveRequest $original, array $data): LeaveRequest {
 		$type = $this->resolveType((int)($data['typeId'] ?? $original->getTypeId()));
+		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $original->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $original->getEndDate()));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
@@ -377,6 +383,9 @@ class RequestService {
 			$request->setEndDate($this->normaliseDate((string)$data['endDate']));
 		}
 		if (array_key_exists('reason', $data)) {
+			if ($data['reason'] !== null && mb_strlen((string)$data['reason']) > self::MAX_REASON_LENGTH) {
+				throw new ValidationException('The reason is too long.');
+			}
 			$request->setReason($data['reason']);
 		}
 		if (array_key_exists('replacementUid', $data)) {
@@ -468,6 +477,9 @@ class RequestService {
 	// ------------------------------------------------------------- decisions ----
 
 	public function approve(string $actorUid, int $id, ?string $comment): LeaveRequest {
+		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
+			throw new ValidationException('Comment is too long.');
+		}
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canDecide($actorUid, $request)) {
 			throw new ForbiddenException('Not allowed to decide this request');
@@ -502,6 +514,9 @@ class RequestService {
 	public function reject(string $actorUid, int $id, string $comment): LeaveRequest {
 		if (trim($comment) === '') {
 			throw new ValidationException('A comment is required when rejecting.');
+		}
+		if (mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
+			throw new ValidationException('Comment is too long.');
 		}
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canDecide($actorUid, $request)) {
@@ -561,6 +576,9 @@ class RequestService {
 		if (trim($body) === '') {
 			throw new ValidationException('Comment cannot be empty.');
 		}
+		if (mb_strlen($body) > self::MAX_COMMENT_LENGTH) {
+			throw new ValidationException('Comment is too long.');
+		}
 		$comment = new RequestComment();
 		$comment->setRequestId($request->getId());
 		$comment->setAuthorUid($actorUid);
@@ -579,7 +597,7 @@ class RequestService {
 	 * own history timeline shown to the employee, manager and HR (§15.1).
 	 *
 	 * @param array<string,mixed> $extra `actor` and optional `detail` are consumed;
-	 *                                    everything else is added to the log context.
+	 *                                   everything else is added to the log context.
 	 */
 	private function audit(string $action, LeaveRequest $request, array $extra = []): void {
 		$actor = (string)($extra['actor'] ?? 'system');
@@ -666,6 +684,20 @@ class RequestService {
 		return $type;
 	}
 
+	/**
+	 * Guard the employee edit paths against reclassifying a request into a leave type
+	 * that only HR may record (e.g. sick leave). Without this an employee could edit
+	 * their own request to an HR-only or non-balance-counting type, mirroring the same
+	 * check {@see create()} applies on submission (§5.6).
+	 *
+	 * @throws ForbiddenException
+	 */
+	private function assertSelfRequestable(LeaveType $type): void {
+		if (!$type->getEmployeeRequestable()) {
+			throw new ForbiddenException('This leave type is recorded by HR, not self-requested.');
+		}
+	}
+
 	private function normaliseDate(string $date): string {
 		$dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
 		if ($dt === false) {
@@ -704,6 +736,12 @@ class RequestService {
 		}
 		if ($type->getRequiresNote() && trim($reason) === '' && trim($note) === '') {
 			throw new ValidationException('This leave type requires a note.');
+		}
+		if (mb_strlen($reason) > self::MAX_REASON_LENGTH) {
+			throw new ValidationException('The reason is too long.');
+		}
+		if (mb_strlen($note) > self::MAX_REASON_LENGTH) {
+			throw new ValidationException('The note is too long.');
 		}
 	}
 

@@ -36,6 +36,11 @@ export const store = reactive({
 
 	// ---- getters ----
 	leaveType(id) {
+		// A null/undefined id means the server withheld the leave type (neutral
+		// shared-calendar visibility): show a generic "Absent" marker, not "Unknown".
+		if (id === null || id === undefined) {
+			return { label: t('absence', 'Absent'), color: '#888', icon: '🌴' }
+		}
 		return this.leaveTypes.find((t) => t.id === id) || { label: t('absence', 'Unknown'), color: '#888', icon: '❔' }
 	},
 	/** True when the type is recorded by HR (e.g. sick leave), not self-requested. */

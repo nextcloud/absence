@@ -18,6 +18,8 @@ use OCP\IUserManager;
  * HR reporting: per-employee balances and company-wide trend aggregation (§13).
  */
 class ReportService {
+	use DateRangeTrait;
+
 	public function __construct(
 		private BalanceService $balanceService,
 		private LeaveRequestMapper $requestMapper,
@@ -54,6 +56,7 @@ class ReportService {
 	 * @return array{byMonth:array<string,float>,byType:list<array<string,mixed>>,total:float}
 	 */
 	public function trends(string $from, string $to): array {
+		[$from, $to] = $this->assertValidRange($from, $to);
 		$byMonth = [];
 		$byType = [];
 		$total = 0.0;

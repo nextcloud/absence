@@ -17,6 +17,8 @@ use OCP\IUserManager;
  * app carries no heavy spreadsheet dependency in phase 1.
  */
 class ExportService {
+	use DateRangeTrait;
+
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
@@ -26,10 +28,10 @@ class ExportService {
 	}
 
 	/**
-	 * @param array<string,mixed> $filters
 	 * @return array{filename:string,content:string}
 	 */
 	public function requestsCsv(string $from, string $to): array {
+		[$from, $to] = $this->assertValidRange($from, $to);
 		$types = $this->typeLabels();
 		$rows = [[
 			'ID', 'Employee', 'Manager', 'Type', 'Start', 'End', 'Working days', 'Status', 'Decided by', 'Decided at',
@@ -85,12 +87,28 @@ class ExportService {
 		// BOM so Excel opens UTF-8 correctly.
 		fwrite($handle, "\xEF\xBB\xBF");
 		foreach ($rows as $row) {
-			fputcsv($handle, $row);
+			// escape: '' disables PHP's legacy backslash escaping in favour of pure
+			// RFC-4180 quoting (and silences the 8.4 deprecation of the default).
+			fputcsv($handle, array_map([$this, 'sanitizeCell'], $row), ',', '"', '');
 		}
 		rewind($handle);
 		$content = stream_get_contents($handle);
 		fclose($handle);
 		return $content === false ? '' : $content;
+	}
+
+	/**
+	 * Neutralize spreadsheet formula injection: a cell that begins with a formula
+	 * trigger (=, +, -, @, tab or CR) is evaluated by Excel/LibreOffice/Sheets when
+	 * the export is opened. Employee display names and leave-type labels are
+	 * attacker-influenced free text, so prefix any such value with an apostrophe,
+	 * which forces the client to treat the whole cell as literal text.
+	 */
+	private function sanitizeCell(string $value): string {
+		if ($value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+			return "'" . $value;
+		}
+		return $value;
 	}
 
 	/**
