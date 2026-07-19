@@ -29,6 +29,7 @@ class NotificationService {
 	public const SUBJECT_REJECTED = 'rejected';
 	public const SUBJECT_REMINDER = 'reminder';
 	public const SUBJECT_WITHDRAWAL = 'withdrawal';
+	public const SUBJECT_WITHDRAWAL_REJECTED = 'withdrawal_rejected';
 	public const SUBJECT_REPLACEMENT_ASSIGNED = 'replacement_assigned';
 	public const SUBJECT_REPLACEMENT_CANCELLED = 'replacement_cancelled';
 
@@ -66,6 +67,11 @@ class NotificationService {
 		foreach ($recipientUids as $uid) {
 			$this->send($uid, self::SUBJECT_WITHDRAWAL, $request, true);
 		}
+	}
+
+	/** Tell the employee their withdrawal was declined — the leave stays approved. */
+	public function notifyWithdrawalRejected(LeaveRequest $request): void {
+		$this->send($request->getEmployeeUid(), self::SUBJECT_WITHDRAWAL_REJECTED, $request, false);
 	}
 
 	/** Tell the nominated replacement they now cover for the employee (§5.1). */
@@ -171,6 +177,12 @@ class NotificationService {
 			self::SUBJECT_WITHDRAWAL => [
 				$l->t('Withdrawal requested: %s', [$employee]),
 				$l->t('%1$s asked to withdraw approved leave for %2$s. Please review it in Absence.', [$employee, $range]),
+			],
+			self::SUBJECT_WITHDRAWAL_REJECTED => [
+				$l->t('Your withdrawal request was declined'),
+				// The refusal reason is recorded as a comment on the request, not in
+				// decision_comment (that still holds the original approval note).
+				$l->t('Your request to withdraw the leave for %s was declined — the leave stays approved. See the comments on the request for the reason.', [$range]),
 			],
 			self::SUBJECT_REPLACEMENT_ASSIGNED => [
 				$l->t('You are covering for %s', [$employee]),

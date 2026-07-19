@@ -19,6 +19,8 @@ use OCP\BackgroundJob\TimedJob;
  * window (spec §9). Runs daily.
  */
 class ReminderJob extends TimedJob {
+	use WorkingDaysTrait;
+
 	public function __construct(
 		ITimeFactory $time,
 		private LeaveRequestMapper $requestMapper,
@@ -36,11 +38,16 @@ class ReminderJob extends TimedJob {
 		$reminderThreshold = max(1, $window - $lead);
 
 		// Remind only requests that cross the threshold *on this run* — i.e. created
-		// in the one-day band [threshold+1, threshold) days ago — so a pending request
-		// is reminded once, not on every daily run (avoids spam).
+		// in the one-working-day band ending `threshold` working days ago — so a
+		// pending request is reminded once, not on every daily run (avoids spam).
+		// Skip weekend runs entirely: Sat/Sun/Mon would all resolve to the same
+		// working-day band and remind the same cohort up to three times.
 		$today = new \DateTimeImmutable('today', new \DateTimeZone('UTC'));
-		$before = $today->modify('-' . $reminderThreshold . ' days');
-		$after = $today->modify('-' . ($reminderThreshold + 1) . ' days');
+		if ((int)$today->format('N') > 5) {
+			return;
+		}
+		$before = $this->subtractWorkingDays($today, $reminderThreshold);
+		$after = $this->subtractWorkingDays($before, 1);
 
 		foreach ($this->requestMapper->findPendingCreatedBetween($after, $before) as $request) {
 			if ($request->getManagerUid() !== null) {

@@ -67,6 +67,10 @@ class Notifier implements INotifier {
 				$l->t('%s asked to withdraw approved leave', [$employee]),
 				$l->t('Review the withdrawal in Absence.'),
 			],
+			NotificationService::SUBJECT_WITHDRAWAL_REJECTED => [
+				$l->t('Your withdrawal request was declined'),
+				$l->t('Your leave stays approved.'),
+			],
 			NotificationService::SUBJECT_REPLACEMENT_ASSIGNED => [
 				$l->t('You are covering for %s 🌱', [$employee]),
 				$l->t('They named you as their replacement while they are on leave.'),

@@ -263,11 +263,17 @@ export default {
 			return generateUrl('/settings/user/availability')
 		},
 		balanceRow() {
-			// The store holds the current user's balance, so only meaningful for self-service.
-			if (!this.selectedType || this.hrMode) {
+			// The store holds the current user's balance, so only meaningful for
+			// self-service. Match the year the leave starts in — the balance list is
+			// sorted newest-year first, so taking the first type match would show
+			// next year's numbers as soon as any next-year data exists. When there is
+			// no row for that year yet (e.g. booking far ahead), show no preview
+			// rather than a wrong one.
+			if (!this.selectedType || this.hrMode || !this.startIso) {
 				return null
 			}
-			return store.balance.balances.find((b) => b.typeId === this.selectedType.id && b.entitlement !== null) || null
+			const year = parseInt(this.startIso.slice(0, 4), 10)
+			return store.balance.balances.find((b) => b.typeId === this.selectedType.id && b.year === year && b.entitlement !== null) || null
 		},
 		projectedAvailable() {
 			if (!this.balanceRow) {

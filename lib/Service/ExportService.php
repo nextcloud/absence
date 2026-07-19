@@ -105,6 +105,11 @@ class ExportService {
 	 * which forces the client to treat the whole cell as literal text.
 	 */
 	private function sanitizeCell(string $value): string {
+		// Plain numbers are never formulas: a negative adjustment like "-2" must stay
+		// numeric instead of being exported as the text "'-2".
+		if (is_numeric($value)) {
+			return $value;
+		}
 		if ($value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
 			return "'" . $value;
 		}
