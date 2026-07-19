@@ -8,6 +8,8 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Listener;
 
+use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Service\CalendarService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -23,6 +25,8 @@ use Psr\Log\LoggerInterface;
 class UserDeletedListener implements IEventListener {
 	public function __construct(
 		private IDBConnection $db,
+		private LeaveRequestMapper $requestMapper,
+		private CalendarService $calendar,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -38,6 +42,18 @@ class UserDeletedListener implements IEventListener {
 			'employee' => $uid,
 		]);
 
+		// Remove the calendar events of the user's leave *before* the request rows go:
+		// they hold the calendar_event_uri references, and the shared team calendar
+		// would otherwise keep "Name — Absent" events forever. Best-effort: a calendar
+		// failure must not block the purge.
+		foreach ($this->requestMapper->findAllForEmployee($uid) as $request) {
+			try {
+				$this->calendar->onRemoved($request);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: could not remove calendar events for purged user', ['exception' => $e]);
+			}
+		}
+
 		// Remove comments and history events on the user's requests, plus comments
 		// the user authored elsewhere.
 		$requestIds = $this->requestIdsForEmployee($uid);
@@ -51,12 +67,14 @@ class UserDeletedListener implements IEventListener {
 		$this->deleteWhereEquals('absence_requests', 'employee_uid', $uid);
 		$this->deleteWhereEquals('absence_entitlements', 'employee_uid', $uid);
 
-		// Detach the user as a manager from any remaining requests.
-		$qb = $this->db->getQueryBuilder();
-		$qb->update('absence_requests')
-			->set('manager_uid', $qb->createNamedParameter(null))
-			->where($qb->expr()->eq('manager_uid', $qb->createNamedParameter($uid)));
-		$qb->executeStatement();
+		// Detach the user as a manager or replacement from any remaining requests.
+		foreach (['manager_uid', 'replacement_uid'] as $column) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('absence_requests')
+				->set($column, $qb->createNamedParameter(null))
+				->where($qb->expr()->eq($column, $qb->createNamedParameter($uid)));
+			$qb->executeStatement();
+		}
 	}
 
 	/**

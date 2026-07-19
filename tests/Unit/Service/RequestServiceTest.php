@@ -115,6 +115,64 @@ class RequestServiceTest extends TestCase {
 		$this->service->update('emp', 5, ['typeId' => 9]);
 	}
 
+	public function testApprovingWithdrawalNotifiesReplacement(): void {
+		// Approved leave with a nominated replacement, now awaiting withdrawal approval.
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+		$request->setManagerUid('mgr');
+		$request->setReplacementUid('rep');
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+
+		// The replacement was told they cover (§5.1) — withdrawing must tell them to stop.
+		$this->notifications->expects(self::once())->method('notifyReplacementCancelled');
+		$this->calendar->expects(self::once())->method('onRemoved');
+
+		$result = $this->service->approve('mgr', 5, null);
+		self::assertSame(LeaveRequest::STATUS_CANCELLED, $result->getStatus());
+	}
+
+	public function testRejectingWithdrawalSendsWithdrawalRejectedNotification(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+		$request->setManagerUid('mgr');
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+
+		// A declined withdrawal is not an approval — no "your leave was approved 🎉".
+		$this->notifications->expects(self::once())->method('notifyWithdrawalRejected');
+		$this->notifications->expects(self::never())->method('notifyDecision');
+
+		$result = $this->service->reject('mgr', 5, 'We need you that week');
+		self::assertSame(LeaveRequest::STATUS_APPROVED, $result->getStatus());
+	}
+
+	public function testSecondSupersedingEditIsRejected(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$this->requestMapper->method('find')->with(5)->willReturn($original);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->willReturn(false);
+
+		// One edit is already in flight for this approved request.
+		$pendingEdit = new LeaveRequest();
+		$pendingEdit->setId(6);
+		$pendingEdit->setSupersedesId(5);
+		$pendingEdit->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('findBySupersedesId')->with(5)->willReturn([$pendingEdit]);
+
+		// A second one must not be created: both could be approved and overlap.
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$this->expectException(\OCA\Absence\Exception\ConflictException::class);
+		$this->service->update('emp', 5, ['startDate' => '2026-03-02', 'endDate' => '2026-03-04']);
+	}
+
 	public function testAddCommentRejectsOverlongBody(): void {
 		$request = $this->pendingOwnRequest();
 		$this->requestMapper->method('find')->with(5)->willReturn($request);

@@ -33,7 +33,7 @@ class PersonalDefaultsService {
 
 	// Phone calling code → ISO country, longest-prefix matched. Not exhaustive —
 	// it is a best-effort suggestion the user can override.
-	// ponytail: hand-picked common codes; swap for libphonenumber if coverage matters.
+	// TODO: hand-picked common codes; swap for libphonenumber if coverage matters.
 	private const CALLING_CODES = [
 		'1' => 'US', '7' => 'RU', '20' => 'EG', '27' => 'ZA', '30' => 'GR', '31' => 'NL',
 		'32' => 'BE', '33' => 'FR', '34' => 'ES', '36' => 'HU', '39' => 'IT', '40' => 'RO',

@@ -57,6 +57,13 @@ class LeaveTypeController extends Controller {
 			$this->assertValidText('key', $key, self::MAX_KEY_LENGTH, required: true);
 			$this->assertValidText('label', $label, self::MAX_LABEL_LENGTH, required: true);
 			$this->assertValidText('icon', $icon, self::MAX_ICON_LENGTH, required: false);
+			// The key is unique in the schema; check first so a duplicate is a clean
+			// 422 instead of a database exception surfacing as a 500.
+			foreach ($this->mapper->findAll() as $existing) {
+				if ($existing->getKey() === $key) {
+					throw new ValidationException('A leave type with this key already exists.');
+				}
+			}
 			$type = new LeaveType();
 			$type->setKey($key);
 			$type->setLabel($label);

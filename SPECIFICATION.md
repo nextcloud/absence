@@ -303,6 +303,9 @@ HR can change it via the HR edit path.
   `APPROVED` until the new one is approved. On approval of the superseding request,
   the original transitions to `CANCELLED` and balance is recomputed. On rejection,
   the superseding request becomes `REJECTED` and the original remains `APPROVED`.
+  **Only one edit may be in flight per approved request:** while a superseding
+  request is non-terminal, further edit attempts on the original are rejected
+  (409) — otherwise two edits could both be approved and overlap.
 - **Approved request — withdraw:** employee requests withdrawal → status
   `WITHDRAWAL_PENDING`; manager/HR must approve the withdrawal. On approval →
   `CANCELLED` (balance restored); on rejection → back to `APPROVED`.
@@ -393,8 +396,21 @@ public-holiday calendar for every region is impractical, so the app does not att
   requests if precise per-year accounting is needed.
 
 > Consequences of removing holidays: there is **no `WorkingDayCalculator`, no public
-> holidays feature (`absence_holidays`), and no per-user/region setting** — the personal
-> settings page and the admin "default region" option are gone.
+> holidays feature (`absence_holidays`)**, and the admin "default region" option is gone.
+> The entered value is always authoritative; the server never recomputes it.
+
+### 7.1 Client-side prefill (convenience only)
+
+To save typing, the request dialog **prefills** the working-days field with a
+client-side estimate: days in the picked range that fall on the user's working
+weekdays (detected from their Availability settings, overridable) minus public
+holidays (from the bundled `date-holidays` data, for a country/region the user may
+set; detected from locale/phone as a suggestion). The estimate is served by
+`PersonalDefaultsService` + `/api/personal/config`, with a small personal-settings
+section appended to the built-in **Availability** page (`lib/Settings/Personal.php`).
+The prefill stops as soon as the user edits the field, is absent when editing an
+existing request, and is **never used server-side** — the manually confirmed number
+is what counts (§7).
 
 ---
 
@@ -513,9 +529,10 @@ new "Absence" settings section or "Personal info"/"Administration"):
 | Shared calendar type-visibility | neutral | Reveal type vs "Absent" on shared cal. |
 | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. |
 
-There is **no personal settings page** — the only per-user setting (holiday region) was
-removed with the working-day calculator (§7). Notification preferences defer to the
-global Nextcloud notification settings.
+The only personal settings are the **working-day prefill** preferences (§7.1) — a
+small section appended to the built-in Availability page, not a separate Absence
+settings page. Notification preferences defer to the global Nextcloud notification
+settings.
 
 > **Note on out-of-office:** the app does **not** touch the built-in
 > `user_status` out-of-office / auto-responder feature. Calendar busy state (§10) is
@@ -994,6 +1011,15 @@ Recorded during the build so the spec matches the code:
   working-day helpers; the request dialog uses the standard native date pickers plus a
   manual "Working days" field. App bumped to 1.0.4. (The `absence_holidays` table is left
   as an unused orphan on already-installed instances.)
+- **Working-day prefill** (§7.1, added after the holidays feature was removed): the
+  request dialog prefills `working_days` from the user's Availability weekdays and a
+  lazily-loaded `date-holidays` dataset, configurable in a personal-settings section on
+  the Availability page. Purely client-side convenience — the server still stores the
+  number as entered.
+- **Escalation & reminder windows count working days** (Mon–Fri approximation, §5.4):
+  a request filed on Friday does not burn its manager's window over the weekend.
+- **One in-flight edit per approved request** (§5.3): a second superseding edit is
+  rejected with 409 while one is pending.
 - **Mandatory replacement** (§5.1): a `requires_replacement` leave-type flag (annual/
   unpaid/special = true) + a `replacement_uid` on requests (`Version1003…`, app bumped
   to 1.0.3). The request dialog shows a mandatory org-wide user picker; the backend

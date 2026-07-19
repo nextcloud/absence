@@ -283,8 +283,10 @@ class RequestService {
 		}
 		$isHr = $this->permission->isHr($actorUid);
 
-		// HR override: edit in place on any status, keeping calendar in sync.
-		if ($isHr && $actorUid !== $request->getEmployeeUid()) {
+		// HR override: edit in place on any status, keeping calendar in sync. This is
+		// also the only edit path for HR-recorded leave (e.g. sick), even the HR
+		// member's own record — the employee path below would reject it (§5.6).
+		if ($isHr && ($actorUid !== $request->getEmployeeUid() || $this->isHrRecordedType($request))) {
 			return $this->hrEdit($actorUid, $request, $data);
 		}
 
@@ -333,6 +335,15 @@ class RequestService {
 	}
 
 	private function createSuperseding(string $actorUid, LeaveRequest $original, array $data): LeaveRequest {
+		// Only one edit may be in flight per approved request: a second one would be
+		// excluded from the overlap check as part of the supersedes chain, and once the
+		// first edit is approved (retiring the original) nothing would retire the other —
+		// two overlapping approved requests, both counted against the balance.
+		foreach ($this->requestMapper->findBySupersedesId($original->getId()) as $sibling) {
+			if (!in_array($sibling->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
+				throw new ConflictException('There is already a pending edit of this leave. Wait for a decision on it, or cancel it first.');
+			}
+		}
 		$type = $this->resolveType((int)($data['typeId'] ?? $original->getTypeId()));
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $original->getStartDate()));
@@ -425,7 +436,10 @@ class RequestService {
 			throw new ForbiddenException('Not allowed to cancel this request');
 		}
 		$status = $request->getStatus();
-		$isHrOverride = $this->permission->isHr($actorUid) && $actorUid !== $request->getEmployeeUid();
+		// HR cancels directly (no withdrawal step) for others' requests and for
+		// HR-recorded leave — including their own, which has no approval workflow (§5.6).
+		$isHrOverride = $this->permission->isHr($actorUid)
+			&& ($actorUid !== $request->getEmployeeUid() || $this->isHrRecordedType($request));
 
 		if (in_array($status, LeaveRequest::TERMINAL_STATUSES, true)) {
 			throw new ConflictException('This request is already closed.');
@@ -457,8 +471,13 @@ class RequestService {
 	}
 
 	private function transitionToCancelled(string $actorUid, LeaveRequest $request, string $action = 'request_cancelled'): LeaveRequest {
-		// If an already-approved leave is being cancelled, the replacement no longer covers.
-		$wasApproved = $request->getStatus() === LeaveRequest::STATUS_APPROVED;
+		// If an already-approved leave is being cancelled, the replacement no longer
+		// covers. WITHDRAWAL_PENDING counts too: it is approved leave awaiting a
+		// withdrawal decision, so the replacement was told they cover (§5.1).
+		$wasApproved = in_array($request->getStatus(), [
+			LeaveRequest::STATUS_APPROVED,
+			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
+		], true);
 		$this->calendar->onRemoved($request);
 		$request->setStatus(LeaveRequest::STATUS_CANCELLED);
 		$request->setDecidedBy($actorUid);
@@ -497,6 +516,9 @@ class RequestService {
 			// If this supersedes an approved request, retire the original now (§5.3).
 			$this->retireSuperseded($request);
 			$this->applyCalendar($request);
+			// Clear the now-stale "needs a decision" notifications other deciders
+			// (e.g. the rest of the HR group) still have, then notify the outcome.
+			$this->notifications->dismiss($request);
 			$this->notifications->notifyDecision($request, true);
 			$this->notifications->notifyReplacementAssigned($request);
 			$this->activity->publish(ActivityPublisher::SUBJECT_APPROVED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
@@ -531,6 +553,7 @@ class RequestService {
 			$request->setDecisionComment($comment);
 			$request->setUpdatedAt(new \DateTime());
 			$request = $this->requestMapper->update($request);
+			$this->notifications->dismiss($request);
 			$this->notifications->notifyDecision($request, false);
 			$this->activity->publish(ActivityPublisher::SUBJECT_REJECTED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
 			$this->audit('request_rejected', $request, ['actor' => $actorUid, 'detail' => $comment]);
@@ -544,7 +567,10 @@ class RequestService {
 			$request->setUpdatedAt(new \DateTime());
 			$request = $this->requestMapper->update($request);
 			$this->recordSystemComment($actorUid, $request->getId(), 'Withdrawal declined: ' . $comment);
-			$this->notifications->notifyDecision($request, true);
+			$this->notifications->dismiss($request);
+			// A declined withdrawal is not an approval — tell the employee their
+			// leave stands, not "your leave was approved, enjoy!".
+			$this->notifications->notifyWithdrawalRejected($request);
 			$this->activity->publish(ActivityPublisher::SUBJECT_APPROVED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
 			$this->audit('withdrawal_rejected', $request, ['actor' => $actorUid, 'detail' => $comment]);
 			return $request;
@@ -695,6 +721,15 @@ class RequestService {
 	private function assertSelfRequestable(LeaveType $type): void {
 		if (!$type->getEmployeeRequestable()) {
 			throw new ForbiddenException('This leave type is recorded by HR, not self-requested.');
+		}
+	}
+
+	/** Whether the request's leave type is HR-recorded (not self-requestable, §5.6). */
+	private function isHrRecordedType(LeaveRequest $request): bool {
+		try {
+			return !$this->leaveTypeMapper->find($request->getTypeId())->getEmployeeRequestable();
+		} catch (DoesNotExistException) {
+			return false;
 		}
 	}
 
