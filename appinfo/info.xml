@@ -26,7 +26,13 @@ exports.
 	<namespace>Absence</namespace>
 	<category>organization</category>
 	<category>tools</category>
-	<bugs>https://github.com/nextcloud/server/issues</bugs>
+	<website>https://github.com/nextcloud/absence</website>
+	<bugs>https://github.com/nextcloud/absence/issues</bugs>
+	<repository type="git">https://github.com/nextcloud/absence.git</repository>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/1.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/2.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/3.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/4.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="34" max-version="36"/>
 	</dependencies>
