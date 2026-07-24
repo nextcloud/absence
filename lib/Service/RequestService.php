@@ -154,7 +154,19 @@ class RequestService {
 	 */
 	public function list(string $actorUid, array $filters, ?int $limit, ?int $offset): array {
 		$scope = (string)($filters['scope'] ?? 'mine');
-		$query = array_intersect_key($filters, array_flip(['status', 'typeId', 'from', 'to']));
+		$query = [];
+		if (isset($filters['status'])) {
+			$query['status'] = (string)$filters['status'];
+		}
+		if (isset($filters['typeId'])) {
+			$query['typeId'] = (int)$filters['typeId'];
+		}
+		if (isset($filters['from'])) {
+			$query['from'] = (string)$filters['from'];
+		}
+		if (isset($filters['to'])) {
+			$query['to'] = (string)$filters['to'];
+		}
 
 		if ($scope === 'reports' || $scope === 'approvals') {
 			$query['managerUid'] = $actorUid;
@@ -794,15 +806,23 @@ class RequestService {
 	 * and any pending edits that supersede it) — excluded from overlap checks so an
 	 * approved original and its in-flight edit don't flag each other (§5.3).
 	 *
-	 * @return list<?int>
+	 * @return list<int>
 	 */
 	private function chainExcludeIds(LeaveRequest $request): array {
-		$ids = [$request->getId()];
-		if ($request->getSupersedesId() !== null) {
-			$ids[] = $request->getSupersedesId();
+		$ids = [];
+		$id = $request->getId();
+		if ($id !== null) {
+			$ids[] = $id;
+		}
+		$supersedesId = $request->getSupersedesId();
+		if ($supersedesId !== null) {
+			$ids[] = $supersedesId;
 		}
 		foreach ($this->requestMapper->findBySupersedesId($request->getId()) as $child) {
-			$ids[] = $child->getId();
+			$childId = $child->getId();
+			if ($childId !== null) {
+				$ids[] = $childId;
+			}
 		}
 		return $ids;
 	}
