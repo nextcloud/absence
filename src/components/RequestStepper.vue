@@ -109,7 +109,7 @@ export default {
 	&__bar {
 		position: absolute;
 		top: 15px;
-		left: 50%;
+		inset-inline-start: 50%;
 		width: 100%;
 		height: 2px;
 		background: var(--color-border);

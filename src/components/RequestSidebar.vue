@@ -500,7 +500,7 @@ export default {
 		&:not(:last-child)::before {
 			content: '';
 			position: absolute;
-			left: 13px;
+			inset-inline-start: 13px;
 			top: 26px;
 			bottom: 0;
 			width: 2px;

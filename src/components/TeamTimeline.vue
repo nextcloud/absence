@@ -287,7 +287,7 @@ $name-w: 180px;
 
 	&__name {
 		position: sticky;
-		left: 0;
+		inset-inline-start: 0;
 		z-index: 2;
 		flex: 0 0 #{$name-w};
 		width: $name-w;
@@ -296,7 +296,7 @@ $name-w: 180px;
 		gap: 8px;
 		padding: 8px 12px;
 		background: var(--color-main-background);
-		border-right: 1px solid var(--color-border);
+		border-inline-end: 1px solid var(--color-border);
 
 		&--head {
 			font-size: 0.8rem;

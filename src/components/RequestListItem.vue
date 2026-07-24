@@ -81,7 +81,7 @@ export default {
 	&::before {
 		content: '';
 		position: absolute;
-		left: 0;
+		inset-inline-start: 0;
 		top: 8px;
 		bottom: 8px;
 		width: 3px;

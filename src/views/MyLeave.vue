@@ -304,14 +304,17 @@ export default {
 .rli-leave-active {
 	transition: opacity 250ms ease, transform 250ms ease;
 }
+
 .rli-enter-from {
 	opacity: 0;
 	transform: translateY(8px);
 }
+
 .rli-leave-to {
 	opacity: 0;
 	transform: translateX(-12px);
 }
+
 .rli-move {
 	transition: transform 250ms ease;
 }
