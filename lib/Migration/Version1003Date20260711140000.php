@@ -27,6 +27,7 @@ class Version1003Date20260711140000 extends SimpleMigrationStep {
 	) {
 	}
 
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
@@ -50,6 +51,7 @@ class Version1003Date20260711140000 extends SimpleMigrationStep {
 		return $changed ? $schema : null;
 	}
 
+	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
 		// Self-requestable, approval-based types require a replacement by default.
 		$qb = $this->db->getQueryBuilder();

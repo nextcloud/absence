@@ -22,10 +22,12 @@ class DisableAuditLogging implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Remove Absence from the always-on log condition';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		$condition = $this->config->getSystemValue('log.condition', []);
 		if (!is_array($condition) || !isset($condition['apps']) || !is_array($condition['apps'])) {

@@ -32,6 +32,7 @@ class ReminderJob extends TimedJob {
 		$this->setTimeSensitivity(self::TIME_INSENSITIVE);
 	}
 
+	#[\Override]
 	protected function run($argument): void {
 		$window = max(1, $this->config->getEscalationWindowDays());
 		$lead = max(0, $this->config->getReminderLeadDays());

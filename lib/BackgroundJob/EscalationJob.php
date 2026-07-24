@@ -32,6 +32,7 @@ class EscalationJob extends TimedJob {
 		$this->setTimeSensitivity(self::TIME_INSENSITIVE);
 	}
 
+	#[\Override]
 	protected function run($argument): void {
 		// The window counts working days (Mon–Fri, §5.4): a request filed on Friday
 		// does not burn its manager's window over the weekend. With the midnight

@@ -24,6 +24,7 @@ class Personal implements ISettings {
 	) {
 	}
 
+	#[\Override]
 	public function getForm(): TemplateResponse {
 		$uid = $this->userSession->getUser()?->getUID() ?? '';
 		$this->initialState->provideInitialState('personalConfig', $this->personalDefaults->resolve($uid));
@@ -31,12 +32,14 @@ class Personal implements ISettings {
 		return new TemplateResponse(ConfigService::APP_ID, 'personal-settings');
 	}
 
+	#[\Override]
 	public function getSection(): string {
 		// Append to the built-in Availability page (/settings/user/availability)
 		// rather than a separate Absence section.
 		return 'availability';
 	}
 
+	#[\Override]
 	public function getPriority(): int {
 		// Below the core Availability form (priority 10).
 		return 50;

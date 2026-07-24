@@ -19,6 +19,7 @@ use OCP\Migration\SimpleMigrationStep;
  * Initial schema for the Absence app (spec §3).
  */
 class Version1000Date20260710000000 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

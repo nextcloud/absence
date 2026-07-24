@@ -159,7 +159,7 @@ class PersonalDefaultsService {
 		} catch (\Throwable $e) {
 			return null;
 		}
-		$digits = preg_replace('/\D/', '', (string)$phone);
+		$digits = preg_replace('/\D/', '', $phone);
 		if ($phone === '' || !str_starts_with(trim($phone), '+') || $digits === '') {
 			// Without a leading "+" the calling code is ambiguous — do not guess.
 			return null;

@@ -5,23 +5,37 @@
 	resolveFromConfigFile="true"
 	findUnusedBaselineEntry="true"
 	findUnusedCode="false"
+	phpVersion="8.2"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xmlns="https://getpsalm.org/schema/config"
-	xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd">
+	xsi:schemaLocation="https://getpsalm.org/schema/config vendor-bin/psalm/vendor/vimeo/psalm/config.xsd">
 	<projectFiles>
 		<directory name="lib" />
 		<ignoreFiles>
 			<directory name="vendor" />
+			<directory name="vendor-bin/nextcloud-ocp" />
 		</ignoreFiles>
 	</projectFiles>
+	<extraFiles>
+		<directory name="vendor" />
+		<directory name="vendor-bin/nextcloud-ocp" />
+	</extraFiles>
 	<issueHandlers>
 		<!-- dav app classes are not part of the OCP stubs; resolved lazily at runtime. -->
 		<UndefinedClass>
 			<errorLevel type="suppress">
 				<referencedClass name="OCA\DAV\CalDAV\CalDavBackend" />
-				<referencedClass name="OCA\DAV\Db\PropertyMapper" />
 				<referencedClass name="OCA\DAV\CalDAV\Schedule\Plugin" />
+				<referencedClass name="OCA\DAV\Db\PropertyMapper" />
+				<referencedClass name="Sabre\VObject\Component\VCalendar" />
+				<referencedClass name="Sabre\VObject\Reader" />
 			</errorLevel>
 		</UndefinedClass>
+		<UndefinedDocblockClass>
+			<errorLevel type="suppress">
+				<referencedClass name="Doctrine\DBAL\Schema\Schema" />
+				<referencedClass name="Doctrine\DBAL\Schema\Table" />
+			</errorLevel>
+		</UndefinedDocblockClass>
 	</issueHandlers>
 </psalm>
