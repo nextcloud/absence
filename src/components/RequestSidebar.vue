@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcAppSidebar v-if="detail"
+	<NcAppSidebar
+		v-if="detail"
 		:name="type.label"
 		:subname="rangeLabel"
 		@close="$emit('close')">
@@ -12,14 +13,16 @@
 		</template>
 
 		<NcAppSidebarTab id="details" :name="t('absence', 'Details')" :order="1">
-			<template #icon><InformationOutline :size="20" /></template>
+			<template #icon>
+				<InformationOutline :size="20" />
+			</template>
 			<div class="section">
 				<RequestStepper v-if="showStatus" :status="detail.status" class="section__stepper" />
 				<dl class="facts">
 					<dt>{{ t('absence', 'Employee') }}</dt>
 					<dd>{{ detail.employeeUid }}</dd>
 					<dt>{{ t('absence', 'Type') }}</dt>
-					<dd><LeaveTypeChip :type-id="detail.typeId" /></dd>
+					<dd><LeaveTypeChip :typeId="detail.typeId" /></dd>
 					<dt>{{ t('absence', 'Dates') }}</dt>
 					<dd>{{ rangeLabel }}</dd>
 					<dt>{{ t('absence', 'Working days') }}</dt>
@@ -27,7 +30,7 @@
 					<template v-if="detail.replacementUid">
 						<dt>{{ t('absence', 'Replacement') }}</dt>
 						<dd class="facts__decided">
-							<NcAvatar :user="detail.replacementUid" :size="20" :show-user-status="false" />
+							<NcAvatar :user="detail.replacementUid" :size="20" :showUserStatus="false" />
 							{{ detail.replacementName || detail.replacementUid }}
 						</dd>
 					</template>
@@ -38,7 +41,7 @@
 					<template v-if="detail.decidedBy">
 						<dt>{{ t('absence', 'Decided by') }}</dt>
 						<dd class="facts__decided">
-							<NcAvatar :user="detail.decidedBy" :size="20" :show-user-status="false" />
+							<NcAvatar :user="detail.decidedBy" :size="20" :showUserStatus="false" />
 							{{ detail.decidedBy }}<span v-if="decidedAtLabel" class="facts__muted"> · {{ decidedAtLabel }}</span>
 						</dd>
 					</template>
@@ -50,36 +53,49 @@
 
 				<div class="actions">
 					<template v-if="detail.canDecide && isDecidable">
-						<NcButton type="success" :disabled="busy" @click="approve">
-							<template #icon><Check :size="20" /></template>
+						<NcButton variant="success" :disabled="busy" @click="approve">
+							<template #icon>
+								<Check :size="20" />
+							</template>
 							{{ decideLabelApprove }}
 						</NcButton>
-						<NcButton type="error" :disabled="busy" @click="startReject">
-							<template #icon><Close :size="20" /></template>
+						<NcButton variant="error" :disabled="busy" @click="startReject">
+							<template #icon>
+								<Close :size="20" />
+							</template>
 							{{ decideLabelReject }}
 						</NcButton>
 					</template>
 					<template v-if="detail.canModify && isModifiable">
-						<NcButton v-if="canEdit" type="secondary" :disabled="busy" @click="$emit('edit', detail)">
-							<template #icon><Pencil :size="20" /></template>
+						<NcButton
+							v-if="canEdit"
+							variant="secondary"
+							:disabled="busy"
+							@click="$emit('edit', detail)">
+							<template #icon>
+								<Pencil :size="20" />
+							</template>
 							{{ t('absence', 'Edit') }}
 						</NcButton>
-						<NcButton type="tertiary" :disabled="busy" @click="cancel">
-							<template #icon><CancelIcon :size="20" /></template>
+						<NcButton variant="tertiary" :disabled="busy" @click="cancel">
+							<template #icon>
+								<CancelIcon :size="20" />
+							</template>
 							{{ cancelLabel }}
 						</NcButton>
 					</template>
 				</div>
 
 				<div v-if="rejecting" class="reject">
-					<NcTextArea v-model="rejectComment"
+					<NcTextArea
+						v-model="rejectComment"
 						:label="t('absence', 'Reason for declining')"
 						rows="2" />
 					<div class="reject__actions">
-						<NcButton type="tertiary" @click="rejecting = false">
+						<NcButton variant="tertiary" @click="rejecting = false">
 							{{ t('absence', 'Back') }}
 						</NcButton>
-						<NcButton type="error" :disabled="rejectComment.trim() === '' || busy" @click="reject">
+						<NcButton variant="error" :disabled="rejectComment.trim() === '' || busy" @click="reject">
 							{{ t('absence', 'Confirm decline') }}
 						</NcButton>
 					</div>
@@ -87,29 +103,39 @@
 			</div>
 		</NcAppSidebarTab>
 
-		<NcAppSidebarTab v-if="detail.coverage" id="coverage" :name="t('absence', 'Coverage')" :order="2">
-			<template #icon><AccountGroup :size="20" /></template>
+		<NcAppSidebarTab
+			v-if="detail.coverage"
+			id="coverage"
+			:name="t('absence', 'Coverage')"
+			:order="2">
+			<template #icon>
+				<AccountGroup :size="20" />
+			</template>
 			<CoveragePanel :coverage="detail.coverage" />
 		</NcAppSidebarTab>
 
 		<NcAppSidebarTab id="comments" :name="t('absence', 'Comments')" :order="3">
-			<template #icon><CommentOutline :size="20" /></template>
+			<template #icon>
+				<CommentOutline :size="20" />
+			</template>
 			<div class="section">
 				<ul v-if="detail.comments.length" class="comments">
 					<li v-for="c in detail.comments" :key="c.id" class="comments__item">
 						<div class="comments__head">
-							<NcAvatar :user="c.authorUid" :size="24" :show-user-status="false" />
+							<NcAvatar :user="c.authorUid" :size="24" :showUserStatus="false" />
 							<strong>{{ c.authorUid }}</strong>
 						</div>
 						<p>{{ c.body }}</p>
 					</li>
 				</ul>
 				<NcEmptyContent v-else :name="t('absence', 'No comments yet')" :description="t('absence', 'Start the conversation below.')">
-					<template #icon><CommentOutline :size="20" /></template>
+					<template #icon>
+						<CommentOutline :size="20" />
+					</template>
 				</NcEmptyContent>
 				<div class="comment-add">
 					<NcTextArea v-model="newComment" :placeholder="t('absence', 'Add a comment…')" rows="2" />
-					<NcButton type="secondary" :disabled="newComment.trim() === '' || busy" @click="postComment">
+					<NcButton variant="secondary" :disabled="newComment.trim() === '' || busy" @click="postComment">
 						{{ t('absence', 'Send') }}
 					</NcButton>
 				</div>
@@ -117,7 +143,9 @@
 		</NcAppSidebarTab>
 
 		<NcAppSidebarTab id="history" :name="t('absence', 'History')" :order="4">
-			<template #icon><History :size="20" /></template>
+			<template #icon>
+				<History :size="20" />
+			</template>
 			<div class="section">
 				<ol v-if="detail.history && detail.history.length" class="timeline">
 					<li v-for="ev in detail.history" :key="ev.id" class="timeline__item">
@@ -128,18 +156,24 @@
 								<span class="timeline__time">{{ formatDateTime(ev.createdAt) }}</span>
 							</div>
 							<div class="timeline__who">
-								<template v-if="ev.actorUid === 'system'">{{ t('absence', 'Automatically') }}</template>
+								<template v-if="ev.actorUid === 'system'">
+									{{ t('absence', 'Automatically') }}
+								</template>
 								<template v-else>
-									<NcAvatar :user="ev.actorUid" :size="20" :show-user-status="false" />
+									<NcAvatar :user="ev.actorUid" :size="20" :showUserStatus="false" />
 									{{ ev.actorUid }}
 								</template>
 							</div>
-							<p v-if="ev.detail" class="timeline__detail">{{ ev.detail }}</p>
+							<p v-if="ev.detail" class="timeline__detail">
+								{{ ev.detail }}
+							</p>
 						</div>
 					</li>
 				</ol>
 				<NcEmptyContent v-else :name="t('absence', 'No history yet')">
-					<template #icon><History :size="20" /></template>
+					<template #icon>
+						<History :size="20" />
+					</template>
 				</NcEmptyContent>
 			</div>
 		</NcAppSidebarTab>
@@ -147,28 +181,28 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
+import { t } from '@nextcloud/l10n'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
-import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
-import CommentOutline from 'vue-material-design-icons/CommentOutline.vue'
-import History from 'vue-material-design-icons/History.vue'
+import CancelIcon from 'vue-material-design-icons/Cancel.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
+import CommentOutline from 'vue-material-design-icons/CommentOutline.vue'
+import History from 'vue-material-design-icons/History.vue'
+import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
-import CancelIcon from 'vue-material-design-icons/Cancel.vue'
-import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
-import StatusChip from './StatusChip.vue'
-import LeaveTypeChip from './LeaveTypeChip.vue'
 import CoveragePanel from './CoveragePanel.vue'
+import LeaveTypeChip from './LeaveTypeChip.vue'
 import RequestStepper from './RequestStepper.vue'
-import { store } from '../store.js'
+import StatusChip from './StatusChip.vue'
 import api from '../api.js'
+import { store } from '../store.js'
 import { formatRange } from '../utils/dates.js'
 
 export default {
@@ -193,6 +227,7 @@ export default {
 		Pencil,
 		CancelIcon,
 	},
+
 	emits: ['close', 'edit', 'changed'],
 	data() {
 		return {
@@ -203,46 +238,59 @@ export default {
 			newComment: '',
 		}
 	},
+
 	computed: {
 		type() {
 			return this.detail ? store.leaveType(this.detail.typeId) : {}
 		},
+
 		rangeLabel() {
 			return this.detail ? formatRange(this.detail.startDate, this.detail.endDate) : ''
 		},
+
 		decidedAtLabel() {
 			return this.detail && this.detail.decidedAt ? this.formatDateTime(this.detail.decidedAt) : ''
 		},
+
 		showStatus() {
 			return this.detail ? store.statusVisible(this.detail) : true
 		},
+
 		isDecidable() {
 			return ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(this.detail.status)
 		},
+
 		isModifiable() {
 			return !['REJECTED', 'CANCELLED'].includes(this.detail.status)
 		},
+
 		canEdit() {
 			return ['PENDING', 'ESCALATED', 'APPROVED'].includes(this.detail.status)
 		},
+
 		isWithdrawal() {
 			return this.detail.status === 'WITHDRAWAL_PENDING'
 		},
+
 		decideLabelApprove() {
 			return this.isWithdrawal ? t('absence', 'Approve withdrawal') : t('absence', 'Approve')
 		},
+
 		decideLabelReject() {
 			return this.isWithdrawal ? t('absence', 'Keep leave') : t('absence', 'Decline')
 		},
+
 		cancelLabel() {
 			return this.detail.status === 'APPROVED' ? t('absence', 'Request withdrawal') : t('absence', 'Cancel request')
 		},
 	},
+
 	mounted() {
 		// App.vue remounts this component (via :key="store.selectedId") whenever the
 		// selection changes, so loading once on mount always reflects the current id.
 		this.load()
 	},
+
 	methods: {
 		t,
 		eventMeta(type) {
@@ -262,14 +310,20 @@ export default {
 			}
 			return map[type] || { label: type, icon: '•' }
 		},
+
 		formatDateTime(iso) {
 			if (!iso) {
 				return ''
 			}
 			return new Date(iso).toLocaleString(undefined, {
-				year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+				year: 'numeric',
+				month: 'short',
+				day: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit',
 			})
 		},
+
 		async load() {
 			if (!store.selectedId) {
 				this.detail = null
@@ -284,6 +338,7 @@ export default {
 				this.$emit('close')
 			}
 		},
+
 		async approve() {
 			this.busy = true
 			try {
@@ -295,9 +350,11 @@ export default {
 				this.busy = false
 			}
 		},
+
 		startReject() {
 			this.rejecting = true
 		},
+
 		async reject() {
 			this.busy = true
 			try {
@@ -309,6 +366,7 @@ export default {
 				this.busy = false
 			}
 		},
+
 		async cancel() {
 			this.busy = true
 			try {
@@ -320,6 +378,7 @@ export default {
 				this.busy = false
 			}
 		},
+
 		async postComment() {
 			this.busy = true
 			try {

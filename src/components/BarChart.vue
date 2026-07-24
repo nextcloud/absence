@@ -6,18 +6,34 @@
 -->
 <template>
 	<figure class="chart">
-		<figcaption v-if="title" class="chart__title">{{ title }}</figcaption>
-		<svg :viewBox="`0 0 ${width} ${height}`" class="chart__svg" role="img" :aria-label="title">
+		<figcaption v-if="title" class="chart__title">
+			{{ title }}
+		</figcaption>
+		<svg
+			:viewBox="`0 0 ${width} ${height}`"
+			class="chart__svg"
+			role="img"
+			:aria-label="title">
 			<g v-for="(bar, i) in bars" :key="i">
-				<rect :x="bar.x"
+				<rect
+					:x="bar.x"
 					:y="animated ? bar.y : baseline"
 					:width="barWidth"
 					:height="animated ? bar.h : 0"
 					:fill="bar.color"
 					rx="4"
 					class="chart__bar" />
-				<text :x="bar.cx" :y="height - 4" text-anchor="middle" class="chart__label">{{ bar.label }}</text>
-				<text v-if="bar.value > 0" :x="bar.cx" :y="bar.y - 4" text-anchor="middle" class="chart__value">{{ fmt(bar.value) }}</text>
+				<text
+					:x="bar.cx"
+					:y="height - 4"
+					text-anchor="middle"
+					class="chart__label">{{ bar.label }}</text>
+				<text
+					v-if="bar.value > 0"
+					:x="bar.cx"
+					:y="bar.y - 4"
+					text-anchor="middle"
+					class="chart__value">{{ fmt(bar.value) }}</text>
 			</g>
 		</svg>
 	</figure>
@@ -30,9 +46,11 @@ export default {
 		title: { type: String, default: '' },
 		data: { type: Array, required: true }, // [{ label, value, color? }]
 	},
+
 	data() {
 		return { width: 640, height: 220, animated: false }
 	},
+
 	computed: {
 		padTop() { return 24 },
 		baseline() { return this.height - 22 },
@@ -55,6 +73,7 @@ export default {
 			})
 		},
 	},
+
 	mounted() {
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			this.animated = true
@@ -62,6 +81,7 @@ export default {
 		}
 		requestAnimationFrame(() => { this.animated = true })
 	},
+
 	methods: {
 		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
 	},

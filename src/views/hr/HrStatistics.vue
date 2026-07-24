@@ -5,7 +5,9 @@
 <template>
 	<div class="page">
 		<header class="page__header">
-			<h2 class="page__title">{{ t('absence', 'Statistics') }}</h2>
+			<h2 class="page__title">
+				{{ t('absence', 'Statistics') }}
+			</h2>
 			<div class="range">
 				<NcDateTimePickerNative v-model="from" type="date" :label="t('absence', 'From')" />
 				<NcDateTimePickerNative v-model="to" type="date" :label="t('absence', 'To')" />
@@ -33,10 +35,13 @@
 				</div>
 			</div>
 
-			<NcEmptyContent v-if="trends.total === 0"
+			<NcEmptyContent
+				v-if="trends.total === 0"
 				:name="t('absence', 'No approved leave in this range')"
 				:description="t('absence', 'Pick a wider date range, or check back once leave has been approved.')">
-				<template #icon><ChartLine :size="20" /></template>
+				<template #icon>
+					<ChartLine :size="20" />
+				</template>
 			</NcEmptyContent>
 			<template v-else>
 				<div class="panel">
@@ -51,15 +56,15 @@
 </template>
 
 <script>
+import { t } from '@nextcloud/l10n'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import ChartLine from 'vue-material-design-icons/ChartLine.vue'
-import { t } from '@nextcloud/l10n'
-import LineChart from '../../components/LineChart.vue'
 import DonutChart from '../../components/DonutChart.vue'
+import LineChart from '../../components/LineChart.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
-import { toIso } from '../../utils/dates.js'
 import api from '../../api.js'
+import { toIso } from '../../utils/dates.js'
 
 export default {
 	name: 'HrStatistics',
@@ -73,6 +78,7 @@ export default {
 			trends: { byMonth: {}, byType: [], total: 0 },
 		}
 	},
+
 	computed: {
 		monthData() {
 			return Object.entries(this.trends.byMonth).map(([month, value]) => ({
@@ -80,6 +86,7 @@ export default {
 				value,
 			}))
 		},
+
 		typeData() {
 			return this.trends.byType.map((tt) => ({
 				label: `${tt.typeIcon || ''} ${tt.typeLabel}`.trim(),
@@ -87,18 +94,22 @@ export default {
 				color: tt.typeColor,
 			}))
 		},
+
 		perMonthAvg() {
 			const months = Object.keys(this.trends.byMonth).length
 			return months ? this.trends.total / months : 0
 		},
 	},
+
 	watch: {
 		from() { this.reload() },
 		to() { this.reload() },
 	},
+
 	mounted() {
 		this.reload()
 	},
+
 	methods: {
 		t,
 		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },

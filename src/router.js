@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { createRouter, createWebHashHistory } from 'vue-router'
-import MyLeave from './views/MyLeave.vue'
 import Approvals from './views/Approvals.vue'
-import Team from './views/Team.vue'
 import HrBalances from './views/hr/HrBalances.vue'
+import HrExports from './views/hr/HrExports.vue'
 import HrStatistics from './views/hr/HrStatistics.vue'
 import HrWhosOff from './views/hr/HrWhosOff.vue'
-import HrExports from './views/hr/HrExports.vue'
+import MyLeave from './views/MyLeave.vue'
+import Team from './views/Team.vue'
 
 const routes = [
 	{ path: '/', redirect: '/my' },

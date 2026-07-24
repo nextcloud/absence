@@ -4,9 +4,10 @@
 -->
 <template>
 	<div class="rli" :class="{ 'rli--active': active }" :style="{ '--type-color': type.color }">
-		<NcListItem :name="title"
+		<NcListItem
+			:name="title"
 			:active="active"
-			:force-display-actions="true"
+			:forceDisplayActions="true"
 			@click="$emit('select', request.id)">
 			<template #icon>
 				<span class="rli__icon" :style="{ background: colorSoft }" aria-hidden="true">{{ type.icon }}</span>
@@ -22,12 +23,12 @@
 </template>
 
 <script>
+import { n, t } from '@nextcloud/l10n'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
-import StatusChip from './StatusChip.vue'
 import LeaveTypeChip from './LeaveTypeChip.vue'
+import StatusChip from './StatusChip.vue'
 import { store } from '../store.js'
 import { formatRange } from '../utils/dates.js'
-import { n, t } from '@nextcloud/l10n'
 
 export default {
 	name: 'RequestListItem',
@@ -37,29 +38,35 @@ export default {
 		active: { type: Boolean, default: false },
 		showEmployee: { type: Boolean, default: false },
 	},
+
 	emits: ['select'],
 	computed: {
 		type() {
 			return store.leaveType(this.request.typeId)
 		},
+
 		showStatus() {
 			return store.statusVisible(this.request)
 		},
+
 		colorSoft() {
 			return `color-mix(in srgb, ${this.type.color} 18%, transparent)`
 		},
+
 		title() {
 			if (this.showEmployee) {
 				return `${this.request.employeeUid} · ${this.type.label}`
 			}
 			return this.type.label
 		},
+
 		subtitle() {
 			const range = formatRange(this.request.startDate, this.request.endDate)
 			const days = n('absence', '%n day', '%n days', this.request.workingDays)
 			return `${range} · ${days}`
 		},
 	},
+
 	methods: { t, n },
 }
 </script>

@@ -5,14 +5,23 @@
 <template>
 	<div class="page">
 		<header class="page__header">
-			<h2 class="page__title">{{ t('absence', 'Balances') }}</h2>
+			<h2 class="page__title">
+				{{ t('absence', 'Balances') }}
+			</h2>
 			<div class="page__tools">
-				<NcTextField v-model="search"
+				<NcTextField
+					v-model="search"
 					:label="t('absence', 'Search employee')"
 					class="page__search">
-					<template #icon><Magnify :size="18" /></template>
+					<template #icon>
+						<Magnify :size="18" />
+					</template>
 				</NcTextField>
-				<NcSelect v-model="year" :options="years" :clearable="false" :aria-label-combobox="t('absence', 'Year')" />
+				<NcSelect
+					v-model="year"
+					:options="years"
+					:clearable="false"
+					:aria-label-combobox="t('absence', 'Year')" />
 			</div>
 		</header>
 
@@ -24,40 +33,72 @@
 					<tr>
 						<th>{{ t('absence', 'Employee') }}</th>
 						<th>{{ t('absence', 'Type') }}</th>
-						<th class="num">{{ t('absence', 'Entitlement') }}</th>
-						<th class="num">{{ t('absence', 'Used') }}</th>
-						<th class="num">{{ t('absence', 'Pending') }}</th>
-						<th class="num">{{ t('absence', 'Remaining') }}</th>
-						<th class="num">{{ t('absence', 'Available') }}</th>
+						<th class="num">
+							{{ t('absence', 'Entitlement') }}
+						</th>
+						<th class="num">
+							{{ t('absence', 'Used') }}
+						</th>
+						<th class="num">
+							{{ t('absence', 'Pending') }}
+						</th>
+						<th class="num">
+							{{ t('absence', 'Remaining') }}
+						</th>
+						<th class="num">
+							{{ t('absence', 'Available') }}
+						</th>
 						<th />
 					</tr>
 				</thead>
 				<tbody>
 					<tr v-for="row in filtered" :key="row.employeeUid + '-' + row.typeId">
 						<td>
-							<div class="emp"><NcAvatar :user="row.employeeUid" :display-name="row.displayName" :size="24" :show-user-status="false" /> {{ row.displayName }}</div>
+							<div class="emp">
+								<NcAvatar
+									:user="row.employeeUid"
+									:displayName="row.displayName"
+									:size="24"
+									:showUserStatus="false" /> {{ row.displayName }}
+							</div>
 						</td>
 						<td><span class="type"><span aria-hidden="true">{{ row.typeIcon }}</span> {{ row.typeLabel }}</span></td>
-						<td class="num">{{ fmt(row.entitlement) }}</td>
-						<td class="num">{{ fmt(row.used) }}</td>
-						<td class="num">{{ fmt(row.pending) }}</td>
-						<td class="num">{{ fmt(row.remaining) }}</td>
-						<td class="num" :class="{ neg: (row.available ?? 0) < 0 }">{{ fmt(row.available) }}</td>
+						<td class="num">
+							{{ fmt(row.entitlement) }}
+						</td>
+						<td class="num">
+							{{ fmt(row.used) }}
+						</td>
+						<td class="num">
+							{{ fmt(row.pending) }}
+						</td>
+						<td class="num">
+							{{ fmt(row.remaining) }}
+						</td>
+						<td class="num" :class="{ neg: (row.available ?? 0) < 0 }">
+							{{ fmt(row.available) }}
+						</td>
 						<td>
-							<NcButton v-if="row.countsAgainstBalance"
-								type="tertiary"
+							<NcButton
+								v-if="row.countsAgainstBalance"
+								variant="tertiary"
 								:aria-label="t('absence', 'Edit entitlement')"
 								@click="edit(row)">
-								<template #icon><Pencil :size="18" /></template>
+								<template #icon>
+									<Pencil :size="18" />
+								</template>
 							</NcButton>
 						</td>
 					</tr>
 				</tbody>
 			</table>
-			<NcEmptyContent v-if="!filtered.length"
+			<NcEmptyContent
+				v-if="!filtered.length"
 				:name="search ? t('absence', 'No matches') : t('absence', 'No balances yet')"
 				:description="search ? t('absence', 'No employee matches “{query}”.', { query: search }) : t('absence', 'Balances appear here once employees have entitlements for {year}.', { year })">
-				<template #icon><ScaleBalance :size="20" /></template>
+				<template #icon>
+					<ScaleBalance :size="20" />
+				</template>
 			</NcEmptyContent>
 		</div>
 
@@ -71,8 +112,12 @@
 				<label>{{ t('absence', 'Adjustment note') }}</label>
 				<NcTextField v-model="form.adjustmentNote" :placeholder="t('absence', 'Why is this being adjusted?')" />
 				<div class="edit__actions">
-					<NcButton type="tertiary" @click="editing = null">{{ t('absence', 'Cancel') }}</NcButton>
-					<NcButton type="primary" :disabled="saving" @click="save">{{ t('absence', 'Save') }}</NcButton>
+					<NcButton variant="tertiary" @click="editing = null">
+						{{ t('absence', 'Cancel') }}
+					</NcButton>
+					<NcButton variant="primary" :disabled="saving" @click="save">
+						{{ t('absence', 'Save') }}
+					</NcButton>
 				</div>
 			</div>
 		</NcModal>
@@ -80,6 +125,8 @@
 </template>
 
 <script>
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -89,10 +136,8 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
-import { showError, showSuccess } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
-import api from '../../api.js'
 import SkeletonList from '../../components/SkeletonList.vue'
+import api from '../../api.js'
 
 export default {
 	name: 'HrBalances',
@@ -110,6 +155,7 @@ export default {
 			form: { baseDays: 0, manualAdjustment: 0, adjustmentNote: '' },
 		}
 	},
+
 	computed: {
 		filtered() {
 			const q = this.search.trim().toLowerCase()
@@ -119,19 +165,23 @@ export default {
 			return this.rows.filter((r) => r.displayName.toLowerCase().includes(q) || r.employeeUid.toLowerCase().includes(q))
 		},
 	},
+
 	watch: {
 		year() {
 			this.reload()
 		},
 	},
+
 	mounted() {
 		this.reload()
 	},
+
 	methods: {
 		t,
 		fmt(v) {
 			return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
 		},
+
 		async reload() {
 			this.loading = true
 			try {
@@ -142,6 +192,7 @@ export default {
 				this.loading = false
 			}
 		},
+
 		async edit(row) {
 			this.editing = row
 			// Ensure an entitlement row exists to edit; fetch current values.
@@ -158,6 +209,7 @@ export default {
 				this.form = { baseDays: row.baseDays, manualAdjustment: 0, adjustmentNote: '', entitlementId: row.entitlementId }
 			}
 		},
+
 		async save() {
 			this.saving = true
 			try {

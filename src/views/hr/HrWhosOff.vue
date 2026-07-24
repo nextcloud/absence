@@ -5,7 +5,9 @@
 <template>
 	<div class="page">
 		<header class="page__header">
-			<h2 class="page__title">{{ t('absence', 'Who\'s off') }}</h2>
+			<h2 class="page__title">
+				{{ t('absence', 'Who\'s off') }}
+			</h2>
 		</header>
 		<TeamTimeline scope="company" />
 	</div>

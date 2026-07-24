@@ -8,9 +8,12 @@
   - shown as feedback and can be overridden here.
 -->
 <template>
-	<NcSettingsSection :name="t('absence', 'Absence')"
+	<NcSettingsSection
+		:name="t('absence', 'Absence')"
 		:description="t('absence', 'These settings prefill the “Working days” field when you request time off. You can always change the number on the request itself.')">
-		<h3 class="subheading">{{ t('absence', 'Working days') }}</h3>
+		<h3 class="subheading">
+			{{ t('absence', 'Working days') }}
+		</h3>
 
 		<NcNoteCard v-if="config.availabilitySet" type="success">
 			{{ t('absence', 'Detected from your Availability: {days}.', { days: detectedWeekdayLabels }) }}
@@ -20,11 +23,12 @@
 		</NcNoteCard>
 
 		<div class="weekdays">
-			<NcCheckboxRadioSwitch v-for="d in weekdayList"
+			<NcCheckboxRadioSwitch
+				v-for="d in weekdayList"
 				:key="d.iso"
-				:model-value="weekdays.includes(d.iso)"
+				:modelValue="weekdays.includes(d.iso)"
 				:disabled="weekdaysDisabled"
-				@update:model-value="(v) => toggleWeekday(d.iso, v)">
+				@update:modelValue="(v) => toggleWeekday(d.iso, v)">
 				{{ d.label }}
 			</NcCheckboxRadioSwitch>
 		</div>
@@ -33,33 +37,41 @@
 			<NcButton variant="secondary" href="#settings-personal-availability">
 				{{ config.availabilitySet ? t('absence', 'Change availability') : t('absence', 'Set availability') }}
 			</NcButton>
-			<NcButton v-if="config.availabilitySet && !overriding"
+			<NcButton
+				v-if="config.availabilitySet && !overriding"
 				variant="tertiary"
 				@click="overriding = true">
 				{{ t('absence', 'Override') }}
 			</NcButton>
-			<NcButton v-else-if="config.availabilitySet && overriding"
+			<NcButton
+				v-else-if="config.availabilitySet && overriding"
 				variant="tertiary"
 				@click="cancelOverride">
 				{{ t('absence', 'Cancel override') }}
 			</NcButton>
 		</div>
 
-		<h3 class="subheading">{{ t('absence', 'Public holidays') }}</h3>
-		<p class="hint">{{ t('absence', 'Public holidays for your location are not counted as working days. Choose your country and region so the right holidays apply.') }}</p>
+		<h3 class="subheading">
+			{{ t('absence', 'Public holidays') }}
+		</h3>
+		<p class="hint">
+			{{ t('absence', 'Public holidays for your location are not counted as working days. Choose your country and region so the right holidays apply.') }}
+		</p>
 
 		<div class="field">
 			<label>{{ t('absence', 'Country') }}</label>
-			<NcSelect v-model="country"
+			<NcSelect
+				v-model="country"
 				:options="countryOptions"
 				:loading="loadingCountries"
 				label="label"
 				:placeholder="countryPlaceholder"
-				@update:model-value="onCountryChange" />
+				@update:modelValue="onCountryChange" />
 		</div>
 		<div v-if="regionOptions.length" class="field">
 			<label>{{ t('absence', 'Region') }}</label>
-			<NcSelect v-model="region"
+			<NcSelect
+				v-model="region"
 				:options="regionOptions"
 				label="label"
 				:placeholder="t('absence', 'Whole country')" />
@@ -72,14 +84,14 @@
 </template>
 
 <script>
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import { loadState } from '@nextcloud/initial-state'
+import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
-import { loadState } from '@nextcloud/initial-state'
-import { showError, showSuccess } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
 import api from '../../api.js'
 import { parseWeekdays } from '../../utils/dates.js'
 import { listCountries, listRegions } from '../../utils/holidays.js'
@@ -101,6 +113,7 @@ export default {
 				{ iso: 6, label: t('absence', 'Saturday') },
 				{ iso: 7, label: t('absence', 'Sunday') },
 			],
+
 			weekdays: [...parseWeekdays(config.workWeekdays)].sort(),
 			// Editing is on when there is nothing to detect, or the user already has
 			// a manual override; otherwise the detected days show as read-only.
@@ -113,22 +126,26 @@ export default {
 			saving: false,
 		}
 	},
+
 	computed: {
 		weekdaysDisabled() {
 			return this.config.availabilitySet && !this.overriding
 		},
+
 		detectedWeekdayLabels() {
 			return (this.config.workWeekdaysDetected || [])
 				.map((iso) => this.weekdayList.find((d) => d.iso === iso)?.label)
 				.filter(Boolean)
 				.join(', ')
 		},
+
 		countryPlaceholder() {
 			return this.config.holidayCountryDetected
 				? t('absence', 'Detected: {country}', { country: this.config.holidayCountryDetected })
 				: t('absence', 'Select a country…')
 		},
 	},
+
 	async mounted() {
 		this.loadingCountries = true
 		try {
@@ -141,6 +158,7 @@ export default {
 			this.loadingCountries = false
 		}
 	},
+
 	methods: {
 		t,
 		toggleWeekday(iso, on) {
@@ -152,19 +170,23 @@ export default {
 			}
 			this.weekdays = [...set].sort()
 		},
+
 		cancelOverride() {
 			// Drop back to the days detected from Availability.
 			this.overriding = false
 			this.weekdays = [...(this.config.workWeekdaysDetected || [])].sort()
 		},
+
 		async onCountryChange() {
 			this.region = null
 			await this.reloadRegions()
 		},
+
 		async reloadRegions() {
 			this.regionOptions = this.country ? await listRegions(this.country.id) : []
 			this.region = this.regionOptions.find((r) => r.id === this.config.holidayRegion) || null
 		},
+
 		save() {
 			this.saving = true
 			// Only store an override when the choice differs from what was detected,

@@ -5,7 +5,8 @@
   - Create / edit a leave request with a live working-day + balance preview (§15.2).
 -->
 <template>
-	<NcModal :name="dialogTitle"
+	<NcModal
+		:name="dialogTitle"
 		size="normal"
 		@close="$emit('close')">
 		<div class="dialog">
@@ -19,10 +20,11 @@
 
 			<div v-if="hrMode" class="dialog__field">
 				<label class="dialog__label">{{ t('absence', 'Employee') }}</label>
-				<NcSelect v-model="selectedEmployee"
+				<NcSelect
+					v-model="selectedEmployee"
 					:options="employeeOptions"
 					:loading="employeeLoading"
-					:user-select="true"
+					:userSelect="true"
 					label="displayName"
 					:filterable="false"
 					:placeholder="t('absence', 'Search for an employee…')"
@@ -32,7 +34,8 @@
 
 			<div class="dialog__field">
 				<label class="dialog__label">{{ t('absence', 'Leave type') }}</label>
-				<NcSelect v-model="selectedType"
+				<NcSelect
+					v-model="selectedType"
 					:options="typeOptions"
 					label="label"
 					:clearable="false"
@@ -50,16 +53,19 @@
 				<label class="dialog__label">
 					{{ t('absence', 'Replacement') }}<span class="dialog__req">*</span>
 				</label>
-				<NcSelect v-model="selectedReplacement"
+				<NcSelect
+					v-model="selectedReplacement"
 					:options="replacementOptions"
 					:loading="replacementLoading"
-					:user-select="true"
+					:userSelect="true"
 					label="displayName"
 					:filterable="false"
 					:placeholder="t('absence', 'Who covers for you?')"
 					:aria-label-combobox="t('absence', 'Replacement')"
 					@search="onReplacementSearch" />
-				<p class="dialog__hint">{{ t('absence', 'A colleague who covers your duties while you are away. They are notified once your leave is approved.') }}</p>
+				<p class="dialog__hint">
+					{{ t('absence', 'A colleague who covers your duties while you are away. They are notified once your leave is approved.') }}
+				</p>
 			</div>
 
 			<div class="dialog__row">
@@ -77,17 +83,22 @@
 				<label class="dialog__label">
 					{{ t('absence', 'Working days') }}<span class="dialog__req">*</span>
 				</label>
-				<NcTextField :model-value="workingDays"
+				<NcTextField
+					:modelValue="workingDays"
 					type="number"
 					min="0"
 					step="0.5"
 					:label="t('absence', 'Working days')"
-					:label-visible="false"
-					@update:model-value="onWorkingDaysInput" />
+					:labelVisible="false"
+					@update:modelValue="onWorkingDaysInput" />
 				<p class="dialog__hint">
 					<template v-if="prefillActive">
 						{{ t('absence', 'Prefilled from your') }}
-						<a :href="settingsUrl" target="_blank" rel="noreferrer noopener" class="dialog__link">{{ t('absence', 'working days and public holidays') }}</a>
+						<a
+							:href="settingsUrl"
+							target="_blank"
+							rel="noreferrer noopener"
+							class="dialog__link">{{ t('absence', 'working days and public holidays') }}</a>
 						{{ t('absence', '— adjust it if needed. Your manager will verify it.') }}
 					</template>
 					<template v-else>
@@ -116,7 +127,8 @@
 					<span v-if="requiresNote" class="dialog__req">*</span>
 					<span v-else class="dialog__optional">{{ t('absence', '(optional)') }}</span>
 				</label>
-				<NcTextArea v-model="reason"
+				<NcTextArea
+					v-model="reason"
 					:placeholder="t('absence', 'Optional note for your manager')"
 					resize="vertical"
 					rows="2" />
@@ -139,6 +151,9 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
+import { t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -148,13 +163,10 @@ import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Send from 'vue-material-design-icons/Send.vue'
-import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
-import { generateUrl } from '@nextcloud/router'
+import api from '../api.js'
 import { store } from '../store.js'
 import { countWorkingDays, parseWeekdays, toIso } from '../utils/dates.js'
 import { makeHolidayChecker } from '../utils/holidays.js'
-import api from '../api.js'
 
 export default {
 	name: 'RequestDialog',
@@ -169,11 +181,13 @@ export default {
 		NcLoadingIcon,
 		Send,
 	},
+
 	props: {
 		request: { type: Object, default: null },
 		// HR "record absence for an employee" mode (e.g. sick leave).
 		hrMode: { type: Boolean, default: false },
 	},
+
 	emits: ['close', 'saved'],
 	data() {
 		return {
@@ -195,16 +209,19 @@ export default {
 			replacementLoading: false,
 		}
 	},
+
 	computed: {
 		isEdit() {
 			return this.request !== null
 		},
+
 		dialogTitle() {
 			if (this.hrMode) {
 				return t('absence', 'Record absence')
 			}
 			return this.isEdit ? t('absence', 'Edit request') : t('absence', 'Request time off')
 		},
+
 		submitLabel() {
 			if (this.isEdit) {
 				return t('absence', 'Save changes')
@@ -212,24 +229,30 @@ export default {
 			// HR records directly — there is no request/approval flow.
 			return this.hrMode ? t('absence', 'Record') : t('absence', 'Submit request')
 		},
+
 		typeOptions() {
 			// HR may record any enabled type (incl. sick); employees only self-requestable ones.
 			return this.hrMode ? store.enabledLeaveTypes : store.requestableLeaveTypes
 		},
+
 		typeColor() {
 			return this.selectedType ? this.selectedType.color : 'var(--color-primary-element)'
 		},
+
 		requiresNote() {
 			return this.selectedType ? this.selectedType.requiresNote : false
 		},
+
 		needsReplacement() {
 			return this.selectedType ? this.selectedType.requiresReplacement : false
 		},
+
 		// Bridge the native date pickers (Date objects) to our ISO string state.
 		startDate: {
 			get() {
 				return this.startIso ? new Date(this.startIso + 'T00:00:00') : null
 			},
+
 			set(v) {
 				this.startIso = v ? toIso(v) : null
 				// Keep the end on/after the start.
@@ -238,30 +261,37 @@ export default {
 				}
 			},
 		},
+
 		endDate: {
 			get() {
 				return this.endIso ? new Date(this.endIso + 'T00:00:00') : null
 			},
+
 			set(v) {
 				this.endIso = v ? toIso(v) : null
 			},
 		},
+
 		subjectUid() {
 			// Whose leave this is — that person can't be their own replacement.
 			return this.hrMode ? (this.selectedEmployee && this.selectedEmployee.uid) : (this.request ? this.request.employeeUid : store.session.uid)
 		},
+
 		workingDaysNum() {
 			const v = parseFloat(this.workingDays)
 			return Number.isFinite(v) ? v : 0
 		},
+
 		// The prefill note (with a link to the settings) only shows while the value
 		// is still auto-filled; once edited or when editing, use the plain text.
 		prefillActive() {
 			return !this.isEdit && !this.workingDaysTouched
 		},
+
 		settingsUrl() {
 			return generateUrl('/settings/user/availability')
 		},
+
 		balanceRow() {
 			// The store holds the current user's balance, so only meaningful for
 			// self-service. Match the year the leave starts in — the balance list is
@@ -275,21 +305,25 @@ export default {
 			const year = parseInt(this.startIso.slice(0, 4), 10)
 			return store.balance.balances.find((b) => b.typeId === this.selectedType.id && b.year === year && b.entitlement !== null) || null
 		},
+
 		projectedAvailable() {
 			if (!this.balanceRow) {
 				return null
 			}
 			return Math.round((this.balanceRow.available - this.workingDaysNum) * 10) / 10
 		},
+
 		wouldGoNegative() {
 			return this.balanceRow && this.selectedType && this.selectedType.countsAgainstBalance && this.projectedAvailable < 0
 		},
+
 		availablePct() {
 			if (!this.balanceRow || !this.balanceRow.entitlement) {
 				return 0
 			}
 			return Math.max(0, Math.min(100, (this.projectedAvailable / this.balanceRow.entitlement) * 100))
 		},
+
 		canSubmit() {
 			if (!this.selectedType || !this.startIso || !this.endIso || this.workingDaysNum <= 0) {
 				return false
@@ -306,14 +340,17 @@ export default {
 			return true
 		},
 	},
+
 	watch: {
 		startIso() {
 			this.recomputePrefill()
 		},
+
 		endIso() {
 			this.recomputePrefill()
 		},
 	},
+
 	async mounted() {
 		await this.initFromProps()
 		if (!this.hrMode && !store.balance.balances.length) {
@@ -328,12 +365,14 @@ export default {
 			// No holiday region / load failed — prefill stays weekday-only.
 		}
 	},
+
 	methods: {
 		t,
 		onWorkingDaysInput(v) {
 			this.workingDays = v
 			this.workingDaysTouched = true
 		},
+
 		/** Prefill the working-day count from the picked range, unless edited/editing. */
 		recomputePrefill() {
 			if (this.isEdit || this.workingDaysTouched || !this.startIso || !this.endIso) {
@@ -342,12 +381,14 @@ export default {
 			const weekdays = parseWeekdays(store.session.workWeekdays || '1,2,3,4,5')
 			this.workingDays = String(countWorkingDays(this.startIso, this.endIso, weekdays, this.holidayChecker))
 		},
+
 		formatDays(v) {
 			if (v === null || v === undefined) {
 				return '—'
 			}
 			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
 		},
+
 		async initFromProps() {
 			const types = this.typeOptions
 			if (this.request) {
@@ -378,6 +419,7 @@ export default {
 				}
 			}
 		},
+
 		// Distinct colleagues used as replacement in the user's past requests, newest first.
 		pastReplacements() {
 			const seen = new Set()
@@ -393,6 +435,7 @@ export default {
 			}
 			return list
 		},
+
 		async onEmployeeSearch(query) {
 			if (!query || query.length < 2) {
 				return
@@ -406,6 +449,7 @@ export default {
 				this.employeeLoading = false
 			}
 		},
+
 		async onReplacementSearch(query) {
 			if (!query || query.length < 2) {
 				return
@@ -421,6 +465,7 @@ export default {
 				this.replacementLoading = false
 			}
 		},
+
 		async submit() {
 			if (!this.canSubmit) {
 				return

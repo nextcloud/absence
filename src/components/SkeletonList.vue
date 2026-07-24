@@ -25,6 +25,7 @@ export default {
 	props: {
 		rows: { type: Number, default: 4 },
 	},
+
 	methods: { t },
 }
 </script>
