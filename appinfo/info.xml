@@ -42,14 +42,14 @@ exports.
 		<job>OCA\Absence\BackgroundJob\YearRolloverJob</job>
 	</background-jobs>
 	<repair-steps>
-		<install>
-			<step>OCA\Absence\Migration\SeedLeaveTypes</step>
-			<step>OCA\Absence\Migration\EnableAuditLogging</step>
-		</install>
 		<post-migration>
 			<step>OCA\Absence\Migration\EnableAuditLogging</step>
 			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
 		</post-migration>
+		<install>
+			<step>OCA\Absence\Migration\SeedLeaveTypes</step>
+			<step>OCA\Absence\Migration\EnableAuditLogging</step>
+		</install>
 		<uninstall>
 			<step>OCA\Absence\Migration\DisableAuditLogging</step>
 		</uninstall>
