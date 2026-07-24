@@ -47,7 +47,7 @@ class ActivityPublisher {
 				$event->setApp(ConfigService::APP_ID)
 					->setType(self::TYPE)
 					->setAffectedUser($uid)
-					->setAuthor($this->activityManager->getCurrentUserId() ?? '')
+					->setAuthor($this->activityManager->getCurrentUserId())
 					->setSubject($subject, $params);
 				if ($request !== null) {
 					$event->setObject('absence_request', (int)$request->getId());

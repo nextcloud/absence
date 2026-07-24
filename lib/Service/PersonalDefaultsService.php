@@ -159,13 +159,14 @@ class PersonalDefaultsService {
 		} catch (\Throwable $e) {
 			return null;
 		}
-		$digits = preg_replace('/\D/', '', (string)$phone);
+		$digits = preg_replace('/\D/', '', $phone);
 		if ($phone === '' || !str_starts_with(trim($phone), '+') || $digits === '') {
 			// Without a leading "+" the calling code is ambiguous — do not guess.
 			return null;
 		}
 		for ($len = 3; $len >= 1; $len--) {
-			$prefix = substr($digits, 0, $len);
+			// Numeric-string array keys are stored as ints, so match with an int offset.
+			$prefix = (int)substr($digits, 0, $len);
 			if (isset(self::CALLING_CODES[$prefix])) {
 				return self::CALLING_CODES[$prefix];
 			}

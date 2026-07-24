@@ -95,6 +95,7 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 		$this->addType('updatedAt', 'datetime');
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->id,

@@ -154,7 +154,19 @@ class RequestService {
 	 */
 	public function list(string $actorUid, array $filters, ?int $limit, ?int $offset): array {
 		$scope = (string)($filters['scope'] ?? 'mine');
-		$query = array_intersect_key($filters, array_flip(['status', 'typeId', 'from', 'to']));
+		$query = [];
+		if (isset($filters['status'])) {
+			$query['status'] = (string)$filters['status'];
+		}
+		if (isset($filters['typeId'])) {
+			$query['typeId'] = (int)$filters['typeId'];
+		}
+		if (isset($filters['from'])) {
+			$query['from'] = (string)$filters['from'];
+		}
+		if (isset($filters['to'])) {
+			$query['to'] = (string)$filters['to'];
+		}
 
 		if ($scope === 'reports' || $scope === 'approvals') {
 			$query['managerUid'] = $actorUid;
@@ -177,7 +189,7 @@ class RequestService {
 	/**
 	 * Apply for leave (§5.1).
 	 *
-	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,attachmentNote?:?string,employeeUid?:?string} $data
+	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,attachmentNote?:?string,employeeUid?:?string,workingDays?:?float,replacementUid?:?string} $data
 	 * @throws ValidationException|ConflictException|ForbiddenException
 	 */
 	public function create(string $actorUid, array $data): LeaveRequest {
@@ -222,7 +234,7 @@ class RequestService {
 
 		// Non-requestable types, auto-approve types, and any HR-recorded leave are
 		// booked straight to APPROVED with no approval workflow (§4.1, §5.6).
-		$recordedDirectly = !$type->getEmployeeRequestable() || !$type->getRequiresApproval() || ($onBehalf && $isHr);
+		$recordedDirectly = !$type->getEmployeeRequestable() || !$type->getRequiresApproval() || $onBehalf;
 		if ($recordedDirectly) {
 			$request->setStatus(LeaveRequest::STATUS_APPROVED);
 			$request->setDecidedBy($actorUid);
@@ -420,7 +432,7 @@ class RequestService {
 			$this->applyCalendar($request);
 		}
 		$this->activity->publish(ActivityPublisher::SUBJECT_CREATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
-		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => 'HR adjusted to ' . $request->getStartDate() . ' – ' . $request->getEndDate() . ' (' . $request->getWorkingDays() . ' days)']);
+		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => 'HR adjusted to ' . $request->getStartDate() . ' – ' . $request->getEndDate() . ' (' . (string)$request->getWorkingDays() . ' days)']);
 		return $request;
 	}
 
@@ -794,15 +806,23 @@ class RequestService {
 	 * and any pending edits that supersede it) — excluded from overlap checks so an
 	 * approved original and its in-flight edit don't flag each other (§5.3).
 	 *
-	 * @return int[]
+	 * @return list<int>
 	 */
 	private function chainExcludeIds(LeaveRequest $request): array {
-		$ids = [$request->getId()];
-		if ($request->getSupersedesId() !== null) {
-			$ids[] = $request->getSupersedesId();
+		$ids = [];
+		$id = $request->getId();
+		if ($id !== null) {
+			$ids[] = $id;
+		}
+		$supersedesId = $request->getSupersedesId();
+		if ($supersedesId !== null) {
+			$ids[] = $supersedesId;
 		}
 		foreach ($this->requestMapper->findBySupersedesId($request->getId()) as $child) {
-			$ids[] = $child->getId();
+			$childId = $child->getId();
+			if ($childId !== null) {
+				$ids[] = $childId;
+			}
 		}
 		return $ids;
 	}

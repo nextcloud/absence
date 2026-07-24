@@ -5,53 +5,64 @@
 <template>
 	<div class="page">
 		<header class="page__header">
-			<h2 class="page__title">{{ t('absence', 'Approvals') }}</h2>
+			<h2 class="page__title">
+				{{ t('absence', 'Approvals') }}
+			</h2>
 		</header>
 
 		<SkeletonList v-if="loading" :rows="3" />
 
 		<template v-else>
 			<section v-if="teamQueue.length" class="group">
-				<h3 class="group__title">{{ t('absence', 'Awaiting your decision') }}</h3>
+				<h3 class="group__title">
+					{{ t('absence', 'Awaiting your decision') }}
+				</h3>
 				<TransitionGroup tag="ul" name="rli" class="list">
-					<RequestListItem v-for="r in teamQueue"
+					<RequestListItem
+						v-for="r in teamQueue"
 						:key="r.id"
 						:request="r"
-						:show-employee="true"
+						:showEmployee="true"
 						:active="store.selectedId === r.id"
 						@select="store.select($event)" />
 				</TransitionGroup>
 			</section>
 
 			<section v-if="escalated.length" class="group">
-				<h3 class="group__title">{{ t('absence', 'Escalated to HR') }} ⏫</h3>
+				<h3 class="group__title">
+					{{ t('absence', 'Escalated to HR') }} ⏫
+				</h3>
 				<TransitionGroup tag="ul" name="rli" class="list">
-					<RequestListItem v-for="r in escalated"
+					<RequestListItem
+						v-for="r in escalated"
 						:key="r.id"
 						:request="r"
-						:show-employee="true"
+						:showEmployee="true"
 						:active="store.selectedId === r.id"
 						@select="store.select($event)" />
 				</TransitionGroup>
 			</section>
 
-			<NcEmptyContent v-if="!teamQueue.length && !escalated.length"
+			<NcEmptyContent
+				v-if="!teamQueue.length && !escalated.length"
 				:name="t('absence', 'All caught up!')"
 				:description="t('absence', 'No requests waiting for a decision. ✨')">
-				<template #icon><CheckAll :size="20" /></template>
+				<template #icon>
+					<CheckAll :size="20" />
+				</template>
 			</NcEmptyContent>
 		</template>
 	</div>
 </template>
 
 <script>
+import { t } from '@nextcloud/l10n'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import CheckAll from 'vue-material-design-icons/CheckAll.vue'
-import { t } from '@nextcloud/l10n'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
-import { store } from '../store.js'
 import api from '../api.js'
+import { store } from '../store.js'
 
 const ACTIONABLE = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING']
 
@@ -62,6 +73,7 @@ export default {
 		// Expose the module-level reactive store to the template (Options API).
 		return { store }
 	},
+
 	data() {
 		return {
 			loading: true,
@@ -69,13 +81,16 @@ export default {
 			escalated: [],
 		}
 	},
+
 	mounted() {
 		this.reload()
 		window.addEventListener('absence:refresh', this.reload)
 	},
+
 	beforeUnmount() {
 		window.removeEventListener('absence:refresh', this.reload)
 	},
+
 	methods: {
 		t,
 		async reload() {
@@ -125,8 +140,11 @@ export default {
 
 .rli-enter-active,
 .rli-leave-active { transition: opacity 250ms ease, transform 250ms ease; }
+
 .rli-enter-from { opacity: 0; transform: translateY(8px); }
+
 .rli-leave-to { opacity: 0; transform: translateX(-12px); }
+
 .rli-move { transition: transform 250ms ease; }
 
 @media (prefers-reduced-motion: reduce) {

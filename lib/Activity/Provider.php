@@ -24,6 +24,7 @@ class Provider implements IProvider {
 	) {
 	}
 
+	#[\Override]
 	public function parse($language, IEvent $event, ?IEvent $previousEvent = null): IEvent {
 		if ($event->getApp() !== ConfigService::APP_ID) {
 			throw new \InvalidArgumentException('Not an Absence event');

@@ -18,30 +18,37 @@ class Setting implements ISetting {
 	) {
 	}
 
+	#[\Override]
 	public function getIdentifier(): string {
 		return ConfigService::APP_ID;
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return $this->l->t('Leave requests and approvals');
 	}
 
+	#[\Override]
 	public function getPriority(): int {
 		return 60;
 	}
 
+	#[\Override]
 	public function canChangeStream(): bool {
 		return true;
 	}
 
+	#[\Override]
 	public function isDefaultEnabledStream(): bool {
 		return true;
 	}
 
+	#[\Override]
 	public function canChangeMail(): bool {
 		return true;
 	}
 
+	#[\Override]
 	public function isDefaultEnabledMail(): bool {
 		return false;
 	}

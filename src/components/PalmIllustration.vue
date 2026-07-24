@@ -6,13 +6,28 @@
   - a gently bobbing sun. Uses theme colours; sway is disabled under reduced-motion.
 -->
 <template>
-	<svg class="palm" viewBox="0 0 160 140" width="160" height="140" role="img" aria-hidden="true">
+	<svg
+		class="palm"
+		viewBox="0 0 160 140"
+		width="160"
+		height="140"
+		role="img"
+		aria-hidden="true">
 		<!-- sun -->
-		<circle class="palm__sun" cx="126" cy="34" r="16" />
+		<circle
+			class="palm__sun"
+			cx="126"
+			cy="34"
+			r="16" />
 		<!-- sea -->
 		<path class="palm__sea" d="M0 118 Q40 110 80 118 T160 118 V140 H0 Z" />
 		<!-- island -->
-		<ellipse class="palm__island" cx="70" cy="120" rx="46" ry="10" />
+		<ellipse
+			class="palm__island"
+			cx="70"
+			cy="120"
+			rx="46"
+			ry="10" />
 		<!-- trunk -->
 		<path class="palm__trunk" d="M68 120 C64 100 66 84 72 70 L78 71 C73 85 72 101 74 120 Z" />
 		<!-- fronds -->
@@ -24,8 +39,16 @@
 			<path class="palm__frond" d="M75 69 C74 54 78 44 84 36 C80 48 79 58 78 70 Z" />
 		</g>
 		<!-- coconuts -->
-		<circle class="palm__coco" cx="72" cy="73" r="3" />
-		<circle class="palm__coco" cx="79" cy="74" r="3" />
+		<circle
+			class="palm__coco"
+			cx="72"
+			cy="73"
+			r="3" />
+		<circle
+			class="palm__coco"
+			cx="79"
+			cy="74"
+			r="3" />
 	</svg>
 </template>
 

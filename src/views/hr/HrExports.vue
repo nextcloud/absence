@@ -5,7 +5,9 @@
 <template>
 	<div class="page">
 		<header class="page__header">
-			<h2 class="page__title">{{ t('absence', 'Exports') }}</h2>
+			<h2 class="page__title">
+				{{ t('absence', 'Exports') }}
+			</h2>
 		</header>
 
 		<div class="cards">
@@ -17,7 +19,7 @@
 					<NcDateTimePickerNative v-model="to" type="date" :label="t('absence', 'To')" />
 				</div>
 				<a :href="requestsUrl" class="dl">
-					<NcButton type="primary">
+					<NcButton variant="primary">
 						<template #icon><Download :size="20" /></template>
 						{{ t('absence', 'Download requests CSV') }}
 					</NcButton>
@@ -28,10 +30,14 @@
 				<h3>{{ t('absence', 'Balances') }}</h3>
 				<p>{{ t('absence', 'Per-employee entitlement, used, remaining and carry-over for a year.') }}</p>
 				<div class="card__row">
-					<NcSelect v-model="year" :options="years" :clearable="false" :aria-label-combobox="t('absence', 'Year')" />
+					<NcSelect
+						v-model="year"
+						:options="years"
+						:clearable="false"
+						:aria-label-combobox="t('absence', 'Year')" />
 				</div>
 				<a :href="balancesUrl" class="dl">
-					<NcButton type="primary">
+					<NcButton variant="primary">
 						<template #icon><Download :size="20" /></template>
 						{{ t('absence', 'Download balances CSV') }}
 					</NcButton>
@@ -42,11 +48,11 @@
 </template>
 
 <script>
+import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import Download from 'vue-material-design-icons/Download.vue'
-import { t } from '@nextcloud/l10n'
 import api from '../../api.js'
 import { toIso } from '../../utils/dates.js'
 
@@ -62,14 +68,17 @@ export default {
 			years: [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1],
 		}
 	},
+
 	computed: {
 		requestsUrl() {
 			return api.exportRequestsUrl(toIso(this.from), toIso(this.to))
 		},
+
 		balancesUrl() {
 			return api.exportBalancesUrl(this.year)
 		},
 	},
+
 	methods: { t },
 }
 </script>

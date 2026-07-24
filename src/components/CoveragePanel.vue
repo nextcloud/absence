@@ -11,26 +11,34 @@
 			{{ t('absence', 'Coverage looks fine — at most {peak} away at once.', { peak: coverage.projectedPeak ?? coverage.maxConcurrent }) }}
 		</NcNoteCard>
 
-		<h4 class="section__title">{{ t('absence', 'Team members off during these dates') }}</h4>
+		<h4 class="section__title">
+			{{ t('absence', 'Team members off during these dates') }}
+		</h4>
 		<ul v-if="coverage.events.length" class="overlap">
 			<li v-for="ev in coverage.events" :key="ev.requestId" class="overlap__item">
-				<NcAvatar :user="ev.employeeUid" :display-name="ev.displayName" :size="28" :show-user-status="false" />
+				<NcAvatar
+					:user="ev.employeeUid"
+					:displayName="ev.displayName"
+					:size="28"
+					hideStatus />
 				<span class="overlap__name">{{ ev.displayName }}</span>
 				<StatusChip :status="ev.status" />
 			</li>
 		</ul>
 		<NcEmptyContent v-else :name="t('absence', 'Nobody else is off 🎉')">
-			<template #icon><AccountGroup :size="20" /></template>
+			<template #icon>
+				<AccountGroup :size="20" />
+			</template>
 		</NcEmptyContent>
 	</div>
 </template>
 
 <script>
+import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
-import { t } from '@nextcloud/l10n'
 import StatusChip from './StatusChip.vue'
 
 export default {
@@ -39,6 +47,7 @@ export default {
 	props: {
 		coverage: { type: Object, required: true },
 	},
+
 	methods: { t },
 }
 </script>

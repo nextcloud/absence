@@ -25,14 +25,17 @@ class Notifier implements INotifier {
 	) {
 	}
 
+	#[\Override]
 	public function getID(): string {
 		return ConfigService::APP_ID;
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return $this->l10nFactory->get(ConfigService::APP_ID)->t('Absence');
 	}
 
+	#[\Override]
 	public function prepare(INotification $notification, string $languageCode): INotification {
 		if ($notification->getApp() !== ConfigService::APP_ID) {
 			throw new UnknownNotificationException('Notification not from Absence');

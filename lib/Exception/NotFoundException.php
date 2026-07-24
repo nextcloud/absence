@@ -11,6 +11,7 @@ namespace OCA\Absence\Exception;
 use OCP\AppFramework\Http;
 
 class NotFoundException extends AbsenceException {
+	#[\Override]
 	public function getHttpStatus(): int {
 		return Http::STATUS_NOT_FOUND;
 	}

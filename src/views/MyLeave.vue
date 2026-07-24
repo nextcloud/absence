@@ -5,9 +5,13 @@
 <template>
 	<div class="page">
 		<header class="page__header">
-			<h2 class="page__title">{{ t('absence', 'My leave') }}</h2>
-			<NcButton type="primary" @click="openNew">
-				<template #icon><Plus :size="20" /></template>
+			<h2 class="page__title">
+				{{ t('absence', 'My leave') }}
+			</h2>
+			<NcButton variant="primary" @click="openNew">
+				<template #icon>
+					<Plus :size="20" />
+				</template>
 				{{ t('absence', 'New request') }}
 			</NcButton>
 		</header>
@@ -35,21 +39,31 @@
 		</section>
 
 		<section class="requests">
-			<h3 class="requests__title">{{ t('absence', 'Requests') }}</h3>
+			<h3 class="requests__title">
+				{{ t('absence', 'Requests') }}
+			</h3>
 			<SkeletonList v-if="store.loading" :rows="4" />
-			<TransitionGroup v-else-if="store.requests.length" tag="ul" name="rli" class="requests__list">
-				<RequestListItem v-for="r in store.requests"
+			<TransitionGroup
+				v-else-if="store.requests.length"
+				tag="ul"
+				name="rli"
+				class="requests__list">
+				<RequestListItem
+					v-for="r in store.requests"
 					:key="r.id"
 					:request="r"
 					:active="store.selectedId === r.id"
 					@select="store.select($event)" />
 			</TransitionGroup>
-			<NcEmptyContent v-else
+			<NcEmptyContent
+				v-else
 				:name="t('absence', 'No leave requests yet')"
 				:description="t('absence', 'Your leave requests will appear here once you submit one.')">
-				<template #icon><PalmIllustration /></template>
+				<template #icon>
+					<PalmIllustration />
+				</template>
 				<template #action>
-					<NcButton type="primary" @click="openNew">
+					<NcButton variant="primary" @click="openNew">
 						{{ t('absence', 'Request time off') }}
 					</NcButton>
 				</template>
@@ -59,15 +73,15 @@
 </template>
 
 <script>
+import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import Plus from 'vue-material-design-icons/Plus.vue'
-import { t, n } from '@nextcloud/l10n'
 import BalanceCard from '../components/BalanceCard.vue'
 import BarChart from '../components/BarChart.vue'
+import PalmIllustration from '../components/PalmIllustration.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
-import PalmIllustration from '../components/PalmIllustration.vue'
 import { store } from '../store.js'
 import { addWorkingDaysByMonth, formatRange, toIso } from '../utils/dates.js'
 
@@ -78,21 +92,26 @@ export default {
 	props: {
 		id: { type: [String, Number], default: null },
 	},
+
 	setup() {
 		// Expose the module-level reactive store to the template (Options API).
 		return { store }
 	},
+
 	computed: {
 		year() {
 			return new Date().getFullYear()
 		},
+
 		rings() {
 			return store.balance.balances.filter((b) => b.year === this.year && b.countsAgainstBalance)
 		},
+
 		/** Approved counting leave (annual etc.) per month of the current year. */
 		leaveByMonth() {
 			return this.monthChart((type) => type.countsAgainstBalance !== false && type.key !== 'sick', null)
 		},
+
 		/** Sick days per month of the current year, or null when the type is not configured. */
 		sickByMonth() {
 			const sickType = store.leaveTypes.find((type) => type.key === 'sick')
@@ -101,6 +120,7 @@ export default {
 			}
 			return this.monthChart((type) => type.key === 'sick', sickType.color)
 		},
+
 		/** The soonest upcoming (or ongoing) approved leave, as a motivating hero. */
 		nextBreak() {
 			const today = toIso(new Date())
@@ -115,7 +135,8 @@ export default {
 			const range = formatRange(r.startDate, r.endDate)
 			if (r.startDate <= today) {
 				return {
-					icon: type.icon, color: type.color,
+					icon: type.icon,
+					color: type.color,
 					eyebrow: t('absence', 'You are off right now'),
 					headline: t('absence', 'Enjoy your {type}! 🌴', { type: type.label.toLowerCase() }),
 					sub: range,
@@ -123,13 +144,15 @@ export default {
 			}
 			const days = Math.max(1, Math.round((new Date(r.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000))
 			return {
-				icon: type.icon, color: type.color,
+				icon: type.icon,
+				color: type.color,
 				eyebrow: t('absence', 'Your next break'),
 				headline: n('absence', '%n day to go', '%n days to go', days),
 				sub: `${type.label} · ${range}`,
 			}
 		},
 	},
+
 	mounted() {
 		this.reload()
 		window.addEventListener('absence:refresh', this.reload)
@@ -137,15 +160,20 @@ export default {
 			store.select(Number(this.id))
 		}
 	},
+
 	beforeUnmount() {
 		window.removeEventListener('absence:refresh', this.reload)
 	},
+
 	methods: {
 		t,
 		/**
 		 * BarChart data (12 months of the current year) from my approved requests
 		 * whose type matches. Months without leave stay at zero so the chart is
 		 * always visible.
+		 *
+		 * @param typeMatches
+		 * @param color
 		 */
 		monthChart(typeMatches, color) {
 			const buckets = new Array(12).fill(0)
@@ -161,9 +189,11 @@ export default {
 				...(color ? { color } : {}),
 			}))
 		},
+
 		openNew() {
 			this['absence:openNew']()
 		},
+
 		async reload() {
 			await Promise.all([
 				store.loadRequests({ scope: 'mine' }),
@@ -274,14 +304,17 @@ export default {
 .rli-leave-active {
 	transition: opacity 250ms ease, transform 250ms ease;
 }
+
 .rli-enter-from {
 	opacity: 0;
 	transform: translateY(8px);
 }
+
 .rli-leave-to {
 	opacity: 0;
 	transform: translateX(-12px);
 }
+
 .rli-move {
 	transition: transform 250ms ease;
 }

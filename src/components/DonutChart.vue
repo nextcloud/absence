@@ -6,11 +6,22 @@
 -->
 <template>
 	<figure class="donut">
-		<figcaption v-if="title" class="donut__title">{{ title }}</figcaption>
+		<figcaption v-if="title" class="donut__title">
+			{{ title }}
+		</figcaption>
 		<div class="donut__body">
-			<svg viewBox="0 0 160 160" class="donut__svg" role="img" :aria-label="title">
-				<circle class="donut__track" cx="80" cy="80" :r="radius" />
-				<circle v-for="(seg, i) in segments"
+			<svg
+				viewBox="0 0 160 160"
+				class="donut__svg"
+				role="img"
+				:aria-label="title">
+				<circle
+					class="donut__track"
+					cx="80"
+					cy="80"
+					:r="radius" />
+				<circle
+					v-for="(seg, i) in segments"
 					:key="i"
 					class="donut__seg"
 					cx="80"
@@ -45,16 +56,20 @@ export default {
 		title: { type: String, default: '' },
 		data: { type: Array, required: true }, // [{ label, value, color }]
 	},
+
 	data() {
 		return { radius: 64, animated: false }
 	},
+
 	computed: {
 		circumference() {
 			return 2 * Math.PI * this.radius
 		},
+
 		total() {
 			return this.data.reduce((s, d) => s + d.value, 0)
 		},
+
 		segments() {
 			const total = this.total || 1
 			let acc = 0
@@ -67,13 +82,17 @@ export default {
 			})
 		},
 	},
+
 	mounted() {
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			this.animated = true
 			return
 		}
-		requestAnimationFrame(() => { this.animated = true })
+		requestAnimationFrame(() => {
+			this.animated = true
+		})
 	},
+
 	methods: {
 		t,
 		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },

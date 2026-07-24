@@ -25,20 +25,27 @@ appstore: clean
 	mkdir -p $(staging_dir)/$(app_name)
 	rsync -a \
 		--exclude=/.git \
+		--exclude=/.github \
 		--exclude=/.gitignore \
 		--exclude=/build \
 		--exclude=/node_modules \
 		--exclude=/src \
 		--exclude=/tests \
 		--exclude=/vendor \
+		--exclude=/vendor-bin \
 		--exclude=/screenshots \
 		--exclude=/composer.json \
 		--exclude=/composer.lock \
+		--exclude=/eslint.config.mjs \
 		--exclude=/package.json \
 		--exclude=/package-lock.json \
+		--exclude=/.php-cs-fixer.cache \
+		--exclude=/.php-cs-fixer.dist.php \
 		--exclude=/vite.config.js \
+		--exclude=/stylelint.config.cjs \
 		--exclude=/psalm.xml \
 		--exclude=/Makefile \
+		--exclude=/README.md \
 		--exclude=/SPECIFICATION.md \
 		./ $(staging_dir)/$(app_name)/
 	@if [ -f $(cert_dir)/$(app_name).crt ] && [ -f $(occ) ]; then \
