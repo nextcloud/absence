@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <psalm
 	errorLevel="4"
+	errorBaseline="tests/psalm-baseline.xml"
 	resolveFromConfigFile="true"
 	findUnusedBaselineEntry="true"
 	findUnusedCode="false"
