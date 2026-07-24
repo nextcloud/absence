@@ -79,7 +79,9 @@ export default {
 			this.animated = true
 			return
 		}
-		requestAnimationFrame(() => { this.animated = true })
+		requestAnimationFrame(() => {
+			this.animated = true
+		})
 	},
 
 	methods: {

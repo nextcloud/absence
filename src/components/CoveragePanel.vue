@@ -20,7 +20,7 @@
 					:user="ev.employeeUid"
 					:displayName="ev.displayName"
 					:size="28"
-					:showUserStatus="false" />
+					hideStatus />
 				<span class="overlap__name">{{ ev.displayName }}</span>
 				<StatusChip :status="ev.status" />
 			</li>

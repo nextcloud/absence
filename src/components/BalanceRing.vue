@@ -94,7 +94,9 @@ export default {
 			this.tween = this.targetValue
 			return
 		}
-		requestAnimationFrame(() => { this.animated = true })
+		requestAnimationFrame(() => {
+			this.animated = true
+		})
 		this.countUp()
 	},
 

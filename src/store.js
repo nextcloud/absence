@@ -16,7 +16,7 @@ import api from './api.js'
 function initialSession() {
 	try {
 		return loadState('absence', 'session')
-	} catch (e) {
+	} catch {
 		return { uid: null }
 	}
 }
@@ -27,7 +27,7 @@ function initialSession() {
 function initialLeaveTypes() {
 	try {
 		return loadState('absence', 'leaveTypes') || []
-	} catch (e) {
+	} catch {
 		return []
 	}
 }
@@ -92,7 +92,7 @@ export const store = reactive({
 		this.loading = true
 		try {
 			this.requests = await api.listRequests(params)
-		} catch (e) {
+		} catch {
 			showError(t('absence', 'Could not load requests'))
 		} finally {
 			this.loading = false

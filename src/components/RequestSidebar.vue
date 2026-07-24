@@ -30,7 +30,7 @@
 					<template v-if="detail.replacementUid">
 						<dt>{{ t('absence', 'Replacement') }}</dt>
 						<dd class="facts__decided">
-							<NcAvatar :user="detail.replacementUid" :size="20" :showUserStatus="false" />
+							<NcAvatar :user="detail.replacementUid" :size="20" hideStatus />
 							{{ detail.replacementName || detail.replacementUid }}
 						</dd>
 					</template>
@@ -41,7 +41,7 @@
 					<template v-if="detail.decidedBy">
 						<dt>{{ t('absence', 'Decided by') }}</dt>
 						<dd class="facts__decided">
-							<NcAvatar :user="detail.decidedBy" :size="20" :showUserStatus="false" />
+							<NcAvatar :user="detail.decidedBy" :size="20" hideStatus />
 							{{ detail.decidedBy }}<span v-if="decidedAtLabel" class="facts__muted"> · {{ decidedAtLabel }}</span>
 						</dd>
 					</template>
@@ -122,7 +122,7 @@
 				<ul v-if="detail.comments.length" class="comments">
 					<li v-for="c in detail.comments" :key="c.id" class="comments__item">
 						<div class="comments__head">
-							<NcAvatar :user="c.authorUid" :size="24" :showUserStatus="false" />
+							<NcAvatar :user="c.authorUid" :size="24" hideStatus />
 							<strong>{{ c.authorUid }}</strong>
 						</div>
 						<p>{{ c.body }}</p>
@@ -160,7 +160,7 @@
 									{{ t('absence', 'Automatically') }}
 								</template>
 								<template v-else>
-									<NcAvatar :user="ev.actorUid" :size="20" :showUserStatus="false" />
+									<NcAvatar :user="ev.actorUid" :size="20" hideStatus />
 									{{ ev.actorUid }}
 								</template>
 							</div>
@@ -333,7 +333,7 @@ export default {
 				this.detail = await api.getRequest(store.selectedId)
 				this.rejecting = false
 				this.rejectComment = ''
-			} catch (e) {
+			} catch {
 				showError(t('absence', 'Could not load the request'))
 				this.$emit('close')
 			}
@@ -385,7 +385,7 @@ export default {
 				await api.addComment(this.detail.id, this.newComment)
 				this.newComment = ''
 				await this.load()
-			} catch (e) {
+			} catch {
 				showError(t('absence', 'Could not add comment'))
 			} finally {
 				this.busy = false

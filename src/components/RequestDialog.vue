@@ -20,6 +20,7 @@
 
 			<div v-if="hrMode" class="dialog__field">
 				<label class="dialog__label">{{ t('absence', 'Employee') }}</label>
+				<!-- eslint-disable @nextcloud/no-deprecated-library-props -- NcSelectUsers migration deferred: needs live-instance testing -->
 				<NcSelect
 					v-model="selectedEmployee"
 					:options="employeeOptions"
@@ -30,6 +31,7 @@
 					:placeholder="t('absence', 'Search for an employee…')"
 					:aria-label-combobox="t('absence', 'Employee')"
 					@search="onEmployeeSearch" />
+				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
 			</div>
 
 			<div class="dialog__field">
@@ -53,6 +55,7 @@
 				<label class="dialog__label">
 					{{ t('absence', 'Replacement') }}<span class="dialog__req">*</span>
 				</label>
+				<!-- eslint-disable @nextcloud/no-deprecated-library-props -- NcSelectUsers migration deferred: needs live-instance testing -->
 				<NcSelect
 					v-model="selectedReplacement"
 					:options="replacementOptions"
@@ -63,6 +66,7 @@
 					:placeholder="t('absence', 'Who covers for you?')"
 					:aria-label-combobox="t('absence', 'Replacement')"
 					@search="onReplacementSearch" />
+				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
 				<p class="dialog__hint">
 					{{ t('absence', 'A colleague who covers your duties while you are away. They are notified once your leave is approved.') }}
 				</p>
@@ -361,7 +365,7 @@ export default {
 		try {
 			this.holidayChecker = await makeHolidayChecker(store.session.holidayCountry, store.session.holidayRegion)
 			this.recomputePrefill()
-		} catch (e) {
+		} catch {
 			// No holiday region / load failed — prefill stays weekday-only.
 		}
 	},
@@ -443,7 +447,7 @@ export default {
 			this.employeeLoading = true
 			try {
 				this.employeeOptions = await api.searchUsers(query)
-			} catch (e) {
+			} catch {
 				this.employeeOptions = []
 			} finally {
 				this.employeeLoading = false
@@ -459,7 +463,7 @@ export default {
 				const users = await api.searchUsers(query)
 				// A person can't be their own replacement.
 				this.replacementOptions = users.filter((u) => u.uid !== this.subjectUid)
-			} catch (e) {
+			} catch {
 				this.replacementOptions = []
 			} finally {
 				this.replacementLoading = false

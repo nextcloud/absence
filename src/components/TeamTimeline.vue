@@ -50,7 +50,7 @@
 							:user="row.uid"
 							:displayName="row.name"
 							:size="26"
-							:showUserStatus="false" />
+							hideStatus />
 						<span class="gantt__name-text">{{ row.name }}</span>
 					</div>
 					<div class="gantt__track">
@@ -207,7 +207,7 @@ export default {
 			this.loading = true
 			try {
 				this.events = (await api.getCalendar(toIso(this.firstDay), toIso(this.lastDay), this.scope)).events
-			} catch (e) {
+			} catch {
 				this.events = []
 			} finally {
 				this.loading = false
@@ -217,8 +217,14 @@ export default {
 		shift(delta) {
 			let m = this.month + delta
 			let y = this.year
-			if (m < 0) { m = 11; y-- }
-			if (m > 11) { m = 0; y++ }
+			if (m < 0) {
+				m = 11
+				y--
+			}
+			if (m > 11) {
+				m = 0
+				y++
+			}
 			this.month = m
 			this.year = y
 			this.load()

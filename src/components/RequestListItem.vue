@@ -25,14 +25,13 @@
 <script>
 import { n, t } from '@nextcloud/l10n'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
-import LeaveTypeChip from './LeaveTypeChip.vue'
 import StatusChip from './StatusChip.vue'
 import { store } from '../store.js'
 import { formatRange } from '../utils/dates.js'
 
 export default {
 	name: 'RequestListItem',
-	components: { NcListItem, StatusChip, LeaveTypeChip },
+	components: { NcListItem, StatusChip },
 	props: {
 		request: { type: Object, required: true },
 		active: { type: Boolean, default: false },

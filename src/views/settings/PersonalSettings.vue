@@ -152,7 +152,7 @@ export default {
 			this.countryOptions = await listCountries()
 			this.country = this.countryOptions.find((c) => c.id === this.config.holidayCountry) || null
 			await this.reloadRegions()
-		} catch (e) {
+		} catch {
 			showError(t('absence', 'Could not load the country list'))
 		} finally {
 			this.loadingCountries = false

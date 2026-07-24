@@ -59,7 +59,7 @@
 									:user="row.employeeUid"
 									:displayName="row.displayName"
 									:size="24"
-									:showUserStatus="false" /> {{ row.displayName }}
+									hideStatus /> {{ row.displayName }}
 							</div>
 						</td>
 						<td><span class="type"><span aria-hidden="true">{{ row.typeIcon }}</span> {{ row.typeLabel }}</span></td>
@@ -186,7 +186,7 @@ export default {
 			this.loading = true
 			try {
 				this.rows = await api.reportBalances(this.year)
-			} catch (e) {
+			} catch {
 				showError(t('absence', 'Could not load balances'))
 			} finally {
 				this.loading = false
@@ -205,7 +205,7 @@ export default {
 					adjustmentNote: '',
 					entitlementId: ent ? ent.id : row.entitlementId,
 				}
-			} catch (e) {
+			} catch {
 				this.form = { baseDays: row.baseDays, manualAdjustment: 0, adjustmentNote: '', entitlementId: row.entitlementId }
 			}
 		},
