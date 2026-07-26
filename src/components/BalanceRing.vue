@@ -7,8 +7,13 @@
 <template>
 	<div class="ring" role="group" :aria-label="ariaLabel">
 		<svg viewBox="0 0 120 120" class="ring__svg">
-			<circle class="ring__track" cx="60" cy="60" :r="radius" />
-			<circle class="ring__used"
+			<circle
+				class="ring__track"
+				cx="60"
+				cy="60"
+				:r="radius" />
+			<circle
+				class="ring__used"
 				cx="60"
 				cy="60"
 				:r="radius"
@@ -41,6 +46,7 @@ export default {
 	props: {
 		row: { type: Object, required: true },
 	},
+
 	data() {
 		return {
 			radius: 50,
@@ -48,40 +54,49 @@ export default {
 			tween: 0,
 		}
 	},
+
 	computed: {
 		circumference() {
 			return 2 * Math.PI * this.radius
 		},
+
 		fraction() {
 			if (!this.row.entitlement || this.row.entitlement <= 0) {
 				return this.row.used > 0 ? 1 : 0
 			}
 			return Math.min(1, Math.max(0, this.row.used / this.row.entitlement))
 		},
+
 		usedOffset() {
 			// Animate from full (nothing drawn) to the used fraction.
 			return this.animated ? this.circumference * (1 - this.fraction) : this.circumference
 		},
+
 		targetValue() {
 			if (this.row.remaining !== null && this.row.remaining !== undefined) {
 				return Number(this.row.remaining)
 			}
 			return Number(this.row.used)
 		},
+
 		remainingLabel() {
 			return this.format(this.tween)
 		},
+
 		ariaLabel() {
 			return `${this.row.typeLabel}: ${this.remainingLabel} ${this.t('absence', 'days left')}`
 		},
 	},
+
 	mounted() {
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			this.animated = true
 			this.tween = this.targetValue
 			return
 		}
-		requestAnimationFrame(() => { this.animated = true })
+		requestAnimationFrame(() => {
+			this.animated = true
+		})
 		this.countUp()
 	},
 
@@ -103,6 +118,7 @@ export default {
 			}
 			requestAnimationFrame(step)
 		},
+
 		format(v) {
 			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
 		},

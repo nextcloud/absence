@@ -17,6 +17,7 @@ export default {
 	props: {
 		status: { type: String, required: true },
 	},
+
 	computed: {
 		meta() {
 			return statusMeta(this.status)

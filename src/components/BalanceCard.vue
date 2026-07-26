@@ -51,11 +51,13 @@ export default {
 	props: {
 		row: { type: Object, required: true },
 	},
+
 	methods: {
 		t,
 		format(v) {
 			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
 		},
+
 		signed(v) {
 			const n = Number(v)
 			return (n >= 0 ? '+' : '−') + this.format(Math.abs(n))

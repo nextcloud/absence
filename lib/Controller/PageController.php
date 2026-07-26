@@ -8,8 +8,8 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
-use OCA\Absence\Service\SessionService;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\SessionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;

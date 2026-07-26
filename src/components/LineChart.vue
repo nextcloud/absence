@@ -6,9 +6,17 @@
 -->
 <template>
 	<figure class="line">
-		<figcaption v-if="title" class="line__title">{{ title }}</figcaption>
-		<svg :viewBox="`0 0 ${width} ${height}`" class="line__svg" role="img" :aria-label="title" preserveAspectRatio="none">
-			<line v-for="(g, i) in gridlines"
+		<figcaption v-if="title" class="line__title">
+			{{ title }}
+		</figcaption>
+		<svg
+			:viewBox="`0 0 ${width} ${height}`"
+			class="line__svg"
+			role="img"
+			:aria-label="title"
+			preserveAspectRatio="none">
+			<line
+				v-for="(g, i) in gridlines"
 				:key="'g' + i"
 				class="line__grid"
 				:x1="padX"
@@ -18,8 +26,17 @@
 			<path class="line__area" :d="areaPath" />
 			<path ref="line" class="line__stroke" :d="linePath" />
 			<g v-for="(p, i) in points" :key="'p' + i">
-				<circle class="line__dot" :cx="p.x" :cy="p.y" r="3" />
-				<text v-if="showLabel(i)" class="line__xlabel" :x="p.x" :y="height - 4" text-anchor="middle">{{ p.label }}</text>
+				<circle
+					class="line__dot"
+					:cx="p.x"
+					:cy="p.y"
+					r="3" />
+				<text
+					v-if="showLabel(i)"
+					class="line__xlabel"
+					:x="p.x"
+					:y="height - 4"
+					text-anchor="middle">{{ p.label }}</text>
 			</g>
 		</svg>
 	</figure>
@@ -32,9 +49,11 @@ export default {
 		title: { type: String, default: '' },
 		data: { type: Array, required: true }, // [{ label, value }]
 	},
+
 	data() {
 		return { width: 640, height: 200, padX: 28, padTop: 16, padBottom: 22 }
 	},
+
 	computed: {
 		max() { return Math.max(1, ...this.data.map((d) => d.value)) },
 		points() {
@@ -48,9 +67,11 @@ export default {
 				value: d.value,
 			}))
 		},
+
 		linePath() {
 			return this.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
 		},
+
 		areaPath() {
 			if (!this.points.length) {
 				return ''
@@ -60,11 +81,13 @@ export default {
 			const last = this.points[this.points.length - 1]
 			return `M${first.x} ${base} ` + this.points.map((p) => `L${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ` L${last.x} ${base} Z`
 		},
+
 		gridlines() {
 			const usableH = this.height - this.padTop - this.padBottom
 			return [0, 0.5, 1].map((f) => this.padTop + usableH * f)
 		},
 	},
+
 	methods: {
 		showLabel(i) {
 			// Avoid crowding: with many points, label every other one.

@@ -11,7 +11,6 @@ namespace OCA\Absence\Migration;
 use Closure;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\Types;
-use OCP\Migration\IMigrationStep;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
@@ -19,6 +18,7 @@ use OCP\Migration\SimpleMigrationStep;
  * Initial schema for the Absence app (spec §3).
  */
 class Version1000Date20260710000000 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

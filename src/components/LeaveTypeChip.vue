@@ -17,6 +17,7 @@ export default {
 	props: {
 		typeId: { type: Number, required: true },
 	},
+
 	computed: {
 		type() {
 			return store.leaveType(this.typeId)

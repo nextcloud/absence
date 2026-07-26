@@ -44,10 +44,12 @@ class ConfigLexicon implements ILexicon {
 	public const KEY_HOLIDAY_COUNTRY = 'holiday_country';
 	public const KEY_HOLIDAY_REGION = 'holiday_region';
 
+	#[\Override]
 	public function getStrictness(): Strictness {
 		return Strictness::NOTICE;
 	}
 
+	#[\Override]
 	public function getAppConfigs(): array {
 		return [
 			new Entry(self::KEY_HR_GROUP, ValueType::STRING, 'hr',
@@ -77,6 +79,7 @@ class ConfigLexicon implements ILexicon {
 		];
 	}
 
+	#[\Override]
 	public function getUserConfigs(): array {
 		return [
 			new Entry(self::KEY_WORK_WEEKDAYS, ValueType::STRING, '',

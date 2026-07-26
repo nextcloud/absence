@@ -34,6 +34,7 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 	) {
 	}
 
+	#[\Override]
 	public function getSchema(): array {
 		return [
 			'id' => self::FORM_ID,
@@ -132,6 +133,7 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 		];
 	}
 
+	#[\Override]
 	public function getValue(string $fieldId, IUser $user): mixed {
 		$config = $this->config->getAdminConfig();
 		if (!array_key_exists($fieldId, $config)) {
@@ -140,6 +142,7 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 		return $config[$fieldId];
 	}
 
+	#[\Override]
 	public function setValue(string $fieldId, mixed $value, IUser $user): void {
 		$this->config->setAdminValue($fieldId, $value);
 		$this->logger->info('Absence action: admin_config_updated', [

@@ -8,14 +8,20 @@
 <template>
 	<div class="gantt">
 		<div class="gantt__toolbar">
-			<NcButton type="tertiary" :aria-label="t('absence', 'Previous month')" @click="shift(-1)">
-				<template #icon><ChevronLeft :size="20" /></template>
+			<NcButton variant="tertiary" :aria-label="t('absence', 'Previous month')" @click="shift(-1)">
+				<template #icon>
+					<ChevronLeft :size="20" />
+				</template>
 			</NcButton>
 			<strong class="gantt__month">{{ monthLabel }}</strong>
-			<NcButton type="tertiary" :aria-label="t('absence', 'Next month')" @click="shift(1)">
-				<template #icon><ChevronRight :size="20" /></template>
+			<NcButton variant="tertiary" :aria-label="t('absence', 'Next month')" @click="shift(1)">
+				<template #icon>
+					<ChevronRight :size="20" />
+				</template>
 			</NcButton>
-			<NcButton type="tertiary" @click="goToday">{{ t('absence', 'Today') }}</NcButton>
+			<NcButton variant="tertiary" @click="goToday">
+				{{ t('absence', 'Today') }}
+			</NcButton>
 		</div>
 
 		<SkeletonList v-if="loading" :rows="4" class="gantt__loading" />
@@ -24,9 +30,12 @@
 			<div class="gantt__grid" :style="{ '--day-w': dayWidth + 'px', '--days': days.length }">
 				<!-- header -->
 				<div class="gantt__row gantt__row--head">
-					<div class="gantt__name gantt__name--head">{{ t('absence', 'Person') }}</div>
+					<div class="gantt__name gantt__name--head">
+						{{ t('absence', 'Person') }}
+					</div>
 					<div class="gantt__track">
-						<span v-for="d in days"
+						<span
+							v-for="d in days"
 							:key="'h' + d.day"
 							class="gantt__daynum"
 							:class="{ 'gantt__daynum--weekend': d.weekend, 'gantt__daynum--today': d.index === todayIndex }"
@@ -37,17 +46,23 @@
 				<!-- rows -->
 				<div v-for="row in rows" :key="row.uid" class="gantt__row">
 					<div class="gantt__name">
-						<NcAvatar :user="row.uid" :display-name="row.name" :size="26" :show-user-status="false" />
+						<NcAvatar
+							:user="row.uid"
+							:displayName="row.name"
+							:size="26"
+							hideStatus />
 						<span class="gantt__name-text">{{ row.name }}</span>
 					</div>
 					<div class="gantt__track">
-						<span v-for="d in days"
+						<span
+							v-for="d in days"
 							:key="'c' + row.uid + d.day"
 							class="gantt__col"
 							:class="{ 'gantt__col--weekend': d.weekend }"
 							:style="{ left: d.index * dayWidth + 'px' }" />
 						<span v-if="todayIndex >= 0" class="gantt__today" :style="{ left: (todayIndex * dayWidth) + 'px' }" />
-						<span v-for="(seg, i) in row.segments"
+						<span
+							v-for="(seg, i) in row.segments"
 							:key="i"
 							class="gantt__pill"
 							:class="{ 'gantt__pill--pending': seg.pending }"
@@ -59,10 +74,13 @@
 				</div>
 			</div>
 
-			<NcEmptyContent v-if="!rows.length"
+			<NcEmptyContent
+				v-if="!rows.length"
 				:name="t('absence', 'No absences this month')"
 				:description="t('absence', 'A calm, well-staffed month. ☀️')">
-				<template #icon><CalendarBlank :size="20" /></template>
+				<template #icon>
+					<CalendarBlank :size="20" />
+				</template>
 			</NcEmptyContent>
 		</div>
 
@@ -78,17 +96,17 @@
 </template>
 
 <script>
+import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
-import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
-import { t } from '@nextcloud/l10n'
-import { store } from '../store.js'
-import { toIso, formatRange } from '../utils/dates.js'
-import api from '../api.js'
 import SkeletonList from './SkeletonList.vue'
+import api from '../api.js'
+import { store } from '../store.js'
+import { formatRange, toIso } from '../utils/dates.js'
 
 const DAY_MS = 86400000
 
@@ -98,6 +116,7 @@ export default {
 	props: {
 		scope: { type: String, default: 'team' },
 	},
+
 	data() {
 		const now = new Date()
 		return {
@@ -108,16 +127,20 @@ export default {
 			loading: true,
 		}
 	},
+
 	computed: {
 		firstDay() {
 			return new Date(this.year, this.month, 1)
 		},
+
 		lastDay() {
 			return new Date(this.year, this.month + 1, 0)
 		},
+
 		monthLabel() {
 			return this.firstDay.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 		},
+
 		days() {
 			const arr = []
 			for (let i = 1; i <= this.lastDay.getDate(); i++) {
@@ -127,6 +150,7 @@ export default {
 			}
 			return arr
 		},
+
 		todayIndex() {
 			const now = new Date()
 			if (now.getFullYear() === this.year && now.getMonth() === this.month) {
@@ -134,6 +158,7 @@ export default {
 			}
 			return -1
 		},
+
 		rows() {
 			const byUid = {}
 			const monthStart = this.firstDay
@@ -159,40 +184,52 @@ export default {
 			}
 			return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))
 		},
+
 		legendTypes() {
 			const ids = new Set(this.events.map((e) => e.typeId))
 			return store.leaveTypes.filter((lt) => ids.has(lt.id))
 		},
 	},
+
 	watch: {
 		scope() {
 			this.load()
 		},
 	},
+
 	mounted() {
 		this.load()
 	},
+
 	methods: {
 		t,
 		async load() {
 			this.loading = true
 			try {
 				this.events = (await api.getCalendar(toIso(this.firstDay), toIso(this.lastDay), this.scope)).events
-			} catch (e) {
+			} catch {
 				this.events = []
 			} finally {
 				this.loading = false
 			}
 		},
+
 		shift(delta) {
 			let m = this.month + delta
 			let y = this.year
-			if (m < 0) { m = 11; y-- }
-			if (m > 11) { m = 0; y++ }
+			if (m < 0) {
+				m = 11
+				y--
+			}
+			if (m > 11) {
+				m = 0
+				y++
+			}
 			this.month = m
 			this.year = y
 			this.load()
 		},
+
 		goToday() {
 			const now = new Date()
 			this.year = now.getFullYear()
@@ -250,7 +287,7 @@ $name-w: 180px;
 
 	&__name {
 		position: sticky;
-		left: 0;
+		inset-inline-start: 0;
 		z-index: 2;
 		flex: 0 0 #{$name-w};
 		width: $name-w;
@@ -259,7 +296,7 @@ $name-w: 180px;
 		gap: 8px;
 		padding: 8px 12px;
 		background: var(--color-main-background);
-		border-right: 1px solid var(--color-border);
+		border-inline-end: 1px solid var(--color-border);
 
 		&--head {
 			font-size: 0.8rem;

@@ -56,6 +56,7 @@ class Entitlement extends Entity implements \JsonSerializable {
 		return $this->baseDays + $this->carryOverDays + $this->manualAdjustment;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->id,

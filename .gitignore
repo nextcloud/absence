@@ -2,5 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 /node_modules/
 /vendor/
+/vendor-bin/*/vendor
+.php-cs-fixer.cache
+tests/.phpunit.cache
 npm-debug.log*
 /build/

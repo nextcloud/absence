@@ -59,6 +59,7 @@ class LeaveType extends Entity implements \JsonSerializable {
 		$this->addType('sortOrder', 'integer');
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->id,

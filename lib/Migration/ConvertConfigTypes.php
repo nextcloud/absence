@@ -42,10 +42,12 @@ class ConvertConfigTypes implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Align stored absence config values with the config lexicon';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		$converted = 0;
 		foreach (self::TYPES as $key => $type) {

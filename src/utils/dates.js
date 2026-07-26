@@ -7,7 +7,11 @@
  * holidays. The count only prefills the request form — it stays editable.
  */
 
-/** Format a Date as 'YYYY-MM-DD' in local time. */
+/**
+ * Format a Date as 'YYYY-MM-DD' in local time.
+ *
+ * @param date
+ */
 export function toIso(date) {
 	const y = date.getFullYear()
 	const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -15,7 +19,11 @@ export function toIso(date) {
 	return `${y}-${m}-${d}`
 }
 
-/** Parse a "1,2,3,4,5" weekday string into a Set of ISO weekdays (Mon=1..Sun=7). */
+/**
+ * Parse a "1,2,3,4,5" weekday string into a Set of ISO weekdays (Mon=1..Sun=7).
+ *
+ * @param csv
+ */
 export function parseWeekdays(csv) {
 	const set = new Set()
 	for (const part of String(csv || '').split(',')) {
@@ -53,7 +61,11 @@ export function countWorkingDays(startIso, endIso, weekdays, isHoliday) {
 	return count
 }
 
-/** Localised short date. */
+/**
+ * Localised short date.
+ *
+ * @param iso
+ */
 export function formatDate(iso) {
 	if (!iso) {
 		return ''
@@ -61,7 +73,12 @@ export function formatDate(iso) {
 	return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-/** Human range like "3 – 7 Mar 2026". */
+/**
+ * Human range like "3 – 7 Mar 2026".
+ *
+ * @param startIso
+ * @param endIso
+ */
 export function formatRange(startIso, endIso) {
 	if (startIso === endIso) {
 		return formatDate(startIso)
@@ -73,6 +90,12 @@ export function formatRange(startIso, endIso) {
  * Spread a request's manually entered working-day count over the months of
  * `year`, proportionally to the calendar days it covers in each month. Adds
  * the result onto `buckets` (an array of 12 numbers, mutated in place).
+ *
+ * @param buckets
+ * @param startIso
+ * @param endIso
+ * @param workingDays
+ * @param year
  */
 export function addWorkingDaysByMonth(buckets, startIso, endIso, workingDays, year) {
 	const dayMs = 86400000

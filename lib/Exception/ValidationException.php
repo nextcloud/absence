@@ -11,6 +11,7 @@ namespace OCA\Absence\Exception;
 use OCP\AppFramework\Http;
 
 class ValidationException extends AbsenceException {
+	#[\Override]
 	public function getHttpStatus(): int {
 		return Http::STATUS_UNPROCESSABLE_ENTITY;
 	}

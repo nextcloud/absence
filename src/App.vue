@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcContent app-name="absence">
+	<NcContent appName="absence">
 		<NcAppNavigation>
 			<template #list>
 				<NcAppNavigationNew :text="t('absence', 'New request')" @click="openNewRequest">
@@ -12,14 +12,16 @@
 					</template>
 				</NcAppNavigationNew>
 
-				<NcAppNavigationItem :name="t('absence', 'My leave')"
+				<NcAppNavigationItem
+					:name="t('absence', 'My leave')"
 					:to="{ name: 'my' }">
 					<template #icon>
 						<CalendarAccountOutline :size="20" />
 					</template>
 				</NcAppNavigationItem>
 
-				<NcAppNavigationItem v-if="session.isManager || session.isHr"
+				<NcAppNavigationItem
+					v-if="session.isManager || session.isHr"
 					:name="t('absence', 'Approvals')"
 					:to="{ name: 'approvals' }">
 					<template #icon>
@@ -30,7 +32,8 @@
 					</template>
 				</NcAppNavigationItem>
 
-				<NcAppNavigationItem :name="t('absence', 'Team')"
+				<NcAppNavigationItem
+					:name="t('absence', 'Team')"
 					:to="{ name: 'team' }">
 					<template #icon>
 						<AccountGroup :size="20" />
@@ -69,22 +72,23 @@
 					</NcAppNavigationItem>
 				</template>
 			</template>
-
 		</NcAppNavigation>
 
 		<NcAppContent>
 			<router-view />
 		</NcAppContent>
 
-		<RequestSidebar v-if="store.selectedId"
+		<RequestSidebar
+			v-if="store.selectedId"
 			:key="store.selectedId"
 			@close="store.select(null)"
 			@edit="openEditRequest"
 			@changed="onChanged" />
 
-		<RequestDialog v-if="showDialog"
+		<RequestDialog
+			v-if="showDialog"
 			:request="editRequest"
-			:hr-mode="recordMode"
+			:hrMode="recordMode"
 			@close="closeDialog"
 			@saved="onChanged" />
 	</NcContent>
@@ -99,15 +103,15 @@ import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
-import Plus from 'vue-material-design-icons/Plus.vue'
-import CalendarAccountOutline from 'vue-material-design-icons/CalendarAccountOutline.vue'
-import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
-import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
-import ChartBar from 'vue-material-design-icons/ChartBar.vue'
+import CalendarAccountOutline from 'vue-material-design-icons/CalendarAccountOutline.vue'
 import CalendarMonth from 'vue-material-design-icons/CalendarMonth.vue'
-import Download from 'vue-material-design-icons/Download.vue'
+import ChartBar from 'vue-material-design-icons/ChartBar.vue'
+import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
+import Download from 'vue-material-design-icons/Download.vue'
+import Plus from 'vue-material-design-icons/Plus.vue'
+import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
 import { store } from './store.js'
@@ -154,6 +158,7 @@ export default {
 		session() {
 			return store.session
 		},
+
 		pendingCount() {
 			return store.session.pendingApprovals || 0
 		},
@@ -179,25 +184,30 @@ export default {
 			this.recordMode = false
 			this.showDialog = true
 		},
+
 		openRecord() {
 			this.editRequest = null
 			this.recordMode = true
 			this.showDialog = true
 		},
+
 		onOpenEditEvent(e) {
 			this.openEditRequest(e.detail)
 		},
+
 		openEditRequest(request) {
 			this.editRequest = request
 			this.recordMode = false
 			this.showDialog = true
 			store.select(null)
 		},
+
 		closeDialog() {
 			this.showDialog = false
 			this.editRequest = null
 			this.recordMode = false
 		},
+
 		onChanged() {
 			this.closeDialog()
 			// Close the detail sidebar so it can't show a stale (pre-decision) state.

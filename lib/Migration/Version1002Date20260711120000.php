@@ -25,6 +25,7 @@ class Version1002Date20260711120000 extends SimpleMigrationStep {
 	) {
 	}
 
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
@@ -39,6 +40,7 @@ class Version1002Date20260711120000 extends SimpleMigrationStep {
 		return $schema;
 	}
 
+	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
 		// Sick leave is recorded by HR, not self-requested. Only touch the seeded row.
 		$qb = $this->db->getQueryBuilder();

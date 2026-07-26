@@ -32,10 +32,12 @@ class SeedLeaveTypes implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Seed default absence leave types';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		if ($this->mapper->countAll() > 0) {
 			return;

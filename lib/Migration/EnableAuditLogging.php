@@ -30,10 +30,12 @@ class EnableAuditLogging implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Ensure Absence audit actions are always logged';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		$condition = $this->config->getSystemValue('log.condition', []);
 		if (!is_array($condition)) {

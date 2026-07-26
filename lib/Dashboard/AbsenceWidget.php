@@ -45,41 +45,50 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 	) {
 	}
 
+	#[\Override]
 	public function getId(): string {
 		return 'absence';
 	}
 
+	#[\Override]
 	public function getTitle(): string {
 		return $this->l->t('Absence');
 	}
 
+	#[\Override]
 	public function getOrder(): int {
 		return 20;
 	}
 
+	#[\Override]
 	public function getIconClass(): string {
 		return 'icon-absence';
 	}
 
+	#[\Override]
 	public function getIconUrl(): string {
 		return $this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath('absence', 'app-dark.svg'));
 	}
 
+	#[\Override]
 	public function getUrl(): ?string {
 		return $this->urlGenerator->linkToRouteAbsolute('absence.page.index');
 	}
 
+	#[\Override]
 	public function load(): void {
 		// Nothing to enqueue: the core Dashboard renders the API items.
 	}
 
 	/**
-	 * @return WidgetItem[]
+	 * @return list<WidgetItem>
 	 */
+	#[\Override]
 	public function getItems(string $userId, ?string $since = null, int $limit = 7): array {
 		return $this->buildItems($userId, $limit);
 	}
 
+	#[\Override]
 	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
 		$items = $this->buildItems($userId, $limit);
 		return new WidgetItems(
@@ -89,7 +98,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 	}
 
 	/**
-	 * @return WidgetItem[]
+	 * @return list<WidgetItem>
 	 */
 	private function buildItems(string $userId, int $limit): array {
 		$appIcon = $this->getIconUrl();

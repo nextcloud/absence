@@ -31,6 +31,7 @@ class RequestComment extends Entity implements \JsonSerializable {
 		$this->addType('createdAt', 'datetime');
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->id,

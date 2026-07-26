@@ -6,7 +6,8 @@
 -->
 <template>
 	<ol class="stepper" :aria-label="t('absence', 'Request progress')">
-		<li v-for="(step, i) in steps"
+		<li
+			v-for="(step, i) in steps"
 			:key="i"
 			class="stepper__step"
 			:class="[`stepper__step--${step.state}`, `stepper__step--${step.tone}`]">
@@ -25,6 +26,7 @@ export default {
 	props: {
 		status: { type: String, required: true },
 	},
+
 	computed: {
 		steps() {
 			const s = this.status
@@ -39,25 +41,26 @@ export default {
 
 			let outcome
 			switch (s) {
-			case 'APPROVED':
-				outcome = { label: t('absence', 'Approved'), state: 'done', tone: 'success', icon: '✅' }
-				break
-			case 'REJECTED':
-				outcome = { label: t('absence', 'Declined'), state: 'done', tone: 'error', icon: '✋' }
-				break
-			case 'CANCELLED':
-				outcome = { label: t('absence', 'Cancelled'), state: 'done', tone: 'muted', icon: '🚫' }
-				break
-			case 'WITHDRAWAL_PENDING':
-				outcome = { label: t('absence', 'Withdrawing'), state: 'current', tone: 'default', icon: '↩️' }
-				break
-			default:
-				outcome = { label: t('absence', 'Decision'), state: 'future', tone: 'default', icon: '•' }
+				case 'APPROVED':
+					outcome = { label: t('absence', 'Approved'), state: 'done', tone: 'success', icon: '✅' }
+					break
+				case 'REJECTED':
+					outcome = { label: t('absence', 'Declined'), state: 'done', tone: 'error', icon: '✋' }
+					break
+				case 'CANCELLED':
+					outcome = { label: t('absence', 'Cancelled'), state: 'done', tone: 'muted', icon: '🚫' }
+					break
+				case 'WITHDRAWAL_PENDING':
+					outcome = { label: t('absence', 'Withdrawing'), state: 'current', tone: 'default', icon: '↩️' }
+					break
+				default:
+					outcome = { label: t('absence', 'Decision'), state: 'future', tone: 'default', icon: '•' }
 			}
 
 			return [requested, review, outcome]
 		},
 	},
+
 	methods: { t },
 }
 </script>
@@ -106,7 +109,7 @@ export default {
 	&__bar {
 		position: absolute;
 		top: 15px;
-		left: 50%;
+		inset-inline-start: 50%;
 		width: 100%;
 		height: 2px;
 		background: var(--color-border);
