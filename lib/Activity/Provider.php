@@ -10,6 +10,7 @@ namespace OCA\Absence\Activity;
 
 use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\ConfigService;
+use OCP\Activity\Exceptions\UnknownActivityException;
 use OCP\Activity\IEvent;
 use OCP\Activity\IProvider;
 use OCP\IURLGenerator;
@@ -27,7 +28,7 @@ class Provider implements IProvider {
 	#[\Override]
 	public function parse($language, IEvent $event, ?IEvent $previousEvent = null): IEvent {
 		if ($event->getApp() !== ConfigService::APP_ID) {
-			throw new \InvalidArgumentException('Not an Absence event');
+			throw new UnknownActivityException('Not an Absence event');
 		}
 		$l = $this->l10nFactory->get(ConfigService::APP_ID, $language);
 		$params = $event->getSubjectParameters();
@@ -42,7 +43,7 @@ class Provider implements IProvider {
 			ActivityPublisher::SUBJECT_ESCALATED => $l->t('Leave for %1$s (%2$s) was escalated to HR', [$employee, $range]),
 			ActivityPublisher::SUBJECT_WITHDRAWAL => $l->t('%1$s requested to withdraw leave for %2$s', [$employee, $range]),
 			ActivityPublisher::SUBJECT_BALANCE_ADJUSTED => $l->t('Leave balance of %s was adjusted', [$employee]),
-			default => throw new \InvalidArgumentException('Unknown subject'),
+			default => throw new UnknownActivityException('Unknown subject'),
 		};
 
 		$event->setParsedSubject($subject);
