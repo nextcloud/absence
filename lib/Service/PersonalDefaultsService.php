@@ -12,7 +12,7 @@ use OCA\Absence\ConfigLexicon;
 use OCA\DAV\CalDAV\Schedule\Plugin;
 use OCA\DAV\Db\PropertyMapper;
 use OCP\Accounts\IAccountManager;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 use Sabre\VObject\Reader;
@@ -49,7 +49,7 @@ class PersonalDefaultsService {
 	];
 
 	public function __construct(
-		private IConfig $config,
+		private IUserConfig $userConfig,
 		private ConfigService $appConfig,
 		private IAccountManager $accountManager,
 		private IUserManager $userManager,
@@ -139,7 +139,7 @@ class PersonalDefaultsService {
 
 	/** Suggested ISO country code from the user's locale, then phone; null if unknown. */
 	public function detectCountry(string $uid): ?string {
-		$locale = $this->config->getUserValue($uid, 'core', 'locale', '');
+		$locale = $this->userConfig->getValueString($uid, 'core', 'locale');
 		if (str_contains($locale, '_')) {
 			$region = strtoupper(substr($locale, strpos($locale, '_') + 1));
 			if (preg_match('/^[A-Z]{2}$/', $region)) {
