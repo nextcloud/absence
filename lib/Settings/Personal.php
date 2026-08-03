@@ -10,6 +10,7 @@ namespace OCA\Absence\Settings;
 
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\PersonalDefaultsService;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IUserSession;
@@ -21,6 +22,7 @@ class Personal implements ISettings {
 		private IInitialState $initialState,
 		private PersonalDefaultsService $personalDefaults,
 		private IUserSession $userSession,
+		private IAppManager $appManager,
 	) {
 	}
 
@@ -33,7 +35,14 @@ class Personal implements ISettings {
 	}
 
 	#[\Override]
-	public function getSection(): string {
+	public function getSection(): ?string {
+		// The app may be restricted to some groups, but its settings are still
+		// registered for everyone. Hide the form from users without access, as
+		// the API would reject them anyway.
+		$user = $this->userSession->getUser();
+		if ($user === null || !$this->appManager->isEnabledForUser(ConfigService::APP_ID, $user)) {
+			return null;
+		}
 		// Append to the built-in Availability page (/settings/user/availability)
 		// rather than a separate Absence section.
 		return 'availability';
