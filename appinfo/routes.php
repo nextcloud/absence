@@ -42,6 +42,7 @@ return [
 		// HR reporting & export
 		['name' => 'report#balances', 'url' => '/api/reports/balances', 'verb' => 'GET'],
 		['name' => 'report#trends', 'url' => '/api/reports/trends', 'verb' => 'GET'],
+		['name' => 'report#sickLeave', 'url' => '/api/reports/sick-leave', 'verb' => 'GET'],
 		['name' => 'export#requests', 'url' => '/api/export/requests', 'verb' => 'GET'],
 		['name' => 'export#balances', 'url' => '/api/export/balances', 'verb' => 'GET'],
 

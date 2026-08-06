@@ -6,6 +6,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import Approvals from './views/Approvals.vue'
 import HrBalances from './views/hr/HrBalances.vue'
 import HrExports from './views/hr/HrExports.vue'
+import HrSickLeave from './views/hr/HrSickLeave.vue'
 import HrStatistics from './views/hr/HrStatistics.vue'
 import HrWhosOff from './views/hr/HrWhosOff.vue'
 import MyLeave from './views/MyLeave.vue'
@@ -18,6 +19,7 @@ const routes = [
 	{ path: '/team', name: 'team', component: Team },
 	{ path: '/hr/balances', name: 'hr-balances', component: HrBalances },
 	{ path: '/hr/statistics', name: 'hr-statistics', component: HrStatistics },
+	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave },
 	{ path: '/hr/whos-off', name: 'hr-whos-off', component: HrWhosOff },
 	{ path: '/hr/exports', name: 'hr-exports', component: HrExports },
 	// Deep link from notifications/activity: open My leave with the request selected.

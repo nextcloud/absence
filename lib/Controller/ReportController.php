@@ -38,6 +38,19 @@ class ReportController extends Controller {
 		});
 	}
 
+	/**
+	 * Sick-leave overview: every employee ranked by days lost. HR only — this is
+	 * health-adjacent data about named people, so unlike the coverage views it is
+	 * never visible to line managers.
+	 */
+	#[NoAdminRequired]
+	public function sickLeave(?int $year = null, ?string $group = null, ?int $typeId = null): DataResponse {
+		return $this->handle(function () use ($year, $group, $typeId) {
+			$this->permission->assertHr((string)$this->userId);
+			return $this->service->sickLeaveReport($year ?? $this->clock->userYear(), $group, $typeId);
+		});
+	}
+
 	#[NoAdminRequired]
 	public function trends(string $from, string $to): DataResponse {
 		return $this->handle(function () use ($from, $to) {

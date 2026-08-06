@@ -57,6 +57,11 @@
 							<ChartBar :size="20" />
 						</template>
 					</NcAppNavigationItem>
+					<NcAppNavigationItem :name="t('absence', 'Sick leave')" :to="{ name: 'hr-sick-leave' }">
+						<template #icon>
+							<Thermometer :size="20" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'Who\'s off')" :to="{ name: 'hr-whos-off' }">
 						<template #icon>
 							<CalendarMonth :size="20" />
@@ -112,6 +117,7 @@ import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline
 import Download from 'vue-material-design-icons/Download.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
+import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
 import { store } from './store.js'
@@ -137,6 +143,7 @@ export default {
 		CalendarMonth,
 		Download,
 		ClipboardPlusOutline,
+		Thermometer,
 	},
 
 	setup() {
