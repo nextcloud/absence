@@ -16,11 +16,14 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class BalanceServiceTest extends TestCase {
+	use ClockMockTrait;
+
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private EntitlementMapper&MockObject $entitlementMapper;
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
@@ -38,6 +41,7 @@ class BalanceServiceTest extends TestCase {
 			$this->entitlementMapper,
 			$this->leaveTypeMapper,
 			$this->config,
+			$this->clockAtRealTime(),
 		);
 	}
 

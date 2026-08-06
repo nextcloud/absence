@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ReportService;
 use OCP\AppFramework\Controller;
@@ -24,6 +25,7 @@ class ReportController extends Controller {
 		private ?string $userId,
 		private ReportService $service,
 		private PermissionService $permission,
+		private ClockService $clock,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -32,7 +34,7 @@ class ReportController extends Controller {
 	public function balances(?int $year = null, ?string $group = null): DataResponse {
 		return $this->handle(function () use ($year, $group) {
 			$this->permission->assertHr((string)$this->userId);
-			return $this->service->balancesReport($year ?? (int)date('Y'), $group);
+			return $this->service->balancesReport($year ?? $this->clock->userYear(), $group);
 		});
 	}
 

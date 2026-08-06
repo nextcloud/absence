@@ -40,6 +40,7 @@ class RequestService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private ManagerResolver $managerResolver,
 		private PermissionService $permission,
+		private ClockService $clock,
 		private CoverageService $coverage,
 		private CalendarService $calendar,
 		private NotificationService $notifications,
@@ -777,7 +778,8 @@ class RequestService {
 		if ($end < $start) {
 			throw new ValidationException('The end date must be on or after the start date.');
 		}
-		$today = date('Y-m-d');
+		// the employee's own today, not UTC's — see ClockService
+		$today = $this->clock->userToday();
 		if ($end < $today && !$this->permission->isHr($actorUid)) {
 			throw new ValidationException('You cannot request leave entirely in the past.');
 		}

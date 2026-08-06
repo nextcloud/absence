@@ -27,6 +27,7 @@ class EntitlementService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private BalanceService $balanceService,
 		private ConfigService $config,
+		private ClockService $clock,
 		private ActivityPublisher $activity,
 		private IUserManager $userManager,
 		private IGroupManager $groupManager,
@@ -208,7 +209,8 @@ class EntitlementService {
 		if ($expiry === '') {
 			return 0;
 		}
-		$today = date('Y-m-d');
+		// company policy, run from a background job: the server's today
+		$today = $this->clock->serverToday();
 		if ($today < sprintf('%04d-%s', $year, $expiry)) {
 			return 0;
 		}

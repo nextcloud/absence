@@ -24,12 +24,15 @@ use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\RequestService;
+use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 class RequestServiceTest extends TestCase {
+	use ClockMockTrait;
+
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private RequestCommentMapper&MockObject $commentMapper;
 	private RequestEventMapper&MockObject $eventMapper;
@@ -74,6 +77,7 @@ class RequestServiceTest extends TestCase {
 			$this->config,
 			$this->userManager,
 			$this->logger,
+			$this->clockAtRealTime(),
 		);
 	}
 

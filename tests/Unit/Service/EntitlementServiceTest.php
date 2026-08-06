@@ -15,6 +15,7 @@ use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -23,6 +24,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 class EntitlementServiceTest extends TestCase {
+	use ClockMockTrait;
+
 	private EntitlementMapper&MockObject $entitlementMapper;
 	private BalanceService&MockObject $balanceService;
 	private ConfigService&MockObject $config;
@@ -42,6 +45,7 @@ class EntitlementServiceTest extends TestCase {
 			$this->createMock(IUserManager::class),
 			$this->createMock(IGroupManager::class),
 			$this->createMock(LoggerInterface::class),
+			$this->clockAtRealTime(),
 		);
 	}
 

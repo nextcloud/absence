@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\BackgroundJob;
 
 use OCA\Absence\ConfigLexicon;
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EntitlementService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -23,6 +24,7 @@ class YearRolloverJob extends TimedJob {
 	public function __construct(
 		ITimeFactory $time,
 		private EntitlementService $entitlementService,
+		private ClockService $clock,
 		private IAppConfig $appConfig,
 	) {
 		parent::__construct($time);
@@ -32,7 +34,8 @@ class YearRolloverJob extends TimedJob {
 
 	#[\Override]
 	protected function run($argument): void {
-		$currentYear = (int)date('Y');
+		// no user is running this: the server's calendar year
+		$currentYear = $this->clock->serverYear();
 
 		// Carry-over from last year into this year — run once per year.
 		$lastRollover = $this->appConfig->getValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_LAST_ROLLOVER_YEAR);

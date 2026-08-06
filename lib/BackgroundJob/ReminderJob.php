@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\BackgroundJob;
 
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\NotificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -23,6 +24,7 @@ class ReminderJob extends TimedJob {
 
 	public function __construct(
 		ITimeFactory $time,
+		private ClockService $clock,
 		private LeaveRequestMapper $requestMapper,
 		private NotificationService $notifications,
 		private ConfigService $config,
@@ -43,7 +45,9 @@ class ReminderJob extends TimedJob {
 		// pending request is reminded once, not on every daily run (avoids spam).
 		// Skip weekend runs entirely: Sat/Sun/Mon would all resolve to the same
 		// working-day band and remind the same cohort up to three times.
-		$today = new \DateTimeImmutable('today', new \DateTimeZone('UTC'));
+		// Deliberately the server's timezone, not a user's: this decides which
+		// requests are due across the whole company, and there is no user to ask.
+		$today = $this->clock->serverNow()->setTime(0, 0);
 		if ((int)$today->format('N') > 5) {
 			return;
 		}

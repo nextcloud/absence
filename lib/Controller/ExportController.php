@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ExportService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
@@ -25,6 +26,7 @@ class ExportController extends Controller {
 		private ?string $userId,
 		private ExportService $service,
 		private PermissionService $permission,
+		private ClockService $clock,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -45,7 +47,7 @@ class ExportController extends Controller {
 		if (!$this->permission->isHr((string)$this->userId)) {
 			return new DataResponse(['message' => 'HR role required'], Http::STATUS_FORBIDDEN);
 		}
-		$export = $this->service->balancesCsv($year ?? (int)date('Y'));
+		$export = $this->service->balancesCsv($year ?? $this->clock->userYear());
 		return new DataDownloadResponse($export['content'], $export['filename'], 'text/csv');
 	}
 }
