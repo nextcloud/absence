@@ -12,6 +12,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroupManager;
+use Psr\Log\LoggerInterface;
 
 /**
  * Central authorization for the app (spec §17). Every controller consults this
@@ -23,6 +24,7 @@ class PermissionService {
 		private ManagerResolver $managerResolver,
 		private ConfigService $config,
 		private LeaveTypeMapper $leaveTypeMapper,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -103,13 +105,31 @@ class PermissionService {
 	/**
 	 * The uids of all HR-group members (recipients for escalation, §5.4).
 	 *
+	 * An empty result is a misconfiguration, not a normal state: escalation is the
+	 * app's last resort for a request nobody else can decide, so with no HR member
+	 * to notify those requests sit unanswered and invisible. Nothing downstream can
+	 * tell "no HR group" apart from "HR group with no members", and neither can be
+	 * fixed from here, so both are logged loudly for the admin.
+	 *
 	 * @return string[]
 	 */
 	public function getHrUids(): array {
-		$group = $this->groupManager->get($this->config->getHrGroup());
+		$groupId = $this->config->getHrGroup();
+		$group = $this->groupManager->get($groupId);
 		if ($group === null) {
+			$this->logger->error('Absence: the configured HR group does not exist — escalated leave requests will reach nobody', [
+				'app' => 'absence',
+				'hrGroup' => $groupId,
+			]);
 			return [];
 		}
-		return array_map(static fn ($user) => $user->getUID(), $group->getUsers());
+		$uids = array_map(static fn ($user) => $user->getUID(), $group->getUsers());
+		if ($uids === []) {
+			$this->logger->error('Absence: the configured HR group is empty — escalated leave requests will reach nobody', [
+				'app' => 'absence',
+				'hrGroup' => $groupId,
+			]);
+		}
+		return $uids;
 	}
 }
