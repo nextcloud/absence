@@ -230,6 +230,10 @@ export default {
 </style>
 
 <style lang="scss">
+// The page shell and table styles every view builds on. Global on purpose —
+// see the file header.
+@use './styles/page.scss';
+
 // Keep the page titles clear of the floating app-navigation toggle button,
 // which overlays the top-left corner of the content area (applies to every view).
 .app-absence .page__header {

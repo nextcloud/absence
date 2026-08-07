@@ -1,0 +1,114 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * The page shell and data table shared by every view.
+ *
+ * These rules used to be copy-pasted into each view's `<style scoped>` block,
+ * which meant a view could reference `.page` or `.tbl` and silently render with
+ * browser defaults if its copy was missing — nothing errors, the markup is just
+ * unstyled. That is exactly what happened to the sick-leave overview.
+ *
+ * They are deliberately global rather than scoped, so a view gets them by using
+ * the class and cannot forget to declare them. `.app-absence` (the wrapper
+ * NcContent derives from appName) keeps names as generic as `.page` and `.tbl`
+ * from leaking into the rest of Nextcloud.
+ *
+ * Views vary the shell through the modifiers below rather than by redeclaring
+ * `.page` locally: a scoped `.page[data-v-…]` has the same specificity as
+ * `.app-absence .page`, so which one won would come down to stylesheet order.
+ */
+
+.app-absence {
+	.page {
+		max-width: 1100px;
+		margin: 0 auto;
+		padding: calc(var(--default-grid-baseline, 4px) * 5);
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--default-grid-baseline, 4px) * 5);
+	}
+
+	/** Reading-width pages: forms, lists and cards rather than wide tables. */
+	.page--narrow {
+		max-width: 900px;
+	}
+
+	/** More air between major sections (the personal dashboard views). */
+	.page--roomy {
+		gap: calc(var(--default-grid-baseline, 4px) * 6);
+	}
+
+	/** Pages that lay out their own body and want no flex gap at all. */
+	.page--flat {
+		display: block;
+		gap: 0;
+
+		.page__title {
+			margin-block-end: 24px;
+		}
+	}
+
+	.page__header {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	/** Headers whose right-hand side is a single control, not a toolbar. */
+	.page__header--center {
+		align-items: center;
+		gap: 12px;
+	}
+
+	.page__title {
+		margin: 0;
+		font-size: 1.6rem;
+	}
+
+	.page__tools {
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.page__search {
+		width: 240px;
+	}
+
+	/* Wide tables scroll on their own so the page body never does. */
+	.table-wrap {
+		overflow-x: auto;
+	}
+
+	.tbl {
+		width: 100%;
+		border-collapse: collapse;
+
+		th, td {
+			padding: 10px 12px;
+			text-align: start;
+			border-bottom: 1px solid var(--color-border);
+		}
+
+		th {
+			font-size: 0.8rem;
+			color: var(--color-text-maxcontrast);
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+		}
+
+		.num {
+			text-align: end;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.neg {
+			color: var(--color-error);
+			font-weight: 600;
+		}
+	}
+}

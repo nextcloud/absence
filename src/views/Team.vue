@@ -23,19 +23,3 @@ export default {
 	methods: { t },
 }
 </script>
-
-<style scoped lang="scss">
-.page {
-	max-width: 1100px;
-	margin: 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 5);
-
-	&__title {
-		margin: 0;
-		font-size: 1.6rem;
-	}
-}
-</style>

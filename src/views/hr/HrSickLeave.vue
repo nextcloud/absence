@@ -239,70 +239,10 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.page {
-	max-width: 1100px;
-	margin: 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 4);
-
-	&__header {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		gap: 16px;
-		flex-wrap: wrap;
-	}
-
-	&__title {
-		margin: 0;
-		font-size: 1.6rem;
-	}
-
-	&__tools {
-		display: flex;
-		gap: 12px;
-		align-items: center;
-		flex-wrap: wrap;
-	}
-
-	&__search {
-		width: 240px;
-	}
-}
-
 .report {
 	display: flex;
 	flex-direction: column;
 	gap: calc(var(--default-grid-baseline, 4px) * 2);
-}
-
-.table-wrap {
-	overflow-x: auto;
-}
-
-.tbl {
-	width: 100%;
-	border-collapse: collapse;
-
-	th, td {
-		padding: 10px 12px;
-		text-align: left;
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	th {
-		font-size: 0.8rem;
-		color: var(--color-text-maxcontrast);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.num {
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-	}
 }
 
 .summary {

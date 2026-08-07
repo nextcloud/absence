@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="page">
+	<div class="page page--narrow page--roomy">
 		<header class="page__header">
 			<h2 class="page__title">
 				{{ t('absence', 'Approvals') }}
@@ -110,19 +110,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.page {
-	max-width: 900px;
-	margin: 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 6);
-
-	&__title {
-		margin: 0;
-		font-size: 1.6rem;
-	}
-}
 
 .group__title {
 	margin: 0 0 12px;

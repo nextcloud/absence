@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="page">
+	<div class="page page--narrow">
 		<header class="page__header">
 			<h2 class="page__title">
 				{{ t('absence', 'Statistics') }}
@@ -126,27 +126,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.page {
-	max-width: 900px;
-	margin: 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 5);
-
-	&__header {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		gap: 16px;
-		flex-wrap: wrap;
-	}
-
-	&__title {
-		margin: 0;
-		font-size: 1.6rem;
-	}
-}
 
 .range {
 	display: flex;
