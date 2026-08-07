@@ -40,7 +40,17 @@ class BalanceService {
 	 * @return array<int,array<int,array{used:float,pending:float}>> [typeId][year] => buckets
 	 */
 	private function computeUsage(string $employeeUid): array {
-		$requests = $this->requestMapper->findAllForEmployee($employeeUid);
+		return $this->usageFromRequests($this->requestMapper->findAllForEmployee($employeeUid));
+	}
+
+	/**
+	 * The usage half of {@see computeUsage()}, over requests already in memory, so
+	 * a batch report can load every employee's requests in one query.
+	 *
+	 * @param LeaveRequest[] $requests
+	 * @return array<int,array<int,array{used:float,pending:float}>> [typeId][year] => buckets
+	 */
+	private function usageFromRequests(array $requests): array {
 		$byId = [];
 		foreach ($requests as $request) {
 			$byId[$request->getId()] = $request;
@@ -84,19 +94,82 @@ class BalanceService {
 	 */
 	public function getBalance(string $employeeUid, ?int $year = null): array {
 		$usage = $this->computeUsage($employeeUid);
+		$types = $this->typesById();
+
+		// Entitlements for this employee: restricted to the reported year when there
+		// is one, otherwise all of them, since they also decide which years to show.
+		$entitlements = [];
+		foreach ($this->entitlementMapper->findForEmployee($employeeUid, $year) as $ent) {
+			$entitlements[$ent->getYear()][$ent->getTypeId()] = $ent;
+		}
+
+		return [
+			'employeeUid' => $employeeUid,
+			'balances' => $this->assembleRows($employeeUid, $year, $usage, $types, $entitlements),
+		];
+	}
+
+	/**
+	 * Balances for many employees in one year, in a fixed number of queries
+	 * regardless of headcount.
+	 *
+	 * The obvious loop over {@see getBalance()} costs one request query, one leave
+	 * type query and one entitlement query *per leave type* for every employee —
+	 * several thousand queries for a mid-sized company, which is what made the HR
+	 * balances report unusable at scale.
+	 *
+	 * @param string[] $employeeUids
+	 * @return array<string,list<array<string,mixed>>> balance rows keyed by employee uid
+	 */
+	public function getBalancesForEmployees(array $employeeUids, int $year): array {
+		if ($employeeUids === []) {
+			return [];
+		}
+		$types = $this->typesById();
+		$requestsByEmployee = $this->requestMapper->findAllForEmployees($employeeUids);
+
+		$entitlementsByEmployee = [];
+		foreach ($this->entitlementMapper->findForYear($year) as $ent) {
+			$entitlementsByEmployee[$ent->getEmployeeUid()][$year][$ent->getTypeId()] = $ent;
+		}
+
+		$result = [];
+		foreach ($employeeUids as $uid) {
+			$usage = $this->usageFromRequests($requestsByEmployee[$uid] ?? []);
+			$result[$uid] = $this->assembleRows($uid, $year, $usage, $types, $entitlementsByEmployee[$uid] ?? []);
+		}
+		return $result;
+	}
+
+	/**
+	 * @return array<int,LeaveType>
+	 */
+	private function typesById(): array {
 		$types = [];
 		foreach ($this->leaveTypeMapper->findAll() as $type) {
 			$types[$type->getId()] = $type;
 		}
+		return $types;
+	}
 
+	/**
+	 * Turn precomputed usage, types and entitlements into balance rows. Shared by
+	 * the single-employee and batch paths so both produce identical output.
+	 *
+	 * @param array<int,array<int,array{used:float,pending:float}>> $usage
+	 * @param array<int,LeaveType> $types
+	 * @param array<int,array<int,Entitlement>> $entitlements [year][typeId]
+	 * @return list<array<string,mixed>>
+	 */
+	private function assembleRows(string $employeeUid, ?int $year, array $usage, array $types, array $entitlements): array {
 		// Determine which years to report.
 		$years = [];
 		if ($year !== null) {
 			$years[$year] = true;
 		} else {
 			$years[$this->currentYear()] = true;
-			foreach ($this->entitlementMapper->findForEmployee($employeeUid) as $ent) {
-				$years[$ent->getYear()] = true;
+			foreach (array_keys($entitlements) as $entYear) {
+				$years[$entYear] = true;
 			}
 			foreach ($usage as $perYear) {
 				foreach (array_keys($perYear) as $y) {
@@ -114,38 +187,39 @@ class BalanceService {
 				if (!$type->getCountsAgainstBalance() && $used === 0.0 && $pending === 0.0) {
 					continue;
 				}
-				$rows[] = $this->buildRow($employeeUid, $reportYear, $type, $used, $pending);
+				$rows[] = $this->buildRow($employeeUid, $reportYear, $type, $used, $pending, $entitlements[$reportYear][$typeId] ?? null);
 			}
 		}
 		// Newest year first, then sort_order.
 		usort($rows, static function (array $a, array $b): int {
 			return [$b['year'], $a['sortOrder']] <=> [$a['year'], $b['sortOrder']];
 		});
-
-		return [
-			'employeeUid' => $employeeUid,
-			'balances' => $rows,
-		];
+		return $rows;
 	}
 
 	/**
 	 * @return array<string,mixed>
 	 */
-	private function buildRow(string $employeeUid, int $year, LeaveType $type, float $used, float $pending): array {
+	/**
+	 * @param ?Entitlement $ent the stored entitlement, or null when none exists.
+	 *                          Passed in rather than looked up here so a batch
+	 *                          report can resolve every employee's rows from one
+	 *                          preloaded index instead of a query per row.
+	 */
+	private function buildRow(string $employeeUid, int $year, LeaveType $type, float $used, float $pending, ?Entitlement $ent): array {
 		$entitlement = null;
 		$base = 0.0;
 		$carry = 0.0;
 		$adjust = 0.0;
 		$entitlementId = null;
 		if ($type->getCountsAgainstBalance()) {
-			try {
-				$ent = $this->entitlementMapper->findFor($employeeUid, $year, $type->getId());
+			if ($ent !== null) {
 				$base = $ent->getBaseDays();
 				$carry = $ent->getCarryOverDays();
 				$adjust = $ent->getManualAdjustment();
 				$entitlement = $ent->getEntitlement();
 				$entitlementId = $ent->getId();
-			} catch (DoesNotExistException) {
+			} else {
 				// No row yet: only the primary annual type inherits the configured
 				// default allotment; other counting types start at zero until HR
 				// grants an entitlement (avoids fabricating balances, §6.1).

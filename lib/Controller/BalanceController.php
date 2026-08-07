@@ -13,6 +13,7 @@ use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -30,11 +31,13 @@ class BalanceController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function mine(?int $year = null): DataResponse {
 		return $this->handle(fn () => $this->balanceService->getBalance((string)$this->userId, $year));
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function forEmployee(string $uid, ?int $year = null): DataResponse {
 		return $this->handle(function () use ($uid, $year) {
 			if (!$this->permission->canViewBalanceOf((string)$this->userId, $uid)) {

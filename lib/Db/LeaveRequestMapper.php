@@ -209,6 +209,31 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * All requests (any status) for a set of employees, for computing many
+	 * balances at once. The single-employee {@see findAllForEmployee()} run in a
+	 * loop is one query per head, which an HR report over the whole company
+	 * cannot afford.
+	 *
+	 * @param string[] $employeeUids
+	 * @return array<string,LeaveRequest[]> keyed by employee uid
+	 */
+	public function findAllForEmployees(array $employeeUids): array {
+		if ($employeeUids === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($employeeUids, IQueryBuilder::PARAM_STR_ARRAY)))
+			->orderBy('start_date', 'DESC');
+		$grouped = [];
+		foreach ($this->findEntities($qb) as $request) {
+			$grouped[$request->getEmployeeUid()][] = $request;
+		}
+		return $grouped;
+	}
+
+	/**
 	 * All requests overlapping a range across the whole instance (HR reporting).
 	 *
 	 * @return LeaveRequest[]

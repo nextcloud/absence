@@ -38,10 +38,13 @@ class ReportService {
 	 * @return list<array<string,mixed>>
 	 */
 	public function balancesReport(int $year, ?string $group = null): array {
+		$uids = $this->employeeUids($group);
+		// One batched call, not one per employee — see getBalancesForEmployees().
+		$balances = $this->balanceService->getBalancesForEmployees($uids, $year);
 		$report = [];
-		foreach ($this->employeeUids($group) as $uid) {
+		foreach ($uids as $uid) {
 			$displayName = $this->displayName($uid);
-			foreach ($this->balanceService->getBalance($uid, $year)['balances'] as $row) {
+			foreach ($balances[$uid] ?? [] as $row) {
 				$report[] = array_merge($row, [
 					'employeeUid' => $uid,
 					'displayName' => $displayName,
@@ -97,9 +100,6 @@ class ReportService {
 		return ['byMonth' => $byMonth, 'byType' => $byTypeList, 'total' => $total];
 	}
 
-	/**
-	 * @return string[]
-	 */
 	/**
 	 * Sick-leave overview for HR (every employee, ranked by days lost).
 	 *
@@ -183,7 +183,9 @@ class ReportService {
 			'totals' => [
 				'employees' => count($rows),
 				'affected' => count($affected),
-				'days' => array_sum(array_column($rows, 'days')),
+				// cast: array_sum() of an empty column is int 0, and the client
+				// should not see the type change with the data
+				'days' => (float)array_sum(array_column($rows, 'days')),
 				'episodes' => (int)array_sum(array_column($rows, 'episodes')),
 			],
 		];
