@@ -41,11 +41,11 @@ class EntitlementServiceTest extends TestCase {
 			$this->createMock(LeaveTypeMapper::class),
 			$this->balanceService,
 			$this->config,
+			$this->clockAtRealTime(),
 			$this->createMock(ActivityPublisher::class),
 			$this->createMock(IUserManager::class),
 			$this->createMock(IGroupManager::class),
 			$this->createMock(LoggerInterface::class),
-			$this->clockAtRealTime(),
 		);
 	}
 

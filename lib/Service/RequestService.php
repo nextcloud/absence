@@ -21,14 +21,36 @@ use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Db\TTransactional;
+use OCP\IDBConnection;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Psr\Log\LoggerInterface;
 
 /**
  * The workflow orchestrator: enforces the request state machine (§4) and the
  * apply / review / edit / withdraw / escalate flows (§5), coordinating balances,
  * calendar, notifications and activity.
+ *
+ * Two rules hold throughout:
+ *
+ *  - Every sequence that writes more than one row runs inside a transaction, so
+ *    a half-applied workflow cannot survive a failure. The dangerous case is
+ *    approving an edit: the new request is approved and the request it
+ *    supersedes is retired, and if only the first half landed the employee would
+ *    hold two overlapping approved requests, both counted against the balance.
+ *  - Anything that decides "may this be written?" by reading first — the overlap
+ *    check above all — runs while holding {@see withEmployeeLock()} for that
+ *    employee, because the check and the write are otherwise two steps that a
+ *    concurrent request can interleave.
+ *
+ * External side effects (calendar, notifications, activity) deliberately happen
+ * *after* the transaction commits: they are not rollback-able, so firing them
+ * from inside would announce leave that the database then refused.
  */
 class RequestService {
+	use TTransactional;
+
 	/** Cap on free-text fields to keep rows bounded and prevent storage abuse. */
 	private const MAX_REASON_LENGTH = 2000;
 	private const MAX_COMMENT_LENGTH = 4000;
@@ -48,7 +70,43 @@ class RequestService {
 		private ConfigService $config,
 		private \OCP\IUserManager $userManager,
 		private LoggerInterface $logger,
+		private IDBConnection $db,
+		private ILockingProvider $lockingProvider,
 	) {
+	}
+
+	/**
+	 * Run $fn while holding an exclusive lock on one employee's requests.
+	 *
+	 * The overlap rule ("no two requests covering the same day") cannot be
+	 * expressed as a database constraint — it is a range comparison, not an
+	 * equality — so it has to be enforced by reading before writing. That read
+	 * and the following write are only safe together if nothing else is writing
+	 * for the same employee at the same time, which is what this serialises.
+	 * Scoped per employee so unrelated people never wait on each other.
+	 *
+	 * The provider does not queue: if someone else holds the lock this fails
+	 * immediately rather than blocking a web request, and the caller is asked to
+	 * retry. Losing the race is rare and retrying is cheap, whereas holding a PHP
+	 * worker open waiting for a lock is not.
+	 *
+	 * @template T
+	 * @param callable():T $fn
+	 * @return T
+	 * @throws ConflictException if a competing write holds the lock
+	 */
+	private function withEmployeeLock(string $employeeUid, callable $fn): mixed {
+		$key = 'absence/employee/' . $employeeUid;
+		try {
+			$this->lockingProvider->acquireLock($key, ILockingProvider::LOCK_EXCLUSIVE, 'leave of ' . $employeeUid);
+		} catch (LockedException) {
+			throw new ConflictException('Another change to this leave is being processed. Please try again.');
+		}
+		try {
+			return $fn();
+		} finally {
+			$this->lockingProvider->releaseLock($key, ILockingProvider::LOCK_EXCLUSIVE);
+		}
 	}
 
 	/**
@@ -211,47 +269,54 @@ class RequestService {
 		$start = $this->normaliseDate((string)($data['startDate'] ?? ''));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? ''));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
-		$this->assertNoOverlap($employeeUid, $start, $end);
 		$replacementUid = $this->resolveReplacement($employeeUid, $type, $data['replacementUid'] ?? null);
 
 		// The employee enters the number of working days; the manager verifies it (§7).
 		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? null);
 
 		$managerUid = $this->managerResolver->getManagerUid($employeeUid);
-		$now = new \DateTime();
+		$now = $this->clock->now();
 
-		$request = new LeaveRequest();
-		$request->setEmployeeUid($employeeUid);
-		$request->setManagerUid($managerUid);
-		$request->setTypeId($type->getId());
-		$request->setStartDate($start);
-		$request->setEndDate($end);
-		$request->setWorkingDays($workingDays);
-		$request->setReason($data['reason'] ?? null);
-		$request->setReplacementUid($replacementUid);
-		$request->setAttachmentNote($data['attachmentNote'] ?? null);
-		$request->setCreatedAt($now);
-		$request->setUpdatedAt($now);
+		// The overlap check only means anything if nothing else can insert for this
+		// employee between it and the insert below.
+		$request = $this->withEmployeeLock($employeeUid, fn (): LeaveRequest => $this->atomic(function () use (
+			$actorUid, $employeeUid, $onBehalf, $type, $start, $end, $workingDays, $replacementUid, $managerUid, $now, $data,
+		): LeaveRequest {
+			$this->assertNoOverlap($employeeUid, $start, $end);
 
-		// Non-requestable types, auto-approve types, and any HR-recorded leave are
-		// booked straight to APPROVED with no approval workflow (§4.1, §5.6).
-		$recordedDirectly = !$type->getEmployeeRequestable() || !$type->getRequiresApproval() || $onBehalf;
-		if ($recordedDirectly) {
-			$request->setStatus(LeaveRequest::STATUS_APPROVED);
-			$request->setDecidedBy($actorUid);
-			$request->setDecidedAt($now);
-			$request->setEscalated(false);
-		} elseif ($managerUid === null) {
-			$request->setStatus(LeaveRequest::STATUS_ESCALATED);
-			$request->setEscalated(true);
-		} else {
-			$request->setStatus(LeaveRequest::STATUS_PENDING);
-			$request->setEscalated(false);
-		}
+			$request = new LeaveRequest();
+			$request->setEmployeeUid($employeeUid);
+			$request->setManagerUid($managerUid);
+			$request->setTypeId($type->getId());
+			$request->setStartDate($start);
+			$request->setEndDate($end);
+			$request->setWorkingDays($workingDays);
+			$request->setReason($data['reason'] ?? null);
+			$request->setReplacementUid($replacementUid);
+			$request->setAttachmentNote($data['attachmentNote'] ?? null);
+			$request->setCreatedAt($now);
+			$request->setUpdatedAt($now);
 
-		$request = $this->requestMapper->insert($request);
+			// Non-requestable types, auto-approve types, and any HR-recorded leave are
+			// booked straight to APPROVED with no approval workflow (§4.1, §5.6).
+			$recordedDirectly = !$type->getEmployeeRequestable() || !$type->getRequiresApproval() || $onBehalf;
+			if ($recordedDirectly) {
+				$request->setStatus(LeaveRequest::STATUS_APPROVED);
+				$request->setDecidedBy($actorUid);
+				$request->setDecidedAt($now);
+				$request->setEscalated(false);
+			} elseif ($managerUid === null) {
+				$request->setStatus(LeaveRequest::STATUS_ESCALATED);
+				$request->setEscalated(true);
+			} else {
+				$request->setStatus(LeaveRequest::STATUS_PENDING);
+				$request->setEscalated(false);
+			}
 
-		// Side effects by resulting status.
+			return $this->requestMapper->insert($request);
+		}, $this->db));
+
+		// Side effects by resulting status. After the commit — see the class docblock.
 		if ($request->getStatus() === LeaveRequest::STATUS_APPROVED) {
 			$this->applyCalendar($request);
 			$this->notifications->notifyReplacementAssigned($request);
@@ -319,23 +384,28 @@ class RequestService {
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $request->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $request->getEndDate()));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? $request->getReason() ?? ''), (string)($data['attachmentNote'] ?? $request->getAttachmentNote() ?? ''));
-		$this->assertNoOverlap($request->getEmployeeUid(), $start, $end, $this->chainExcludeIds($request));
 
 		$replacementUid = $this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'] ?? $request->getReplacementUid());
 
-		$request->setTypeId($type->getId());
-		$request->setStartDate($start);
-		$request->setEndDate($end);
-		$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays()));
-		$request->setReplacementUid($replacementUid);
-		if (array_key_exists('reason', $data)) {
-			$request->setReason($data['reason']);
-		}
-		if (array_key_exists('attachmentNote', $data)) {
-			$request->setAttachmentNote($data['attachmentNote']);
-		}
-		$request->setUpdatedAt(new \DateTime());
-		$request = $this->requestMapper->update($request);
+		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use (
+			$request, $type, $start, $end, $replacementUid, $data,
+		): LeaveRequest {
+			$this->assertNoOverlap($request->getEmployeeUid(), $start, $end, $this->chainExcludeIds($request));
+
+			$request->setTypeId($type->getId());
+			$request->setStartDate($start);
+			$request->setEndDate($end);
+			$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays()));
+			$request->setReplacementUid($replacementUid);
+			if (array_key_exists('reason', $data)) {
+				$request->setReason($data['reason']);
+			}
+			if (array_key_exists('attachmentNote', $data)) {
+				$request->setAttachmentNote($data['attachmentNote']);
+			}
+			$request->setUpdatedAt($this->clock->now());
+			return $this->requestMapper->update($request);
+		}, $this->db));
 
 		// Re-notify the decider that the request changed.
 		if ($request->getStatus() === LeaveRequest::STATUS_ESCALATED) {
@@ -348,42 +418,47 @@ class RequestService {
 	}
 
 	private function createSuperseding(string $actorUid, LeaveRequest $original, array $data): LeaveRequest {
-		// Only one edit may be in flight per approved request: a second one would be
-		// excluded from the overlap check as part of the supersedes chain, and once the
-		// first edit is approved (retiring the original) nothing would retire the other —
-		// two overlapping approved requests, both counted against the balance.
-		foreach ($this->requestMapper->findBySupersedesId($original->getId()) as $sibling) {
-			if (!in_array($sibling->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
-				throw new ConflictException('There is already a pending edit of this leave. Wait for a decision on it, or cancel it first.');
-			}
-		}
+		// Cheap up-front check so the caller gets the useful "there is already a
+		// pending edit" message rather than a complaint about whatever they changed.
+		// Authoritative re-check happens under the lock below.
+		$this->assertNoPendingEdit($original);
+
 		$type = $this->resolveType((int)($data['typeId'] ?? $original->getTypeId()));
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $original->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $original->getEndDate()));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
-		// The original still occupies its dates; exclude it and its chain from the check.
-		$this->assertNoOverlap($actorUid, $start, $end, $this->chainExcludeIds($original));
 		$replacementUid = $this->resolveReplacement($actorUid, $type, $data['replacementUid'] ?? $original->getReplacementUid());
 
-		$now = new \DateTime();
+		$now = $this->clock->now();
 		$managerUid = $this->managerResolver->getManagerUid($actorUid);
-		$new = new LeaveRequest();
-		$new->setEmployeeUid($actorUid);
-		$new->setManagerUid($managerUid);
-		$new->setTypeId($type->getId());
-		$new->setStartDate($start);
-		$new->setEndDate($end);
-		$new->setWorkingDays($this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays()));
-		$new->setReason($data['reason'] ?? null);
-		$new->setReplacementUid($replacementUid);
-		$new->setAttachmentNote($data['attachmentNote'] ?? null);
-		$new->setSupersedesId($original->getId());
-		$new->setStatus($managerUid === null ? LeaveRequest::STATUS_ESCALATED : LeaveRequest::STATUS_PENDING);
-		$new->setEscalated($managerUid === null);
-		$new->setCreatedAt($now);
-		$new->setUpdatedAt($now);
-		$new = $this->requestMapper->insert($new);
+
+		$new = $this->withEmployeeLock($actorUid, fn (): LeaveRequest => $this->atomic(function () use (
+			$actorUid, $original, $type, $start, $end, $replacementUid, $managerUid, $now, $data,
+		): LeaveRequest {
+			// Re-checked under the lock: two concurrent edits would otherwise both
+			// find no sibling in the fast check above and both insert.
+			$this->assertNoPendingEdit($original);
+			// The original still occupies its dates; exclude it and its chain from the check.
+			$this->assertNoOverlap($actorUid, $start, $end, $this->chainExcludeIds($original));
+
+			$new = new LeaveRequest();
+			$new->setEmployeeUid($actorUid);
+			$new->setManagerUid($managerUid);
+			$new->setTypeId($type->getId());
+			$new->setStartDate($start);
+			$new->setEndDate($end);
+			$new->setWorkingDays($this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays()));
+			$new->setReason($data['reason'] ?? null);
+			$new->setReplacementUid($replacementUid);
+			$new->setAttachmentNote($data['attachmentNote'] ?? null);
+			$new->setSupersedesId($original->getId());
+			$new->setStatus($managerUid === null ? LeaveRequest::STATUS_ESCALATED : LeaveRequest::STATUS_PENDING);
+			$new->setEscalated($managerUid === null);
+			$new->setCreatedAt($now);
+			$new->setUpdatedAt($now);
+			return $this->requestMapper->insert($new);
+		}, $this->db));
 
 		if ($new->getStatus() === LeaveRequest::STATUS_ESCALATED) {
 			$this->notifications->notifyEscalation($new, $this->permission->getHrUids());
@@ -423,9 +498,11 @@ class RequestService {
 		if ($request->getEndDate() < $request->getStartDate()) {
 			throw new ValidationException('The end date must be on or after the start date.');
 		}
-		$this->assertNoOverlap($request->getEmployeeUid(), $request->getStartDate(), $request->getEndDate(), $this->chainExcludeIds($request));
-		$request->setUpdatedAt(new \DateTime());
-		$request = $this->requestMapper->update($request);
+		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($request): LeaveRequest {
+			$this->assertNoOverlap($request->getEmployeeUid(), $request->getStartDate(), $request->getEndDate(), $this->chainExcludeIds($request));
+			$request->setUpdatedAt($this->clock->now());
+			return $this->requestMapper->update($request);
+		}, $this->db));
 
 		if ($wasApproved) {
 			// Rebuild the calendar entry for the new dates.
@@ -467,9 +544,11 @@ class RequestService {
 				return $this->transitionToCancelled($actorUid, $request);
 			}
 			// Employee: approved leave requires a withdrawal approval step.
-			$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
-			$request->setUpdatedAt(new \DateTime());
-			$request = $this->requestMapper->update($request);
+			$request = $this->atomic(function () use ($request): LeaveRequest {
+				$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+				$request->setUpdatedAt($this->clock->now());
+				return $this->requestMapper->update($request);
+			}, $this->db);
 			$recipients = array_filter([$request->getManagerUid(), ...$this->permission->getHrUids()]);
 			$this->notifications->notifyWithdrawal($request, array_values($recipients));
 			$this->activity->publish(ActivityPublisher::SUBJECT_WITHDRAWAL, $this->activityParams($request), [$request->getEmployeeUid(), ...$recipients], $request);
@@ -491,12 +570,17 @@ class RequestService {
 			LeaveRequest::STATUS_APPROVED,
 			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
 		], true);
+		$request = $this->atomic(function () use ($actorUid, $request): LeaveRequest {
+			$now = $this->clock->now();
+			$request->setStatus(LeaveRequest::STATUS_CANCELLED);
+			$request->setDecidedBy($actorUid);
+			$request->setDecidedAt($now);
+			$request->setUpdatedAt($now);
+			return $this->requestMapper->update($request);
+		}, $this->db);
+		// Only drop the calendar entry once the cancellation is durably committed —
+		// removing it first would strand the employee's calendar if the update failed.
 		$this->calendar->onRemoved($request);
-		$request->setStatus(LeaveRequest::STATUS_CANCELLED);
-		$request->setDecidedBy($actorUid);
-		$request->setDecidedAt(new \DateTime());
-		$request->setUpdatedAt(new \DateTime());
-		$request = $this->requestMapper->update($request);
 		$this->notifications->dismiss($request);
 		if ($wasApproved) {
 			$this->notifications->notifyReplacementCancelled($request);
@@ -519,15 +603,29 @@ class RequestService {
 		$status = $request->getStatus();
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
-			$request->setStatus(LeaveRequest::STATUS_APPROVED);
-			$request->setDecidedBy($actorUid);
-			$request->setDecidedAt(new \DateTime());
-			$request->setDecisionComment($comment);
-			$request->setUpdatedAt(new \DateTime());
-			$request = $this->requestMapper->update($request);
+			// Approving an edit both approves the new request and retires the one it
+			// supersedes. If only the first half committed, the employee would hold two
+			// overlapping approved requests and be charged for both — so the two writes
+			// are one transaction, taken under the employee's lock so a concurrent edit
+			// cannot slip a new sibling in between.
+			[$request, $retired] = $this->withEmployeeLock(
+				$request->getEmployeeUid(),
+				fn (): array => $this->atomic(function () use ($actorUid, $request, $comment): array {
+					$now = $this->clock->now();
+					$request->setStatus(LeaveRequest::STATUS_APPROVED);
+					$request->setDecidedBy($actorUid);
+					$request->setDecidedAt($now);
+					$request->setDecisionComment($comment);
+					$request->setUpdatedAt($now);
+					$request = $this->requestMapper->update($request);
+					return [$request, $this->retireSuperseded($request)];
+				}, $this->db),
+			);
 
-			// If this supersedes an approved request, retire the original now (§5.3).
-			$this->retireSuperseded($request);
+			// Calendar work follows the commit; see the class docblock.
+			if ($retired !== null) {
+				$this->calendar->onRemoved($retired);
+			}
 			$this->applyCalendar($request);
 			// Clear the now-stale "needs a decision" notifications other deciders
 			// (e.g. the rest of the HR group) still have, then notify the outcome.
@@ -560,12 +658,15 @@ class RequestService {
 		$status = $request->getStatus();
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
-			$request->setStatus(LeaveRequest::STATUS_REJECTED);
-			$request->setDecidedBy($actorUid);
-			$request->setDecidedAt(new \DateTime());
-			$request->setDecisionComment($comment);
-			$request->setUpdatedAt(new \DateTime());
-			$request = $this->requestMapper->update($request);
+			$request = $this->atomic(function () use ($actorUid, $request, $comment): LeaveRequest {
+				$now = $this->clock->now();
+				$request->setStatus(LeaveRequest::STATUS_REJECTED);
+				$request->setDecidedBy($actorUid);
+				$request->setDecidedAt($now);
+				$request->setDecisionComment($comment);
+				$request->setUpdatedAt($now);
+				return $this->requestMapper->update($request);
+			}, $this->db);
 			$this->notifications->dismiss($request);
 			$this->notifications->notifyDecision($request, false);
 			$this->activity->publish(ActivityPublisher::SUBJECT_REJECTED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
@@ -575,11 +676,16 @@ class RequestService {
 
 		if ($status === LeaveRequest::STATUS_WITHDRAWAL_PENDING) {
 			// Rejecting a withdrawal returns the leave to approved. Keep the original
-			// approval comment intact and record the refusal as a comment instead.
-			$request->setStatus(LeaveRequest::STATUS_APPROVED);
-			$request->setUpdatedAt(new \DateTime());
-			$request = $this->requestMapper->update($request);
-			$this->recordSystemComment($actorUid, $request->getId(), 'Withdrawal declined: ' . $comment);
+			// approval comment intact and record the refusal as a comment instead —
+			// the status change and that comment are one unit, or the employee could
+			// see their leave reinstated with no stated reason.
+			$request = $this->atomic(function () use ($actorUid, $request, $comment): LeaveRequest {
+				$request->setStatus(LeaveRequest::STATUS_APPROVED);
+				$request->setUpdatedAt($this->clock->now());
+				$request = $this->requestMapper->update($request);
+				$this->recordSystemComment($actorUid, $request->getId(), 'Withdrawal declined: ' . $comment);
+				return $request;
+			}, $this->db);
 			$this->notifications->dismiss($request);
 			// A declined withdrawal is not an approval — tell the employee their
 			// leave stands, not "your leave was approved, enjoy!".
@@ -600,7 +706,7 @@ class RequestService {
 		}
 		$request->setStatus(LeaveRequest::STATUS_ESCALATED);
 		$request->setEscalated(true);
-		$request->setUpdatedAt(new \DateTime());
+		$request->setUpdatedAt($this->clock->now());
 		$this->requestMapper->update($request);
 		$hrUids = $this->permission->getHrUids();
 		$this->notifications->notifyEscalation($request, $hrUids);
@@ -622,7 +728,7 @@ class RequestService {
 		$comment->setRequestId($request->getId());
 		$comment->setAuthorUid($actorUid);
 		$comment->setBody($body);
-		$comment->setCreatedAt(new \DateTime());
+		$comment->setCreatedAt($this->clock->now());
 		$comment = $this->commentMapper->insert($comment);
 		$this->audit('comment_added', $request, ['actor' => $actorUid, 'detail' => $body]);
 		return $comment;
@@ -663,7 +769,7 @@ class RequestService {
 			$event->setActorUid($actor);
 			$event->setEventType($action);
 			$event->setDetail($detail);
-			$event->setCreatedAt(new \DateTime());
+			$event->setCreatedAt($this->clock->now());
 			$this->eventMapper->insert($event);
 		} catch (\Throwable $e) {
 			// History is best-effort: never let it break the workflow.
@@ -676,27 +782,34 @@ class RequestService {
 		$comment->setRequestId($requestId);
 		$comment->setAuthorUid($authorUid);
 		$comment->setBody($body);
-		$comment->setCreatedAt(new \DateTime());
+		$comment->setCreatedAt($this->clock->now());
 		$this->commentMapper->insert($comment);
 	}
 
-	private function retireSuperseded(LeaveRequest $request): void {
+	/**
+	 * Cancel the request this one supersedes (§5.3). Database only: the caller
+	 * removes the retired request's calendar entry once the transaction commits,
+	 * so a rollback cannot leave the calendar out of step with the database.
+	 *
+	 * @return ?LeaveRequest the retired request, or null if there was nothing to retire
+	 */
+	private function retireSuperseded(LeaveRequest $request): ?LeaveRequest {
 		if ($request->getSupersedesId() === null) {
-			return;
+			return null;
 		}
 		try {
 			$original = $this->requestMapper->find($request->getSupersedesId());
 		} catch (DoesNotExistException) {
-			return;
+			return null;
 		}
 		if ($original->getStatus() !== LeaveRequest::STATUS_APPROVED) {
-			return;
+			return null;
 		}
-		$this->calendar->onRemoved($original);
+		$now = $this->clock->now();
 		$original->setStatus(LeaveRequest::STATUS_CANCELLED);
-		$original->setDecidedAt(new \DateTime());
-		$original->setUpdatedAt(new \DateTime());
-		$this->requestMapper->update($original);
+		$original->setDecidedAt($now);
+		$original->setUpdatedAt($now);
+		return $this->requestMapper->update($original);
 	}
 
 	private function applyCalendar(LeaveRequest $request): void {
@@ -791,6 +904,22 @@ class RequestService {
 		}
 		if (mb_strlen($note) > self::MAX_REASON_LENGTH) {
 			throw new ValidationException('The note is too long.');
+		}
+	}
+
+	/**
+	 * Only one edit may be in flight per approved request: a second one would be
+	 * excluded from the overlap check as part of the supersedes chain, and once the
+	 * first edit is approved (retiring the original) nothing would retire the other —
+	 * two overlapping approved requests, both counted against the balance (§5.3).
+	 *
+	 * @throws ConflictException
+	 */
+	private function assertNoPendingEdit(LeaveRequest $original): void {
+		foreach ($this->requestMapper->findBySupersedesId($original->getId()) as $sibling) {
+			if (!in_array($sibling->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
+				throw new ConflictException('There is already a pending edit of this leave. Wait for a decision on it, or cancel it first.');
+			}
 		}
 	}
 
