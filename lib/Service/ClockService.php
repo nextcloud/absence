@@ -60,6 +60,20 @@ class ClockService {
 		return (int)$this->serverNow()->format('Y');
 	}
 
+	/**
+	 * The current instant for a stored timestamp column (created_at, decided_at …).
+	 *
+	 * Deliberately UTC and not one of the two day-boundary methods above: a
+	 * timestamp records *when* something happened, which is the same moment for
+	 * everyone, so there is no user or server timezone to pick. It exists only so
+	 * the workflow's timestamps come from the same pinnable clock as everything
+	 * else — `new \DateTime()` cannot be frozen in a test. Mutable because the
+	 * entity setters take \DateTime.
+	 */
+	public function now(): \DateTime {
+		return \DateTime::createFromImmutable($this->at(new \DateTimeZone('UTC')));
+	}
+
 	public function userNow(): \DateTimeImmutable {
 		return $this->at($this->dateTimeZone->getTimeZone());
 	}

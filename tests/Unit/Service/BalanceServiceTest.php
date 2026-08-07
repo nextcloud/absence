@@ -82,7 +82,8 @@ class BalanceServiceTest extends TestCase {
 		$entitlement->setYear(2026);
 		$entitlement->setTypeId(1);
 		$entitlement->setBaseDays(30.0);
-		$this->entitlementMapper->method('findFor')->with('alice', 2026, 1)->willReturn($entitlement);
+		// Entitlements are fetched once per employee, not once per leave type.
+		$this->entitlementMapper->method('findForEmployee')->with('alice', 2026)->willReturn([$entitlement]);
 
 		$rows = $this->service->getBalance('alice', 2026)['balances'];
 		$this->assertCount(1, $rows);

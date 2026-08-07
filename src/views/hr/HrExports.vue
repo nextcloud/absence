@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="page">
+	<div class="page page--narrow page--flat">
 		<header class="page__header">
 			<h2 class="page__title">
 				{{ t('absence', 'Exports') }}
@@ -84,16 +84,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.page {
-	max-width: 900px;
-	margin: 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-
-	&__title {
-		margin: 0 0 24px;
-		font-size: 1.6rem;
-	}
-}
 
 .cards {
 	display: grid;

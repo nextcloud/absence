@@ -14,6 +14,7 @@ use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
@@ -33,6 +34,7 @@ class ExportController extends Controller {
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
 	public function requests(string $from, string $to): DataResponse|DataDownloadResponse {
 		if (!$this->permission->isHr((string)$this->userId)) {
 			return new DataResponse(['message' => 'HR role required'], Http::STATUS_FORBIDDEN);
@@ -43,6 +45,7 @@ class ExportController extends Controller {
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
 	public function balances(?int $year = null): DataResponse|DataDownloadResponse {
 		if (!$this->permission->isHr((string)$this->userId)) {
 			return new DataResponse(['message' => 'HR role required'], Http::STATUS_FORBIDDEN);

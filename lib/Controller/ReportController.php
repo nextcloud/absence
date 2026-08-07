@@ -13,6 +13,7 @@ use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ReportService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -31,6 +32,7 @@ class ReportController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function balances(?int $year = null, ?string $group = null): DataResponse {
 		return $this->handle(function () use ($year, $group) {
 			$this->permission->assertHr((string)$this->userId);
@@ -44,6 +46,7 @@ class ReportController extends Controller {
 	 * never visible to line managers.
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function sickLeave(?int $year = null, ?string $group = null, ?int $typeId = null): DataResponse {
 		return $this->handle(function () use ($year, $group, $typeId) {
 			$this->permission->assertHr((string)$this->userId);
@@ -52,6 +55,7 @@ class ReportController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function trends(string $from, string $to): DataResponse {
 		return $this->handle(function () use ($from, $to) {
 			$this->permission->assertHr((string)$this->userId);

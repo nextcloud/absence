@@ -3,8 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="page">
-		<header class="page__header">
+	<div class="page page--narrow page--roomy">
+		<header class="page__header page__header--center">
 			<h2 class="page__title">
 				{{ t('absence', 'My leave') }}
 			</h2>
@@ -205,26 +205,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.page {
-	max-width: 900px;
-	margin: 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 6);
-
-	&__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	&__title {
-		margin: 0;
-		font-size: 1.6rem;
-	}
-}
 
 .hero {
 	display: flex;

@@ -26,6 +26,11 @@ trait ClockMockTrait {
 		$clock->method('serverYear')->willReturn((int)date('Y'));
 		$clock->method('userNow')->willReturn(new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
 		$clock->method('serverNow')->willReturn(new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
+		// Stored timestamps. Unstubbed this returns null and every write path dies
+		// on a typed setter, so it is not optional even for tests ignoring time.
+		$clock->method('now')->willReturnCallback(
+			static fn (): \DateTime => new \DateTime('now', new \DateTimeZone('UTC')),
+		);
 
 		return $clock;
 	}

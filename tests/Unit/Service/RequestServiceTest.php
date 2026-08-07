@@ -25,7 +25,9 @@ use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\RequestService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
+use OCP\IDBConnection;
 use OCP\IUserManager;
+use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -46,10 +48,14 @@ class RequestServiceTest extends TestCase {
 	private ConfigService&MockObject $config;
 	private IUserManager&MockObject $userManager;
 	private LoggerInterface&MockObject $logger;
+	private IDBConnection&MockObject $db;
+	private ILockingProvider&MockObject $lockingProvider;
 	private RequestService $service;
 
 	protected function setUp(): void {
 		parent::setUp();
+		$this->db = $this->createMock(IDBConnection::class);
+		$this->lockingProvider = $this->createMock(ILockingProvider::class);
 		$this->requestMapper = $this->createMock(LeaveRequestMapper::class);
 		$this->commentMapper = $this->createMock(RequestCommentMapper::class);
 		$this->eventMapper = $this->createMock(RequestEventMapper::class);
@@ -70,6 +76,7 @@ class RequestServiceTest extends TestCase {
 			$this->leaveTypeMapper,
 			$this->managerResolver,
 			$this->permission,
+			$this->clockAtRealTime(),
 			$this->coverage,
 			$this->calendar,
 			$this->notifications,
@@ -77,7 +84,8 @@ class RequestServiceTest extends TestCase {
 			$this->config,
 			$this->userManager,
 			$this->logger,
-			$this->clockAtRealTime(),
+			$this->db,
+			$this->lockingProvider,
 		);
 	}
 
@@ -175,6 +183,89 @@ class RequestServiceTest extends TestCase {
 
 		$this->expectException(\OCA\Absence\Exception\ConflictException::class);
 		$this->service->update('emp', 5, ['startDate' => '2026-03-02', 'endDate' => '2026-03-04']);
+	}
+
+	// ------------------------------------------------ atomicity and locking ----
+
+	public function testApprovingAnEditRetiresTheOriginalInOneTransaction(): void {
+		// The whole point: approving the edit and cancelling the request it
+		// supersedes must commit together, or the employee ends up holding two
+		// overlapping approved requests and is charged for both.
+		$original = $this->pendingOwnRequest();
+		$original->setId(5);
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setSupersedesId(5);
+		$edit->setStatus(LeaveRequest::STATUS_PENDING);
+
+		$this->requestMapper->method('find')->willReturnMap([[6, $edit], [5, $original]]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$this->db->expects(self::once())->method('beginTransaction');
+		$this->db->expects(self::once())->method('commit');
+		$this->db->expects(self::never())->method('rollBack');
+
+		$this->service->approve('boss', 6, null);
+
+		$this->assertSame(LeaveRequest::STATUS_APPROVED, $edit->getStatus());
+		$this->assertSame(LeaveRequest::STATUS_CANCELLED, $original->getStatus());
+	}
+
+	public function testAFailedWriteRollsTheTransactionBack(): void {
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('find')->with(6)->willReturn($edit);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willThrowException(new \RuntimeException('database is on fire'));
+
+		$this->db->expects(self::once())->method('beginTransaction');
+		$this->db->expects(self::once())->method('rollBack');
+		$this->db->expects(self::never())->method('commit');
+		// A rolled-back approval must not tell anybody their leave was approved.
+		$this->notifications->expects(self::never())->method('notifyDecision');
+
+		$this->expectException(\RuntimeException::class);
+		$this->service->approve('boss', 6, null);
+	}
+
+	public function testDecidingReleasesTheEmployeeLockEvenWhenTheWriteFails(): void {
+		// A leaked lock would block every later change to this employee's leave.
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('find')->with(6)->willReturn($edit);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willThrowException(new \RuntimeException('nope'));
+
+		$this->lockingProvider->expects(self::once())->method('acquireLock');
+		$this->lockingProvider->expects(self::once())->method('releaseLock');
+
+		$this->expectException(\RuntimeException::class);
+		$this->service->approve('boss', 6, null);
+	}
+
+	public function testACompetingWriteOnTheSameEmployeeIsRejectedAsAConflict(): void {
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('find')->with(6)->willReturn($edit);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->lockingProvider->method('acquireLock')
+			->willThrowException(new \OCP\Lock\LockedException('absence/employee/emp'));
+
+		// Rather than proceeding on a stale read of the employee's other requests.
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(\OCA\Absence\Exception\ConflictException::class);
+		$this->service->approve('boss', 6, null);
 	}
 
 	public function testAddCommentRejectsOverlongBody(): void {

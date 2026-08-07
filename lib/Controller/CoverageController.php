@@ -11,6 +11,7 @@ namespace OCA\Absence\Controller;
 use OCA\Absence\Service\CoverageService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -27,6 +28,7 @@ class CoverageController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(string $from, string $to, string $scope = 'team'): DataResponse {
 		return $this->handle(function () use ($from, $to, $scope) {
 			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope);
