@@ -26,11 +26,12 @@ class BalanceService {
 		private EntitlementMapper $entitlementMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private ConfigService $config,
+		private ClockService $clock,
 	) {
 	}
 
 	public function currentYear(): int {
-		return (int)date('Y');
+		return $this->clock->userYear();
 	}
 
 	/**

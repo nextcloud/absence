@@ -12,6 +12,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
 use OCP\Dashboard\IAPIWidget;
@@ -38,6 +39,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		private IURLGenerator $urlGenerator,
 		private IUserManager $userManager,
 		private LeaveRequestMapper $requestMapper,
+		private ClockService $clock,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private BalanceService $balanceService,
 		private PermissionService $permission,
@@ -187,7 +189,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 	 * @return LeaveRequest[]
 	 */
 	private function ownUpcoming(string $userId): array {
-		$today = date('Y-m-d');
+		$today = $this->clock->userToday();
 		$requests = array_filter(
 			$this->requestMapper->findAllForEmployee($userId),
 			static fn (LeaveRequest $r): bool => in_array($r->getStatus(), LeaveRequest::ACTIVE_STATUSES, true) && $r->getEndDate() >= $today,

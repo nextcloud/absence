@@ -49,6 +49,7 @@ export default {
 	// Reports & export
 	reportBalances: (year, group) => axios.get(url('/api/reports/balances'), { params: { year, group } }).then((r) => r.data),
 	reportTrends: (from, to) => axios.get(url('/api/reports/trends'), { params: { from, to } }).then((r) => r.data),
+	reportSickLeave: (year, group) => axios.get(url('/api/reports/sick-leave'), { params: { year, group } }).then((r) => r.data),
 	exportRequestsUrl: (from, to) => url(`/api/export/requests?from=${from}&to=${to}`),
 	exportBalancesUrl: (year) => url(`/api/export/balances?year=${year}`),
 }

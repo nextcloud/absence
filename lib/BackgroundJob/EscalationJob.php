@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\BackgroundJob;
 
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\RequestService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -23,6 +24,7 @@ class EscalationJob extends TimedJob {
 
 	public function __construct(
 		ITimeFactory $time,
+		private ClockService $clock,
 		private LeaveRequestMapper $requestMapper,
 		private RequestService $requestService,
 		private ConfigService $config,
@@ -38,7 +40,9 @@ class EscalationJob extends TimedJob {
 		// does not burn its manager's window over the weekend. With the midnight
 		// cut-off, a request escalates once its manager had the full window.
 		$window = max(1, $this->config->getEscalationWindowDays());
-		$today = new \DateTimeImmutable('today', new \DateTimeZone('UTC'));
+		// Deliberately the server's timezone, not a user's: this decides which
+		// requests are due across the whole company, and there is no user to ask.
+		$today = $this->clock->serverNow()->setTime(0, 0);
 		$cutoff = $this->subtractWorkingDays($today, $window);
 		foreach ($this->requestMapper->findPendingOlderThan($cutoff) as $request) {
 			$this->requestService->escalate($request);
