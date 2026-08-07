@@ -39,7 +39,7 @@
 			</template>
 		</NcEmptyContent>
 
-		<div v-else class="table-wrap">
+		<div v-else class="report">
 			<p class="summary">
 				{{
 					n('absence',
@@ -58,65 +58,67 @@
 				<span class="summary__muted">{{ t('absence', 'of {total}', { total: totals.employees }) }}</span>
 			</p>
 
-			<table class="tbl">
-				<thead>
-					<tr>
-						<th class="num rank">
-							#
-						</th>
-						<th>{{ t('absence', 'Employee') }}</th>
-						<th class="num">
-							{{ t('absence', 'Days') }}
-						</th>
-						<th class="num">
-							{{ t('absence', 'Absences') }}
-						</th>
-						<th class="num">
-							{{ t('absence', 'Longest') }}
-						</th>
-						<th class="num">
-							{{ t('absence', 'Most recent') }}
-						</th>
-						<th class="bar-col" />
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="(row, index) in filtered" :key="row.employeeUid">
-						<td class="num rank">
-							{{ index + 1 }}
-						</td>
-						<td>
-							<div class="emp">
-								<NcAvatar
-									:user="row.employeeUid"
-									:displayName="row.displayName"
-									:size="24"
-									hideStatus /> {{ row.displayName }}
-							</div>
-						</td>
-						<td class="num strong">
-							{{ fmt(row.days) }}
-						</td>
-						<td class="num">
-							{{ row.episodes || '—' }}
-						</td>
-						<td class="num">
-							{{ row.longestEpisode ? fmt(row.longestEpisode) : '—' }}
-						</td>
-						<td class="num">
-							{{ row.lastDate ? formatDate(row.lastDate) : '—' }}
-						</td>
-						<td class="bar-col">
-							<!-- relative to the worst case, so the column is readable
-							     without needing to compare the numbers -->
-							<div
-								class="bar"
-								:style="{ width: barWidth(row.days), backgroundColor: barColor }"
-								:title="n('absence', '%n day', '%n days', Math.round(row.days))" />
-						</td>
-					</tr>
-				</tbody>
-			</table>
+			<div v-if="filtered.length" class="table-wrap">
+				<table class="tbl">
+					<thead>
+						<tr>
+							<th class="num rank">
+								#
+							</th>
+							<th>{{ t('absence', 'Employee') }}</th>
+							<th class="num">
+								{{ t('absence', 'Days') }}
+							</th>
+							<th class="num">
+								{{ t('absence', 'Absences') }}
+							</th>
+							<th class="num">
+								{{ t('absence', 'Longest') }}
+							</th>
+							<th class="num">
+								{{ t('absence', 'Most recent') }}
+							</th>
+							<th class="bar-col" />
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="(row, index) in filtered" :key="row.employeeUid">
+							<td class="num rank">
+								{{ index + 1 }}
+							</td>
+							<td>
+								<div class="emp">
+									<NcAvatar
+										:user="row.employeeUid"
+										:displayName="row.displayName"
+										:size="24"
+										hideStatus /> {{ row.displayName }}
+								</div>
+							</td>
+							<td class="num strong">
+								{{ fmt(row.days) }}
+							</td>
+							<td class="num">
+								{{ row.episodes || '—' }}
+							</td>
+							<td class="num">
+								{{ row.longestEpisode ? fmt(row.longestEpisode) : '—' }}
+							</td>
+							<td class="num">
+								{{ row.lastDate ? formatDate(row.lastDate) : '—' }}
+							</td>
+							<td class="bar-col">
+								<!-- relative to the worst case, so the column is readable
+								     without needing to compare the numbers -->
+								<div
+									class="bar"
+									:style="{ width: barWidth(row.days), backgroundColor: barColor }"
+									:title="n('absence', '%n day', '%n days', Math.round(row.days))" />
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 
 			<NcEmptyContent
 				v-if="!filtered.length"
@@ -237,8 +239,74 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.page {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: calc(var(--default-grid-baseline, 4px) * 5);
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--default-grid-baseline, 4px) * 4);
+
+	&__header {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	&__title {
+		margin: 0;
+		font-size: 1.6rem;
+	}
+
+	&__tools {
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	&__search {
+		width: 240px;
+	}
+}
+
+.report {
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+}
+
+.table-wrap {
+	overflow-x: auto;
+}
+
+.tbl {
+	width: 100%;
+	border-collapse: collapse;
+
+	th, td {
+		padding: 10px 12px;
+		text-align: left;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	th {
+		font-size: 0.8rem;
+		color: var(--color-text-maxcontrast);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.num {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+}
+
 .summary {
-	margin: 0 0 calc(var(--default-grid-baseline) * 2);
+	margin: 0;
 	color: var(--color-main-text);
 }
 
@@ -256,9 +324,9 @@ export default {
 }
 
 .emp {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	gap: var(--default-grid-baseline);
+	gap: 8px;
 }
 
 .bar-col {
