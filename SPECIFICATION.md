@@ -773,6 +773,10 @@ NcContent(app-name="absence")
   type, status and year, paged with a "Load more" button. Rows are the same
   `RequestListItem` as elsewhere and open the detail sidebar, whose **Edit** and
   **Cancel** controls are what let HR correct a wrong vacation or sick day (§5.6).
+  People are named, never printed as user ids: requests are serialized with an
+  `employeeName` (display name, falling back to the uid for a deleted account),
+  and the sidebar names the employee under its title whenever the leave is not
+  the viewer's own.
   Accepts `?employee=&employeeName=&type=&status=&year=` so other views can deep-link
   into it — the *Sick leave* overview does, from each employee row.
 - **HR** (HR group only): *Balances* (searchable/sortable data table →

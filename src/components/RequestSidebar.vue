@@ -6,7 +6,7 @@
 	<NcAppSidebar
 		v-if="detail"
 		:name="type.label"
-		:subname="rangeLabel"
+		:subname="subLabel"
 		@close="$emit('close')">
 		<template v-if="showStatus" #description>
 			<StatusChip :status="detail.status" />
@@ -20,7 +20,14 @@
 				<RequestStepper v-if="showStatus" :status="detail.status" class="section__stepper" />
 				<dl class="facts">
 					<dt>{{ t('absence', 'Employee') }}</dt>
-					<dd>{{ detail.employeeUid }}</dd>
+					<dd class="facts__decided">
+						<NcAvatar
+							:user="detail.employeeUid"
+							:displayName="employeeName"
+							:size="20"
+							hideStatus />
+						{{ employeeName }}
+					</dd>
 					<dt>{{ t('absence', 'Type') }}</dt>
 					<dd><LeaveTypeChip :typeId="detail.typeId" /></dd>
 					<dt>{{ t('absence', 'Dates') }}</dt>
@@ -263,6 +270,23 @@ export default {
 
 		rangeLabel() {
 			return this.detail ? formatRange(this.detail.startDate, this.detail.endDate) : ''
+		},
+
+		/** Older payloads carry no name; the uid is a poor label but better than blank. */
+		employeeName() {
+			return this.detail?.employeeName || this.detail?.employeeUid || ''
+		},
+
+		/**
+		 * Whose absence this is, shown under the title — but only for other people's
+		 * leave. On your own there is nobody to disambiguate, and naming you back at
+		 * yourself just crowds out the dates.
+		 */
+		subLabel() {
+			if (!this.detail || this.detail.employeeUid === store.session.uid) {
+				return this.rangeLabel
+			}
+			return `${this.employeeName} · ${this.rangeLabel}`
 		},
 
 		decidedAtLabel() {
