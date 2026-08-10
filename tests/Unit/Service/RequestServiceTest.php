@@ -276,6 +276,62 @@ class RequestServiceTest extends TestCase {
 		$this->assertSame(LeaveRequest::STATUS_CANCELLED, $original->getStatus());
 	}
 
+	public function testReplacingTheReplacementReleasesThePreviousOne(): void {
+		// retireSuperseded() cancels the original with a direct write, so it never
+		// passes through transitionToCancelled() where the replacement is normally
+		// released. Without this the colleague who agreed to cover the old dates is
+		// left believing they still do, while somebody else is told they cover.
+		$original = $this->pendingOwnRequest();
+		$original->setId(5);
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setReplacementUid('ada');
+
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setSupersedesId(5);
+		$edit->setStatus(LeaveRequest::STATUS_PENDING);
+		$edit->setReplacementUid('grace');
+
+		$this->requestMapper->method('find')->willReturnMap([[6, $edit], [5, $original]]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$released = null;
+		$this->notifications->method('notifyReplacementCancelled')
+			->willReturnCallback(function (LeaveRequest $r) use (&$released): void {
+				$released = $r->getReplacementUid();
+			});
+
+		$this->service->approve('boss', 6, null);
+
+		$this->assertSame('ada', $released);
+	}
+
+	public function testKeepingTheSameReplacementDoesNotNotifyThem(): void {
+		// They still cover. "No longer covering" immediately followed by "you are
+		// covering" is noise, not information.
+		$original = $this->pendingOwnRequest();
+		$original->setId(5);
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setReplacementUid('ada');
+
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setSupersedesId(5);
+		$edit->setStatus(LeaveRequest::STATUS_PENDING);
+		$edit->setReplacementUid('ada');
+
+		$this->requestMapper->method('find')->willReturnMap([[6, $edit], [5, $original]]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$this->notifications->expects(self::never())->method('notifyReplacementCancelled');
+
+		$this->service->approve('boss', 6, null);
+	}
+
 	public function testAFailedWriteRollsTheTransactionBack(): void {
 		$edit = $this->pendingOwnRequest();
 		$edit->setId(6);

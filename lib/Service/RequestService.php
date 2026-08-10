@@ -652,6 +652,17 @@ class RequestService {
 			// Calendar work follows the commit; see the class docblock.
 			if ($retired !== null) {
 				$this->calendar->onRemoved($retired);
+				// retireSuperseded() cancels the original with a direct write, so it
+				// never passes through transitionToCancelled() where the replacement
+				// would normally be released. Whoever covered the *old* version and is
+				// not covering the new one has to be told, or they go on believing they
+				// are on the hook. Staying silent when the person is unchanged is
+				// deliberate: they still cover, and "no longer covering" immediately
+				// followed by "you are covering" is noise, not information.
+				$previous = $retired->getReplacementUid();
+				if ($previous !== null && $previous !== '' && $previous !== $request->getReplacementUid()) {
+					$this->notifications->notifyReplacementCancelled($retired);
+				}
 			}
 			$this->applyCalendar($request);
 			// Clear the now-stale "needs a decision" notifications other deciders
