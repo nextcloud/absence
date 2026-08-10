@@ -10,9 +10,9 @@
 			</h2>
 		</header>
 
-		<div class="cards">
-			<div class="card">
-				<h3>{{ t('absence', 'Requests') }}</h3>
+		<div class="tiles tiles--wide">
+			<div class="surface card">
+				<h3><span aria-hidden="true">🗂️</span> {{ t('absence', 'Requests') }}</h3>
 				<p>{{ t('absence', 'All leave requests overlapping the selected date range, as CSV.') }}</p>
 				<div class="card__row">
 					<NcDateTimePickerNative v-model="from" type="date" :label="t('absence', 'From')" />
@@ -26,8 +26,8 @@
 				</a>
 			</div>
 
-			<div class="card">
-				<h3>{{ t('absence', 'Balances') }}</h3>
+			<div class="surface card">
+				<h3><span aria-hidden="true">⚖️</span> {{ t('absence', 'Balances') }}</h3>
 				<p>{{ t('absence', 'Per-employee entitlement, used, remaining and carry-over for a year.') }}</p>
 				<div class="card__row">
 					<NcSelect
@@ -85,16 +85,12 @@ export default {
 
 <style scoped lang="scss">
 
-.cards {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-	gap: 16px;
+// Export cards hold a form, so they need more width than a stat tile.
+.tiles--wide {
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
 .card {
-	background: var(--color-background-hover);
-	border-radius: var(--border-radius-large, 12px);
-	padding: calc(var(--default-grid-baseline, 4px) * 4);
 	display: flex;
 	flex-direction: column;
 	gap: 12px;

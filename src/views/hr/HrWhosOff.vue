@@ -9,7 +9,7 @@
 				{{ t('absence', 'Who\'s off') }}
 			</h2>
 		</header>
-		<p class="hint">
+		<p class="page__hint">
 			{{ t('absence', 'Select an absence to see its details, or to correct or cancel it.') }}
 		</p>
 		<TeamTimeline
@@ -35,11 +35,3 @@ export default {
 	methods: { t },
 }
 </script>
-
-<style scoped lang="scss">
-.hint {
-	margin: -12px 0 0;
-	color: var(--color-text-maxcontrast);
-	font-size: 0.9rem;
-}
-</style>

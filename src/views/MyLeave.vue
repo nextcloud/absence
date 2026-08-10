@@ -30,10 +30,10 @@
 		</section>
 
 		<section v-if="leaveByMonth || sickByMonth" class="charts">
-			<div v-if="leaveByMonth" class="charts__card">
+			<div v-if="leaveByMonth" class="surface">
 				<BarChart :title="t('absence', 'Leave taken by month ({year})', { year })" :data="leaveByMonth" />
 			</div>
-			<div v-if="sickByMonth" class="charts__card">
+			<div v-if="sickByMonth" class="surface">
 				<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
 			</div>
 		</section>
@@ -256,11 +256,6 @@ export default {
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
 
-	&__card {
-		background: var(--color-background-hover);
-		border-radius: var(--border-radius-large, 12px);
-		padding: calc(var(--default-grid-baseline, 4px) * 3);
-	}
 }
 
 .requests {

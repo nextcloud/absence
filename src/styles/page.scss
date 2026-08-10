@@ -79,9 +79,50 @@
 		width: 240px;
 	}
 
-	/* Wide tables scroll on their own so the page body never does. */
+	/**
+	 * The one card surface. Three subtly different ones had grown up across the HR
+	 * views (background-hover with no border here, main-background with a border
+	 * there, a third padding scale on My leave), which is the kind of drift that
+	 * reads as "unfinished" long before anybody can say why. Everything raised off
+	 * the page background now uses this.
+	 */
+	.surface {
+		background: var(--color-main-background);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
+		padding: calc(var(--default-grid-baseline, 4px) * 4);
+	}
+
+	/** A quieter surface for nested blocks that must not compete with the card. */
+	.surface--sunken {
+		background: var(--color-background-hover);
+		border-color: transparent;
+	}
+
+	/** Responsive tile row, for stat tiles and the export cards alike. */
+	.tiles {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: calc(var(--default-grid-baseline, 4px) * 4);
+	}
+
+	/** Muted one-liner under a page title. */
+	.page__hint {
+		margin: -12px 0 0;
+		color: var(--color-text-maxcontrast);
+		font-size: 0.9rem;
+	}
+
+	/*
+	 * Wide tables scroll on their own so the page body never does. The wrap doubles
+	 * as the table's surface, so a long HR table reads as one object instead of
+	 * rules floating on the page background.
+	 */
 	.table-wrap {
 		overflow-x: auto;
+		background: var(--color-main-background);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
 	}
 
 	.tbl {
@@ -89,16 +130,38 @@
 		border-collapse: collapse;
 
 		th, td {
-			padding: 10px 12px;
+			padding: 12px 14px;
 			text-align: start;
 			border-bottom: 1px solid var(--color-border);
 		}
 
+		/* Align the first and last cells with the surface's own corner radius. */
+		th:first-child, td:first-child { padding-inline-start: 18px; }
+		th:last-child, td:last-child { padding-inline-end: 18px; }
+
 		th {
-			font-size: 0.8rem;
+			font-size: 0.76rem;
+			font-weight: 600;
 			color: var(--color-text-maxcontrast);
 			text-transform: uppercase;
-			letter-spacing: 0.04em;
+			letter-spacing: 0.05em;
+			white-space: nowrap;
+			background: var(--color-background-hover);
+			border-bottom-color: var(--color-border-dark, var(--color-border));
+		}
+
+		thead th:first-child { border-start-start-radius: var(--border-radius-large, 12px); }
+		thead th:last-child { border-start-end-radius: var(--border-radius-large, 12px); }
+
+		/* The last rule would otherwise double up with the surface's own border. */
+		tbody tr:last-child td { border-bottom: none; }
+
+		tbody tr {
+			transition: background-color 120ms ease;
+		}
+
+		tbody tr:hover {
+			background: var(--color-background-hover);
 		}
 
 		.num {
@@ -106,9 +169,29 @@
 			font-variant-numeric: tabular-nums;
 		}
 
+		/**
+		 * The figure a row is really about, when it sits among other numbers.
+		 * Declared *before* the state colours below: a cell is routinely both
+		 * `lead` and `neg`, the two have equal specificity, and whichever is
+		 * declared last would win — which must be the one carrying the warning.
+		 */
+		.lead {
+			font-weight: 600;
+			color: var(--color-main-text);
+		}
+
 		.neg {
 			color: var(--color-error);
 			font-weight: 600;
 		}
+	}
+
+	/** Rows that open something. Pairs with a keyboard-reachable control inside. */
+	.tbl--interactive tbody tr {
+		cursor: pointer;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tbl tbody tr { transition: none; }
 	}
 }
