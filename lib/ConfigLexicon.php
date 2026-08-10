@@ -32,6 +32,7 @@ class ConfigLexicon implements ILexicon {
 	public const KEY_CARRYOVER_CAP = 'carryover_cap';
 	public const KEY_CARRYOVER_EXPIRY = 'carryover_expiry';
 	public const KEY_MAX_CONCURRENT = 'max_concurrent_absences';
+	public const KEY_NOTICE_PERIOD = 'notice_period_days';
 	public const KEY_CALDAV_PERSONAL = 'caldav_personal';
 	public const KEY_CALDAV_SHARED = 'caldav_shared';
 	public const KEY_SHARED_VISIBILITY = 'shared_calendar_visibility';
@@ -68,6 +69,8 @@ class ConfigLexicon implements ILexicon {
 				'Day (MM-DD) in the new year when carried-over days expire; empty = never', lazy: true),
 			new Entry(self::KEY_MAX_CONCURRENT, ValueType::INT, 2,
 				'Concurrent team absences above which a coverage warning is shown'),
+			new Entry(self::KEY_NOTICE_PERIOD, ValueType::INT, 14,
+				'Calendar days of advance notice expected for a leave request; one starting sooner is flagged as short notice to the manager and HR (0 disables the warning)', lazy: true),
 			new Entry(self::KEY_CALDAV_PERSONAL, ValueType::BOOL, true,
 				'Write approved leave to the employee\'s personal calendar', lazy: true),
 			new Entry(self::KEY_CALDAV_SHARED, ValueType::BOOL, true,

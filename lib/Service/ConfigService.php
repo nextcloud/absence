@@ -72,6 +72,14 @@ class ConfigService {
 		return $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_MAX_CONCURRENT);
 	}
 
+	/**
+	 * Calendar days of advance notice a leave request is expected to give. Zero
+	 * disables the short-notice warning entirely.
+	 */
+	public function getNoticePeriodDays(): int {
+		return $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_NOTICE_PERIOD);
+	}
+
 	public function isCalDavPersonalEnabled(): bool {
 		return $this->appConfig->getValueBool(self::APP_ID, ConfigLexicon::KEY_CALDAV_PERSONAL);
 	}
@@ -100,6 +108,7 @@ class ConfigService {
 			ConfigLexicon::KEY_CARRYOVER_CAP => $this->getCarryOverCap(),
 			ConfigLexicon::KEY_CARRYOVER_EXPIRY => $this->getCarryOverExpiry(),
 			ConfigLexicon::KEY_MAX_CONCURRENT => $this->getMaxConcurrentAbsences(),
+			ConfigLexicon::KEY_NOTICE_PERIOD => $this->getNoticePeriodDays(),
 			ConfigLexicon::KEY_CALDAV_PERSONAL => $this->isCalDavPersonalEnabled(),
 			ConfigLexicon::KEY_CALDAV_SHARED => $this->isCalDavSharedEnabled(),
 			ConfigLexicon::KEY_SHARED_VISIBILITY => $this->getSharedCalendarVisibility(),
@@ -133,6 +142,7 @@ class ConfigService {
 			case ConfigLexicon::KEY_ESCALATION_WINDOW:
 			case ConfigLexicon::KEY_REMINDER_LEAD:
 			case ConfigLexicon::KEY_MAX_CONCURRENT:
+			case ConfigLexicon::KEY_NOTICE_PERIOD:
 				$int = (int)$value;
 				if ($int < 0) {
 					throw new ValidationException('This setting must be zero or greater.');

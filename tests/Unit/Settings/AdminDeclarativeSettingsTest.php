@@ -120,6 +120,7 @@ class AdminDeclarativeSettingsTest extends TestCase {
 			ConfigLexicon::KEY_CARRYOVER_CAP => 5.0,
 			ConfigLexicon::KEY_CARRYOVER_EXPIRY => '',
 			ConfigLexicon::KEY_MAX_CONCURRENT => 2,
+			ConfigLexicon::KEY_NOTICE_PERIOD => 14,
 			ConfigLexicon::KEY_CALDAV_PERSONAL => true,
 			ConfigLexicon::KEY_CALDAV_SHARED => true,
 			ConfigLexicon::KEY_SHARED_VISIBILITY => ConfigService::VISIBILITY_NEUTRAL,

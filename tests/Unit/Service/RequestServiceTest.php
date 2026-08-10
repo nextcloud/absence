@@ -22,6 +22,7 @@ use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\ManagerResolver;
+use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\RequestService;
@@ -46,6 +47,7 @@ class RequestServiceTest extends TestCase {
 	private ManagerResolver&MockObject $managerResolver;
 	private PermissionService&MockObject $permission;
 	private CoverageService&MockObject $coverage;
+	private NoticeService&MockObject $notice;
 	private CalendarService&MockObject $calendar;
 	private NotificationService&MockObject $notifications;
 	private ActivityPublisher&MockObject $activity;
@@ -67,6 +69,7 @@ class RequestServiceTest extends TestCase {
 		$this->managerResolver = $this->createMock(ManagerResolver::class);
 		$this->permission = $this->createMock(PermissionService::class);
 		$this->coverage = $this->createMock(CoverageService::class);
+		$this->notice = $this->createMock(NoticeService::class);
 		$this->calendar = $this->createMock(CalendarService::class);
 		$this->notifications = $this->createMock(NotificationService::class);
 		$this->activity = $this->createMock(ActivityPublisher::class);
@@ -88,6 +91,7 @@ class RequestServiceTest extends TestCase {
 			$this->permission,
 			$this->clockAtRealTime(),
 			$this->coverage,
+			$this->notice,
 			$this->calendar,
 			$this->notifications,
 			$this->activity,

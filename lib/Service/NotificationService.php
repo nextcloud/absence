@@ -48,18 +48,20 @@ class NotificationService {
 		private IUserManager $userManager,
 		private IURLGenerator $urlGenerator,
 		private IFactory $l10nFactory,
+		private NoticeService $notice,
 		private LoggerInterface $logger,
 	) {
 	}
 
 	public function notifyNewRequest(LeaveRequest $request, string $managerUid): void {
-		$this->send($managerUid, self::SUBJECT_NEW_REQUEST, $request, true, $request->getReason(), $request->getEmployeeUid());
+		$this->send($managerUid, self::SUBJECT_NEW_REQUEST, $request, true, $request->getReason(), $request->getEmployeeUid(), $this->notice->warningFor($request));
 	}
 
 	/** @param string[] $hrUids */
 	public function notifyEscalation(LeaveRequest $request, array $hrUids): void {
+		$notice = $this->notice->warningFor($request);
 		foreach ($hrUids as $uid) {
-			$this->send($uid, self::SUBJECT_ESCALATION, $request, true, $request->getReason(), $request->getEmployeeUid());
+			$this->send($uid, self::SUBJECT_ESCALATION, $request, true, $request->getReason(), $request->getEmployeeUid(), $notice);
 		}
 	}
 
@@ -78,7 +80,9 @@ class NotificationService {
 	}
 
 	public function notifyReminder(LeaveRequest $request, string $managerUid): void {
-		$this->send($managerUid, self::SUBJECT_REMINDER, $request, true, $request->getReason(), $request->getEmployeeUid());
+		// Warn again, and by now more sharply: the reminder fires days after the
+		// request arrived, so whatever notice it gave has shrunk since.
+		$this->send($managerUid, self::SUBJECT_REMINDER, $request, true, $request->getReason(), $request->getEmployeeUid(), $this->notice->warningFor($request));
 	}
 
 	/** @param string[] $recipientUids */
@@ -135,14 +139,20 @@ class NotificationService {
 	 *                      applicant's reason, a decision comment, or a comment
 	 *                      left on the request
 	 * @param ?string $noteAuthorUid who wrote $note, so it can be attributed
+	 * @param ?array{days:int,noticePeriod:int} $notice from {@see NoticeService::warningFor()}
+	 *
+	 * Only the messages that ask somebody to decide carry a $notice, and they carry
+	 * the numbers rather than a finished sentence: the notification is phrased later,
+	 * in whatever language the person who opens it reads.
 	 */
-	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null): void {
+	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null, ?array $notice = null): void {
 		$note = trim((string)$note);
-		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid);
-		$this->sendEmail($recipientUid, $subject, $request, $note, $noteAuthorUid);
+		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid, $notice);
+		$this->sendEmail($recipientUid, $subject, $request, $note, $noteAuthorUid, $notice);
 	}
 
-	private function sendNotification(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, string $note, ?string $noteAuthorUid): void {
+	/** @param ?array{days:int,noticePeriod:int} $notice */
+	private function sendNotification(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, string $note, ?string $noteAuthorUid, ?array $notice): void {
 		try {
 			$notification = $this->notificationManager->createNotification();
 			$notification->setApp(ConfigService::APP_ID)
@@ -155,6 +165,8 @@ class NotificationService {
 					'actionable' => $actionable,
 					'note' => $this->preview($note),
 					'noteAuthor' => (string)$noteAuthorUid,
+					'noticeDays' => $notice['days'] ?? null,
+					'noticePeriod' => $notice['noticePeriod'] ?? null,
 				]);
 			$this->notificationManager->notify($notification);
 		} catch (\Throwable $e) {
@@ -174,7 +186,8 @@ class NotificationService {
 		return mb_substr($note, 0, self::NOTE_PREVIEW_LENGTH - 1) . '…';
 	}
 
-	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, string $note, ?string $noteAuthorUid): void {
+	/** @param ?array{days:int,noticePeriod:int} $notice */
+	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, string $note, ?string $noteAuthorUid, ?array $notice): void {
 		$user = $this->userManager->get($recipientUid);
 		if (!$user instanceof IUser) {
 			return;
@@ -186,13 +199,18 @@ class NotificationService {
 		try {
 			$lang = $this->l10nFactory->getUserLanguage($user);
 			$l = $this->l10nFactory->get(ConfigService::APP_ID, $lang);
-			[$heading, $body] = $this->emailContent($l, $subject, $request, $noteAuthorUid);
+			[$heading, $body] = $this->emailContent($l, $subject, $request, $noteAuthorUid, $notice !== null);
 
 			$template = $this->mailer->createEMailTemplate('absence.' . $subject);
 			$template->setSubject($heading);
 			$template->addHeader();
 			$template->addHeading($heading);
 			$template->addBodyText($body);
+			// Ahead of the note, because it bears on whether to say yes at all rather
+			// than on what the employee wants.
+			if ($notice !== null) {
+				$template->addBodyText(NoticeService::sentence($l, $notice));
+			}
 			// Quote the note verbatim under the summary, attributed. addBodyListItem
 			// escapes the text and keeps its line breaks, so a comment written as
 			// several lines still reads as several lines.
@@ -222,17 +240,23 @@ class NotificationService {
 	/**
 	 * @return array{0:string,1:string} heading and body
 	 */
-	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, ?string $noteAuthorUid): array {
+	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, ?string $noteAuthorUid, bool $shortNotice): array {
 		$employee = $this->displayName($request->getEmployeeUid());
 		$author = $noteAuthorUid !== null && $noteAuthorUid !== '' ? $this->displayName($noteAuthorUid) : '';
 		$range = $request->getStartDate() . ' – ' . $request->getEndDate();
+		// The heading is also the mail's subject line, so a short-notice request says
+		// so in the inbox — where the decider still has time to act on it.
 		return match ($subject) {
 			self::SUBJECT_NEW_REQUEST => [
-				$l->t('New leave request from %s', [$employee]),
+				$shortNotice
+					? $l->t('Short notice: leave request from %s', [$employee])
+					: $l->t('New leave request from %s', [$employee]),
 				$l->t('%1$s requested leave for %2$s. Please review it in Absence.', [$employee, $range]),
 			],
 			self::SUBJECT_ESCALATION => [
-				$l->t('Leave request awaiting HR: %s', [$employee]),
+				$shortNotice
+					? $l->t('Short notice: leave request awaiting HR: %s', [$employee])
+					: $l->t('Leave request awaiting HR: %s', [$employee]),
 				$l->t('A leave request from %1$s for %2$s has been escalated and needs an HR decision.', [$employee, $range]),
 			],
 			self::SUBJECT_APPROVED => [
@@ -245,7 +269,9 @@ class NotificationService {
 				$l->t('Your leave request for %s was declined.', [$range]),
 			],
 			self::SUBJECT_REMINDER => [
-				$l->t('Reminder: leave request from %s', [$employee]),
+				$shortNotice
+					? $l->t('Short notice: %s is still waiting for a decision', [$employee])
+					: $l->t('Reminder: leave request from %s', [$employee]),
 				$l->t('%1$s is still waiting for a decision on their leave for %2$s.', [$employee, $range]),
 			],
 			self::SUBJECT_WITHDRAWAL => [

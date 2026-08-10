@@ -46,6 +46,7 @@ class ConfigLexiconTest extends TestCase {
 			ConfigLexicon::KEY_HR_GROUP,
 			ConfigLexicon::KEY_LAST_ROLLOVER_YEAR,
 			ConfigLexicon::KEY_MAX_CONCURRENT,
+			ConfigLexicon::KEY_NOTICE_PERIOD,
 			ConfigLexicon::KEY_REMINDER_LEAD,
 			ConfigLexicon::KEY_SHARED_VISIBILITY,
 		];
@@ -78,6 +79,10 @@ class ConfigLexiconTest extends TestCase {
 
 		$this->assertSame(ConfigService::CARRYOVER_CAPPED, $entries[ConfigLexicon::KEY_CARRYOVER_POLICY]->getDefault(Preset::NONE));
 		$this->assertSame(ConfigService::VISIBILITY_NEUTRAL, $entries[ConfigLexicon::KEY_SHARED_VISIBILITY]->getDefault(Preset::NONE));
+
+		// Two weeks, the notice period the app documents as its default.
+		$this->assertSame(ValueType::INT, $entries[ConfigLexicon::KEY_NOTICE_PERIOD]->getValueType());
+		$this->assertSame('14', $entries[ConfigLexicon::KEY_NOTICE_PERIOD]->getDefault(Preset::NONE));
 
 		$this->assertSame(ValueType::BOOL, $entries[ConfigLexicon::KEY_CALDAV_PERSONAL]->getValueType());
 		$this->assertSame('1', $entries[ConfigLexicon::KEY_CALDAV_PERSONAL]->getDefault(Preset::NONE));
