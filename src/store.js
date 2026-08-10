@@ -100,7 +100,13 @@ export const store = reactive({
 	},
 
 	async loadMyBalance(year) {
-		this.balance = await api.getMyBalance(year)
+		// Mirrors loadRequests: callers run the two in a Promise.all, so an
+		// unhandled rejection here took the request list down with it.
+		try {
+			this.balance = await api.getMyBalance(year)
+		} catch {
+			showError(t('absence', 'Could not load your balance'))
+		}
 	},
 
 	async createRequest(data) {
