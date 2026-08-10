@@ -413,6 +413,7 @@ export default {
 				this.rejecting = false
 				this.rejectComment = ''
 				this.confirmingCancel = false
+				this.applyDecideIntent()
 			} catch {
 				showError(t('absence', 'Could not load the request'))
 				this.$emit('close')
@@ -428,6 +429,23 @@ export default {
 				showError(e.response?.data?.message || t('absence', 'Could not approve'))
 			} finally {
 				this.busy = false
+			}
+		},
+
+		/**
+		 * "Decline" in a notification links here with `?decide=decline`, so the
+		 * reason box is already open when the sidebar arrives — the click that meant
+		 * "no" should not land on a screen that looks like a read-only summary. The
+		 * verdict itself is still the manager's to confirm, and the intent is
+		 * consumed from the URL so re-selecting another request does not inherit it.
+		 */
+		applyDecideIntent() {
+			if (this.$route?.query?.decide !== 'decline') {
+				return
+			}
+			this.$router.replace({ path: this.$route.path })
+			if (this.detail.canDecide && this.isDecidable) {
+				this.rejecting = true
 			}
 		},
 
