@@ -66,6 +66,7 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -76,6 +77,10 @@ import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
 import { formatDate, toIso } from '../../utils/dates.js'
+
+// Enough for a decade of monthly points; past this a line chart is unreadable
+// anyway and the range is almost certainly a typo.
+const MAX_MONTHS = 120
 
 export default {
 	name: 'HrStatistics',
@@ -91,10 +96,41 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * Every month the selected range covers, in order — including the ones with
+		 * no leave at all.
+		 *
+		 * The report only returns months that *have* approved leave, which is the
+		 * right shape for a sum and the wrong one for everything else here: an
+		 * average over it divides by the months that happened to be busy, and a line
+		 * chart drawn from it joins January straight to April as though they were
+		 * adjacent, hiding the quiet quarter between them.
+		 */
+		monthsInRange() {
+			if (!this.from || !this.to || this.from > this.to) {
+				return []
+			}
+			const months = []
+			const cursor = new Date(this.from.getFullYear(), this.from.getMonth(), 1)
+			const last = new Date(this.to.getFullYear(), this.to.getMonth(), 1)
+			// A hand-typed year like 0202 would otherwise ask for tens of thousands of
+			// points; the cap keeps a fat-fingered date from freezing the page.
+			while (cursor <= last && months.length < MAX_MONTHS) {
+				months.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`)
+				cursor.setMonth(cursor.getMonth() + 1)
+			}
+			return months
+		},
+
+		/** True once the range covers more than one year, when "Jan" stops being unique. */
+		spansYears() {
+			return new Set(this.monthsInRange.map((month) => month.slice(0, 4))).size > 1
+		},
+
 		monthData() {
-			return Object.entries(this.trends.byMonth).map(([month, value]) => ({
-				label: month.slice(5),
-				value,
+			return this.monthsInRange.map((month) => ({
+				label: this.monthLabel(month, this.spansYears ? { month: 'short', year: '2-digit' } : { month: 'short' }),
+				value: this.trends.byMonth[month] ?? 0,
 			}))
 		},
 
@@ -106,8 +142,9 @@ export default {
 			}))
 		},
 
+		/** Averaged over the months asked about, not the months that happened to be busy. */
 		perMonthAvg() {
-			const months = Object.keys(this.trends.byMonth).length
+			const months = this.monthsInRange.length
 			return months ? this.trends.total / months : 0
 		},
 
@@ -116,18 +153,22 @@ export default {
 		 * hides the August everybody disappears in.
 		 */
 		busiestMonth() {
-			const entries = Object.entries(this.trends.byMonth)
-			if (!entries.length) {
+			const peak = this.monthsInRange.reduce(
+				(best, month) => ((this.trends.byMonth[month] ?? 0) > best.value
+					? { month, value: this.trends.byMonth[month] }
+					: best),
+				{ month: null, value: 0 },
+			)
+			if (peak.month === null) {
 				return { value: 0, label: '' }
 			}
-			const [month, value] = entries.reduce((best, e) => (e[1] > best[1] ? e : best))
-			return {
-				value,
-				label: new Date(month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-			}
+			return { value: peak.value, label: this.monthLabel(peak.month, { month: 'long', year: 'numeric' }) }
 		},
 
 		rangeCaption() {
+			if (!this.from || !this.to) {
+				return ''
+			}
 			return `${formatDate(toIso(this.from))} – ${formatDate(toIso(this.to))}`
 		},
 	},
@@ -144,10 +185,32 @@ export default {
 	methods: {
 		t,
 		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
+
+		/**
+		 * Localised name for a 'YYYY-MM' key.
+		 *
+		 * @param {string} month 'YYYY-MM'
+		 * @param {object} options Intl.DateTimeFormat options
+		 * @return {string}
+		 */
+		monthLabel(month, options) {
+			return new Date(month + '-01T00:00:00').toLocaleDateString(undefined, options)
+		},
+
 		async reload() {
+			// The native date inputs report null when cleared, and every date helper
+			// here would throw on it. Nothing to ask the server for either.
+			if (!this.from || !this.to) {
+				return
+			}
 			this.loading = true
 			try {
 				this.trends = await api.reportTrends(toIso(this.from), toIso(this.to))
+			} catch (e) {
+				// Without this the view kept the previous range's figures on screen
+				// with no hint that the new ones never arrived.
+				this.trends = { byMonth: {}, byType: [], total: 0 }
+				showError(e.response?.data?.message || t('absence', 'Could not load statistics'))
 			} finally {
 				this.loading = false
 			}

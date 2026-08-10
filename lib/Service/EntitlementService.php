@@ -64,7 +64,7 @@ class EntitlementService {
 			$ent->setManualAdjustment($adjustment);
 			$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
 		}
-		$ent->setUpdatedAt(new \DateTime());
+		$ent->setUpdatedAt($this->clock->now());
 		$ent = $this->entitlementMapper->update($ent);
 
 		$this->activity->publish(ActivityPublisher::SUBJECT_BALANCE_ADJUSTED, [
@@ -119,7 +119,7 @@ class EntitlementService {
 		foreach ($this->targetUids($group) as $uid) {
 			$ent = $this->balanceService->ensureEntitlement($uid, $year, $typeId);
 			$ent->setBaseDays($baseDays);
-			$ent->setUpdatedAt(new \DateTime());
+			$ent->setUpdatedAt($this->clock->now());
 			$this->entitlementMapper->update($ent);
 			$count++;
 		}
@@ -154,7 +154,7 @@ class EntitlementService {
 			} catch (DoesNotExistException) {
 				// The new year continues the prior year's base — never the global
 				// default, which would silently override HR-set custom entitlements.
-				$now = new \DateTime();
+				$now = $this->clock->now();
 				$next = new Entitlement();
 				$next->setEmployeeUid($prior->getEmployeeUid());
 				$next->setYear($toYear);
@@ -166,7 +166,7 @@ class EntitlementService {
 				$next = $this->entitlementMapper->insert($next);
 			}
 			$next->setCarryOverDays($carry);
-			$next->setUpdatedAt(new \DateTime());
+			$next->setUpdatedAt($this->clock->now());
 			$this->entitlementMapper->update($next);
 			$affected++;
 		}
@@ -216,7 +216,7 @@ class EntitlementService {
 		foreach ($this->entitlementMapper->findForYear($year) as $ent) {
 			if ($ent->getCarryOverDays() > 0.0) {
 				$ent->setCarryOverDays(0.0);
-				$ent->setUpdatedAt(new \DateTime());
+				$ent->setUpdatedAt($this->clock->now());
 				$this->entitlementMapper->update($ent);
 				$affected++;
 			}
