@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\ReportService;
 use OCP\IGroup;
 use OCP\IGroupManager;
@@ -40,8 +41,8 @@ class ReportServiceTest extends TestCase {
 			$this->balanceService,
 			$this->requestMapper,
 			$this->leaveTypeMapper,
+			new EmployeeDirectory($this->userManager, $this->groupManager),
 			$this->userManager,
-			$this->groupManager,
 		);
 	}
 

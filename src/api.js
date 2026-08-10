@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import axios from '@nextcloud/axios'
-import { generateOcsUrl, generateUrl } from '@nextcloud/router'
+import { generateUrl } from '@nextcloud/router'
 
 const url = (path) => generateUrl('/apps/absence' + path)
 
@@ -41,10 +41,11 @@ export default {
 	updateLeaveType: (id, data) => axios.put(url(`/api/leave-types/${id}`), data).then((r) => r.data),
 	deleteLeaveType: (id) => axios.delete(url(`/api/leave-types/${id}`)).then((r) => r.data),
 
-	// User search (HR recording leave for an employee) — core autocomplete API
-	searchUsers: (search) => axios.get(generateOcsUrl('core/autocomplete/get'), {
-		params: { search, itemType: ' ', itemId: ' ', shareTypes: [0], limit: 20 },
-	}).then((r) => (r.data.ocs?.data || []).map((u) => ({ uid: u.id, displayName: u.label }))),
+	// Employee search for the people pickers. Deliberately not core's autocomplete:
+	// only the server can tell a guest account from a colleague, and guests are not
+	// employees (§2.2). The endpoint wraps the same collaborator search, so the
+	// admin's user-enumeration settings still apply.
+	searchUsers: (search) => axios.get(url('/api/employees/search'), { params: { search } }).then((r) => r.data),
 
 	// Reports & export
 	reportBalances: (year, group) => axios.get(url('/api/reports/balances'), { params: { year, group } }).then((r) => r.data),

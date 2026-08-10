@@ -68,6 +68,7 @@ class RequestService {
 		private NotificationService $notifications,
 		private ActivityPublisher $activity,
 		private ConfigService $config,
+		private EmployeeDirectory $employees,
 		private \OCP\IUserManager $userManager,
 		private LoggerInterface $logger,
 		private IDBConnection $db,
@@ -126,7 +127,8 @@ class RequestService {
 		if ($replacementUid === $employeeUid) {
 			throw new ValidationException('You cannot be your own replacement.');
 		}
-		if (!$this->userManager->userExists($replacementUid)) {
+		// Also rejects guests: cover during an absence is a colleague's duty (§2.2).
+		if (!$this->employees->isEmployee($replacementUid)) {
 			throw new ValidationException('The chosen replacement is not a valid user.');
 		}
 		return $replacementUid;
@@ -260,6 +262,11 @@ class RequestService {
 		$isHr = $this->permission->isHr($actorUid);
 		if ($onBehalf && !$isHr) {
 			throw new ForbiddenException('Only HR can record leave for another employee.');
+		}
+		// Guests are external accounts, not staff: they have no entitlement and take
+		// no leave, so no record may be created for one — including by HR (§2.2).
+		if (!$this->employees->isEmployee($employeeUid)) {
+			throw new ValidationException('Leave can only be recorded for an employee.');
 		}
 		// Some types (e.g. sick leave) are recorded by HR, not self-requested (§5.6).
 		if (!$type->getEmployeeRequestable() && !$isHr) {

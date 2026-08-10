@@ -21,6 +21,9 @@ return [
 		['name' => 'request#reject', 'url' => '/api/requests/{id}/reject', 'verb' => 'POST'],
 		['name' => 'request#addComment', 'url' => '/api/requests/{id}/comments', 'verb' => 'POST'],
 
+		// People (autocomplete for the employee / replacement pickers)
+		['name' => 'employee#search', 'url' => '/api/employees/search', 'verb' => 'GET'],
+
 		// Balances & entitlements
 		['name' => 'balance#mine', 'url' => '/api/balance', 'verb' => 'GET'],
 		['name' => 'balance#forEmployee', 'url' => '/api/employees/{uid}/balance', 'verb' => 'GET'],

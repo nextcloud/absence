@@ -26,6 +26,7 @@ class CoverageService {
 		private ManagerResolver $managerResolver,
 		private PermissionService $permission,
 		private ConfigService $config,
+		private EmployeeDirectory $employees,
 		private IUserManager $userManager,
 	) {
 	}
@@ -37,11 +38,7 @@ class CoverageService {
 	 */
 	public function resolveScopeUids(string $actorUid, string $scope): array {
 		if ($scope === self::SCOPE_COMPANY && $this->permission->isHr($actorUid)) {
-			$uids = [];
-			$this->userManager->callForAllUsers(static function ($user) use (&$uids): void {
-				$uids[] = $user->getUID();
-			});
-			return $uids;
+			return $this->employees->listAll();
 		}
 		// Team scope: the actor's reports if they manage, otherwise their peers + self.
 		$reports = $this->managerResolver->getDirectReports($actorUid);

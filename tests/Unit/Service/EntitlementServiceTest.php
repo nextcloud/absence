@@ -14,6 +14,7 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -43,8 +44,7 @@ class EntitlementServiceTest extends TestCase {
 			$this->config,
 			$this->clockAtRealTime(),
 			$this->createMock(ActivityPublisher::class),
-			$this->createMock(IUserManager::class),
-			$this->createMock(IGroupManager::class),
+			new EmployeeDirectory($this->createMock(IUserManager::class), $this->createMock(IGroupManager::class)),
 			$this->createMock(LoggerInterface::class),
 		);
 	}
