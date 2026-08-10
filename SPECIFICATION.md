@@ -51,7 +51,7 @@ There are four effective roles. A single user may hold several simultaneously
 
 | Role | How assigned | Capabilities |
 |------|-------------|--------------|
-| **Employee** | Every logged-in user | Create/edit/cancel own requests, view own balance, view own history, see team who's-off calendar. |
+| **Employee** | Every logged-in user **except guest accounts** (§2.2) | Create/edit/cancel own requests, view own balance, view own history, see team who's-off calendar. |
 | **Line manager** | Derived from the LDAP `manager` attribute (see §2.1) — a user is a manager of everyone whose `manager` attribute points to them | Approve/reject/comment on direct reports' requests, view direct reports' calendars and balances, receive coverage-conflict warnings. |
 | **HR** | Membership of a configurable Nextcloud group (default group id `hr`, set in admin settings) | Company-wide overview, statistics, exports, manage entitlements, manage public-holiday calendar, override any decision, act on escalated requests, edit/adjust any request and balance. |
 | **App admin** | Nextcloud server admins | Configure app settings (§11): HR group, leave types, escalation window, default entitlements, CalDAV target. |
@@ -71,6 +71,41 @@ There are four effective roles. A single user may hold several simultaneously
   requests remain stable even if the org chart changes later.
 - **No manager found:** the request is created with `manager_uid = NULL` and is
   routed directly to HR (treated as immediately escalated — see §5.4).
+
+### 2.2 Who counts as an employee (guest accounts)
+
+Not every account on an instance is a member of staff. **Guest accounts — users
+created by the [Guests app](https://github.com/nextcloud/guests) — are external
+people invited to collaborate on files. They have no entitlement and take no
+leave, so the app does not treat them as employees.**
+
+Without this rule every guest would sit in the balances report and the who's-off
+calendar forever, with an empty allowance and nothing to show.
+
+- **One definition, one place.** `EmployeeDirectory` is the only component that
+  enumerates users; `ReportService`, `EntitlementService`, `CoverageService` and
+  `ManagerResolver` all ask it rather than walking `IUserManager` themselves. A
+  rule stated in four copies is a rule that holds in three.
+- **Detection.** A guest is a user in the Guests app's own user backend, i.e.
+  `IUser::getBackendClassName() === 'Guests'` — the same thing
+  `OCA\Guests\GuestManager::isGuest()` checks. Read this way the app needs **no
+  dependency on the Guests app**: where it is absent or disabled, no account has
+  that backend and the rule is simply never true.
+- **Consequences.** Guests do not appear in balances, statistics, the sick-leave
+  overview, exports, the who's-off calendar, the HR absence list or any people
+  picker; they are nobody's direct report or peer, and cannot be resolved as a
+  line manager (a request routed to one could never be approved).
+- **Enforced, not just hidden.** The API rejects creating leave for a guest —
+  including by HR, who may otherwise record for anyone — nominating a guest as a
+  replacement, and setting a guest's entitlement. Filtering only the UI would
+  leave the rule one crafted request away from being bypassed.
+- **Pickers.** The people pickers call the app's own
+  `GET /api/employees/search` rather than core's autocomplete, because only the
+  server can tell a guest from a colleague. That endpoint wraps the same
+  collaborator search, so the admin's user-enumeration settings still apply
+  exactly as elsewhere; guests are removed from what it returns.
+- Existing records for someone who later becomes a guest are left untouched in
+  the database — they simply stop being listed.
 
 ---
 
@@ -738,6 +773,10 @@ NcContent(app-name="absence")
   type, status and year, paged with a "Load more" button. Rows are the same
   `RequestListItem` as elsewhere and open the detail sidebar, whose **Edit** and
   **Cancel** controls are what let HR correct a wrong vacation or sick day (§5.6).
+  People are named, never printed as user ids: requests are serialized with an
+  `employeeName` (display name, falling back to the uid for a deleted account),
+  and the sidebar names the employee under its title whenever the leave is not
+  the viewer's own.
   Accepts `?employee=&employeeName=&type=&status=&year=` so other views can deep-link
   into it — the *Sick leave* overview does, from each employee row.
 - **HR** (HR group only): *Balances* (searchable/sortable data table →

@@ -25,6 +25,7 @@ class ManagerResolver {
 
 	public function __construct(
 		private IUserManager $userManager,
+		private EmployeeDirectory $employees,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -56,7 +57,9 @@ class ManagerResolver {
 		}
 		foreach ($managerUids as $uid) {
 			$uid = trim((string)$uid);
-			if ($uid !== '' && $uid !== $user->getUID() && $this->userManager->userExists($uid)) {
+			// A guest cannot be a line manager — they have no standing in the app,
+			// so routing an approval to them would strand the request (§2.2).
+			if ($uid !== '' && $uid !== $user->getUID() && $this->employees->isEmployee($uid)) {
 				return $uid;
 			}
 		}
@@ -102,6 +105,11 @@ class ManagerResolver {
 		}
 		$index = [];
 		$this->userManager->callForAllUsers(function (IUser $user) use (&$index): void {
+			// Guests are not employees, so they are nobody's direct report — which
+			// also keeps them out of getPeers() and every team-scoped view (§2.2).
+			if (!$this->employees->isEmployee($user->getUID())) {
+				return;
+			}
 			$managerUid = $this->readManagerUid($user);
 			if ($managerUid !== null) {
 				$index[$managerUid][] = $user->getUID();

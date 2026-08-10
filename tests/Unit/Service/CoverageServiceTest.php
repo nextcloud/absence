@@ -13,8 +13,10 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
+use OCP\IGroupManager;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -39,6 +41,7 @@ class CoverageServiceTest extends TestCase {
 			$this->managerResolver,
 			$this->permission,
 			$this->config,
+			new EmployeeDirectory($this->userManager, $this->createMock(IGroupManager::class)),
 			$this->userManager,
 		);
 	}

@@ -8,7 +8,9 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Unit\Service;
 
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\ManagerResolver;
+use OCP\IGroupManager;
 use OCP\IUser;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -29,7 +31,11 @@ class ManagerResolverTest extends TestCase {
 		parent::setUp();
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
-		$this->service = new ManagerResolver($this->userManager, $this->logger);
+		$this->service = new ManagerResolver(
+			$this->userManager,
+			new EmployeeDirectory($this->userManager, $this->createMock(IGroupManager::class)),
+			$this->logger,
+		);
 	}
 
 	/**

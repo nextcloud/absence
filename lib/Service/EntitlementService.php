@@ -14,8 +14,6 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\IGroupManager;
-use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -29,8 +27,7 @@ class EntitlementService {
 		private ConfigService $config,
 		private ClockService $clock,
 		private ActivityPublisher $activity,
-		private IUserManager $userManager,
-		private IGroupManager $groupManager,
+		private EmployeeDirectory $employees,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -95,7 +92,8 @@ class EntitlementService {
 	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentNote?:string} $data
 	 */
 	public function setForEmployee(string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
-		if ($this->userManager->get($employeeUid) === null) {
+		// Also rejects guests: they have no entitlement to set (§2.2).
+		if (!$this->employees->isEmployee($employeeUid)) {
 			throw new ValidationException('Unknown employee.');
 		}
 		$type = $this->leaveTypeMapper->find($typeId);
@@ -238,17 +236,6 @@ class EntitlementService {
 	 * @return string[]
 	 */
 	private function targetUids(?string $group): array {
-		if ($group !== null && $group !== '') {
-			$g = $this->groupManager->get($group);
-			if ($g === null) {
-				return [];
-			}
-			return array_map(static fn ($u) => $u->getUID(), $g->getUsers());
-		}
-		$uids = [];
-		$this->userManager->callForAllUsers(static function ($user) use (&$uids): void {
-			$uids[] = $user->getUID();
-		});
-		return $uids;
+		return $this->employees->listInGroup($group);
 	}
 }

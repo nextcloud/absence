@@ -8,7 +8,7 @@
 			:name="title"
 			:active="active"
 			:forceDisplayActions="true"
-			@click="$emit('select', request.id)">
+			@click="select">
 			<template #icon>
 				<span class="rli__icon" :style="{ background: colorSoft }" aria-hidden="true">{{ type.icon }}</span>
 			</template>
@@ -54,9 +54,14 @@ export default {
 
 		title() {
 			if (this.showEmployee) {
-				return `${this.request.employeeUid} · ${this.type.label}`
+				return `${this.employeeName} · ${this.type.label}`
 			}
 			return this.type.label
+		},
+
+		/** Older payloads carry no name; the uid is a poor label but better than blank. */
+		employeeName() {
+			return this.request.employeeName || this.request.employeeUid
 		},
 
 		subtitle() {
@@ -66,7 +71,26 @@ export default {
 		},
 	},
 
-	methods: { t, n },
+	methods: {
+		t,
+		n,
+
+		/**
+		 * Selecting a row opens the detail sidebar — it must not navigate.
+		 *
+		 * NcListItem always renders an anchor and defaults its href to "#", and it
+		 * only calls preventDefault() itself when given a `to` (router-link) prop.
+		 * Left alone, the browser follows that "#" — which under this app's hash
+		 * history is the route "/", redirecting to My leave. So an HR user opening
+		 * someone's absence was thrown back to their own overview.
+		 *
+		 * @param {MouseEvent} event the native click NcListItem forwards
+		 */
+		select(event) {
+			event?.preventDefault?.()
+			this.$emit('select', this.request.id)
+		},
+	},
 }
 </script>
 

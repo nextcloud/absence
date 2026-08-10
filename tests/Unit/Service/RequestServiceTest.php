@@ -20,6 +20,7 @@ use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
@@ -39,6 +40,9 @@ class RequestServiceTest extends TestCase {
 	private RequestCommentMapper&MockObject $commentMapper;
 	private RequestEventMapper&MockObject $eventMapper;
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
+	private EmployeeDirectory&MockObject $employees;
+	/** @var string[] uids the directory should report as guests for a given test */
+	private array $guestUids = [];
 	private ManagerResolver&MockObject $managerResolver;
 	private PermissionService&MockObject $permission;
 	private CoverageService&MockObject $coverage;
@@ -67,6 +71,12 @@ class RequestServiceTest extends TestCase {
 		$this->notifications = $this->createMock(NotificationService::class);
 		$this->activity = $this->createMock(ActivityPublisher::class);
 		$this->config = $this->createMock(ConfigService::class);
+		// Everyone is an employee unless a test says otherwise, so the existing
+		// cases keep testing what they were written to test.
+		$this->employees = $this->createMock(EmployeeDirectory::class);
+		$this->employees->method('isEmployee')->willReturnCallback(
+			fn (string $uid): bool => !in_array($uid, $this->guestUids, true),
+		);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->service = new RequestService(
@@ -82,6 +92,7 @@ class RequestServiceTest extends TestCase {
 			$this->notifications,
 			$this->activity,
 			$this->config,
+			$this->employees,
 			$this->userManager,
 			$this->logger,
 			$this->db,
@@ -109,6 +120,52 @@ class RequestServiceTest extends TestCase {
 		$request->setWorkingDays(3.0);
 		$request->setStatus(LeaveRequest::STATUS_PENDING);
 		return $request;
+	}
+
+	public function testHrCannotRecordLeaveForAGuest(): void {
+		// Guests are external accounts with no entitlement, so there is no leave to
+		// record for them — not even by HR, who may record for anyone else (§2.2).
+		$this->guestUids = ['ext'];
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($this->type(1, true));
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$this->expectException(ValidationException::class);
+		$this->service->create('hr', [
+			'typeId' => 1,
+			'startDate' => '2026-03-02',
+			'endDate' => '2026-03-03',
+			'workingDays' => 2.0,
+			'employeeUid' => 'ext',
+		]);
+	}
+
+	public function testAGuestCannotBeNominatedAsReplacement(): void {
+		// Cover during an absence is a colleague's duty; a guest cannot take it on.
+		// The guest is a perfectly real account — "does this uid exist" would wave it
+		// through, so only the employee check can reject it.
+		$this->guestUids = ['ext'];
+		$this->userManager->method('userExists')->willReturn(true);
+		$type = $this->type(1, true);
+		$type->setRequiresReplacement(true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		// Dated forward off the test clock: leave entirely in the past is rejected
+		// before the replacement is ever resolved, which would pass this test for
+		// the wrong reason (and start doing so silently as the year rolls over).
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->expectException(ValidationException::class);
+		$this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+			'replacementUid' => 'ext',
+		]);
 	}
 
 	public function testEmployeeCannotReclassifyIntoHrOnlyType(): void {

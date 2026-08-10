@@ -68,6 +68,7 @@ class RequestService {
 		private NotificationService $notifications,
 		private ActivityPublisher $activity,
 		private ConfigService $config,
+		private EmployeeDirectory $employees,
 		private \OCP\IUserManager $userManager,
 		private LoggerInterface $logger,
 		private IDBConnection $db,
@@ -126,7 +127,8 @@ class RequestService {
 		if ($replacementUid === $employeeUid) {
 			throw new ValidationException('You cannot be your own replacement.');
 		}
-		if (!$this->userManager->userExists($replacementUid)) {
+		// Also rejects guests: cover during an absence is a colleague's duty (§2.2).
+		if (!$this->employees->isEmployee($replacementUid)) {
 			throw new ValidationException('The chosen replacement is not a valid user.');
 		}
 		return $replacementUid;
@@ -170,7 +172,7 @@ class RequestService {
 		);
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
-		$detail = $this->withReplacementName($detail, $request);
+		$detail = $this->withDisplayNames($detail, $request);
 		if ($detail['canDecide']) {
 			$detail['coverage'] = $this->coverage->getRequestCoverage($request, $actorUid);
 		}
@@ -178,31 +180,40 @@ class RequestService {
 	}
 
 	/**
-	 * Serialize a list of requests, resolving the replacement display name so
-	 * the client can show and reuse it (e.g. prefill a likely replacement).
+	 * Serialize a list of requests, resolving display names so the client can
+	 * name people instead of printing uids.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function listSerialized(string $actorUid, array $filters, ?int $limit, ?int $offset): array {
 		return array_map(
-			fn (LeaveRequest $r) => $this->withReplacementName($r->jsonSerialize(), $r),
+			fn (LeaveRequest $r) => $this->withDisplayNames($r->jsonSerialize(), $r),
 			$this->list($actorUid, $filters, $limit, $offset),
 		);
 	}
 
 	/**
-	 * Add the replacement's display name to a serialized request, falling back
-	 * to the uid when the user no longer exists.
+	 * Add the display names for the people on a serialized request, falling back
+	 * to the uid when an account no longer exists.
 	 *
 	 * @param array<string,mixed> $data
 	 * @return array<string,mixed>
 	 */
-	private function withReplacementName(array $data, LeaveRequest $request): array {
+	private function withDisplayNames(array $data, LeaveRequest $request): array {
+		// The employee's name is always attached: managers and HR spend most of
+		// their time in this app looking at *other people's* leave, and a raw uid
+		// is not who they are looking for.
+		$data['employeeName'] = $this->displayName($request->getEmployeeUid());
 		if ($request->getReplacementUid() !== null) {
-			$user = $this->userManager->get($request->getReplacementUid());
-			$data['replacementName'] = $user !== null ? $user->getDisplayName() : $request->getReplacementUid();
+			$data['replacementName'] = $this->displayName($request->getReplacementUid());
 		}
 		return $data;
+	}
+
+	/** A user's display name, falling back to the uid for a deleted account. */
+	private function displayName(string $uid): string {
+		$user = $this->userManager->get($uid);
+		return $user !== null ? $user->getDisplayName() : $uid;
 	}
 
 	/**
@@ -260,6 +271,11 @@ class RequestService {
 		$isHr = $this->permission->isHr($actorUid);
 		if ($onBehalf && !$isHr) {
 			throw new ForbiddenException('Only HR can record leave for another employee.');
+		}
+		// Guests are external accounts, not staff: they have no entitlement and take
+		// no leave, so no record may be created for one — including by HR (§2.2).
+		if (!$this->employees->isEmployee($employeeUid)) {
+			throw new ValidationException('Leave can only be recorded for an employee.');
 		}
 		// Some types (e.g. sick leave) are recorded by HR, not self-requested (§5.6).
 		if (!$type->getEmployeeRequestable() && !$isHr) {

@@ -11,7 +11,6 @@ namespace OCA\Absence\Service;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
-use OCP\IGroupManager;
 use OCP\IUserManager;
 
 /**
@@ -27,8 +26,8 @@ class ReportService {
 		private BalanceService $balanceService,
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
+		private EmployeeDirectory $employees,
 		private IUserManager $userManager,
-		private IGroupManager $groupManager,
 	) {
 	}
 
@@ -213,19 +212,11 @@ class ReportService {
 		return $types;
 	}
 
+	/**
+	 * @return string[]
+	 */
 	private function employeeUids(?string $group): array {
-		if ($group !== null && $group !== '') {
-			$g = $this->groupManager->get($group);
-			if ($g === null) {
-				return [];
-			}
-			return array_map(static fn ($u) => $u->getUID(), $g->getUsers());
-		}
-		$uids = [];
-		$this->userManager->callForAllUsers(static function ($user) use (&$uids): void {
-			$uids[] = $user->getUID();
-		});
-		return $uids;
+		return $this->employees->listInGroup($group);
 	}
 
 	private function displayName(string $uid): string {
