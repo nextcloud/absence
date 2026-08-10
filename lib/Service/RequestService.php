@@ -64,6 +64,7 @@ class RequestService {
 		private PermissionService $permission,
 		private ClockService $clock,
 		private CoverageService $coverage,
+		private NoticeService $notice,
 		private CalendarService $calendar,
 		private NotificationService $notifications,
 		private ActivityPublisher $activity,
@@ -175,6 +176,9 @@ class RequestService {
 		$detail = $this->withDisplayNames($detail, $request);
 		if ($detail['canDecide']) {
 			$detail['coverage'] = $this->coverage->getRequestCoverage($request, $actorUid);
+			// Only for someone who may decide, like the coverage summary: it is there to
+			// inform a decision, and the employee already knows how late they asked.
+			$detail['shortNotice'] = $this->notice->warningFor($request);
 		}
 		return $detail;
 	}
