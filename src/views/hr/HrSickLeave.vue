@@ -40,23 +40,26 @@
 		</NcEmptyContent>
 
 		<div v-else class="report">
-			<p class="summary">
-				{{
-					n('absence',
-						'%n day of sick leave in {year}',
-						'%n days of sick leave in {year}',
-						Math.round(totals.days),
-						{ year })
-				}}
-				·
-				{{
-					n('absence',
-						'%n employee affected',
-						'%n employees affected',
-						totals.affected)
-				}}
-				<span class="summary__muted">{{ t('absence', 'of {total}', { total: totals.employees }) }}</span>
-			</p>
+			<div class="tiles">
+				<StatTile
+					icon="🤒"
+					:value="fmt(totals.days)"
+					:label="t('absence', 'days of sick leave')"
+					:caption="t('absence', 'in {year}', { year })"
+					accent="var(--color-warning)" />
+				<StatTile
+					icon="👥"
+					:value="totals.affected"
+					:label="t('absence', 'employees affected')"
+					:caption="t('absence', 'of {total}', { total: totals.employees })"
+					accent="var(--color-primary-element)" />
+				<StatTile
+					icon="📉"
+					:value="fmt(averagePerEmployee)"
+					:label="t('absence', 'avg. days per employee')"
+					:caption="t('absence', 'counting everybody')"
+					accent="var(--color-info, var(--color-primary-element))" />
+			</div>
 
 			<div v-if="filtered.length" class="table-wrap">
 				<table class="tbl">
@@ -128,10 +131,11 @@
 							<td class="bar-col">
 								<!-- relative to the worst case, so the column is readable
 								     without needing to compare the numbers -->
-								<div
-									class="bar"
-									:style="{ width: barWidth(row.days), backgroundColor: barColor }"
-									:title="n('absence', '%n day', '%n days', Math.round(row.days))" />
+								<MeterBar
+									:value="row.days || 0"
+									:max="maxDays"
+									:color="barColor"
+									:ariaLabel="n('absence', '%n day', '%n days', Math.round(row.days))" />
 							</td>
 						</tr>
 					</tbody>
@@ -162,12 +166,14 @@ import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
+import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
+import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
 
 export default {
 	name: 'HrSickLeave',
-	components: { NcAvatar, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, Magnify, Thermometer, SkeletonList },
+	components: { NcAvatar, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, Magnify, Thermometer, SkeletonList, StatTile, MeterBar },
 
 	data() {
 		const y = new Date().getFullYear()
@@ -205,6 +211,15 @@ export default {
 
 		barColor() {
 			return this.types[0]?.color || 'var(--color-primary-element)'
+		},
+
+		/**
+		 * Spread across the whole workforce, not just the people who fell ill —
+		 * the average over the affected only would climb as fewer people get sick,
+		 * which is the opposite of what the number is read as meaning.
+		 */
+		averagePerEmployee() {
+			return this.totals.employees ? this.totals.days / this.totals.employees : 0
 		},
 	},
 
@@ -255,13 +270,6 @@ export default {
 			})
 		},
 
-		barWidth(days) {
-			if (!days || this.maxDays <= 0) {
-				return '0'
-			}
-			return Math.max(2, Math.round((days / this.maxDays) * 100)) + '%'
-		},
-
 		async reload() {
 			this.loading = true
 			try {
@@ -283,16 +291,7 @@ export default {
 .report {
 	display: flex;
 	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 2);
-}
-
-.summary {
-	margin: 0;
-	color: var(--color-main-text);
-}
-
-.summary__muted {
-	color: var(--color-text-maxcontrast);
+	gap: calc(var(--default-grid-baseline, 4px) * 4);
 }
 
 .rank {
@@ -333,14 +332,7 @@ export default {
 }
 
 .bar-col {
-	width: 22%;
+	width: 20%;
 	min-width: 80px;
-}
-
-.bar {
-	height: 8px;
-	border-radius: var(--border-radius);
-	/* a zero-width bar would still show a rounded stub */
-	min-width: 0;
 }
 </style>
