@@ -25,7 +25,10 @@ Built to the specification in [SPECIFICATION.md](./SPECIFICATION.md).
   and CSV export.
 - **Calendar sync**: approved leave is written to a personal and a shared team calendar
   via CalDAV.
-- **Notifications, email and activity** for every step.
+- **Notifications, email and activity** for every step — including whatever the
+  employee, manager or HR wrote: the reason on the request, the decision comment and
+  new comments are quoted in the notification and the email, so nobody has to open
+  the app to find out what was said.
 - Native Nextcloud UI (Vue 3 + `@nextcloud/vue`), dark-mode aware, translatable.
 
 ## Screenshots
@@ -161,7 +164,10 @@ withdrawal requested/approved/rejected, escalation, comments, entitlement change
 carry-over rollover/expiry, leave-type and holiday changes, admin-config changes, and
 GDPR user-data purge — is written to **`nextcloud.log`** as a structured JSON entry
 tagged `"app":"absence"` with a machine-readable `action` and full context (actor,
-request id, employee, type, dates, working days, status).
+request id, employee, type, dates, working days, status). Where the action carried
+free text, the text is part of the entry too: `detail` holds a comment body or a
+decision comment, `reason` holds the note the applicant wrote when creating the
+request.
 
 These entries are **always written regardless of the instance log level**: on install
 (and every update) the app adds `absence` to the system `log.condition.apps` list,

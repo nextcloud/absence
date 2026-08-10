@@ -44,6 +44,9 @@ class Notifier implements INotifier {
 		$params = $notification->getSubjectParameters();
 		$employee = $this->displayName((string)($params['employee'] ?? ''));
 		$requestId = (string)($params['requestId'] ?? $notification->getObjectId());
+		// Notifications stored before notes were carried have neither key.
+		$note = trim((string)($params['note'] ?? ''));
+		$noteAuthor = $this->displayName((string)($params['noteAuthor'] ?? ''));
 
 		[$subject, $message] = match ($notification->getSubject()) {
 			NotificationService::SUBJECT_NEW_REQUEST => [
@@ -82,8 +85,21 @@ class Notifier implements INotifier {
 				$l->t('No longer covering for %s', [$employee]),
 				$l->t('Their leave was cancelled.'),
 			],
+			NotificationService::SUBJECT_COMMENT => [
+				$noteAuthor !== ''
+					? $l->t('%s commented on a leave request', [$noteAuthor])
+					: $l->t('New comment on a leave request'),
+				'',
+			],
 			default => throw new UnknownNotificationException('Unknown subject'),
 		};
+
+		// What someone actually wrote beats the boilerplate that would otherwise fill
+		// this line: "Review it in Absence." says nothing the Review button doesn't,
+		// while the reason or decision comment is the reason to look at all.
+		if ($note !== '') {
+			$message = $note;
+		}
 
 		$notification->setParsedSubject($subject);
 		if ($message !== '') {

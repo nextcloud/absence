@@ -522,7 +522,9 @@ All four channels are required.
 
 - **Nextcloud notifications:** implement `OCP\Notification\INotifier`. Events:
   new request (→ manager), decision made (→ employee), escalation (→ HR),
-  reminder (→ manager), withdrawal request (→ manager/HR), **replacement assigned**
+  reminder (→ manager), withdrawal request (→ manager/HR), **comment added**
+  (→ the employee and their manager, plus HR once the request has been escalated;
+  never back to the comment's own author), **replacement assigned**
   (→ replacement, on approval) and **replacement cancelled** (→ replacement, when
   approved leave is cancelled) — §5.1. These are pushed (a standard NC notification is
   delivered to push automatically). Provide actionable notifications (Approve/Reject
@@ -530,13 +532,24 @@ All four channels are required.
 - **Email:** via `OCP\Mail\IMailer` with templated messages
   (`OCP\Mail\IEMailTemplate`) for each of the above events. Respect the user's
   configured email + language.
+- **What people wrote travels with the message.** Free text on a request — the
+  applicant's `reason`, the `decision_comment`, the body of a comment (§3.6) — is
+  carried by the notification and the email that announce the event, attributed to
+  its author. A recipient must never have to open the app to find out what was
+  actually said. The email quotes the text in full; the notification, which renders
+  on one line, carries a whitespace-collapsed opening of it and where a note is
+  present it takes the place of boilerplate like "Review it in Absence.".
+  One deliberate exception: the replacement (§5.1) is told the dates only, never the
+  reason — cover duty does not come with a right to read it.
 - **Activity:** implement `OCP\Activity\IProvider` / setting so all state changes
   appear in the Activity app feed, filterable to an "Absence" activity type. Include
   activity for HR overrides and balance adjustments.
 - **Server-log audit trail (always-on):** every important action is written to
   `nextcloud.log` as a structured entry tagged `["app" => "absence"]` with a
   machine-readable `action` and full context (actor, request id, employee, type,
-  dates, working days, status). Covered actions: the full request lifecycle (create,
+  dates, working days, status) plus, where the action carried free text, that text
+  itself — `detail` for a comment body or decision comment, `reason` for the note
+  the applicant wrote on creation. Covered actions: the full request lifecycle (create,
   edit, superseding edit, HR edit, approve, reject, cancel, withdrawal
   request/approve/reject, escalate, comment), entitlement changes, bulk-set,
   carry-over rollover/expiry, leave-type and holiday changes, admin-config changes,

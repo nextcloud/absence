@@ -345,7 +345,14 @@ class RequestService {
 			$this->notifications->notifyNewRequest($request, (string)$managerUid);
 			$this->activity->publish(ActivityPublisher::SUBJECT_CREATED, $this->activityParams($request), [$employeeUid, (string)$managerUid], $request);
 		}
-		$this->audit('request_created', $request, ['actor' => $actorUid, 'detail' => $this->createdDetail($request, $type, $onBehalf)]);
+		// `reason` is the employee's own note on the request; the log entry is the one
+		// place it can be reconstructed later, so it goes into the context rather than
+		// into `detail` (the Details tab already shows it in the request's history).
+		$this->audit('request_created', $request, [
+			'actor' => $actorUid,
+			'detail' => $this->createdDetail($request, $type, $onBehalf),
+			'reason' => $request->getReason(),
+		]);
 		return $request;
 	}
 
@@ -705,7 +712,7 @@ class RequestService {
 			$this->notifications->dismiss($request);
 			// A declined withdrawal is not an approval — tell the employee their
 			// leave stands, not "your leave was approved, enjoy!".
-			$this->notifications->notifyWithdrawalRejected($request);
+			$this->notifications->notifyWithdrawalRejected($request, $comment, $actorUid);
 			$this->activity->publish(ActivityPublisher::SUBJECT_APPROVED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
 			$this->audit('withdrawal_rejected', $request, ['actor' => $actorUid, 'detail' => $comment]);
 			return $request;
@@ -747,7 +754,23 @@ class RequestService {
 		$comment->setCreatedAt($this->clock->now());
 		$comment = $this->commentMapper->insert($comment);
 		$this->audit('comment_added', $request, ['actor' => $actorUid, 'detail' => $body]);
+		$this->notifications->notifyComment($request, $actorUid, $body, $this->commentRecipients($request));
 		return $comment;
+	}
+
+	/**
+	 * Who hears about a comment: the employee and their line manager, plus HR once
+	 * the request has been through them, so a question HR asked does not sit
+	 * unanswered. The author is filtered out by the notification service.
+	 *
+	 * @return string[]
+	 */
+	private function commentRecipients(LeaveRequest $request): array {
+		$recipients = [$request->getEmployeeUid(), (string)$request->getManagerUid()];
+		if ($request->getEscalated()) {
+			$recipients = [...$recipients, ...$this->permission->getHrUids()];
+		}
+		return array_values(array_unique(array_filter($recipients)));
 	}
 
 	// --------------------------------------------------------------- helpers ----
