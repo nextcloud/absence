@@ -82,7 +82,12 @@
 						</tr>
 					</thead>
 					<tbody>
-						<tr v-for="(row, index) in filtered" :key="row.employeeUid">
+						<tr
+							v-for="(row, index) in filtered"
+							:key="row.employeeUid"
+							class="row"
+							:class="{ 'row--drillable': row.days > 0 }"
+							@click="openRecords(row)">
 							<td class="num rank">
 								{{ index + 1 }}
 							</td>
@@ -92,7 +97,20 @@
 										:user="row.employeeUid"
 										:displayName="row.displayName"
 										:size="24"
-										hideStatus /> {{ row.displayName }}
+										hideStatus />
+									<!-- The whole row is clickable for the mouse; this button is
+									     what makes the drilldown keyboard-reachable. -->
+									<button
+										v-if="row.days > 0"
+										type="button"
+										class="emp__link"
+										:title="t('absence', 'Show these sick days')"
+										@click.stop="openRecords(row)">
+										{{ row.displayName }}
+									</button>
+									<template v-else>
+										{{ row.displayName }}
+									</template>
 								</div>
 							</td>
 							<td class="num strong">
@@ -214,6 +232,29 @@ export default {
 			return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })
 		},
 
+		/**
+		 * Drill into the individual records behind a row, where they can be
+		 * corrected or cancelled. Rows with no sick leave have nothing to show.
+		 *
+		 * @param {object} row one employee's aggregated figures
+		 */
+		openRecords(row) {
+			if (!row.days) {
+				return
+			}
+			this.$router.push({
+				name: 'hr-absences',
+				query: {
+					employee: row.employeeUid,
+					employeeName: row.displayName,
+					// The report can aggregate several sick types; filter by type only
+					// when there is exactly one, so nothing gets hidden.
+					...(this.types.length === 1 ? { type: this.types[0].id } : {}),
+					year: this.year,
+				},
+			})
+		},
+
 		barWidth(days) {
 			if (!days || this.maxDays <= 0) {
 				return '0'
@@ -267,6 +308,28 @@ export default {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
+
+	&__link {
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
+		text-align: start;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+}
+
+.row--drillable {
+	cursor: pointer;
+
+	&:hover {
+		background: var(--color-background-hover);
+	}
 }
 
 .bar-col {

@@ -61,7 +61,10 @@ class LeaveRequestMapper extends QBMapper {
 			$qb->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter($filters['to'])));
 		}
 
-		$qb->orderBy('start_date', 'DESC');
+		// The id tiebreaker keeps the order total: start_date alone is not unique, so
+		// without it `limit`/`offset` paging (HR's absence list) could repeat or skip
+		// rows whenever several absences share a start date.
+		$qb->orderBy('start_date', 'DESC')->addOrderBy('id', 'DESC');
 		if ($limit !== null) {
 			$qb->setMaxResults($limit);
 		}

@@ -236,7 +236,12 @@ export default {
 
 		typeOptions() {
 			// HR may record any enabled type (incl. sick); employees only self-requestable ones.
-			return this.hrMode ? store.enabledLeaveTypes : store.requestableLeaveTypes
+			// HR correcting an existing record needs the same full list — otherwise the
+			// record's own type (sick) is missing from the picker it is preselected in.
+			if (this.hrMode || (this.isEdit && store.session.isHr)) {
+				return store.enabledLeaveTypes
+			}
+			return store.requestableLeaveTypes
 		},
 
 		typeColor() {

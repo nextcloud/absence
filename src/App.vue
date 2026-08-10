@@ -47,6 +47,11 @@
 							<ClipboardPlusOutline :size="20" />
 						</template>
 					</NcAppNavigationItem>
+					<NcAppNavigationItem :name="t('absence', 'Absences')" :to="{ name: 'hr-absences' }">
+						<template #icon>
+							<CalendarSearch :size="20" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'Balances')" :to="{ name: 'hr-balances' }">
 						<template #icon>
 							<ScaleBalance :size="20" />
@@ -111,6 +116,7 @@ import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import CalendarAccountOutline from 'vue-material-design-icons/CalendarAccountOutline.vue'
 import CalendarMonth from 'vue-material-design-icons/CalendarMonth.vue'
+import CalendarSearch from 'vue-material-design-icons/CalendarSearch.vue'
 import ChartBar from 'vue-material-design-icons/ChartBar.vue'
 import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
@@ -136,6 +142,7 @@ export default {
 		RequestSidebar,
 		Plus,
 		CalendarAccountOutline,
+		CalendarSearch,
 		ClipboardCheck,
 		AccountGroup,
 		ScaleBalance,
@@ -147,8 +154,9 @@ export default {
 	},
 
 	setup() {
-		// Let any descendant view open the create/edit dialog or select a request.
+		// Let any descendant view open the create/edit/record dialog or select a request.
 		provide('absence:openNew', () => window.dispatchEvent(new CustomEvent('absence:open-new')))
+		provide('absence:openRecord', () => window.dispatchEvent(new CustomEvent('absence:open-record')))
 		provide('absence:openEdit', (r) => window.dispatchEvent(new CustomEvent('absence:open-edit', { detail: r })))
 		return { store }
 	},
@@ -173,6 +181,7 @@ export default {
 
 	mounted() {
 		window.addEventListener('absence:open-new', this.openNewRequest)
+		window.addEventListener('absence:open-record', this.openRecord)
 		window.addEventListener('absence:open-edit', this.onOpenEditEvent)
 		// Deep link: /requests/:id opens the sidebar.
 		if (this.$route.params.id) {
@@ -182,6 +191,7 @@ export default {
 
 	beforeUnmount() {
 		window.removeEventListener('absence:open-new', this.openNewRequest)
+		window.removeEventListener('absence:open-record', this.openRecord)
 		window.removeEventListener('absence:open-edit', this.onOpenEditEvent)
 	},
 

@@ -4,6 +4,7 @@
  */
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Approvals from './views/Approvals.vue'
+import HrAbsences from './views/hr/HrAbsences.vue'
 import HrBalances from './views/hr/HrBalances.vue'
 import HrExports from './views/hr/HrExports.vue'
 import HrSickLeave from './views/hr/HrSickLeave.vue'
@@ -17,6 +18,7 @@ const routes = [
 	{ path: '/my', name: 'my', component: MyLeave },
 	{ path: '/approvals', name: 'approvals', component: Approvals },
 	{ path: '/team', name: 'team', component: Team },
+	{ path: '/hr/absences', name: 'hr-absences', component: HrAbsences },
 	{ path: '/hr/balances', name: 'hr-balances', component: HrBalances },
 	{ path: '/hr/statistics', name: 'hr-statistics', component: HrStatistics },
 	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave },

@@ -354,6 +354,11 @@ employees — sick leave is the canonical example (`employee_requestable = false
 - **Only HR can edit or cancel it.** For an HR-recorded type, `PermissionService::canModify`
   returns false for the employee (owner) — so the employee sees no Edit/Cancel controls
   and the API rejects such attempts; only HR may change it (§17).
+- **Correcting a record.** HR reaches individual records through the **Absences**
+  view (§15.2) — or by selecting one in *Who's off* / the *Sick leave* drilldown — and
+  edits or cancels it from the standard detail sidebar. There is **no delete**: a wrong
+  entry is cancelled (`CANCELLED`), so the row and its history stay intact for the audit
+  trail (§17). HR's cancel skips the withdrawal step and applies immediately (§5.5).
 - **No "Approved" label shown.** Since approval isn't a concept for HR-recorded leave,
   the UI hides the status chip and the approval **progress stepper** when such a request
   is `APPROVED` (a cancelled one still shows its status). The leave-type chip (e.g.
@@ -724,7 +729,17 @@ NcContent(app-name="absence")
 - **Team / Who's off** — a **Gantt-style month timeline** (`TeamTimeline`, §15.7):
   a sticky avatar rail with continuous rounded leave **pills** (colored by type, hatched
   while pending), weekend shading, a "today" line, month navigation + a "Today" jump,
-  and a legend. `scope="team"` for managers, `scope="company"` for HR.
+  and a legend. `scope="team"` for managers, `scope="company"` for HR. With
+  `selectable` the pills become buttons that open the request in the sidebar; only
+  *Who's off* sets it, because HR may read every request the org-wide calendar shows
+  while a team timeline can include leave the viewer is not allowed to open.
+- **Absences** (`#/hr/absences`, HR only) — the counterpart to *Record absence*: the
+  full list of recorded absences with filters for employee (user autocomplete), leave
+  type, status and year, paged with a "Load more" button. Rows are the same
+  `RequestListItem` as elsewhere and open the detail sidebar, whose **Edit** and
+  **Cancel** controls are what let HR correct a wrong vacation or sick day (§5.6).
+  Accepts `?employee=&employeeName=&type=&status=&year=` so other views can deep-link
+  into it — the *Sick leave* overview does, from each employee row.
 - **HR** (HR group only): *Balances* (searchable/sortable data table →
   entitlement/used/pending/remaining/carry-over, inline entitlement editor, skeleton on
   load), *Statistics* (stat tiles + a **`LineChart`** area for monthly trend and a

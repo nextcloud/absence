@@ -61,15 +61,23 @@
 							:class="{ 'gantt__col--weekend': d.weekend }"
 							:style="{ left: d.index * dayWidth + 'px' }" />
 						<span v-if="todayIndex >= 0" class="gantt__today" :style="{ left: (todayIndex * dayWidth) + 'px' }" />
-						<span
+						<component
+							:is="selectable ? 'button' : 'span'"
 							v-for="(seg, i) in row.segments"
 							:key="i"
 							class="gantt__pill"
-							:class="{ 'gantt__pill--pending': seg.pending }"
+							:class="{
+								'gantt__pill--pending': seg.pending,
+								'gantt__pill--clickable': selectable,
+								'gantt__pill--active': selectable && store.selectedId === seg.requestId,
+							}"
+							:type="selectable ? 'button' : null"
 							:style="{ left: seg.left + 'px', width: seg.width + 'px', '--pill': seg.color }"
-							:title="seg.title">
+							:title="seg.title"
+							:aria-label="selectable ? seg.title : null"
+							@click="selectable && $emit('select', seg.requestId)">
 							<span class="gantt__pill-icon" aria-hidden="true">{{ seg.icon }}</span>
-						</span>
+						</component>
 					</div>
 				</div>
 			</div>
@@ -115,6 +123,16 @@ export default {
 	components: { NcAvatar, NcButton, NcEmptyContent, ChevronLeft, ChevronRight, CalendarBlank, SkeletonList },
 	props: {
 		scope: { type: String, default: 'team' },
+		// Turn the pills into buttons that open the request. Only set it where the
+		// viewer may actually read every request in the timeline (HR's "Who's off") —
+		// elsewhere the calendar can include leave whose detail the API would refuse.
+		selectable: { type: Boolean, default: false },
+	},
+
+	emits: ['select'],
+	setup() {
+		// Expose the module-level reactive store to the template (Options API).
+		return { store }
 	},
 
 	data() {
@@ -174,6 +192,7 @@ export default {
 				}
 				const type = store.leaveType(ev.typeId)
 				byUid[ev.employeeUid].segments.push({
+					requestId: ev.requestId,
 					left: startIdx * this.dayWidth + 2,
 					width: (endIdx - startIdx + 1) * this.dayWidth - 4,
 					color: type.color,
@@ -199,6 +218,12 @@ export default {
 
 	mounted() {
 		this.load()
+		// A cancellation made through the sidebar must drop off the timeline.
+		window.addEventListener('absence:refresh', this.load)
+	},
+
+	beforeUnmount() {
+		window.removeEventListener('absence:refresh', this.load)
 	},
 
 	methods: {
@@ -381,6 +406,30 @@ $name-w: 180px;
 				color-mix(in srgb, var(--pill) 55%, transparent) 12px
 			);
 			opacity: 0.9;
+		}
+
+		// As a <button> the pill inherits the browser's control styling, which
+		// would otherwise override the shared look above.
+		&--clickable {
+			border: none;
+			font: inherit;
+			text-align: start;
+			cursor: pointer;
+
+			&:hover {
+				filter: brightness(1.08);
+				box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+			}
+
+			&:focus-visible {
+				outline: 2px solid var(--color-main-text);
+				outline-offset: 1px;
+			}
+		}
+
+		&--active {
+			outline: 2px solid var(--color-main-text);
+			outline-offset: 1px;
 		}
 	}
 }

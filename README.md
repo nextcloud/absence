@@ -20,7 +20,8 @@ Built to the specification in [SPECIFICATION.md](./SPECIFICATION.md).
   with a configurable year-rollover policy. *My leave* shows each balance as an
   animated ring with a breakdown ledger (base + carry-over ± adjustment → available)
   and monthly charts of leave taken and sick days for the current year.
-- **HR area**: per-employee balances, company-wide statistics, a who's-off calendar,
+- **HR area**: a filterable list of all recorded absences (correct or cancel any of
+  them), per-employee balances, company-wide statistics, a who's-off calendar,
   and CSV export.
 - **Calendar sync**: approved leave is written to a personal and a shared team calendar
   via CalDAV.
@@ -58,6 +59,11 @@ Built to the specification in [SPECIFICATION.md](./SPECIFICATION.md).
 **Record absence** — book sick leave (or any type) for an employee directly, without an approval step:
 
 ![Record absence dialog](screenshots/6.png)
+
+**Absences** — every recorded absence, filterable by employee, type, status and year.
+Selecting one opens its details, where HR can correct the dates, type or working days,
+or cancel it. Cancelling keeps the record and its history for the audit trail, so
+there is no delete. The sick-leave overview and the who's-off timeline both link here.
 
 **Balances** — per-employee entitlement, used, pending, remaining and available:
 
