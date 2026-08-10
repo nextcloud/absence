@@ -468,6 +468,20 @@ is what counts (§7).
   or exceeds a configurable threshold (admin setting **max concurrent absences per
   team**, default e.g. 2, or a percentage), show a prominent warning in the review
   panel. It is a warning, not a hard block.
+- **Short-notice warning:** a request whose leave starts sooner than the admin's
+  **expected notice period** (calendar days, default 14; `0` switches the check off)
+  is flagged to the line manager and to HR. Like the conflict warning it informs a
+  decision and blocks nothing, and it appears wherever the decision is made: on the
+  request's Details tab, in the notification and in the subject line of the email
+  that asks for a decision (§11) — including the escalation to HR and the pending
+  reminder, by which point the notice given has shrunk further.
+  - Calendar days, not working days: "two weeks' notice" is a fortnight on the wall
+    calendar. Measured against the *server's* today, so one request gets one answer
+    for the manager, for HR and for the job that mails them.
+  - Only while a decision is outstanding (`PENDING` / `ESCALATED`), and so never for
+    leave with no approval workflow — sick leave is recorded after the fact and
+    auto-approved types are booked straight through (§4.1), so nobody is weighing the
+    notice, and nobody can give notice of falling ill.
 - Provide an API endpoint to query overlaps for a date range + scope (team/company).
 
 ---
@@ -581,6 +595,7 @@ new "Absence" settings section or "Personal info"/"Administration"):
 | Carry-over cap (days) | 5 | Used when `capped`. |
 | Carry-over expiry | none / date (e.g. Mar 31) | §6.2. |
 | Max concurrent team absences | 2 | Conflict threshold (§8). |
+| Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
 | CalDAV: write personal events | true | §10. |
 | CalDAV: write shared team calendar | true | §10. |
 | Shared calendar type-visibility | neutral | Reveal type vs "Absent" on shared cal. |

@@ -17,6 +17,11 @@
 				<InformationOutline :size="20" />
 			</template>
 			<div class="section">
+				<!-- Short notice bears on whether to approve at all, so it leads the tab
+				     the decide buttons are on rather than sitting behind the Coverage one. -->
+				<NcNoteCard v-if="shortNoticeLabel" type="warning">
+					{{ shortNoticeLabel }}
+				</NcNoteCard>
 				<RequestStepper v-if="showStatus" :status="detail.status" class="section__stepper" />
 				<dl class="facts">
 					<dt>{{ t('absence', 'Employee') }}</dt>
@@ -203,7 +208,7 @@
 
 <script>
 import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
+import { translatePlural as n, translate as t } from '@nextcloud/l10n'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
@@ -291,6 +296,26 @@ export default {
 
 		decidedAtLabel() {
 			return this.detail && this.detail.decidedAt ? this.formatDateTime(this.detail.decidedAt) : ''
+		},
+
+		/**
+		 * The short-notice warning, phrased to match the one in the notification and
+		 * the email (NoticeService::sentence) so the same request never reads two
+		 * different ways. Absent unless the server sent one, which it only does for
+		 * someone who may decide and while a decision is still outstanding.
+		 */
+		shortNoticeLabel() {
+			const notice = this.detail?.shortNotice
+			if (!notice) {
+				return ''
+			}
+			if (notice.days > 0) {
+				return n('absence', 'The leave starts in %n day, less than the {period} days of notice expected.', 'The leave starts in %n days, less than the {period} days of notice expected.', notice.days, { period: notice.noticePeriod })
+			}
+			if (notice.days === 0) {
+				return t('absence', 'The leave starts today, with none of the {period} days of notice expected.', { period: notice.noticePeriod })
+			}
+			return t('absence', 'The leave has already started, though {period} days of notice are expected.', { period: notice.noticePeriod })
 		},
 
 		showStatus() {

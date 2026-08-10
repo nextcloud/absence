@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Notification;
 
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
@@ -44,17 +45,24 @@ class Notifier implements INotifier {
 		$params = $notification->getSubjectParameters();
 		$employee = $this->displayName((string)($params['employee'] ?? ''));
 		$requestId = (string)($params['requestId'] ?? $notification->getObjectId());
-		// Notifications stored before notes were carried have neither key.
+		// Notifications stored before notes were carried have none of these keys.
 		$note = trim((string)($params['note'] ?? ''));
 		$noteAuthor = $this->displayName((string)($params['noteAuthor'] ?? ''));
+		$notice = isset($params['noticeDays'], $params['noticePeriod'])
+			? ['days' => (int)$params['noticeDays'], 'noticePeriod' => (int)$params['noticePeriod']]
+			: null;
 
 		[$subject, $message] = match ($notification->getSubject()) {
 			NotificationService::SUBJECT_NEW_REQUEST => [
-				$l->t('New leave request from %s', [$employee]),
+				$notice !== null
+					? $l->t('Short notice: leave request from %s', [$employee])
+					: $l->t('New leave request from %s', [$employee]),
 				$l->t('Review it in Absence.'),
 			],
 			NotificationService::SUBJECT_ESCALATION => [
-				$l->t('Leave request from %s needs HR', [$employee]),
+				$notice !== null
+					? $l->t('Short notice: leave request from %s needs HR', [$employee])
+					: $l->t('Leave request from %s needs HR', [$employee]),
 				$l->t('This request was escalated and needs a decision.'),
 			],
 			NotificationService::SUBJECT_APPROVED => [
@@ -66,7 +74,9 @@ class Notifier implements INotifier {
 				'',
 			],
 			NotificationService::SUBJECT_REMINDER => [
-				$l->t('Reminder: %s is waiting for a decision', [$employee]),
+				$notice !== null
+					? $l->t('Short notice: %s is still waiting for a decision', [$employee])
+					: $l->t('Reminder: %s is waiting for a decision', [$employee]),
 				'',
 			],
 			NotificationService::SUBJECT_WITHDRAWAL => [
@@ -94,11 +104,16 @@ class Notifier implements INotifier {
 			default => throw new UnknownNotificationException('Unknown subject'),
 		};
 
-		// What someone actually wrote beats the boilerplate that would otherwise fill
-		// this line: "Review it in Absence." says nothing the Review button doesn't,
-		// while the reason or decision comment is the reason to look at all.
-		if ($note !== '') {
-			$message = $note;
+		// The substance beats the boilerplate that would otherwise fill this line:
+		// "Review it in Absence." says nothing the Review button doesn't, while how
+		// short the notice is and what the employee wrote are the reasons to look at
+		// all. The warning leads, because it bears on the answer rather than the ask.
+		$detail = array_filter([
+			$notice !== null ? NoticeService::sentence($l, $notice) : '',
+			$note,
+		]);
+		if ($detail !== []) {
+			$message = implode(' ', $detail);
 		}
 
 		$notification->setParsedSubject($subject);

@@ -14,7 +14,9 @@ Built to the specification in [SPECIFICATION.md](./SPECIFICATION.md).
 - **Apply** for annual, sick, unpaid or special leave (configurable types) with a live
   balance preview. The working-day count is prefilled from your availability and
   public holidays in personal settings.
-- **Approve / reject** as a line manager, with team-coverage conflict warnings.
+- **Approve / reject** as a line manager, with team-coverage conflict warnings and a
+  short-notice warning when the leave starts sooner than the notice period the admin
+  expects (default two weeks).
 - **Escalation**: pending requests a manager ignores are automatically escalated to HR.
 - **Full balance tracking**: entitlement, used, pending, remaining and carry-over,
   with a configurable year-rollover policy. *My leave* shows each balance as an
@@ -148,7 +150,8 @@ The default leave types (annual, sick, unpaid, special) are seeded on install.
 ## Configuration
 
 Admin settings live under **Administration settings → Absence** (HR group, default
-entitlement, escalation window, carry-over policy, coverage threshold, CalDAV targets).
+entitlement, escalation window, carry-over policy, coverage threshold, expected notice
+period, CalDAV targets).
 
 Personal settings are appended to the built-in **Personal settings → Availability**
 page. They prefill the "Working days" field on new requests: working weekdays come

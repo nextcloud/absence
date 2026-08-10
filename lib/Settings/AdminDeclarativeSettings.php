@@ -106,6 +106,13 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 					'default' => 2,
 				],
 				[
+					'id' => ConfigLexicon::KEY_NOTICE_PERIOD,
+					'title' => $this->l->t('Expected notice period (calendar days)'),
+					'description' => $this->l->t('A request whose leave starts sooner than this is flagged as short notice to the manager and HR. It is a warning, not a block. Set to 0 to switch it off.'),
+					'type' => DeclarativeSettingsTypes::NUMBER,
+					'default' => 14,
+				],
+				[
 					'id' => ConfigLexicon::KEY_CALDAV_PERSONAL,
 					'title' => $this->l->t('Personal calendar'),
 					'label' => $this->l->t('Write approved leave to each user\'s personal calendar'),
