@@ -32,6 +32,15 @@ class NotificationService {
 	public const SUBJECT_WITHDRAWAL_REJECTED = 'withdrawal_rejected';
 	public const SUBJECT_REPLACEMENT_ASSIGNED = 'replacement_assigned';
 	public const SUBJECT_REPLACEMENT_CANCELLED = 'replacement_cancelled';
+	public const SUBJECT_COMMENT = 'comment_added';
+
+	/**
+	 * How much of a note survives into a Nextcloud notification. The free text is
+	 * copied into every recipient's notification row and rendered on a single line
+	 * there, so the notification carries a readable opening and the email — which
+	 * has room for it — carries the whole thing.
+	 */
+	private const NOTE_PREVIEW_LENGTH = 200;
 
 	public function __construct(
 		private INotificationManager $notificationManager,
@@ -44,22 +53,32 @@ class NotificationService {
 	}
 
 	public function notifyNewRequest(LeaveRequest $request, string $managerUid): void {
-		$this->send($managerUid, self::SUBJECT_NEW_REQUEST, $request, true);
+		$this->send($managerUid, self::SUBJECT_NEW_REQUEST, $request, true, $request->getReason(), $request->getEmployeeUid());
 	}
 
 	/** @param string[] $hrUids */
 	public function notifyEscalation(LeaveRequest $request, array $hrUids): void {
 		foreach ($hrUids as $uid) {
-			$this->send($uid, self::SUBJECT_ESCALATION, $request, true);
+			$this->send($uid, self::SUBJECT_ESCALATION, $request, true, $request->getReason(), $request->getEmployeeUid());
 		}
 	}
 
 	public function notifyDecision(LeaveRequest $request, bool $approved): void {
-		$this->send($request->getEmployeeUid(), $approved ? self::SUBJECT_APPROVED : self::SUBJECT_REJECTED, $request, false);
+		// The decision comment is the whole substance of the message for a rejection
+		// and the manager's note on an approval — read it off the request the caller
+		// just wrote rather than making every call site pass it again.
+		$this->send(
+			$request->getEmployeeUid(),
+			$approved ? self::SUBJECT_APPROVED : self::SUBJECT_REJECTED,
+			$request,
+			false,
+			$request->getDecisionComment(),
+			$request->getDecidedBy(),
+		);
 	}
 
 	public function notifyReminder(LeaveRequest $request, string $managerUid): void {
-		$this->send($managerUid, self::SUBJECT_REMINDER, $request, true);
+		$this->send($managerUid, self::SUBJECT_REMINDER, $request, true, $request->getReason(), $request->getEmployeeUid());
 	}
 
 	/** @param string[] $recipientUids */
@@ -69,9 +88,29 @@ class NotificationService {
 		}
 	}
 
-	/** Tell the employee their withdrawal was declined — the leave stays approved. */
-	public function notifyWithdrawalRejected(LeaveRequest $request): void {
-		$this->send($request->getEmployeeUid(), self::SUBJECT_WITHDRAWAL_REJECTED, $request, false);
+	/**
+	 * Tell the employee their withdrawal was declined — the leave stays approved.
+	 * The reason lives in a comment rather than on the request (see
+	 * {@see RequestService::reject()}), so the caller has to hand it over.
+	 */
+	public function notifyWithdrawalRejected(LeaveRequest $request, ?string $comment = null, ?string $actorUid = null): void {
+		$this->send($request->getEmployeeUid(), self::SUBJECT_WITHDRAWAL_REJECTED, $request, false, $comment, $actorUid);
+	}
+
+	/**
+	 * Tell the other people on a request that someone commented on it. Without
+	 * this a comment only exists behind the request's Comments tab, which nobody
+	 * opens unless they already know there is something to read.
+	 *
+	 * @param string[] $recipientUids
+	 */
+	public function notifyComment(LeaveRequest $request, string $authorUid, string $body, array $recipientUids): void {
+		foreach (array_unique(array_filter($recipientUids)) as $uid) {
+			if ($uid === $authorUid) {
+				continue;
+			}
+			$this->send($uid, self::SUBJECT_COMMENT, $request, false, $body, $authorUid);
+		}
 	}
 
 	/** Tell the nominated replacement they now cover for the employee (§5.1). */
@@ -90,12 +129,20 @@ class NotificationService {
 		}
 	}
 
-	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable): void {
-		$this->sendNotification($recipientUid, $subject, $request, $actionable);
-		$this->sendEmail($recipientUid, $subject, $request);
+	/**
+	 * @param ?string $note free text written by a person that the recipient would
+	 *                      otherwise only find by opening the request: the
+	 *                      applicant's reason, a decision comment, or a comment
+	 *                      left on the request
+	 * @param ?string $noteAuthorUid who wrote $note, so it can be attributed
+	 */
+	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null): void {
+		$note = trim((string)$note);
+		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid);
+		$this->sendEmail($recipientUid, $subject, $request, $note, $noteAuthorUid);
 	}
 
-	private function sendNotification(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable): void {
+	private function sendNotification(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, string $note, ?string $noteAuthorUid): void {
 		try {
 			$notification = $this->notificationManager->createNotification();
 			$notification->setApp(ConfigService::APP_ID)
@@ -106,6 +153,8 @@ class NotificationService {
 					'employee' => $request->getEmployeeUid(),
 					'requestId' => (string)$request->getId(),
 					'actionable' => $actionable,
+					'note' => $this->preview($note),
+					'noteAuthor' => (string)$noteAuthorUid,
 				]);
 			$this->notificationManager->notify($notification);
 		} catch (\Throwable $e) {
@@ -113,7 +162,19 @@ class NotificationService {
 		}
 	}
 
-	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request): void {
+	/**
+	 * Squeeze a note onto the single line a notification gives it: collapse the
+	 * line breaks it may contain and cut it to length. The email carries the rest.
+	 */
+	private function preview(string $note): string {
+		$note = trim((string)preg_replace('/\s+/u', ' ', $note));
+		if (mb_strlen($note) <= self::NOTE_PREVIEW_LENGTH) {
+			return $note;
+		}
+		return mb_substr($note, 0, self::NOTE_PREVIEW_LENGTH - 1) . '…';
+	}
+
+	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, string $note, ?string $noteAuthorUid): void {
 		$user = $this->userManager->get($recipientUid);
 		if (!$user instanceof IUser) {
 			return;
@@ -125,13 +186,24 @@ class NotificationService {
 		try {
 			$lang = $this->l10nFactory->getUserLanguage($user);
 			$l = $this->l10nFactory->get(ConfigService::APP_ID, $lang);
-			[$heading, $body] = $this->emailContent($l, $subject, $request);
+			[$heading, $body] = $this->emailContent($l, $subject, $request, $noteAuthorUid);
 
 			$template = $this->mailer->createEMailTemplate('absence.' . $subject);
 			$template->setSubject($heading);
 			$template->addHeader();
 			$template->addHeading($heading);
 			$template->addBodyText($body);
+			// Quote the note verbatim under the summary, attributed. addBodyListItem
+			// escapes the text and keeps its line breaks, so a comment written as
+			// several lines still reads as several lines.
+			if ($note !== '') {
+				$template->addBodyListItem(
+					$note,
+					$noteAuthorUid !== null && $noteAuthorUid !== ''
+						? $l->t('%s wrote:', [$this->displayName($noteAuthorUid)])
+						: $l->t('Comment:'),
+				);
+			}
 			$template->addBodyButton(
 				$l->t('Open Absence'),
 				$this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/requests/' . $request->getId(),
@@ -150,8 +222,9 @@ class NotificationService {
 	/**
 	 * @return array{0:string,1:string} heading and body
 	 */
-	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request): array {
+	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, ?string $noteAuthorUid): array {
 		$employee = $this->displayName($request->getEmployeeUid());
+		$author = $noteAuthorUid !== null && $noteAuthorUid !== '' ? $this->displayName($noteAuthorUid) : '';
 		$range = $request->getStartDate() . ' – ' . $request->getEndDate();
 		return match ($subject) {
 			self::SUBJECT_NEW_REQUEST => [
@@ -168,7 +241,8 @@ class NotificationService {
 			],
 			self::SUBJECT_REJECTED => [
 				$l->t('Your leave was declined'),
-				$l->t('Your leave request for %1$s was declined. %2$s', [$range, (string)$request->getDecisionComment()]),
+				// The reason follows as the quoted note; it is required on a rejection.
+				$l->t('Your leave request for %s was declined.', [$range]),
 			],
 			self::SUBJECT_REMINDER => [
 				$l->t('Reminder: leave request from %s', [$employee]),
@@ -181,8 +255,10 @@ class NotificationService {
 			self::SUBJECT_WITHDRAWAL_REJECTED => [
 				$l->t('Your withdrawal request was declined'),
 				// The refusal reason is recorded as a comment on the request, not in
-				// decision_comment (that still holds the original approval note).
-				$l->t('Your request to withdraw the leave for %s was declined — the leave stays approved. See the comments on the request for the reason.', [$range]),
+				// decision_comment (that still holds the original approval note) — it
+				// is passed in as the note and quoted below, so there is no need to
+				// send the employee looking for it.
+				$l->t('Your request to withdraw the leave for %s was declined — the leave stays approved.', [$range]),
 			],
 			self::SUBJECT_REPLACEMENT_ASSIGNED => [
 				$l->t('You are covering for %s', [$employee]),
@@ -191,6 +267,10 @@ class NotificationService {
 			self::SUBJECT_REPLACEMENT_CANCELLED => [
 				$l->t('No longer covering for %s', [$employee]),
 				$l->t('%1$s\'s leave for %2$s was cancelled — you no longer need to cover.', [$employee, $range]),
+			],
+			self::SUBJECT_COMMENT => [
+				$author !== '' ? $l->t('New comment from %s', [$author]) : $l->t('New comment on a leave request'),
+				$l->t('There is a new comment on the leave request of %1$s for %2$s.', [$employee, $range]),
 			],
 			default => [$l->t('Absence update'), $l->t('There is an update on a leave request.')],
 		};

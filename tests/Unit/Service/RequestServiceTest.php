@@ -334,4 +334,55 @@ class RequestServiceTest extends TestCase {
 		$this->expectException(ValidationException::class);
 		$this->service->addComment('emp', 5, str_repeat('a', 4001));
 	}
+
+	public function testAddCommentNotifiesTheEmployeeAndTheManager(): void {
+		// A comment is otherwise only visible to whoever thinks to open the Comments
+		// tab, so a manager's question could sit unread until the request expired.
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('boss');
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+		// Not escalated, so HR is not dragged into a conversation they are not part of.
+		$this->permission->expects(self::never())->method('getHrUids');
+
+		$this->notifications->expects(self::once())->method('notifyComment')
+			->with($request, 'boss', 'Can you move this a day later?', ['emp', 'boss']);
+
+		$this->service->addComment('boss', 5, 'Can you move this a day later?');
+	}
+
+	public function testAddCommentOnAnEscalatedRequestAlsoReachesHr(): void {
+		// Once HR has been pulled in they are a party to the discussion — a question
+		// they asked has to come back to them, not just to the line manager.
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('boss');
+		$request->setEscalated(true);
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('getHrUids')->willReturn(['hr1', 'hr2']);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+
+		$this->notifications->expects(self::once())->method('notifyComment')
+			->with($request, 'emp', 'Any news on this?', ['emp', 'boss', 'hr1', 'hr2']);
+
+		$this->service->addComment('emp', 5, 'Any news on this?');
+	}
+
+	public function testDecliningAWithdrawalPassesTheReasonToTheEmployee(): void {
+		// The reason is recorded as a comment, not in decision_comment, so unless it
+		// travels with the notification the employee is told "declined" and nothing more.
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('boss');
+		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+
+		$this->notifications->expects(self::once())->method('notifyWithdrawalRejected')
+			->with($request, 'We have nobody to cover that week.', 'boss');
+
+		$this->service->reject('boss', 5, 'We have nobody to cover that week.');
+	}
 }
