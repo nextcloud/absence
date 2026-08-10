@@ -289,6 +289,19 @@ $name-w: 180px;
 		overflow-x: auto;
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 12px);
+
+		// Keep a strip clear below the last row. The horizontal scrollbar lives
+		// inside this box, and an overlay scrollbar (the macOS default) is painted
+		// *over* the content rather than taking space of its own — so with the
+		// pills sitting only 8px clear of the track's bottom edge it cut the last
+		// row's pill and its selection ring in half. Only the last row could ever
+		// show this, which is exactly how it was reported.
+		padding-block-end: 12px;
+
+		// This is a scroll container, so its automatic minimum size in a flex
+		// column is 0 — a height-constrained ancestor could shrink it and clip
+		// rows outright. Nothing constrains it today; this keeps it that way.
+		flex: 0 0 auto;
 	}
 
 	&__grid {
