@@ -6,8 +6,10 @@ import { describe, expect, it } from 'vitest'
 import {
 	addWorkingDaysByMonth,
 	countWorkingDays,
+	formatCountdown,
 	formatRange,
 	parseWeekdays,
+	seasonOf,
 	toIso,
 } from './dates.js'
 
@@ -78,6 +80,54 @@ describe('formatRange', () => {
 
 	it('renders a multi-day range with both ends', () => {
 		expect(formatRange('2026-03-02', '2026-03-04')).toContain('–')
+	})
+})
+
+describe('formatCountdown', () => {
+	it('pads minutes and seconds but not hours', () => {
+		expect(formatCountdown(((7 * 60) + 5) * 60000 + 3000)).toBe('7:05:03')
+	})
+
+	it('keeps counting past a day rather than wrapping to a clock', () => {
+		expect(formatCountdown(47 * 3600000)).toBe('47:00:00')
+	})
+
+	it('floors to whole seconds', () => {
+		expect(formatCountdown(1999)).toBe('0:00:01')
+	})
+
+	it('shows zero once the moment has passed', () => {
+		// A break that has started must not render as a negative countdown while the
+		// hero is between renders.
+		expect(formatCountdown(-5000)).toBe('0:00:00')
+	})
+})
+
+describe('seasonOf', () => {
+	it('follows the meteorological seasons in the north', () => {
+		expect(seasonOf(new Date(2026, 0, 15), 'DE')).toBe('winter')
+		expect(seasonOf(new Date(2026, 3, 15), 'DE')).toBe('spring')
+		expect(seasonOf(new Date(2026, 6, 15), 'DE')).toBe('summer')
+		expect(seasonOf(new Date(2026, 9, 15), 'DE')).toBe('autumn')
+	})
+
+	it('puts December in winter with January, not with November', () => {
+		expect(seasonOf(new Date(2026, 11, 20), 'DE')).toBe('winter')
+	})
+
+	it('flips for the southern hemisphere', () => {
+		// Snow on the empty state in a Sydney January is the bug this prevents.
+		expect(seasonOf(new Date(2026, 0, 15), 'AU')).toBe('summer')
+		expect(seasonOf(new Date(2026, 6, 15), 'NZ')).toBe('winter')
+	})
+
+	it('is case-insensitive about the country code', () => {
+		expect(seasonOf(new Date(2026, 0, 15), 'au')).toBe('summer')
+	})
+
+	it('falls back to northern seasons when no country is set', () => {
+		expect(seasonOf(new Date(2026, 0, 15), null)).toBe('winter')
+		expect(seasonOf(new Date(2026, 0, 15), undefined)).toBe('winter')
 	})
 })
 

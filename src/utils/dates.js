@@ -87,6 +87,69 @@ export function formatRange(startIso, endIso) {
 }
 
 /**
+ * A duration as `H:MM:SS`, for the final stretch before a break starts. Hours are
+ * not padded (and run past 24) because "47:59:12" reads as a countdown while
+ * "01:23:45" reads as a clock. Never negative: a lapsed deadline shows 0:00:00.
+ *
+ * @param {number} ms milliseconds remaining
+ * @return {string}
+ */
+export function formatCountdown(ms) {
+	const total = Math.max(0, Math.floor(ms / 1000))
+	const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, '0')
+	const seconds = String(total % 60).padStart(2, '0')
+	return `${Math.floor(total / 3600)}:${minutes}:${seconds}`
+}
+
+/**
+ * Countries whose seasons run opposite to the northern calendar. Not a complete
+ * list of the southern hemisphere — tropical countries that straddle the equator
+ * have no meaningful season flip, and guessing one for them would be worse than
+ * leaving the illustration on its northern default.
+ */
+const SOUTHERN_SEASONS = new Set([
+	'AR',
+	'AU',
+	'BO',
+	'BR',
+	'BW',
+	'CL',
+	'FJ',
+	'LS',
+	'MG',
+	'MW',
+	'MZ',
+	'NA',
+	'NZ',
+	'PY',
+	'SZ',
+	'UY',
+	'ZA',
+	'ZM',
+	'ZW',
+])
+
+/**
+ * The meteorological season for a date, flipped for southern-hemisphere users so
+ * the illustration is not showing snow to somebody in a Sydney January. The
+ * country is the one already picked for public holidays — no new setting.
+ *
+ * @param {Date} date
+ * @param {string} [country] ISO 3166-1 alpha-2, e.g. the holiday country
+ * @return {'winter'|'spring'|'summer'|'autumn'}
+ */
+export function seasonOf(date, country) {
+	const month = date.getMonth()
+	const northern = (month === 11 || month <= 1)
+		? 'winter'
+		: month <= 4 ? 'spring' : month <= 7 ? 'summer' : 'autumn'
+	if (!SOUTHERN_SEASONS.has(String(country || '').toUpperCase())) {
+		return northern
+	}
+	return { winter: 'summer', spring: 'autumn', summer: 'winter', autumn: 'spring' }[northern]
+}
+
+/**
  * Spread a request's manually entered working-day count over the months of
  * `year`, proportionally to the calendar days it covers in each month. Adds
  * the result onto `buckets` (an array of 12 numbers, mutated in place).
