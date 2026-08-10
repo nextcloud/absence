@@ -77,7 +77,7 @@
 							</template>
 							{{ t('absence', 'Edit') }}
 						</NcButton>
-						<NcButton variant="tertiary" :disabled="busy" @click="cancel">
+						<NcButton variant="tertiary" :disabled="busy" @click="startCancel">
 							<template #icon>
 								<CancelIcon :size="20" />
 							</template>
@@ -85,6 +85,20 @@
 						</NcButton>
 					</template>
 				</div>
+
+				<!-- HR's cancel is immediate and notifies the employee, and it is reached
+				     from a browse list where a misclick is easy — so it is confirmed. -->
+				<NcNoteCard v-if="confirmingCancel" type="warning">
+					<p>{{ t('absence', 'Cancel this absence for {employee}? They are notified, and it is removed from the calendars. The record itself is kept, marked cancelled.', { employee: detail.employeeUid }) }}</p>
+					<div class="confirm__actions">
+						<NcButton variant="tertiary" :disabled="busy" @click="confirmingCancel = false">
+							{{ t('absence', 'Back') }}
+						</NcButton>
+						<NcButton variant="error" :disabled="busy" @click="cancel">
+							{{ t('absence', 'Confirm cancellation') }}
+						</NcButton>
+					</div>
+				</NcNoteCard>
 
 				<div v-if="rejecting" class="reject">
 					<NcTextArea
@@ -188,6 +202,7 @@ import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import CancelIcon from 'vue-material-design-icons/Cancel.vue'
@@ -214,6 +229,7 @@ export default {
 		NcButton,
 		NcTextArea,
 		NcEmptyContent,
+		NcNoteCard,
 		StatusChip,
 		LeaveTypeChip,
 		CoveragePanel,
@@ -234,6 +250,7 @@ export default {
 			detail: null,
 			busy: false,
 			rejecting: false,
+			confirmingCancel: false,
 			rejectComment: '',
 			newComment: '',
 		}
@@ -280,8 +297,21 @@ export default {
 			return this.isWithdrawal ? t('absence', 'Keep leave') : t('absence', 'Decline')
 		},
 
+		/**
+		 * HR cancelling somebody else's leave — or their own HR-recorded leave —
+		 * takes effect immediately, with no withdrawal-approval step (§5.6). Mirrors
+		 * the same condition in `RequestService::cancel`.
+		 */
+		hrOverride() {
+			return !!store.session.isHr
+				&& (this.detail.employeeUid !== store.session.uid || store.isHrRecorded(this.detail))
+		},
+
 		cancelLabel() {
-			return this.detail.status === 'APPROVED' ? t('absence', 'Request withdrawal') : t('absence', 'Cancel request')
+			if (this.detail.status === 'APPROVED' && !this.hrOverride) {
+				return t('absence', 'Request withdrawal')
+			}
+			return this.hrOverride ? t('absence', 'Cancel absence') : t('absence', 'Cancel request')
 		},
 	},
 
@@ -333,6 +363,7 @@ export default {
 				this.detail = await api.getRequest(store.selectedId)
 				this.rejecting = false
 				this.rejectComment = ''
+				this.confirmingCancel = false
 			} catch {
 				showError(t('absence', 'Could not load the request'))
 				this.$emit('close')
@@ -365,6 +396,19 @@ export default {
 			} finally {
 				this.busy = false
 			}
+		},
+
+		/**
+		 * Employees cancel straight away: their own request either has not been
+		 * approved yet or goes through a withdrawal approval anyway. HR's cancel is
+		 * final, so it asks first.
+		 */
+		startCancel() {
+			if (this.hrOverride) {
+				this.confirmingCancel = true
+				return
+			}
+			this.cancel()
 		},
 
 		async cancel() {
@@ -435,6 +479,13 @@ export default {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+}
+
+.confirm__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
 }
 
 .reject {
