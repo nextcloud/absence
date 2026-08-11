@@ -44,8 +44,12 @@ export const store = reactive({
 	leaveType(id) {
 		// A null/undefined id means the server withheld the leave type (neutral
 		// shared-calendar visibility): show a generic "Absent" marker, not "Unknown".
+		// The marker has to say nothing about *why* somebody is away. A palm tree here
+		// was not neutral — it read as a holiday, so a colleague on sick leave was
+		// shown sunbathing. Withholding the reason and then inventing a cheerful one
+		// is worse than either revealing it or saying nothing.
 		if (id === null || id === undefined) {
-			return { label: t('absence', 'Absent'), color: '#888', icon: '🌴' }
+			return { label: t('absence', 'Absent'), color: '#888', icon: '•' }
 		}
 		return this.leaveTypes.find((t) => t.id === id) || { label: t('absence', 'Unknown'), color: '#888', icon: '❔' }
 	},

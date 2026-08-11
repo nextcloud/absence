@@ -87,6 +87,85 @@ class CoverageServiceTest extends TestCase {
 		self::assertSame(3, $result['events'][0]['typeId']);
 	}
 
+	public function testHrSeesTheTypeUnderTheNeutralPolicy(): void {
+		// HR record sick leave and can open any request to read its type, so hiding it
+		// on the who's-off timeline protects nothing — it only leaves the client with
+		// no type to label the absence with, which used to render as a holiday.
+		$this->config->method('getSharedCalendarVisibility')->willReturn(ConfigService::VISIBILITY_NEUTRAL);
+		$this->config->method('getMaxConcurrentAbsences')->willReturn(0);
+		$this->permission->method('isHr')->with('viewer')->willReturn(true);
+		$this->requestMapper->method('findForEmployeesInRange')->willReturn([
+			$this->request(2, 'colleague'),
+		]);
+
+		$result = $this->service->getCoverage(['colleague'], '2026-01-01', '2026-01-31', null, 'viewer');
+
+		self::assertSame(3, $result['events'][0]['typeId']);
+	}
+
+	public function testAManagerSeesTheTypeOfTheirOwnReports(): void {
+		$this->config->method('getSharedCalendarVisibility')->willReturn(ConfigService::VISIBILITY_NEUTRAL);
+		$this->config->method('getMaxConcurrentAbsences')->willReturn(0);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->managerResolver->method('getDirectReports')->with('boss')->willReturn(['report']);
+		$this->requestMapper->method('findForEmployeesInRange')->willReturn([
+			$this->request(2, 'report'),
+			$this->request(3, 'somebody-elses-report'),
+		]);
+
+		$result = $this->service->getCoverage(['report', 'somebody-elses-report'], '2026-01-01', '2026-01-31', null, 'boss');
+		$byUid = [];
+		foreach ($result['events'] as $event) {
+			$byUid[$event['employeeUid']] = $event['typeId'];
+		}
+
+		self::assertSame(3, $byUid['report'], 'Their own report, whose requests they decide');
+		self::assertNull($byUid['somebody-elses-report'], 'Not their report — still withheld');
+	}
+
+	public function testAPeerStillLearnsNothingAboutAColleague(): void {
+		// The protection the policy exists for: a plain colleague sees that somebody is
+		// away and nothing about why.
+		$this->config->method('getSharedCalendarVisibility')->willReturn(ConfigService::VISIBILITY_NEUTRAL);
+		$this->config->method('getMaxConcurrentAbsences')->willReturn(0);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->managerResolver->method('getDirectReports')->willReturn([]);
+		$this->requestMapper->method('findForEmployeesInRange')->willReturn([
+			$this->request(2, 'colleague'),
+		]);
+
+		$result = $this->service->getCoverage(['colleague'], '2026-01-01', '2026-01-31', null, 'peer');
+
+		self::assertNull($result['events'][0]['typeId']);
+	}
+
+	public function testAnAnonymousCallerLearnsNothing(): void {
+		// No viewer to check permissions against, so fail closed rather than reveal.
+		$this->config->method('getSharedCalendarVisibility')->willReturn(ConfigService::VISIBILITY_NEUTRAL);
+		$this->config->method('getMaxConcurrentAbsences')->willReturn(0);
+		$this->permission->expects(self::never())->method('isHr');
+		$this->requestMapper->method('findForEmployeesInRange')->willReturn([
+			$this->request(2, 'colleague'),
+		]);
+
+		$result = $this->service->getCoverage(['colleague'], '2026-01-01', '2026-01-31', null, null);
+
+		self::assertNull($result['events'][0]['typeId']);
+	}
+
+	public function testTheRevealPolicyDoesNotBotherResolvingPermissions(): void {
+		// Everyone sees every type anyway, so the group and manager lookups are waste.
+		$this->config->method('getSharedCalendarVisibility')->willReturn(ConfigService::VISIBILITY_REVEAL);
+		$this->config->method('getMaxConcurrentAbsences')->willReturn(0);
+		$this->permission->expects(self::never())->method('isHr');
+		$this->managerResolver->expects(self::never())->method('getDirectReports');
+		$this->requestMapper->method('findForEmployeesInRange')->willReturn([
+			$this->request(2, 'colleague'),
+		]);
+
+		self::assertSame(3, $this->service->getCoverage(['colleague'], '2026-01-01', '2026-01-31', null, 'viewer')['events'][0]['typeId']);
+	}
+
 	public function testRejectsInvalidRange(): void {
 		$this->expectException(ValidationException::class);
 		$this->service->getCoverage(['viewer'], '2026-13-99', '2026-01-31', null, 'viewer');

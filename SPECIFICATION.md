@@ -493,6 +493,21 @@ is what counts (§7).
 - **Team calendar / who's-off:** managers see their direct reports; HR sees the
   whole company; every employee sees their own team (peers who share the same
   `manager_uid`). A month/timeline view rendered from approved + pending requests.
+  - **Whose leave type is shown.** The type travels with an event when the admin set
+    the shared-calendar visibility to `reveal`, or when the viewer is somebody who
+    could open that request and read the type off it anyway — its owner, their line
+    manager, or HR (§2, `canView`). Everyone else gets `typeId: null` and the client
+    labels the absence generically. With no viewer the type is withheld from all
+    (fail-closed).
+    - The policy protects a *colleague's* privacy — a peer must not learn that
+      somebody is on sick leave. It is not a restriction on HR, who record sick
+      leave, nor on the line manager who approved the absence, and withholding it
+      from them only degraded their own view: with no type to label the absence,
+      the client fell back to a generic marker, so an HR timeline of sick
+      colleagues read as a row of holidays.
+    - The generic marker must be **neutral about the reason**. Withholding why
+      somebody is away and then implying a cheerful reason is worse than either
+      revealing it or saying nothing.
 - **Conflict warning:** when a manager reviews a request, compute the maximum number
   of concurrently-absent team members on any day in the requested range. If it meets
   or exceeds a configurable threshold (admin setting **max concurrent absences per

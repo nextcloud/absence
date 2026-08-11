@@ -153,11 +153,18 @@ export default {
 			const type = store.leaveType(r.typeId)
 			const range = formatRange(r.startDate, r.endDate)
 			if (r.startDate <= today) {
+				// The hero already renders the leave type's own icon next to this text, so
+				// the palm that used to be baked into the string was a second, type-blind
+				// one — it wished a holiday on whatever the absence actually was. Sick
+				// leave is not something to enjoy, either.
+				const headline = type.key === 'sick'
+					? t('absence', 'Get well soon.')
+					: t('absence', 'Enjoy your {type}!', { type: type.label.toLowerCase() })
 				return {
 					icon: type.icon,
 					color: type.color,
 					eyebrow: t('absence', 'You are off right now'),
-					headline: t('absence', 'Enjoy your {type}! 🌴', { type: type.label.toLowerCase() }),
+					headline,
 					sub: range,
 					live: false,
 				}
