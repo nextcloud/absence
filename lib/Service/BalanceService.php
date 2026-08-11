@@ -278,7 +278,7 @@ class BalanceService {
 			// default; other counting types start at zero, so creating the row never
 			// changes the computed balance (§6.1).
 			$type = $this->leaveTypeMapper->find($typeId);
-			$now = new \DateTime();
+			$now = $this->clock->now();
 			$ent = new Entitlement();
 			$ent->setEmployeeUid($employeeUid);
 			$ent->setYear($year);
