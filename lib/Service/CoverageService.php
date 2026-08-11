@@ -52,11 +52,18 @@ class CoverageService {
 	 * Who's-off events + per-day concurrency for a set of employees in a range.
 	 *
 	 * The leave *type* of another employee is only revealed when the admin set the
-	 * shared-calendar visibility to "reveal"; under the default "neutral" policy the
-	 * viewer sees that a colleague is absent but not the category (e.g. sick leave),
-	 * mirroring {@see CalendarService::sharedTitle}. The viewer always sees their own
-	 * types. When no viewer is given, types are neutralised for everyone under the
-	 * neutral policy (fail-closed).
+	 * shared-calendar visibility to "reveal", or when the viewer is somebody who may
+	 * open that request and read the type off it anyway — its owner, their line
+	 * manager, or HR ({@see PermissionService::canView()}). Under the default
+	 * "neutral" policy everyone else sees that a colleague is absent but not the
+	 * category, mirroring {@see CalendarService::sharedTitle}. When no viewer is
+	 * given, types are neutralised for everyone (fail-closed).
+	 *
+	 * The policy exists to stop a *colleague's* sick leave becoming visible to the
+	 * team (§8); withholding the type from HR, who record sick leave in the first
+	 * place, protects nothing and actively misinforms — the client has no type to
+	 * label the absence with and has to fall back to a generic marker, so an HR
+	 * timeline of sick colleagues used to read as a row of holidays.
 	 *
 	 * @param string[] $employeeUids
 	 * @return array{events:list<array<string,mixed>>,byDate:array<string,int>,maxConcurrent:int,threshold:int,conflict:bool}
@@ -67,18 +74,30 @@ class CoverageService {
 		$statuses = [LeaveRequest::STATUS_APPROVED, LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED, LeaveRequest::STATUS_WITHDRAWAL_PENDING];
 		$requests = $this->requestMapper->findForEmployeesInRange($employeeUids, $from, $to, $statuses);
 
+		// Resolve the viewer's reach once rather than asking canView() per request: a
+		// company-wide month can hold hundreds of rows, and the answer depends only on
+		// who is looking, not on which request.
+		$viewerIsHr = !$revealTypes && $viewerUid !== null && $this->permission->isHr($viewerUid);
+		$viewerReports = (!$revealTypes && !$viewerIsHr && $viewerUid !== null)
+			? $this->managerResolver->getDirectReports($viewerUid)
+			: [];
+
 		$events = [];
 		$byDate = [];
 		foreach ($requests as $request) {
 			if ($excludeRequestId !== null && $request->getId() === $excludeRequestId) {
 				continue;
 			}
-			$ownEvent = $viewerUid !== null && $request->getEmployeeUid() === $viewerUid;
+			$employeeUid = $request->getEmployeeUid();
+			$maySeeType = $revealTypes
+				|| $viewerIsHr
+				|| ($viewerUid !== null && $employeeUid === $viewerUid)
+				|| in_array($employeeUid, $viewerReports, true);
 			$events[] = [
 				'requestId' => $request->getId(),
-				'employeeUid' => $request->getEmployeeUid(),
-				'displayName' => $this->displayName($request->getEmployeeUid()),
-				'typeId' => ($revealTypes || $ownEvent) ? $request->getTypeId() : null,
+				'employeeUid' => $employeeUid,
+				'displayName' => $this->displayName($employeeUid),
+				'typeId' => $maySeeType ? $request->getTypeId() : null,
 				'status' => $request->getStatus(),
 				'start' => $request->getStartDate(),
 				'end' => $request->getEndDate(),
