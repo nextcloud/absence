@@ -125,6 +125,15 @@
 				{{ t('absence', 'Heads up: this goes beyond your available balance. You can still submit — HR may approve it.') }}
 			</NcNoteCard>
 
+			<NcNoteCard v-if="overlapCount" :type="coverageTight ? 'warning' : 'info'">
+				<template v-if="coverageTight">
+					{{ n('absence', 'Heads up: %n colleague is already off then ({names}), so approving this would leave the team thin. You can still submit.', 'Heads up: %n colleagues are already off then ({names}), so approving this would leave the team thin. You can still submit.', overlapCount, { names: overlapLabel }) }}
+				</template>
+				<template v-else>
+					{{ n('absence', '%n colleague is off then ({names}).', '%n colleagues are off then ({names}).', overlapCount, { names: overlapLabel }) }}
+				</template>
+			</NcNoteCard>
+
 			<div class="dialog__field">
 				<label class="dialog__label">
 					{{ t('absence', 'Reason') }}
@@ -156,7 +165,7 @@
 
 <script>
 import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
@@ -211,6 +220,11 @@ export default {
 			selectedReplacement: null,
 			replacementOptions: [],
 			replacementLoading: false,
+			// Who else on the team is off during the picked dates (§8), fetched as the
+			// dates change. `coverageSeq` discards answers overtaken by a newer range.
+			coverage: null,
+			coverageSeq: 0,
+			coverageTimer: null,
 		}
 	},
 
@@ -333,6 +347,57 @@ export default {
 			return Math.max(0, Math.min(100, (this.projectedAvailable / this.balanceRow.entitlement) * 100))
 		},
 
+		/**
+		 * The coverage endpoint answers for *my* team, so the warning only means
+		 * something when the leave is my own. HR recording an absence for someone
+		 * else would otherwise be shown their own colleagues, which is worse than
+		 * showing nothing.
+		 */
+		coverageApplies() {
+			return !this.hrMode && this.subjectUid === store.session.uid
+		},
+
+		/** Colleagues off during the picked dates — excluding me and this very request. */
+		overlaps() {
+			if (!this.coverage) {
+				return []
+			}
+			return this.coverage.events.filter((ev) => ev.employeeUid !== store.session.uid
+				&& !(this.request && ev.requestId === this.request.id))
+		},
+
+		overlapCount() {
+			return this.overlapNames.length
+		},
+
+		/** One entry per person: two requests from the same colleague are still one absence. */
+		overlapNames() {
+			return [...new Set(this.overlaps.map((ev) => ev.displayName))]
+		},
+
+		overlapLabel() {
+			const names = this.overlapNames
+			if (names.length <= 3) {
+				return names.join(', ')
+			}
+			return t('absence', '{names} and {count} more', {
+				names: names.slice(0, 3).join(', '),
+				count: names.length - 3,
+			})
+		},
+
+		/**
+		 * Whether submitting would push the team to the admin's concurrency limit —
+		 * the same arithmetic the manager sees when reviewing (CoverageService::
+		 * getRequestCoverage), shown here so it is known before the ask, not after.
+		 */
+		coverageTight() {
+			if (!this.coverage || !this.coverage.threshold) {
+				return false
+			}
+			return this.coverage.maxConcurrent + 1 >= this.coverage.threshold
+		},
+
 		canSubmit() {
 			if (!this.selectedType || !this.startIso || !this.endIso || this.workingDaysNum <= 0) {
 				return false
@@ -353,11 +418,17 @@ export default {
 	watch: {
 		startIso() {
 			this.recomputePrefill()
+			this.scheduleCoverage()
 		},
 
 		endIso() {
 			this.recomputePrefill()
+			this.scheduleCoverage()
 		},
+	},
+
+	beforeUnmount() {
+		clearTimeout(this.coverageTimer)
 	},
 
 	async mounted() {
@@ -377,6 +448,33 @@ export default {
 
 	methods: {
 		t,
+		n,
+		/** Debounced: the dates move a lot while a picker is being dragged. */
+		scheduleCoverage() {
+			clearTimeout(this.coverageTimer)
+			this.coverageTimer = setTimeout(() => this.loadCoverage(), 350)
+		},
+
+		async loadCoverage() {
+			if (!this.coverageApplies || !this.startIso || !this.endIso || this.endIso < this.startIso) {
+				this.coverage = null
+				return
+			}
+			const seq = ++this.coverageSeq
+			try {
+				const data = await api.getCoverage(this.startIso, this.endIso, 'team')
+				if (seq === this.coverageSeq) {
+					this.coverage = data
+				}
+			} catch {
+				// Advisory only — a failed lookup must never stand between somebody and
+				// their holiday, so it just leaves the hint out.
+				if (seq === this.coverageSeq) {
+					this.coverage = null
+				}
+			}
+		},
+
 		onWorkingDaysInput(v) {
 			this.workingDays = v
 			this.workingDaysTouched = true

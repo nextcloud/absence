@@ -28,6 +28,8 @@ class NotifierTest extends TestCase {
 	private Notifier $notifier;
 	private string $parsedSubject = '';
 	private string $parsedMessage = '';
+	/** @var list<array{label:string,link:string,verb:string,primary:bool}> */
+	private array $actions = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -56,21 +58,60 @@ class NotifierTest extends TestCase {
 			},
 		);
 
-		$this->notifier = new Notifier($l10nFactory, $this->createMock(IURLGenerator::class), $userManager);
+		// Routing is what the buttons are: a mislabelled one is cosmetic, a
+		// mis-routed one silently approves nothing (or the wrong thing).
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			static fn (string $route, array $args = []): string => match ($route) {
+				'absence.page.index' => 'https://cloud.example/apps/absence/',
+				'absence.request.approve' => 'https://cloud.example/apps/absence/api/requests/' . $args['id'] . '/approve',
+				default => 'https://cloud.example/' . $route,
+			},
+		);
+
+		$this->notifier = new Notifier($l10nFactory, $urlGenerator, $userManager);
+		$this->actions = [];
 	}
 
 	/** @param array<string,mixed> $parameters */
 	private function prepare(string $subject, array $parameters): void {
-		// The action is built with a fluent chain, so its setters have to return it.
-		$action = $this->createMock(IAction::class);
-		$action->method(self::anything())->willReturnSelf();
-
+		// Tests that prepare more than one notification assert on the last of them.
+		$this->actions = [];
 		$notification = $this->createMock(INotification::class);
 		$notification->method('getApp')->willReturn(ConfigService::APP_ID);
 		$notification->method('getSubject')->willReturn($subject);
 		$notification->method('getSubjectParameters')->willReturn($parameters);
 		$notification->method('getObjectId')->willReturn('7');
-		$notification->method('createAction')->willReturn($action);
+		// Each action is built with a fluent chain, so every setter returns it; the
+		// ones that carry meaning are recorded as they are called.
+		$notification->method('createAction')->willReturnCallback(
+			function (): IAction {
+				$slot = count($this->actions);
+				$this->actions[] = ['label' => '', 'link' => '', 'verb' => '', 'primary' => false];
+				$action = $this->createMock(IAction::class);
+				$action->method(self::anything())->willReturnSelf();
+				$action->method('setParsedLabel')->willReturnCallback(
+					function (string $label) use ($action, $slot): IAction {
+						$this->actions[$slot]['label'] = $label;
+						return $action;
+					},
+				);
+				$action->method('setLink')->willReturnCallback(
+					function (string $link, string $verb) use ($action, $slot): IAction {
+						$this->actions[$slot]['link'] = $link;
+						$this->actions[$slot]['verb'] = $verb;
+						return $action;
+					},
+				);
+				$action->method('setPrimary')->willReturnCallback(
+					function (bool $primary) use ($action, $slot): IAction {
+						$this->actions[$slot]['primary'] = $primary;
+						return $action;
+					},
+				);
+				return $action;
+			},
+		);
 		$notification->method('setParsedSubject')->willReturnCallback(
 			function (string $text) use ($notification): INotification {
 				$this->parsedSubject = $text;
@@ -153,5 +194,58 @@ class NotifierTest extends TestCase {
 		]);
 		self::assertSame('Short notice: Emp is still waiting for a decision', $this->parsedSubject);
 		self::assertSame('The leave starts today, with none of the 14 days of notice expected.', $this->parsedMessage);
+	}
+
+	public function testApprovingIsOneClickAndDoesNotOpenTheApp(): void {
+		// The whole point: the common answer costs a click, not a page load. If this
+		// ever became a WEB link the feature would still look right and do nothing.
+		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7']);
+
+		self::assertSame(
+			['Approve', 'Decline', 'Review'],
+			array_column($this->actions, 'label'),
+		);
+		self::assertSame([
+			'label' => 'Approve',
+			'link' => 'https://cloud.example/apps/absence/api/requests/7/approve',
+			'verb' => 'POST',
+			'primary' => true,
+		], $this->actions[0]);
+	}
+
+	public function testDecliningOpensTheReasonFormRatherThanDecidingOutright(): void {
+		// A reason is mandatory (§5.2), so "Decline" may not be a verdict — it is a
+		// deep link that lands in the form with the box open.
+		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7']);
+
+		self::assertSame('WEB', $this->actions[1]['verb']);
+		self::assertSame('https://cloud.example/apps/absence/#/requests/7?decide=decline', $this->actions[1]['link']);
+		self::assertFalse($this->actions[1]['primary']);
+	}
+
+	public function testTheOverdueReminderCarriesTheSameButtons(): void {
+		// The reminder fires precisely because nobody has decided yet, so it is the
+		// notification where a one-click answer is worth the most.
+		$this->prepare(NotificationService::SUBJECT_REMINDER, ['employee' => 'emp', 'requestId' => '7']);
+
+		self::assertSame(['Approve', 'Decline', 'Review'], array_column($this->actions, 'label'));
+	}
+
+	public function testAWithdrawalAsksTheOppositeQuestion(): void {
+		// Here "approve" cancels the leave and "decline" keeps it — labelling both
+		// the usual way round would have managers clicking the opposite of what they mean.
+		$this->prepare(NotificationService::SUBJECT_WITHDRAWAL, ['employee' => 'emp', 'requestId' => '7']);
+
+		self::assertSame(['Approve withdrawal', 'Keep leave', 'Review'], array_column($this->actions, 'label'));
+	}
+
+	public function testAnEmployeeGetsNoDecisionButtonsOnTheirOwnOutcome(): void {
+		// Nothing is owed on these, and an Approve button on "your leave was
+		// approved" would point at an endpoint the recipient may not even call.
+		$this->prepare(NotificationService::SUBJECT_APPROVED, ['employee' => 'emp', 'requestId' => '7']);
+		self::assertSame([], $this->actions);
+
+		$this->prepare(NotificationService::SUBJECT_COMMENT, ['employee' => 'emp', 'requestId' => '7']);
+		self::assertSame([], $this->actions);
 	}
 }

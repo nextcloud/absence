@@ -11,6 +11,7 @@ namespace OCA\Absence\Notification;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
+use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
@@ -125,17 +126,61 @@ class Notifier implements INotifier {
 		$link = $this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/requests/' . $requestId;
 		$notification->setLink($link);
 
-		// Actionable approve/reject buttons for decision-makers.
-		if (in_array($notification->getSubject(), [NotificationService::SUBJECT_NEW_REQUEST, NotificationService::SUBJECT_ESCALATION, NotificationService::SUBJECT_WITHDRAWAL], true)) {
-			$open = $notification->createAction();
-			$open->setLabel('open')
-				->setParsedLabel($l->t('Review'))
-				->setLink($link, 'WEB')
-				->setPrimary(true);
-			$notification->addParsedAction($open);
-		}
+		$this->addDecisionActions($notification, $l, $requestId, $link);
 
 		return $notification;
+	}
+
+	/**
+	 * Buttons for the people who still owe this request a decision.
+	 *
+	 * Approving is the common answer and the one that needs nothing typed, so it
+	 * happens in place: the button POSTs to the same endpoint the app uses, and the
+	 * notification disappears. Declining is deliberately *not* a one-click verdict —
+	 * §5.2 requires a reason, and a manager who could reject someone's holiday from
+	 * a toast without saying why would be a worse app, not a faster one. Its button
+	 * therefore opens the request with the reason box already unfolded, which is
+	 * still a step better than "Review" for someone who has decided to say no.
+	 */
+	private function addDecisionActions(INotification $notification, IL10N $l, string $requestId, string $link): void {
+		$subject = $notification->getSubject();
+		$deciding = [
+			NotificationService::SUBJECT_NEW_REQUEST,
+			NotificationService::SUBJECT_ESCALATION,
+			// The reminder exists *because* the decision is overdue — it is the place
+			// a one-click answer pays off most.
+			NotificationService::SUBJECT_REMINDER,
+			NotificationService::SUBJECT_WITHDRAWAL,
+		];
+		if (!in_array($subject, $deciding, true)) {
+			return;
+		}
+
+		// A withdrawal asks the opposite question, so the buttons have to read the
+		// opposite way — the same wording the sidebar uses (RequestSidebar.vue).
+		$isWithdrawal = $subject === NotificationService::SUBJECT_WITHDRAWAL;
+
+		$approve = $notification->createAction();
+		$approve->setLabel('approve')
+			->setParsedLabel($isWithdrawal ? $l->t('Approve withdrawal') : $l->t('Approve'))
+			->setLink($this->urlGenerator->linkToRouteAbsolute('absence.request.approve', ['id' => $requestId]), 'POST')
+			->setPrimary(true);
+		$notification->addParsedAction($approve);
+
+		$decline = $notification->createAction();
+		$decline->setLabel('decline')
+			->setParsedLabel($isWithdrawal ? $l->t('Keep leave') : $l->t('Decline'))
+			// The query rides inside the hash, where the SPA router reads it.
+			->setLink($link . '?decide=decline', 'WEB')
+			->setPrimary(false);
+		$notification->addParsedAction($decline);
+
+		$open = $notification->createAction();
+		$open->setLabel('open')
+			->setParsedLabel($l->t('Review'))
+			->setLink($link, 'WEB')
+			->setPrimary(false);
+		$notification->addParsedAction($open);
 	}
 
 	private function displayName(string $uid): string {

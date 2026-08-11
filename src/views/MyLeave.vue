@@ -20,7 +20,12 @@
 			<span class="hero__emoji" aria-hidden="true">{{ nextBreak.icon }}</span>
 			<div class="hero__text">
 				<span class="hero__eyebrow">{{ nextBreak.eyebrow }}</span>
-				<strong class="hero__headline">{{ nextBreak.headline }}</strong>
+				<!-- role="timer" is the ticking-value role, and it is silent by default —
+				     an aria-live region here would read the countdown out every second. -->
+				<strong
+					class="hero__headline"
+					:class="{ 'hero__headline--ticking': nextBreak.live }"
+					:role="nextBreak.live ? 'timer' : null">{{ nextBreak.headline }}</strong>
 				<span class="hero__sub">{{ nextBreak.sub }}</span>
 			</div>
 		</section>
@@ -83,7 +88,11 @@ import PalmIllustration from '../components/PalmIllustration.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import { store } from '../store.js'
-import { addWorkingDaysByMonth, formatRange, toIso } from '../utils/dates.js'
+import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.js'
+
+// Inside this window the hero counts down in seconds rather than whole days.
+// Two days is roughly where "2 days to go" stops being the more useful sentence.
+const LIVE_COUNTDOWN_MS = 48 * 60 * 60 * 1000
 
 export default {
 	name: 'MyLeave',
@@ -98,9 +107,19 @@ export default {
 		return { store }
 	},
 
+	data() {
+		return {
+			// The clock the hero reads from. Kept in state rather than called inline so
+			// the countdown re-renders — and so a tab left open overnight still rolls
+			// its day count over at midnight instead of freezing on yesterday.
+			now: Date.now(),
+			clock: null,
+		}
+	},
+
 	computed: {
 		year() {
-			return new Date().getFullYear()
+			return new Date(this.now).getFullYear()
 		},
 
 		rings() {
@@ -123,7 +142,7 @@ export default {
 
 		/** The soonest upcoming (or ongoing) approved leave, as a motivating hero. */
 		nextBreak() {
-			const today = toIso(new Date())
+			const today = toIso(new Date(this.now))
 			const approved = store.requests
 				.filter((r) => r.status === 'APPROVED' && r.endDate >= today)
 				.sort((a, b) => a.startDate.localeCompare(b.startDate))
@@ -140,15 +159,29 @@ export default {
 					eyebrow: t('absence', 'You are off right now'),
 					headline: t('absence', 'Enjoy your {type}! 🌴', { type: type.label.toLowerCase() }),
 					sub: range,
+					live: false,
 				}
 			}
-			const days = Math.max(1, Math.round((new Date(r.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000))
+			const remaining = new Date(r.startDate + 'T00:00:00').getTime() - this.now
+			// The last two days are the ones worth watching, and "1 day to go" is a
+			// poor description of an afternoon — so the final stretch ticks.
+			if (remaining <= LIVE_COUNTDOWN_MS) {
+				return {
+					icon: type.icon,
+					color: type.color,
+					eyebrow: t('absence', 'Almost there'),
+					headline: t('absence', '{countdown} to go', { countdown: formatCountdown(remaining) }),
+					sub: `${type.label} · ${range}`,
+					live: true,
+				}
+			}
 			return {
 				icon: type.icon,
 				color: type.color,
 				eyebrow: t('absence', 'Your next break'),
-				headline: n('absence', '%n day to go', '%n days to go', days),
+				headline: n('absence', '%n day to go', '%n days to go', Math.round(remaining / 86400000)),
 				sub: `${type.label} · ${range}`,
+				live: false,
 			}
 		},
 	},
@@ -159,14 +192,29 @@ export default {
 		if (this.id) {
 			store.select(Number(this.id))
 		}
+		this.clock = setInterval(this.tick, 1000)
 	},
 
 	beforeUnmount() {
 		window.removeEventListener('absence:refresh', this.reload)
+		clearInterval(this.clock)
 	},
 
 	methods: {
 		t,
+		/**
+		 * Advance the hero's clock. The interval runs every second but only commits a
+		 * new value when the rendered text can have changed — otherwise a page showing
+		 * "12 days to go" would re-render its whole request list once a second, all
+		 * year, to display the same sentence.
+		 */
+		tick() {
+			const now = Date.now()
+			if (this.nextBreak?.live || now - this.now >= 60000) {
+				this.now = now
+			}
+		},
+
 		/**
 		 * BarChart data (12 months of the current year) from my approved requests
 		 * whose type matches. Months without leave stay at zero so the chart is
@@ -237,6 +285,12 @@ export default {
 
 	&__headline {
 		font-size: 1.25rem;
+
+		// Proportional digits make a ticking clock jitter as the glyph widths change.
+		&--ticking {
+			font-variant-numeric: tabular-nums;
+			font-feature-settings: 'tnum';
+		}
 	}
 
 	&__sub {

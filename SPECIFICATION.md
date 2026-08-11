@@ -253,6 +253,35 @@ For doctor's notes: allow attaching a file reference stored in the user's Files.
 Model as a nullable `attachment_file_id` on `absence_requests` pointing at a
 Nextcloud file id. **Phase 2** — for phase 1 a free-text `attachment_note` suffices.
 
+### 3.9 Which "today" applies (`ClockService`)
+
+Leave is stored as **dates**, not instants: `start_date` and `end_date` are the days
+the employee typed on a calendar. Comparing them against "now" therefore needs a *day
+boundary*, and a day boundary only exists relative to a timezone.
+
+Nextcloud pins PHP's default timezone to UTC for the whole request, so a bare
+`date('Y-m-d')` answers in UTC wherever anybody is. For a timestamp that is correct.
+For a day boundary it is a bug: at 09:00 on 2 January in Auckland it is still
+1 January in UTC, so an employee booking leave for today would be told it "is
+entirely in the past" for a day that has not finished where they live. Berlin has the
+same fault in the other direction for the last hour of every day.
+
+Which boundary is right depends on **who is asking**, so `ClockService` exposes the
+two separately rather than one ambiguous `today()`, and every caller has to choose:
+
+| | Used for | Examples |
+|---|---|---|
+| `userToday()` / `userYear()` | anything an employee sees or is judged against, in *their* timezone | the "not entirely in the past" validation (§5.1), the dashboard widget's upcoming leave, the default year for balances, reports and exports |
+| `serverToday()` / `serverYear()` | company-wide policy and background jobs, where there is no user to ask | short-notice measurement (§8), carry-over expiry and the year rollover (§6.2, §9) |
+| `now()` | stored timestamp columns (`created_at`, `decided_at`, …) | deliberately UTC — a timestamp records *when* something happened, which is the same moment for everyone |
+
+Company-wide policy uses the server's clock on purpose: one request must get one
+answer whether the manager, HR or the job that mails them is asking, and a warning
+that changed depending on the reader's timezone would be worse than no warning.
+
+The instant itself comes from `ITimeFactory` so tests can pin it — `new \DateTime()`
+cannot be frozen.
+
 ---
 
 ## 4. Request Status State Machine
@@ -307,7 +336,8 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
    (`NcSelect` + core autocomplete), excluding the employee themselves. Submit is blocked
    until one is chosen. Sick leave (HR-recorded) needs none.
 4. On submit, backend:
-   - Validates dates (`start ≤ end`, not entirely in the past unless HR, not
+   - Validates dates (`start ≤ end`, not entirely in the past — in the *employee's*
+     timezone, §3.9 — unless HR, not
      overlapping an existing non-terminal request for the same user — reject overlap
      with a clear error).
    - Enforces `requires_note`, **`requires_replacement`** (the `replacement_uid` must be
@@ -476,12 +506,26 @@ is what counts (§7).
   that asks for a decision (§11) — including the escalation to HR and the pending
   reminder, by which point the notice given has shrunk further.
   - Calendar days, not working days: "two weeks' notice" is a fortnight on the wall
-    calendar. Measured against the *server's* today, so one request gets one answer
-    for the manager, for HR and for the job that mails them.
+    calendar. Measured against the *server's* today (§3.9), so one request gets one
+    answer for the manager, for HR and for the job that mails them.
   - Only while a decision is outstanding (`PENDING` / `ESCALATED`), and so never for
     leave with no approval workflow — sick leave is recorded after the fact and
     auto-approved types are booked straight through (§4.1), so nobody is weighing the
     notice, and nobody can give notice of falling ill.
+- **Before the ask, not only after it:** the request dialog runs the same team-scope
+  overlap query as the dates are picked and names the colleagues already off then,
+  as an `info` note — or a `warning` when booking would take the team to the
+  concurrency threshold. It is advisory in the strongest sense: it never disables
+  submit, a failed lookup simply omits the hint, and the employee stays free to book
+  a clash they have already agreed with their team. The point is that the person
+  choosing the dates learns what the manager will see at the moment they can still
+  cheaply choose differently.
+  - Shown only for one's *own* leave. The endpoint answers for the caller's team, so
+    HR recording an absence for somebody else would otherwise be shown the wrong
+    team's names, and no hint beats a misleading one.
+  - Leave *types* are neutralised by the same shared-calendar visibility policy that
+    governs the timeline — a colleague's sick leave does not become visible because
+    somebody opened the booking form.
 - Provide an API endpoint to query overlaps for a date range + scope (team/company).
 
 ---
@@ -541,8 +585,24 @@ All four channels are required.
   never back to the comment's own author), **replacement assigned**
   (→ replacement, on approval) and **replacement cancelled** (→ replacement, when
   approved leave is cancelled) — §5.1. These are pushed (a standard NC notification is
-  delivered to push automatically). Provide actionable notifications (Approve/Reject
-  buttons where feasible) linking into the app.
+  delivered to push automatically).
+- **Actionable where the recipient owes an answer.** The four notifications that ask
+  for a decision — new request, escalation, reminder, withdrawal — carry three
+  buttons: **Approve**, **Decline** and **Review**.
+  - *Approve* is a `POST` straight to `request#approve`, the same endpoint the app
+    uses, so the common answer costs one click and no page load. The notification
+    dismisses itself on success; a request whose state moved on in the meantime
+    fails the same way it would in the app.
+  - *Decline* is deliberately **not** a one-click verdict. A decline requires a
+    reason (§5.2), and a manager able to reject somebody's holiday from a toast
+    without saying why would be a worse app, not a faster one. It is a `WEB` link
+    to `#/requests/{id}?decide=decline`, which opens the request with the reason
+    box already unfolded — a step better than *Review* for someone who has decided
+    to say no, and still a decision they have to confirm.
+  - A withdrawal asks the opposite question, so its buttons read **Approve
+    withdrawal** / **Keep leave**, matching the sidebar's wording (§15.2).
+  - Notifications that merely report an outcome (approved, declined, comment,
+    replacement) carry no decision buttons: nothing is owed on them.
 - **Email:** via `OCP\Mail\IMailer` with templated messages
   (`OCP\Mail\IEMailTemplate`) for each of the above events. Respect the user's
   configured email + language.
@@ -631,7 +691,11 @@ The HR area (visible only to HR-group members) provides:
    native PHP; XLSX via a bundled library (e.g. PhpSpreadsheet) or a documented CSV
    fallback if a dependency is undesirable.
 
-Managers get a scoped version (their reports only) of the balances table and who's-off calendar.
+Managers get a scoped version (their reports only) of the who's-off calendar — the
+Team timeline. **The scoped balances table is specified but not yet built:** every
+balance view is HR-only today, and `report#balances` asserts HR. `balance#forEmployee`
+already authorises a manager to read one report's balance (`canViewBalanceOf`), so the
+gap is a UI one; no frontend calls it yet.
 
 ---
 
@@ -756,7 +820,15 @@ NcContent(app-name="absence")
 ### 15.2 Views
 
 - **My leave** (`#/my`) — a **"next break" hero** (gradient card with a countdown to,
-  or "enjoy your leave!" during, the soonest upcoming approved leave), then one compact
+  or "enjoy your leave!" during, the soonest upcoming approved leave). The countdown
+  is in whole days until the leave is **under 48 hours away**, at which point it ticks
+  in seconds (`H:MM:SS`, tabular figures) under the eyebrow *Almost there* — "1 day to
+  go" is a poor description of an afternoon. The ticking element carries `role="timer"`,
+  which is silent by default: an `aria-live` region here would read the clock aloud
+  every second. The page's clock also keeps the day count honest across midnight for a
+  tab left open, and only commits a new value when the rendered text can have changed,
+  so a hero reading "12 days to go" does not re-render the request list once a second
+  all year. Then one compact
   **balance card** per counting leave type: an animated **balance ring** (the remaining
   number **counts up** on load) beside a **breakdown ledger** (base allowance
   + carry-over ± adjustment = entitlement, minus used and pending → **available**).
@@ -777,7 +849,9 @@ NcContent(app-name="absence")
   (`NcSelect` + org-wide user autocomplete, self excluded) appears. Optional reason
   (`NcTextArea`, labelled "(optional)" unless the type requires a note) and conditional
   note. Submit disabled until valid; negative `available`
-  shows an inline `NcNoteCard type="warning"` (warn, don't block).
+  shows an inline `NcNoteCard type="warning"` (warn, don't block). A second inline
+  note names the **colleagues already off** during the picked dates (§8) — debounced
+  as the dates move, one entry per person, "and N more" past three.
 - **Record absence** (HR only) — the *same* dialog opened in **HR mode** from the HR
   nav: adds an **employee search** (`NcSelect` with user autocomplete) and offers *all*
   enabled types (including sick); the balance preview is hidden (it's another person's
@@ -898,7 +972,12 @@ Signature components built on top of `@nextcloud/vue`:
 - **`RequestSidebar`** — master-detail sidebar with Details (stepper + facts + actions),
   Coverage, Comments, and History (§3.7) tabs.
 - **`SkeletonList`** — shimmer placeholder shown while lists load (instead of a spinner).
-- **`PalmIllustration`** — animated empty-state SVG (swaying palm, bobbing sun).
+- **`PalmIllustration`** — animated empty-state SVG (swaying palm, bobbing sun) that
+  **follows the calendar**: blossom and a passing bird in spring, full sun in summer,
+  fronds turning and shedding in autumn, a snow-capped island and snowfall in winter.
+  Meteorological seasons, flipped for southern-hemisphere users off the country
+  already chosen for public holidays — no new setting, and no snow in a Sydney
+  January. A `season` prop forces one for screenshots and tests.
 - **`DonutChart` / `LineChart`** — dependency-free, theme-aware SVG charts for HR stats
   (by-type donut with legend; monthly-trend area line). **`BarChart`** (same family)
   powers the monthly leave-taken and sick-days charts on My leave.

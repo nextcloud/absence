@@ -7,20 +7,56 @@
 	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>absence</id>
 	<name>Absence</name>
-	<summary>Vacation approval workflow for your company</summary>
+	<summary>Vacation and sick-leave management for your whole company</summary>
 	<description><![CDATA[
 Absence is a self-service leave-management app: employees apply for vacation, line
-managers approve or reject, and HR gets a company-wide overview with statistics and
+managers approve or decline, and HR gets a company-wide overview with statistics and
 exports.
 
-* 🌴 Apply for annual, sick, unpaid or special leave — full balance tracking with carry-over
-* ✅ Manager approval with team-coverage conflict warnings
-* ⏰ Automatic escalation to HR when a manager does not respond
-* 📊 HR overview: per-employee balances, company-wide statistics and CSV/Excel export
-* 📅 Approved leave synced to Nextcloud Calendar (personal + shared team calendar)
-* 🔔 Notifications, email and activity for every step
+Everything stays on your own server — who is off, who is sick and why they asked is
+never replicated to a third party, and there is no per-seat licence. There is also no
+second org chart to maintain: employees are your Nextcloud users, HR is a Nextcloud
+group, and line managers come from the `manager` account property your LDAP or Active
+Directory already fills in.
+
+**For employees**
+
+* 🌴 Apply for annual, sick, unpaid or special leave — or any leave type you define, with your own colours and rules
+* ⚖️ Full balance tracking: entitlement, used, pending, remaining and carry-over
+* 🗓️ The working-day count is prefilled from your availability and your country's public holidays — and stays editable
+* 👥 See which colleagues are already off while you are still choosing the dates
+* ⏳ A "next break" countdown, animated balance rings and monthly charts on a single screen
+
+**For line managers**
+
+* ✅ Approve in one click straight from the notification, without opening the app
+* 🔍 Coverage warnings when approving would leave the team short-staffed
+* ⚠️ Short-notice warnings when leave starts sooner than your company expects
+* 📆 A Gantt-style team timeline of who is off this month
+* ⏰ Requests you miss are reminded, then automatically escalated to HR
+
+**For HR**
+
+* 🩺 Record sick leave — or any absence — directly, with no approval step
+* 🧾 Correct or cancel any absence; cancelled records are kept for the audit trail
+* 📊 Company-wide balances, statistics, a sick-leave overview and a who's-off timeline
+* 👤 Set entitlements per employee or in bulk for an entire group
+* 📤 CSV export of requests and balances for payroll
+
+**For administrators**
+
+* ⚙️ Declarative admin settings: HR group, entitlements, escalation window, carry-over policy, notice period and coverage threshold
+* 📅 Approved leave synced to Nextcloud Calendar (personal and shared team calendar), with configurable type visibility
+* 🔔 Notifications, email and Activity for every step — quoting what people actually wrote, so nobody has to open the app to find out
+* 🔒 Strict server-side permissions, rate limiting and GDPR deletion handling
+* 📝 An always-on audit log in `nextcloud.log`, written regardless of your log level
+
+Full days only for now (no half-days), CSV export only, and deliberately no payroll,
+time-tracking or shift-planning — this app manages leave and does that one thing
+properly. Every rule and design decision is documented in the
+[specification](https://github.com/nextcloud/absence/blob/main/SPECIFICATION.md).
 	]]></description>
-	<version>1.0.6</version>
+	<version>1.0.12</version>
 	<licence>agpl</licence>
 	<author mail="frank@nextcloud.com">Frank Karlitschek</author>
 	<namespace>Absence</namespace>
@@ -29,10 +65,15 @@ exports.
 	<website>https://github.com/nextcloud/absence</website>
 	<bugs>https://github.com/nextcloud/absence/issues</bugs>
 	<repository type="git">https://github.com/nextcloud/absence.git</repository>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/1.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/2.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/1.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/3.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/4.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/5.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/11.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/7.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/9.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/13.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="34" max-version="36"/>
 	</dependencies>
