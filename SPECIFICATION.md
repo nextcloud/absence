@@ -771,6 +771,11 @@ the SPA). All list endpoints paginate and accept filters.
 - `GET  /api/employees/{uid}/balance` — manager (reports) / HR only.
 - `GET  /api/entitlements` / `PUT /api/entitlements/{id}` — HR manage.
 - `POST /api/entitlements/bulk` — HR bulk set.
+- `PUT  /api/entitlements/{id}` — HR manage. **`adjustmentDelta` adds to** the stored
+  manual adjustment; `manualAdjustment` **sets** it outright. Corrections are made as
+  deltas ("+2 for the wedding", later "−2, booked in error") and must cancel to
+  nothing — treating the second as an absolute set is what made 25 → +2 → 27 → −2
+  land on 23 instead of back on 25. Sending both is refused rather than guessed at.
 - `GET  /api/entitlements/{id}/history` — HR only: who changed which figure on an
   entitlement, from what to what, and the note they gave. One row per figure per
   save, so a single adjustment reads on its own rather than having to be diffed
