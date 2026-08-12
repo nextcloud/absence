@@ -64,6 +64,7 @@ class RequestService {
 		private PermissionService $permission,
 		private ClockService $clock,
 		private CoverageService $coverage,
+		private BalanceService $balances,
 		private NoticeService $notice,
 		private CalendarService $calendar,
 		private NotificationService $notifications,
@@ -188,6 +189,14 @@ class RequestService {
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
 		$detail = $this->withDisplayNames($detail, $request);
+		// What this absence leaves the person with. Without it, seeing that somebody
+		// took three days says nothing about whether they have any left, and the only
+		// way to find out was to abandon the view for the Balances report and come
+		// back. Gated on canViewBalanceOf(), the same rule the balance endpoints use,
+		// so a colleague who may read the request still cannot read the allowance.
+		if ($this->permission->canViewBalanceOf($actorUid, $request->getEmployeeUid())) {
+			$detail['balance'] = $this->balanceFor($request);
+		}
 		if ($detail['canDecide']) {
 			$detail['coverage'] = $this->coverage->getRequestCoverage($request, $actorUid);
 			// Only for someone who may decide, like the coverage summary: it is there to
@@ -195,6 +204,36 @@ class RequestService {
 			$detail['shortNotice'] = $this->notice->warningFor($request);
 		}
 		return $detail;
+	}
+
+	/**
+	 * The employee's balance for this absence's leave type, in the year it starts.
+	 *
+	 * That year, not the current one, because usage is attributed the same way
+	 * ({@see BalanceService}) — reporting this year's allowance next to last year's
+	 * leave would describe a different thing entirely.
+	 *
+	 * Null for a type with no ceiling to spend: unpaid and special leave count
+	 * against nothing, so "how many are left" has no answer to give.
+	 *
+	 * @return ?array<string,mixed>
+	 */
+	private function balanceFor(LeaveRequest $request): ?array {
+		$year = (int)substr($request->getStartDate(), 0, 4);
+		foreach ($this->balances->getBalance($request->getEmployeeUid(), $year)['balances'] as $row) {
+			if ($row['typeId'] !== $request->getTypeId() || $row['entitlement'] === null) {
+				continue;
+			}
+			return [
+				'year' => $year,
+				'entitlement' => $row['entitlement'],
+				'used' => $row['used'],
+				'pending' => $row['pending'],
+				'remaining' => $row['remaining'],
+				'available' => $row['available'],
+			];
+		}
+		return null;
 	}
 
 	/**

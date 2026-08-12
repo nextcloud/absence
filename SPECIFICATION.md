@@ -778,7 +778,12 @@ the SPA). All list endpoints paginate and accept filters.
 **Requests**
 - `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status, type, date range, employee, group).
 - `POST /api/requests` — create (§5.1).
-- `GET  /api/requests/{id}` — detail (with comments, coverage summary).
+- `GET  /api/requests/{id}` — detail (with comments, coverage summary, and the
+  employee's **balance** for that leave type in the year the leave starts — gated on
+  `canViewBalanceOf`, so a colleague who may read the request still cannot read the
+  allowance. Null for a type that counts against nothing. It is there because "took
+  three days" says nothing about whether any are left, and finding out otherwise
+  means abandoning the view for the Balances report).
 - `PUT  /api/requests/{id}` — edit (§5.3; behavior depends on current status).
 - `POST /api/requests/{id}/cancel` — cancel / request withdrawal.
 - `POST /api/requests/{id}/approve` — manager/HR approve (optional comment).

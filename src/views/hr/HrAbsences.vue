@@ -84,6 +84,7 @@
 					:key="r.id"
 					:request="r"
 					:showEmployee="true"
+					:remaining="remainingFor(r)"
 					:active="store.selectedId === r.id"
 					@select="store.select($event)" />
 			</TransitionGroup>
@@ -168,6 +169,8 @@ export default {
 		return {
 			loading: true,
 			loadingMore: false,
+			// employeeUid|typeId => remaining days, for the selected year.
+			balances: {},
 			rows: [],
 			hasMore: false,
 			employee,
@@ -294,6 +297,43 @@ export default {
 			} finally {
 				this.loading = false
 			}
+			await this.loadBalances()
+		},
+
+		/**
+		 * Remaining days per employee and leave type, indexed for the rows above.
+		 *
+		 * One batched report rather than a lookup per row — the server computes every
+		 * employee's balances in a fixed number of queries, which a request per
+		 * visible absence would not be.
+		 *
+		 * Only for a single reporting year: "remaining" is a per-year figure, so with
+		 * the filter on "All years" there is no one answer and the rows simply omit
+		 * it. Silent on failure — the list is still perfectly usable without it.
+		 */
+		async loadBalances() {
+			this.balances = {}
+			if (this.year.value === null) {
+				return
+			}
+			try {
+				const report = await api.reportBalances(this.year.value)
+				const index = {}
+				for (const row of report) {
+					if (row.remaining !== null) {
+						index[`${row.employeeUid}|${row.typeId}`] = row.remaining
+					}
+				}
+				this.balances = index
+			} catch {
+				this.balances = {}
+			}
+		},
+
+		/** @param {object} request one absence row */
+		remainingFor(request) {
+			const value = this.balances[`${request.employeeUid}|${request.typeId}`]
+			return value === undefined ? null : value
 		},
 
 		async loadMore() {

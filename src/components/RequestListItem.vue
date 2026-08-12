@@ -36,6 +36,10 @@ export default {
 		request: { type: Object, required: true },
 		active: { type: Boolean, default: false },
 		showEmployee: { type: Boolean, default: false },
+		// The employee's remaining days for this leave type and year, when the caller
+		// has them to hand. Null for leave that counts against no allowance, and while
+		// the figures are still loading.
+		remaining: { type: Number, default: null },
 	},
 
 	emits: ['select'],
@@ -67,7 +71,12 @@ export default {
 		subtitle() {
 			const range = formatRange(this.request.startDate, this.request.endDate)
 			const days = n('absence', '%n day', '%n days', this.request.workingDays)
-			return `${range} · ${days}`
+			if (this.remaining === null) {
+				return `${range} · ${days}`
+			}
+			// Days taken alone does not answer the question the list is scanned for.
+			const left = n('absence', '%n day left', '%n days left', Math.round(this.remaining * 10) / 10)
+			return `${range} · ${days} · ${left}`
 		},
 	},
 
