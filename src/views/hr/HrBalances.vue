@@ -148,6 +148,35 @@
 						{{ t('absence', 'Save') }}
 					</NcButton>
 				</div>
+
+				<!-- Why this allowance is what it is. The note HR is made to write when
+				     adjusting used to be stored and shown to nobody; this is where it
+				     lands, next to the figure it explains. -->
+				<section class="log">
+					<h4 class="log__title">
+						{{ t('absence', 'Change history') }}
+					</h4>
+					<p v-if="historyLoading" class="log__empty">
+						{{ t('absence', 'Loading…') }}
+					</p>
+					<ol v-else-if="history.length" class="log__list">
+						<li v-for="ev in history" :key="ev.id" class="log__item">
+							<span class="log__delta" :class="ev.delta < 0 ? 'log__delta--down' : 'log__delta--up'">
+								{{ ev.delta > 0 ? '+' : '−' }}{{ fmt(Math.abs(ev.delta)) }}
+							</span>
+							<div class="log__body">
+								<span class="log__what">
+									{{ fieldLabel(ev.field) }} {{ fmt(ev.oldValue) }} → {{ fmt(ev.newValue) }}
+								</span>
+								<span v-if="ev.note" class="log__note">{{ ev.note }}</span>
+								<span class="log__meta">{{ ev.actorUid }} · {{ formatDateTime(ev.createdAt) }}</span>
+							</div>
+						</li>
+					</ol>
+					<p v-else class="log__empty">
+						{{ t('absence', 'No changes recorded yet.') }}
+					</p>
+				</section>
 			</div>
 		</NcModal>
 	</div>
@@ -188,6 +217,8 @@ export default {
 			editing: null,
 			saving: false,
 			form: { baseDays: 0, manualAdjustment: 0, adjustmentNote: '' },
+			history: [],
+			historyLoading: false,
 		}
 	},
 
@@ -323,6 +354,7 @@ export default {
 
 		async edit(row) {
 			this.editing = row
+			this.history = []
 			// Ensure an entitlement row exists to edit; fetch current values.
 			try {
 				const list = await api.listEntitlements(row.employeeUid, this.year)
@@ -336,6 +368,40 @@ export default {
 			} catch {
 				this.form = { baseDays: row.baseDays, manualAdjustment: 0, adjustmentNote: '', entitlementId: row.entitlementId }
 			}
+			await this.loadHistory()
+		},
+
+		/**
+		 * The change log for the entitlement being edited. Newest first, because the
+		 * most recent change is the one that explains the number on screen. Silent on
+		 * failure: history is context, and losing it must not block the edit itself.
+		 */
+		async loadHistory() {
+			if (!this.form.entitlementId) {
+				// Nothing saved yet, so there is nothing to have changed.
+				return
+			}
+			this.historyLoading = true
+			try {
+				const events = await api.entitlementHistory(this.form.entitlementId)
+				this.history = events.reverse()
+			} catch {
+				this.history = []
+			} finally {
+				this.historyLoading = false
+			}
+		},
+
+		fieldLabel(field) {
+			return {
+				base_days: t('absence', 'Base days'),
+				carry_over_days: t('absence', 'Carry-over'),
+				manual_adjustment: t('absence', 'Adjustment'),
+			}[field] || field
+		},
+
+		formatDateTime(iso) {
+			return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
 		},
 
 		async save() {
@@ -408,6 +474,67 @@ td.low {
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 8px;
+	}
+}
+
+.log {
+	margin-top: 4px;
+	border-top: 1px solid var(--color-border);
+	padding-top: 12px;
+
+	&__title {
+		margin: 0 0 8px;
+		font-size: 0.9rem;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__list {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		// Long-serving employees accumulate corrections; keep the dialog usable.
+		max-height: 220px;
+		overflow-y: auto;
+	}
+
+	&__item {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+	}
+
+	&__delta {
+		flex: 0 0 auto;
+		min-width: 3.2em;
+		text-align: end;
+		font-weight: bold;
+		font-variant-numeric: tabular-nums;
+
+		&--up { color: var(--color-success-text); }
+		&--down { color: var(--color-error-text); }
+	}
+
+	&__body {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	&__note {
+		font-style: italic;
+	}
+
+	&__meta,
+	&__empty {
+		font-size: 0.85rem;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__empty {
+		margin: 0;
 	}
 }
 </style>

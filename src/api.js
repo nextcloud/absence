@@ -29,6 +29,8 @@ export default {
 	listEntitlements: (employeeUid, year) => axios.get(url('/api/entitlements'), { params: { employeeUid, year } }).then((r) => r.data),
 	createEntitlement: (data) => axios.post(url('/api/entitlements'), data).then((r) => r.data),
 	updateEntitlement: (id, data) => axios.put(url(`/api/entitlements/${id}`), data).then((r) => r.data),
+	// Who changed an entitlement, which figure, from what to what, and why.
+	entitlementHistory: (id) => axios.get(url(`/api/entitlements/${id}/history`)).then((r) => r.data),
 	bulkEntitlements: (data) => axios.post(url('/api/entitlements/bulk'), data).then((r) => r.data),
 
 	// Coverage & calendar
