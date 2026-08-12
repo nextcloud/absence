@@ -9,6 +9,8 @@ declare(strict_types=1);
 namespace OCA\Absence\Service;
 
 use OCA\Absence\Db\Entitlement;
+use OCA\Absence\Db\EntitlementEvent;
+use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\NotFoundException;
@@ -22,6 +24,7 @@ use Psr\Log\LoggerInterface;
 class EntitlementService {
 	public function __construct(
 		private EntitlementMapper $entitlementMapper,
+		private EntitlementEventMapper $eventMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private BalanceService $balanceService,
 		private ConfigService $config,
@@ -50,6 +53,14 @@ class EntitlementService {
 		} catch (DoesNotExistException) {
 			throw new NotFoundException('Entitlement not found');
 		}
+		// Read before any setter runs: these are what the history reports moving from.
+		$before = [
+			EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
+			EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),
+			EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $ent->getManualAdjustment(),
+		];
+		$note = trim((string)($data['adjustmentNote'] ?? ''));
+
 		if (array_key_exists('baseDays', $data)) {
 			$ent->setBaseDays((float)$data['baseDays']);
 		}
@@ -58,7 +69,7 @@ class EntitlementService {
 		}
 		if (array_key_exists('manualAdjustment', $data)) {
 			$adjustment = (float)$data['manualAdjustment'];
-			if ($adjustment !== $ent->getManualAdjustment() && trim((string)($data['adjustmentNote'] ?? '')) === '') {
+			if ($adjustment !== $ent->getManualAdjustment() && $note === '') {
 				throw new ValidationException('A note is required when adjusting an entitlement.');
 			}
 			$ent->setManualAdjustment($adjustment);
@@ -67,9 +78,15 @@ class EntitlementService {
 		$ent->setUpdatedAt($this->clock->now());
 		$ent = $this->entitlementMapper->update($ent);
 
+		$changes = $this->recordChanges($actorUid, $ent, $before, $note);
+
 		$this->activity->publish(ActivityPublisher::SUBJECT_BALANCE_ADJUSTED, [
 			'employee' => $ent->getEmployeeUid(),
 			'year' => $ent->getYear(),
+			// Carried so the activity entry can say what happened rather than only
+			// that something did. Empty when a save changed no figure.
+			'summary' => $this->summarise($changes),
+			'note' => $note,
 		], [$ent->getEmployeeUid(), $actorUid]);
 		$this->logger->info('Absence action: entitlement_updated', [
 			'app' => 'absence',
@@ -224,6 +241,85 @@ class EntitlementService {
 			]);
 		}
 		return $affected;
+	}
+
+	/**
+	 * The chronological history of an entitlement, oldest first (§6.1).
+	 *
+	 * @return EntitlementEvent[]
+	 */
+	public function historyFor(int $entitlementId): array {
+		return $this->eventMapper->findForEntitlement($entitlementId);
+	}
+
+	/**
+	 * Record one event per figure this save actually moved.
+	 *
+	 * One row per figure, not per save: "+2 days for the wedding" is then a fact
+	 * that reads on its own, instead of something a reader has to diff out of a
+	 * blob. The note is attached to every figure the save touched, because it is
+	 * the reason the whole save happened.
+	 *
+	 * Best-effort, like the request timeline: an unwritable history must not cost
+	 * HR the adjustment they just made.
+	 *
+	 * @param array<string,float> $before figure => value before the save
+	 * @return EntitlementEvent[] the events actually written
+	 */
+	private function recordChanges(string $actorUid, Entitlement $ent, array $before, string $note): array {
+		$after = [
+			EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
+			EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),
+			EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $ent->getManualAdjustment(),
+		];
+		$written = [];
+		foreach ($after as $field => $newValue) {
+			$oldValue = $before[$field];
+			// Float equality is the wrong test for days entered as decimals.
+			if (abs($newValue - $oldValue) < 0.001) {
+				continue;
+			}
+			try {
+				$event = new EntitlementEvent();
+				$event->setEntitlementId((int)$ent->getId());
+				$event->setEmployeeUid($ent->getEmployeeUid());
+				$event->setActorUid($actorUid);
+				$event->setField($field);
+				$event->setOldValue($oldValue);
+				$event->setNewValue($newValue);
+				$event->setNote($note !== '' ? $note : null);
+				$event->setCreatedAt($this->clock->now());
+				$written[] = $this->eventMapper->insert($event);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: could not record entitlement history', ['exception' => $e]);
+			}
+		}
+		return $written;
+	}
+
+	/**
+	 * The changes as one short line, for the activity feed and the log.
+	 *
+	 * @param EntitlementEvent[] $changes
+	 */
+	private function summarise(array $changes): string {
+		$labels = [
+			EntitlementEvent::FIELD_BASE_DAYS => 'base',
+			EntitlementEvent::FIELD_CARRY_OVER_DAYS => 'carry-over',
+			EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => 'adjustment',
+		];
+		$parts = [];
+		foreach ($changes as $change) {
+			$delta = $change->getNewValue() - $change->getOldValue();
+			$parts[] = ($labels[$change->getField()] ?? $change->getField())
+				. ' ' . ($delta > 0 ? '+' : '−') . $this->days(abs($delta));
+		}
+		return implode(', ', $parts);
+	}
+
+	/** A day count without a trailing `.0`. */
+	private function days(float $value): string {
+		return rtrim(rtrim(number_format($value, 1, '.', ''), '0'), '.');
 	}
 
 	/**

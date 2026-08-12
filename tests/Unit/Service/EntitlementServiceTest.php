@@ -9,6 +9,8 @@ declare(strict_types=1);
 namespace OCA\Absence\Tests\Unit\Service;
 
 use OCA\Absence\Db\Entitlement;
+use OCA\Absence\Db\EntitlementEvent;
+use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
@@ -29,6 +31,7 @@ class EntitlementServiceTest extends TestCase {
 	use ClockMockTrait;
 
 	private EntitlementMapper&MockObject $entitlementMapper;
+	private EntitlementEventMapper&MockObject $eventMapper;
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
 	private BalanceService&MockObject $balanceService;
 	private ConfigService&MockObject $config;
@@ -40,8 +43,11 @@ class EntitlementServiceTest extends TestCase {
 		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$this->balanceService = $this->createMock(BalanceService::class);
 		$this->config = $this->createMock(ConfigService::class);
+		$this->eventMapper = $this->createMock(EntitlementEventMapper::class);
+		$this->eventMapper->method('insert')->willReturnArgument(0);
 		$this->service = new EntitlementService(
 			$this->entitlementMapper,
+			$this->eventMapper,
 			$this->leaveTypeMapper,
 			$this->balanceService,
 			$this->config,
@@ -132,6 +138,44 @@ class EntitlementServiceTest extends TestCase {
 		$this->assertNotNull($updated);
 		$this->assertSame(30.0, $updated->getBaseDays());
 		$this->assertSame(10.0, $updated->getCarryOverDays());
+	}
+
+	/**
+	 * The complaint this history exists for: HR is required to write a reason when
+	 * adjusting, and it used to be stored on the row and shown to nobody.
+	 */
+	public function testAdjustingRecordsTheChangeWithItsNote(): void {
+		$ent = $this->priorEntitlement(28.0);
+		$ent->setManualAdjustment(0.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+		$this->entitlementMapper->method('update')->willReturnArgument(0);
+
+		$recorded = [];
+		$this->eventMapper->method('insert')->willReturnCallback(static function (EntitlementEvent $e) use (&$recorded) {
+			$recorded[] = $e;
+			return $e;
+		});
+
+		$this->service->update('hr', 1, ['manualAdjustment' => 2.0, 'adjustmentNote' => 'Wedding']);
+
+		self::assertCount(1, $recorded, 'only the figure that moved is recorded');
+		self::assertSame(EntitlementEvent::FIELD_MANUAL_ADJUSTMENT, $recorded[0]->getField());
+		self::assertSame(0.0, $recorded[0]->getOldValue());
+		self::assertSame(2.0, $recorded[0]->getNewValue());
+		self::assertSame('Wedding', $recorded[0]->getNote());
+		self::assertSame('hr', $recorded[0]->getActorUid());
+		self::assertSame('bob', $recorded[0]->getEmployeeUid());
+	}
+
+	public function testSavingWithoutChangingAnythingRecordsNothing(): void {
+		$ent = $this->priorEntitlement(28.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+		$this->entitlementMapper->method('update')->willReturnArgument(0);
+
+		// Re-saving the same figures is not a change and must not litter the history.
+		$this->eventMapper->expects(self::never())->method('insert');
+
+		$this->service->update('hr', 1, ['baseDays' => 28.0]);
 	}
 
 	/**

@@ -64,9 +64,12 @@ class UserDeletedListener implements IEventListener {
 		}
 		$this->deleteWhereEquals('absence_comments', 'author_uid', $uid);
 
-		// Remove the user's requests and entitlements.
+		// Remove the user's requests and entitlements, and the record of who changed
+		// those entitlements — it names the employee and is about their allowance, so
+		// it goes with them (§17).
 		$this->deleteWhereEquals('absence_requests', 'employee_uid', $uid);
 		$this->deleteWhereEquals('absence_entitlements', 'employee_uid', $uid);
+		$this->deleteWhereEquals('absence_entitlement_events', 'employee_uid', $uid);
 
 		// Detach the user as a manager or replacement from any remaining requests.
 		foreach (['manager_uid', 'replacement_uid'] as $column) {
