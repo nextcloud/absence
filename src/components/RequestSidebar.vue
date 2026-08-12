@@ -39,6 +39,27 @@
 					<dd>{{ rangeLabel }}</dd>
 					<dt>{{ t('absence', 'Working days') }}</dt>
 					<dd>{{ detail.workingDays }}</dd>
+					<!-- What this absence leaves them with, so nobody has to go to the
+					     Balances report to find out. Absent for leave that counts against
+					     nothing, where "left" has no answer. -->
+					<template v-if="detail.balance">
+						<dt>{{ t('absence', 'Balance {year}', { year: detail.balance.year }) }}</dt>
+						<dd class="facts__balance">
+							<strong>{{ t('absence', '{days} left', { days: fmtDays(detail.balance.remaining) }) }}</strong>
+							<span class="facts__muted">
+								{{ t('absence', 'of {total} · {used} taken', {
+									total: fmtDays(detail.balance.entitlement),
+									used: fmtDays(detail.balance.used),
+								}) }}
+							</span>
+							<span v-if="detail.balance.pending > 0" class="facts__muted">
+								{{ t('absence', '{days} awaiting a decision, leaving {available} free to book', {
+									days: fmtDays(detail.balance.pending),
+									available: fmtDays(detail.balance.available),
+								}) }}
+							</span>
+						</dd>
+					</template>
 					<template v-if="detail.replacementUid">
 						<dt>{{ t('absence', 'Replacement') }}</dt>
 						<dd class="facts__decided">
@@ -449,6 +470,17 @@ export default {
 			}
 		},
 
+		/**
+		 * A day count without a trailing `.0`, so "22 days" not "22.0 days".
+		 *
+		 * @param {number} value day count
+		 * @return {string}
+		 */
+		fmtDays(value) {
+			const days = Math.round((Number(value) || 0) * 10) / 10
+			return n('absence', '%n day', '%n days', days)
+		},
+
 		startReject() {
 			this.rejecting = true
 		},
@@ -539,6 +571,14 @@ export default {
 	&__muted {
 		color: var(--color-text-maxcontrast);
 		font-weight: 400;
+	}
+
+	// The balance is three facts, not one sentence: stack them so the headline
+	// number stays the thing the eye lands on.
+	&__balance {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
 	}
 }
 

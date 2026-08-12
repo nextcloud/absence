@@ -17,6 +17,7 @@ use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
+use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
@@ -47,6 +48,7 @@ class RequestServiceTest extends TestCase {
 	private ManagerResolver&MockObject $managerResolver;
 	private PermissionService&MockObject $permission;
 	private CoverageService&MockObject $coverage;
+	private BalanceService&MockObject $balances;
 	private NoticeService&MockObject $notice;
 	private CalendarService&MockObject $calendar;
 	private NotificationService&MockObject $notifications;
@@ -69,6 +71,8 @@ class RequestServiceTest extends TestCase {
 		$this->managerResolver = $this->createMock(ManagerResolver::class);
 		$this->permission = $this->createMock(PermissionService::class);
 		$this->coverage = $this->createMock(CoverageService::class);
+		$this->balances = $this->createMock(BalanceService::class);
+		$this->balances->method('getBalance')->willReturn(['balances' => []]);
 		$this->notice = $this->createMock(NoticeService::class);
 		$this->calendar = $this->createMock(CalendarService::class);
 		$this->notifications = $this->createMock(NotificationService::class);
@@ -82,6 +86,17 @@ class RequestServiceTest extends TestCase {
 		);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->rebuildService();
+	}
+
+	/**
+	 * Rebuild the service against the current mocks.
+	 *
+	 * Called from setUp(), and again by any test that needs to reprogram a
+	 * collaborator with expects() — those cannot be layered onto a mock the
+	 * constructor has already been handed.
+	 */
+	private function rebuildService(): void {
 		$this->service = new RequestService(
 			$this->requestMapper,
 			$this->commentMapper,
@@ -91,6 +106,7 @@ class RequestServiceTest extends TestCase {
 			$this->permission,
 			$this->clockAtRealTime(),
 			$this->coverage,
+			$this->balances,
 			$this->notice,
 			$this->calendar,
 			$this->notifications,
@@ -170,6 +186,64 @@ class RequestServiceTest extends TestCase {
 			'workingDays' => 1.0,
 			'replacementUid' => 'ext',
 		]);
+	}
+
+	public function testDetailCarriesTheEmployeeBalanceForTheYearTheLeaveStartsIn(): void {
+		// Seeing that somebody took three days says nothing about whether they have
+		// any left; the detail view is where that question gets answered now.
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canViewBalanceOf')->with('hr', 'emp')->willReturn(true);
+		$this->commentMapper->method('findForRequest')->willReturn([]);
+		$this->eventMapper->method('findForRequest')->willReturn([]);
+
+		// The request starts in 2026, so 2026's allowance is the relevant one.
+		$this->balances = $this->createMock(BalanceService::class);
+		$this->balances->expects(self::once())->method('getBalance')->with('emp', 2026)
+			->willReturn(['balances' => [
+				['typeId' => 9, 'entitlement' => 10.0, 'used' => 1.0, 'pending' => 0.0, 'remaining' => 9.0, 'available' => 9.0],
+				['typeId' => 1, 'entitlement' => 28.0, 'used' => 6.0, 'pending' => 3.0, 'remaining' => 22.0, 'available' => 19.0],
+			]]);
+		$this->rebuildService();
+
+		$detail = $this->service->getDetail('hr', 5);
+
+		self::assertSame(2026, $detail['balance']['year']);
+		self::assertSame(22.0, $detail['balance']['remaining']);
+		self::assertSame(19.0, $detail['balance']['available']);
+	}
+
+	public function testDetailWithholdsTheBalanceFromSomeoneWhoMayNotSeeIt(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		// A colleague may read the request without being entitled to the allowance.
+		$this->permission->method('canViewBalanceOf')->willReturn(false);
+		$this->commentMapper->method('findForRequest')->willReturn([]);
+		$this->eventMapper->method('findForRequest')->willReturn([]);
+
+		$this->balances->expects(self::never())->method('getBalance');
+
+		self::assertArrayNotHasKey('balance', $this->service->getDetail('peer', 5));
+	}
+
+	public function testDetailHasNoBalanceForLeaveThatCountsAgainstNothing(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canViewBalanceOf')->willReturn(true);
+		$this->commentMapper->method('findForRequest')->willReturn([]);
+		$this->eventMapper->method('findForRequest')->willReturn([]);
+
+		// Unpaid and special leave have no ceiling, so "how many are left" has no answer.
+		$this->balances = $this->createMock(BalanceService::class);
+		$this->balances->method('getBalance')->willReturn(['balances' => [
+			['typeId' => 1, 'entitlement' => null, 'used' => 2.0, 'pending' => 0.0, 'remaining' => null, 'available' => null],
+		]]);
+		$this->rebuildService();
+
+		self::assertNull($this->service->getDetail('hr', 5)['balance']);
 	}
 
 	public function testApplyingForOwnLeaveStillDemandsAReplacement(): void {
