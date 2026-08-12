@@ -515,7 +515,14 @@ class RequestService {
 			$request->setReason($data['reason']);
 		}
 		if (array_key_exists('replacementUid', $data)) {
-			$type = $this->leaveTypeMapper->find($request->getTypeId());
+			// Not resolveType(): that also rejects a disabled type, and HR must stay able
+			// to correct a historical request whose type has since been retired. Only the
+			// type's replacement rule is wanted here.
+			try {
+				$type = $this->leaveTypeMapper->find($request->getTypeId());
+			} catch (DoesNotExistException) {
+				throw new ValidationException('This request refers to a leave type that no longer exists.');
+			}
 			$request->setReplacementUid($this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid']));
 		}
 		// HR may correct the working-day count (§5.5); otherwise it is kept as entered.
@@ -570,6 +577,14 @@ class RequestService {
 			if ($isHrOverride) {
 				return $this->transitionToCancelled($actorUid, $request);
 			}
+			// Not while an edit of this leave is awaiting a decision (§5.3). The edit
+			// excludes the original from its overlap check as part of the supersedes
+			// chain, and retireSuperseded() only retires an original that is still
+			// APPROVED — so moving this one to WITHDRAWAL_PENDING first and then
+			// approving the edit would leave both in force, the same leave counted
+			// twice, and a declined withdrawal would put two overlapping approved
+			// requests on the same dates. Cancel the edit first, then withdraw.
+			$this->assertNoPendingEdit($request);
 			// Employee: approved leave requires a withdrawal approval step.
 			$request = $this->atomic(function () use ($request): LeaveRequest {
 				$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
@@ -652,6 +667,11 @@ class RequestService {
 			// Calendar work follows the commit; see the class docblock.
 			if ($retired !== null) {
 				$this->calendar->onRemoved($retired);
+				// The retired request is closed now, so any decision it was still
+				// waiting on is moot — a withdrawal request against it above all,
+				// which would otherwise sit in the manager's notifications offering
+				// to withdraw leave that no longer exists.
+				$this->notifications->dismiss($retired);
 				// retireSuperseded() cancels the original with a direct write, so it
 				// never passes through transitionToCancelled() where the replacement
 				// would normally be released. Whoever covered the *old* version and is
@@ -856,7 +876,16 @@ class RequestService {
 		} catch (DoesNotExistException) {
 			return null;
 		}
-		if ($original->getStatus() !== LeaveRequest::STATUS_APPROVED) {
+		// WITHDRAWAL_PENDING counts as still in force, not just APPROVED: it is approved
+		// leave awaiting a decision on withdrawing it, so it still occupies the dates and
+		// still counts against the balance. Leaving it standing here is what let an
+		// approved edit and its original both be counted. cancel() now refuses to start
+		// a withdrawal while an edit is pending, so this pair can no longer be created —
+		// but rows that predate that guard still have to retire cleanly.
+		if (!in_array($original->getStatus(), [
+			LeaveRequest::STATUS_APPROVED,
+			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
+		], true)) {
 			return null;
 		}
 		$now = $this->clock->now();

@@ -378,6 +378,14 @@ HR can change it via the HR edit path.
 - **Approved request — withdraw:** employee requests withdrawal → status
   `WITHDRAWAL_PENDING`; manager/HR must approve the withdrawal. On approval →
   `CANCELLED` (balance restored); on rejection → back to `APPROVED`.
+  **Not while an edit is in flight** (409, same rule as above and for the same
+  reason): the edit excludes the original from its overlap check as part of the
+  supersedes chain, so an original sitting in `WITHDRAWAL_PENDING` when the edit is
+  approved would leave both in force — the same leave counted twice, and a declined
+  withdrawal would put two overlapping `APPROVED` requests on the same dates. Cancel
+  the edit first, then withdraw. Correspondingly, retiring a superseded request
+  treats `WITHDRAWAL_PENDING` as still in force, so rows written before this rule
+  still retire cleanly.
 - **Cancellation of any non-terminal request** restores pending/used balance.
 
 ### 5.4 Escalation (manager non-response)
