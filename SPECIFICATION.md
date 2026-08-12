@@ -750,6 +750,12 @@ the SPA). All list endpoints paginate and accept filters.
 **HR reporting**
 - `GET  /api/reports/balances` — balances report (filters).
 - `GET  /api/reports/trends` — aggregated stats for charts.
+- `GET  /api/reports/sick-leave` — sick-leave overview, every employee ranked by days
+  lost. Counts the leave type keyed `sick` by default; `typeId` counts another type
+  instead, which the *Sick leave* view exposes as a type picker. The response carries
+  the types it aggregated, so the page can name what it is counting rather than
+  implying "sickness" is a fixed concept — and can say so plainly when an instance has
+  no matching type instead of showing a table of zeroes.
 - `GET  /api/export/requests.csv|.xlsx`, `GET /api/export/balances.csv|.xlsx`.
 
 All write endpoints require CSRF protection (default AppFramework) and validate role

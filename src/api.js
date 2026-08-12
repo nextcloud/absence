@@ -50,7 +50,9 @@ export default {
 	// Reports & export
 	reportBalances: (year, group) => axios.get(url('/api/reports/balances'), { params: { year, group } }).then((r) => r.data),
 	reportTrends: (from, to) => axios.get(url('/api/reports/trends'), { params: { from, to } }).then((r) => r.data),
-	reportSickLeave: (year, group) => axios.get(url('/api/reports/sick-leave'), { params: { year, group } }).then((r) => r.data),
+	// `typeId` overrides which leave type is counted; omitted, the server falls
+	// back to the type keyed "sick".
+	reportSickLeave: (year, group, typeId) => axios.get(url('/api/reports/sick-leave'), { params: { year, group, typeId } }).then((r) => r.data),
 	exportRequestsUrl: (from, to) => url(`/api/export/requests?from=${from}&to=${to}`),
 	exportBalancesUrl: (year) => url(`/api/export/balances?year=${year}`),
 }
