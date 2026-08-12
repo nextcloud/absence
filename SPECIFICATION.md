@@ -240,12 +240,38 @@ happened and when. One row is written for every meaningful transition.
 | `request_id` | bigint FK, indexed | The request this event belongs to. |
 | `actor_uid` | string(64) | Who performed the action; the literal `system` for automated events (e.g. escalation). |
 | `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`. |
-| `detail` | text, nullable | Human-readable extra (decision comment, new date range, comment body, "auto-approved", …). |
+| `detail` | text, nullable | Human-readable extra. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`. Recording only the resulting state cannot answer what anybody opens the history to ask — what changed and by how much — and a day count means nothing without the number it replaced. On creation it carries the type, dates, day count and the employee's reason, since the request itself only ever shows its *current* state. |
 | `created_at` | datetime | |
 
 Events are written by the same `audit()` path that emits the server-log entry (§11),
 so history, server log and activity stay in sync from a single call site. History
 writes are best-effort — a failure never blocks the workflow.
+
+### 3.7b `absence_entitlement_events` (entitlement history)
+
+The same idea for entitlements, which had no timeline at all: §3.7 is keyed on
+`request_id`, and an entitlement belongs to no request, so an adjustment left only a
+server-log line and an activity entry reading "Leave balance of X was adjusted" —
+with neither the amount nor the reason. Worse, the note HR is *required* to give
+when adjusting was stored on the entitlement row, displayed nowhere, and overwritten
+by the next adjustment.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | bigint, PK | |
+| `entitlement_id` | bigint, indexed | The entitlement this change belongs to. |
+| `employee_uid` | string(64), indexed | Denormalised from the entitlement so the GDPR purge (§17) and per-person views need no join to a row that is about to be deleted. |
+| `actor_uid` | string(64) | Who made the change. |
+| `field` | string(32) | `base_days`, `carry_over_days` or `manual_adjustment`. |
+| `old_value` / `new_value` | float | The figure before and after; the delta is derived. |
+| `note` | text, nullable | The reason given, attached to every figure that save touched. |
+| `created_at` | datetime | |
+
+**One row per changed figure, not per save,** so "+2 days for the wedding" reads on
+its own. A save that moves nothing writes nothing. Surfaced in the entitlement
+editor in HR → Balances, and carried into the activity entry so it says what
+changed rather than only that something did. Best-effort, like §3.7: an unwritable
+history must not cost HR the adjustment they just made.
 
 ### 3.8 Attachments (optional, phase 2)
 
@@ -745,6 +771,10 @@ the SPA). All list endpoints paginate and accept filters.
 - `GET  /api/employees/{uid}/balance` — manager (reports) / HR only.
 - `GET  /api/entitlements` / `PUT /api/entitlements/{id}` — HR manage.
 - `POST /api/entitlements/bulk` — HR bulk set.
+- `GET  /api/entitlements/{id}/history` — HR only: who changed which figure on an
+  entitlement, from what to what, and the note they gave. One row per figure per
+  save, so a single adjustment reads on its own rather than having to be diffed
+  out of a blob.
 
 **Coverage & calendar**
 - `GET  /api/coverage?from&to&scope=team|company` — overlaps + conflict count (§8).

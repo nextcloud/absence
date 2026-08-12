@@ -361,17 +361,115 @@ class RequestService {
 	}
 
 	private function createdDetail(LeaveRequest $request, LeaveType $type, bool $onBehalf): ?string {
-		if (!$type->getEmployeeRequestable()) {
-			return 'Recorded by HR';
+		// Lead with what was actually asked for. The history is the one place the
+		// original ask survives: the request itself only ever shows its *current*
+		// state, so once HR corrects the dates or the reason, nothing else can say
+		// what the leave was booked for in the first place.
+		$parts = [$type->getLabel() . ', ' . $this->describeRange($request) . ' (' . $this->days($request->getWorkingDays()) . ')'];
+		$reason = trim((string)$request->getReason());
+		if ($reason !== '') {
+			$parts[] = 'Reason: ' . $this->quote($reason);
 		}
-		if ($onBehalf) {
-			return 'Recorded by HR on behalf';
-		}
-		return match ($request->getStatus()) {
-			LeaveRequest::STATUS_APPROVED => 'Automatically approved',
-			LeaveRequest::STATUS_ESCALATED => 'No line manager — routed to HR',
+		$how = match (true) {
+			!$type->getEmployeeRequestable() => 'Recorded by HR',
+			$onBehalf => 'Recorded by HR on behalf',
+			$request->getStatus() === LeaveRequest::STATUS_APPROVED => 'Automatically approved',
+			$request->getStatus() === LeaveRequest::STATUS_ESCALATED => 'No line manager — routed to HR',
 			default => null,
 		};
+		if ($how !== null) {
+			$parts[] = $how;
+		}
+		return implode(' · ', $parts);
+	}
+
+	/**
+	 * The fields an edit may change, captured before it does.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function snapshot(LeaveRequest $request): array {
+		return [
+			'typeId' => $request->getTypeId(),
+			'startDate' => $request->getStartDate(),
+			'endDate' => $request->getEndDate(),
+			'workingDays' => $request->getWorkingDays(),
+			'reason' => (string)$request->getReason(),
+			'replacementUid' => (string)$request->getReplacementUid(),
+		];
+	}
+
+	/**
+	 * What actually changed, field by field, as a sentence for the history timeline.
+	 *
+	 * Recording the resulting state instead — "adjusted to 2 – 6 March (5 days)" —
+	 * is what the timeline used to do, and it cannot answer the question anybody
+	 * opens the history to ask: not what the request says now (the request itself
+	 * says that), but what somebody changed and by how much. A day count especially
+	 * means nothing without the number it replaced.
+	 *
+	 * @param array<string,mixed> $before from {@see snapshot()}
+	 * @return ?string null when nothing observable changed
+	 */
+	private function describeChanges(array $before, LeaveRequest $after): ?string {
+		$parts = [];
+		if ($before['typeId'] !== $after->getTypeId()) {
+			$parts[] = 'Type ' . $this->typeLabel((int)$before['typeId']) . ' → ' . $this->typeLabel($after->getTypeId());
+		}
+		if ($before['startDate'] !== $after->getStartDate() || $before['endDate'] !== $after->getEndDate()) {
+			$parts[] = 'Dates ' . $this->range((string)$before['startDate'], (string)$before['endDate'])
+				. ' → ' . $this->describeRange($after);
+		}
+		$wasDays = (float)$before['workingDays'];
+		$nowDays = $after->getWorkingDays();
+		if (abs($wasDays - $nowDays) > 0.001) {
+			$delta = $nowDays - $wasDays;
+			$parts[] = 'Working days ' . $this->days($wasDays) . ' → ' . $this->days($nowDays)
+				. ' (' . ($delta > 0 ? '+' : '−') . $this->days(abs($delta)) . ')';
+		}
+		$wasReason = trim((string)$before['reason']);
+		$nowReason = trim((string)$after->getReason());
+		if ($wasReason !== $nowReason) {
+			$parts[] = $nowReason === ''
+				? 'Reason cleared'
+				: ($wasReason === '' ? 'Reason: ' . $this->quote($nowReason)
+					: 'Reason ' . $this->quote($wasReason) . ' → ' . $this->quote($nowReason));
+		}
+		$wasRep = (string)$before['replacementUid'];
+		$nowRep = (string)$after->getReplacementUid();
+		if ($wasRep !== $nowRep) {
+			$parts[] = $nowRep === ''
+				? 'Replacement removed (' . $this->displayName($wasRep) . ')'
+				: ($wasRep === '' ? 'Replacement: ' . $this->displayName($nowRep)
+					: 'Replacement ' . $this->displayName($wasRep) . ' → ' . $this->displayName($nowRep));
+		}
+		return $parts === [] ? null : implode('; ', $parts);
+	}
+
+	private function describeRange(LeaveRequest $request): string {
+		return $this->range($request->getStartDate(), $request->getEndDate());
+	}
+
+	private function range(string $start, string $end): string {
+		return $start === $end ? $start : $start . ' – ' . $end;
+	}
+
+	/** A day count without a trailing `.0`, so "5 days" rather than "5.0 days". */
+	private function days(float $value): string {
+		$formatted = rtrim(rtrim(number_format($value, 1, '.', ''), '0'), '.');
+		return $formatted . ($formatted === '1' ? ' day' : ' days');
+	}
+
+	private function quote(string $text): string {
+		return '“' . $text . '”';
+	}
+
+	private function typeLabel(int $typeId): string {
+		try {
+			return $this->leaveTypeMapper->find($typeId)->getLabel();
+		} catch (DoesNotExistException) {
+			return 'type #' . $typeId;
+		}
 	}
 
 	// ---------------------------------------------------------------- edit ----
@@ -414,6 +512,9 @@ class RequestService {
 
 		$replacementUid = $this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'] ?? $request->getReplacementUid());
 
+		// Captured before the entity is mutated below — afterwards the old values are gone.
+		$before = $this->snapshot($request);
+
 		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use (
 			$request, $type, $start, $end, $replacementUid, $data,
 		): LeaveRequest {
@@ -440,7 +541,7 @@ class RequestService {
 		} elseif ($request->getManagerUid() !== null) {
 			$this->notifications->notifyNewRequest($request, $request->getManagerUid());
 		}
-		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => 'Changed to ' . $request->getStartDate() . ' – ' . $request->getEndDate()]);
+		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)]);
 		return $request;
 	}
 
@@ -499,6 +600,8 @@ class RequestService {
 
 	private function hrEdit(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
 		$wasApproved = $request->getStatus() === LeaveRequest::STATUS_APPROVED;
+		// Before the setters below overwrite them; the history reports the difference.
+		$before = $this->snapshot($request);
 		if (isset($data['typeId'])) {
 			$request->setTypeId($this->resolveType((int)$data['typeId'])->getId());
 		}
@@ -544,7 +647,7 @@ class RequestService {
 			$this->applyCalendar($request);
 		}
 		$this->activity->publish(ActivityPublisher::SUBJECT_CREATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
-		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => 'HR adjusted to ' . $request->getStartDate() . ' – ' . $request->getEndDate() . ' (' . (string)$request->getWorkingDays() . ' days)']);
+		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)]);
 		return $request;
 	}
 
