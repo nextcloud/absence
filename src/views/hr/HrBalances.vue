@@ -136,8 +136,17 @@
 				<h3>{{ editing.displayName }} · {{ editing.typeLabel }} · {{ year }}</h3>
 				<label>{{ t('absence', 'Base days') }}</label>
 				<NcTextField v-model="form.baseDays" type="number" />
-				<label>{{ t('absence', 'Manual adjustment (+/−)') }}</label>
-				<NcTextField v-model="form.manualAdjustment" type="number" />
+				<label>{{ t('absence', 'Adjust by (+/−)') }}</label>
+				<NcTextField
+					v-model="form.adjustmentDelta"
+					type="number"
+					:placeholder="t('absence', 'e.g. 2 to add two days, -2 to take them back')" />
+				<!-- The running total, so it is clear the field above adds to this rather
+				     than replacing it — entering −2 to undo an earlier +2 used to set the
+				     total to −2 and take two days off the allowance instead. -->
+				<p class="edit__hint">
+					{{ t('absence', 'Adjustments so far: {total} · leaving the field empty changes nothing', { total: signed(currentAdjustment) }) }}
+				</p>
 				<label>{{ t('absence', 'Adjustment note') }}</label>
 				<NcTextField v-model="form.adjustmentNote" :placeholder="t('absence', 'Why is this being adjusted?')" />
 				<div class="edit__actions">
@@ -216,7 +225,8 @@ export default {
 			years: [y - 1, y, y + 1],
 			editing: null,
 			saving: false,
-			form: { baseDays: 0, manualAdjustment: 0, adjustmentNote: '' },
+			form: { baseDays: 0, adjustmentDelta: '', adjustmentNote: '' },
+			currentAdjustment: 0,
 			history: [],
 			historyLoading: false,
 		}
@@ -359,14 +369,17 @@ export default {
 			try {
 				const list = await api.listEntitlements(row.employeeUid, this.year)
 				const ent = list.find((e) => e.typeId === row.typeId)
+				this.currentAdjustment = ent ? ent.manualAdjustment : (row.manualAdjustment || 0)
 				this.form = {
 					baseDays: ent ? ent.baseDays : row.baseDays,
-					manualAdjustment: ent ? ent.manualAdjustment : 0,
+					// Always empty: this field is the correction to apply, not the total.
+					adjustmentDelta: '',
 					adjustmentNote: '',
 					entitlementId: ent ? ent.id : row.entitlementId,
 				}
 			} catch {
-				this.form = { baseDays: row.baseDays, manualAdjustment: 0, adjustmentNote: '', entitlementId: row.entitlementId }
+				this.currentAdjustment = row.manualAdjustment || 0
+				this.form = { baseDays: row.baseDays, adjustmentDelta: '', adjustmentNote: '', entitlementId: row.entitlementId }
 			}
 			await this.loadHistory()
 		},
@@ -392,6 +405,17 @@ export default {
 			}
 		},
 
+		/**
+		 * A signed day count, so "+2" and "−2" read as corrections rather than totals.
+		 *
+		 * @param {number} value the accumulated adjustment
+		 * @return {string}
+		 */
+		signed(value) {
+			const n = Number(value) || 0
+			return (n > 0 ? '+' : n < 0 ? '−' : '') + this.fmt(Math.abs(n))
+		},
+
 		fieldLabel(field) {
 			return {
 				base_days: t('absence', 'Base days'),
@@ -407,10 +431,15 @@ export default {
 		async save() {
 			this.saving = true
 			try {
+				const delta = Number(this.form.adjustmentDelta)
 				const data = {
 					baseDays: Number(this.form.baseDays),
-					manualAdjustment: Number(this.form.manualAdjustment),
 					adjustmentNote: this.form.adjustmentNote,
+				}
+				// Omitted entirely when blank, so saving a base-days change on its own
+				// never touches the accumulated adjustment.
+				if (this.form.adjustmentDelta !== '' && !Number.isNaN(delta)) {
+					data.adjustmentDelta = delta
 				}
 				if (this.form.entitlementId) {
 					await api.updateEntitlement(this.form.entitlementId, data)
@@ -474,6 +503,12 @@ td.low {
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 8px;
+	}
+
+	&__hint {
+		margin: -4px 0 0;
+		font-size: 0.85rem;
+		color: var(--color-text-maxcontrast);
 	}
 }
 

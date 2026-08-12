@@ -45,13 +45,26 @@ class EntitlementService {
 	/**
 	 * Update an entitlement row (HR). Manual adjustments require a note (§6.1).
 	 *
-	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentNote?:string} $data
+	 * Two ways to move the manual adjustment, and the difference matters:
+	 *
+	 *  - `adjustmentDelta` **adds to** what is already there. This is how corrections
+	 *    are actually made — "+2 for the wedding", later "−2, booked in error" — and
+	 *    the two must cancel to nothing.
+	 *  - `manualAdjustment` **sets** the running total outright, for the rare case of
+	 *    overwriting it wholesale.
+	 *
+	 * Sending both is refused rather than guessed at.
+	 *
+	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentDelta?:float,adjustmentNote?:string} $data
 	 */
 	public function update(string $actorUid, int $id, array $data): Entitlement {
 		try {
 			$ent = $this->entitlementMapper->find($id);
 		} catch (DoesNotExistException) {
 			throw new NotFoundException('Entitlement not found');
+		}
+		if (array_key_exists('adjustmentDelta', $data) && array_key_exists('manualAdjustment', $data)) {
+			throw new ValidationException('Send either an adjustment to apply or an absolute adjustment, not both.');
 		}
 		// Read before any setter runs: these are what the history reports moving from.
 		$before = [
@@ -67,7 +80,21 @@ class EntitlementService {
 		if (array_key_exists('carryOverDays', $data)) {
 			$ent->setCarryOverDays((float)$data['carryOverDays']);
 		}
-		if (array_key_exists('manualAdjustment', $data)) {
+		if (array_key_exists('adjustmentDelta', $data)) {
+			// A correction on top of whatever corrections came before, so "+2" and a
+			// later "−2" cancel and the allowance returns to where it started.
+			// Assigning here instead — which is what the absolute branch below does —
+			// made the second correction *replace* the first: 25 → +2 → 27, then a
+			// −2 correction landed on 23 rather than back on 25.
+			$delta = (float)$data['adjustmentDelta'];
+			if (abs($delta) > 0.001) {
+				if ($note === '') {
+					throw new ValidationException('A note is required when adjusting an entitlement.');
+				}
+				$ent->setManualAdjustment($ent->getManualAdjustment() + $delta);
+				$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
+			}
+		} elseif (array_key_exists('manualAdjustment', $data)) {
 			$adjustment = (float)$data['manualAdjustment'];
 			if ($adjustment !== $ent->getManualAdjustment() && $note === '') {
 				throw new ValidationException('A note is required when adjusting an entitlement.');

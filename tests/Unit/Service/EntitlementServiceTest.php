@@ -167,6 +167,49 @@ class EntitlementServiceTest extends TestCase {
 		self::assertSame('bob', $recorded[0]->getEmployeeUid());
 	}
 
+	/**
+	 * The reported bug, in full. 25 days, "+2 wedding", then "−2 booked in error"
+	 * has to land back on 25 — it landed on 23, because the second correction
+	 * *replaced* the first instead of adding to it.
+	 */
+	public function testTwoOppositeCorrectionsCancelOut(): void {
+		$ent = $this->priorEntitlement(25.0);
+		$ent->setManualAdjustment(0.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+		$this->entitlementMapper->method('update')->willReturnArgument(0);
+
+		$after = $this->service->update('hr', 1, ['adjustmentDelta' => 2.0, 'adjustmentNote' => 'Wedding']);
+		self::assertSame(2.0, $after->getManualAdjustment());
+		self::assertSame(27.0, $after->getEntitlement());
+
+		$after = $this->service->update('hr', 1, ['adjustmentDelta' => -2.0, 'adjustmentNote' => 'Booked in error']);
+		self::assertSame(0.0, $after->getManualAdjustment(), 'the two corrections must cancel');
+		self::assertSame(25.0, $after->getEntitlement(), 'the allowance returns to where it started');
+	}
+
+	public function testAbsoluteAdjustmentStillSetsTheTotalOutright(): void {
+		$ent = $this->priorEntitlement(25.0);
+		$ent->setManualAdjustment(2.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+		$this->entitlementMapper->method('update')->willReturnArgument(0);
+
+		// The other half of the contract: manualAdjustment overwrites rather than adds.
+		$after = $this->service->update('hr', 1, ['manualAdjustment' => 5.0, 'adjustmentNote' => 'Recount']);
+		self::assertSame(5.0, $after->getManualAdjustment());
+	}
+
+	public function testSendingBothAdjustmentFormsIsRefused(): void {
+		$ent = $this->priorEntitlement(25.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+
+		$this->expectException(ValidationException::class);
+		$this->service->update('hr', 1, [
+			'adjustmentDelta' => 2.0,
+			'manualAdjustment' => 5.0,
+			'adjustmentNote' => 'Ambiguous',
+		]);
+	}
+
 	public function testSavingWithoutChangingAnythingRecordsNothing(): void {
 		$ent = $this->priorEntitlement(28.0);
 		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
