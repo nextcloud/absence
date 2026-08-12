@@ -253,20 +253,6 @@ class BalanceService {
 	}
 
 	/**
-	 * The available balance for a single counting type in a year — used by the
-	 * create flow to warn about (not block) negative balances.
-	 */
-	public function availableFor(string $employeeUid, int $typeId, int $year): ?float {
-		$type = null;
-		foreach ($this->getBalance($employeeUid, $year)['balances'] as $row) {
-			if ($row['typeId'] === $typeId) {
-				return $row['available'];
-			}
-		}
-		return null;
-	}
-
-	/**
 	 * Ensure an entitlement row exists for (employee, year, type); creates one from
 	 * the configured default when missing. Returns the row.
 	 */
