@@ -55,8 +55,8 @@ class ConfigLexicon implements ILexicon {
 		return [
 			new Entry(self::KEY_HR_GROUP, ValueType::STRING, 'hr',
 				'Group whose members have the HR role'),
-			new Entry(self::KEY_DEFAULT_ENTITLEMENT, ValueType::FLOAT, 25.0,
-				'Default annual-leave entitlement in working days'),
+			new Entry(self::KEY_DEFAULT_ENTITLEMENT, ValueType::FLOAT, 28.0,
+				'Default annual-leave entitlement in working days (a full-time year)'),
 			new Entry(self::KEY_ESCALATION_WINDOW, ValueType::INT, 3,
 				'Days before an unanswered pending request is escalated to HR', lazy: true),
 			new Entry(self::KEY_REMINDER_LEAD, ValueType::INT, 1,

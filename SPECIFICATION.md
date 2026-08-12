@@ -663,7 +663,7 @@ new "Absence" settings section or "Personal info"/"Administration"):
 | Setting | Default | Notes |
 |---------|---------|-------|
 | HR group id | `hr` | Which NC group is HR (§2). |
-| Default annual entitlement (days) | 25 | Seed for new entitlement rows. |
+| Default annual entitlement (days) | 28 | Seed for new entitlement rows. |
 | Escalation window | 3 working days | For EscalationJob (§5.4). |
 | Reminder lead time | 1 day before escalation | For ReminderJob. |
 | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |

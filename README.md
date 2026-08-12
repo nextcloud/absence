@@ -230,7 +230,7 @@ settings form, so there is no bespoke admin UI to learn.
 | Setting | Default | What it does |
 |---|---|---|
 | HR group | `hr` | Which Nextcloud group holds HR powers |
-| Default annual entitlement | 25 days | Seed for new entitlement rows |
+| Default annual entitlement | 28 days | Seed for new entitlement rows |
 | Escalation window | 3 working days | How long a manager may sit on a request before HR is pulled in |
 | Reminder lead time | 1 day | How long before escalation the manager is nudged |
 | Carry-over policy | `capped` | `none`, `unlimited` or `capped` |
