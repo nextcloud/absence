@@ -96,10 +96,7 @@ class EntitlementService {
 		if (!$this->employees->isEmployee($employeeUid)) {
 			throw new ValidationException('Unknown employee.');
 		}
-		$type = $this->leaveTypeMapper->find($typeId);
-		if (!$type->getCountsAgainstBalance()) {
-			throw new ValidationException('Entitlements only apply to leave types that count against the balance.');
-		}
+		$this->assertCountingType($typeId);
 		$ent = $this->balanceService->ensureEntitlement($employeeUid, $year, $typeId);
 		return $this->update($actorUid, $ent->getId(), $data);
 	}
@@ -111,10 +108,7 @@ class EntitlementService {
 	 * @return int number of employees affected
 	 */
 	public function bulkSet(int $year, int $typeId, float $baseDays, ?string $group): int {
-		$type = $this->leaveTypeMapper->find($typeId);
-		if (!$type->getCountsAgainstBalance()) {
-			throw new ValidationException('Entitlements only apply to leave types that count against the balance.');
-		}
+		$this->assertCountingType($typeId);
 		$count = 0;
 		foreach ($this->targetUids($group) as $uid) {
 			$ent = $this->balanceService->ensureEntitlement($uid, $year, $typeId);
@@ -230,6 +224,28 @@ class EntitlementService {
 			]);
 		}
 		return $affected;
+	}
+
+	/**
+	 * An entitlement is only meaningful for a type that counts against the balance,
+	 * and only for a type that exists.
+	 *
+	 * The mapper throws DoesNotExistException, which is not an AbsenceException, so
+	 * letting it out turns a stale type id — an HR form left open while somebody else
+	 * removed the type — into "An unexpected error occurred" and a 500 in the log,
+	 * rather than a 422 saying what was wrong.
+	 *
+	 * @throws ValidationException
+	 */
+	private function assertCountingType(int $typeId): void {
+		try {
+			$type = $this->leaveTypeMapper->find($typeId);
+		} catch (DoesNotExistException) {
+			throw new ValidationException('Unknown leave type.');
+		}
+		if (!$type->getCountsAgainstBalance()) {
+			throw new ValidationException('Entitlements only apply to leave types that count against the balance.');
+		}
 	}
 
 	/**

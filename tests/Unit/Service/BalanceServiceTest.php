@@ -142,6 +142,19 @@ class BalanceServiceTest extends TestCase {
 		$this->assertSame(25.0, $entitlement->getBaseDays());
 	}
 
+	public function testEnsureEntitlementRejectsAnUnknownLeaveType(): void {
+		// The type lookup runs inside the handler for the missing-entitlement case, so a
+		// DoesNotExistException raised there is not caught by it. It used to escape as a
+		// 500 instead of the 422 a stale type id deserves.
+		$this->entitlementMapper->method('findFor')->willThrowException(new DoesNotExistException(''));
+		$this->leaveTypeMapper->method('find')->with(99)->willThrowException(new DoesNotExistException(''));
+
+		$this->entitlementMapper->expects(self::never())->method('insert');
+
+		$this->expectException(\OCA\Absence\Exception\ValidationException::class);
+		$this->service->ensureEntitlement('alice', 2027, 99);
+	}
+
 	public function testEnsureEntitlementForOtherTypesStartsAtZero(): void {
 		$type = new LeaveType();
 		$type->setId(2);

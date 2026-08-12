@@ -246,6 +246,55 @@ class RequestServiceTest extends TestCase {
 		$this->service->update('emp', 5, ['startDate' => '2026-03-02', 'endDate' => '2026-03-04']);
 	}
 
+	public function testWithdrawalIsRefusedWhileAnEditIsPending(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$this->requestMapper->method('find')->with(5)->willReturn($original);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->willReturn(false);
+
+		// An edit of this approved leave is already awaiting a decision.
+		$pendingEdit = new LeaveRequest();
+		$pendingEdit->setId(6);
+		$pendingEdit->setSupersedesId(5);
+		$pendingEdit->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('findBySupersedesId')->with(5)->willReturn([$pendingEdit]);
+
+		// Moving the original to WITHDRAWAL_PENDING here used to be allowed. Approving
+		// the edit would then find the original no longer APPROVED, decline to retire
+		// it, and leave the same leave counted twice — as used by the edit and as
+		// pending by the original.
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->notifications->expects(self::never())->method('notifyWithdrawal');
+
+		$this->expectException(\OCA\Absence\Exception\ConflictException::class);
+		$this->service->cancel('emp', 5);
+	}
+
+	public function testApprovingAnEditRetiresAnOriginalAwaitingWithdrawal(): void {
+		// The pair the guard above now prevents can still exist in rows written before
+		// it, so approving the edit has to close the original rather than walk past it.
+		$edit = $this->pendingOwnRequest();
+		$edit->setId(6);
+		$edit->setSupersedesId(5);
+		$edit->setManagerUid('mgr');
+
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+
+		$this->requestMapper->method('find')->willReturnMap([[6, $edit], [5, $original]]);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+
+		$result = $this->service->approve('mgr', 6, null);
+
+		self::assertSame(LeaveRequest::STATUS_APPROVED, $result->getStatus());
+		self::assertSame(LeaveRequest::STATUS_CANCELLED, $original->getStatus(),
+			'the superseded original must not stay in force alongside the approved edit');
+	}
+
 	// ------------------------------------------------ atomicity and locking ----
 
 	public function testApprovingAnEditRetiresTheOriginalInOneTransaction(): void {

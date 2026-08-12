@@ -11,6 +11,7 @@ namespace OCA\Absence\Tests\Unit\Service;
 use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\EntitlementMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
@@ -28,6 +29,7 @@ class EntitlementServiceTest extends TestCase {
 	use ClockMockTrait;
 
 	private EntitlementMapper&MockObject $entitlementMapper;
+	private LeaveTypeMapper&MockObject $leaveTypeMapper;
 	private BalanceService&MockObject $balanceService;
 	private ConfigService&MockObject $config;
 	private EntitlementService $service;
@@ -35,11 +37,12 @@ class EntitlementServiceTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		$this->entitlementMapper = $this->createMock(EntitlementMapper::class);
+		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$this->balanceService = $this->createMock(BalanceService::class);
 		$this->config = $this->createMock(ConfigService::class);
 		$this->service = new EntitlementService(
 			$this->entitlementMapper,
-			$this->createMock(LeaveTypeMapper::class),
+			$this->leaveTypeMapper,
 			$this->balanceService,
 			$this->config,
 			$this->clockAtRealTime(),
@@ -129,5 +132,21 @@ class EntitlementServiceTest extends TestCase {
 		$this->assertNotNull($updated);
 		$this->assertSame(30.0, $updated->getBaseDays());
 		$this->assertSame(10.0, $updated->getCarryOverDays());
+	}
+
+	/**
+	 * Covers assertCountingType(), which setForEmployee() shares — an HR form left open
+	 * while somebody else removed the type used to answer with a 500, because
+	 * DoesNotExistException is not an AbsenceException and never reached the handler
+	 * that turns domain errors into a 422.
+	 */
+	public function testBulkSetRejectsAnUnknownLeaveType(): void {
+		$this->leaveTypeMapper->method('find')->with(99)
+			->willThrowException(new DoesNotExistException(''));
+
+		$this->entitlementMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->bulkSet(2026, 99, 28.0, null);
 	}
 }
