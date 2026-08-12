@@ -112,19 +112,33 @@ class RequestService {
 	}
 
 	/**
-	 * Validate the nominated replacement for a leave type that requires one (§5.1).
-	 * Returns the (trimmed) replacement uid, or null when not required.
+	 * Validate the nominated replacement (§5.1). Returns the trimmed uid, or null
+	 * when none was given and none is demanded.
 	 *
+	 * @param bool $required whether an absent replacement is an error for a type that
+	 *                       demands one. True on the self-service paths; false when HR
+	 *                       records or corrects somebody else's absence.
 	 * @throws ValidationException
 	 */
-	private function resolveReplacement(string $employeeUid, LeaveType $type, ?string $replacementUid): ?string {
-		if (!$type->getRequiresReplacement()) {
-			return $replacementUid !== null && trim($replacementUid) !== '' ? trim($replacementUid) : null;
-		}
-		$replacementUid = trim((string)$replacementUid);
+	private function resolveReplacement(string $employeeUid, LeaveType $type, ?string $replacementUid, bool $required = true): ?string {
+		$replacementUid = $replacementUid !== null ? trim($replacementUid) : '';
+
 		if ($replacementUid === '') {
-			throw new ValidationException('Please choose a replacement for this leave.');
+			// The mandatory-replacement rule is about somebody applying for their own
+			// leave: they know who can cover and are asked to arrange it before going.
+			// HR recording or correcting an absence for somebody else is stating a fact,
+			// often after the event, and cannot be expected to nominate cover on their
+			// behalf — so there the field is offered but never demanded.
+			if ($required && $type->getRequiresReplacement()) {
+				throw new ValidationException('Please choose a replacement for this leave.');
+			}
+			return null;
 		}
+
+		// Validated whether or not the type demands a replacement. Only the *demand*
+		// is conditional; who may be named is not, and skipping these when the type
+		// happened not to require one let a guest — or the employee themselves — be
+		// recorded as covering.
 		if ($replacementUid === $employeeUid) {
 			throw new ValidationException('You cannot be your own replacement.');
 		}
@@ -289,7 +303,8 @@ class RequestService {
 		$start = $this->normaliseDate((string)($data['startDate'] ?? ''));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? ''));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
-		$replacementUid = $this->resolveReplacement($employeeUid, $type, $data['replacementUid'] ?? null);
+		// Not demanded when HR is recording for somebody else — see resolveReplacement().
+		$replacementUid = $this->resolveReplacement($employeeUid, $type, $data['replacementUid'] ?? null, required: !$onBehalf);
 
 		// The employee enters the number of working days; the manager verifies it (§7).
 		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? null);
@@ -626,7 +641,7 @@ class RequestService {
 			} catch (DoesNotExistException) {
 				throw new ValidationException('This request refers to a leave type that no longer exists.');
 			}
-			$request->setReplacementUid($this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid']));
+			$request->setReplacementUid($this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'], required: false));
 		}
 		// HR may correct the working-day count (§5.5); otherwise it is kept as entered.
 		if (array_key_exists('workingDays', $data) && $data['workingDays'] !== null) {
