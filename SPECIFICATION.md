@@ -103,7 +103,14 @@ calendar forever, with an empty allowance and nothing to show.
   `GET /api/employees/search` rather than core's autocomplete, because only the
   server can tell a guest from a colleague. That endpoint wraps the same
   collaborator search, so the admin's user-enumeration settings still apply
-  exactly as elsewhere; guests are removed from what it returns.
+  exactly as elsewhere; guests are removed from what it returns. It does add one
+  person that search always withholds — **the searching user themselves**, whom the
+  collaborator search drops because it was built to answer "who can I share with".
+  Here the question is "whose absence is this?", and there you are a valid answer:
+  without it an HR member cannot record their own sick leave, since the dialog will
+  not submit without an employee and the self-service route offers only the
+  self-requestable types (§5.6). Returning you to yourself discloses nothing, so
+  this one result is not gated on enumeration settings.
 - Existing records for someone who later becomes a guest are left untouched in
   the database — they simply stop being listed.
 
