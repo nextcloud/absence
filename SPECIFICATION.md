@@ -368,6 +368,18 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
    covers for them. The UI is a **user picker over the whole organisation**
    (`NcSelect` + core autocomplete), excluding the employee themselves. Submit is blocked
    until one is chosen. Sick leave (HR-recorded) needs none.
+
+   **The requirement is on the employee, not on the record.** It exists because somebody
+   arranging their own leave knows who can cover and is asked to sort it out before
+   going. When HR records or corrects an absence *for somebody else* (§5.5, §5.6) they
+   are stating a fact, often after the event, and cannot nominate cover on that person's
+   behalf — so there the field is offered but never demanded, and reads "Who is the
+   replacement?" rather than "Who covers for you?". HR recording their *own* absence
+   gets the self-service wording and requirement, since it is their leave.
+
+   Who may be named is *not* conditional: a replacement must be an employee (not a
+   guest, §2.2) and not the person being covered for, whether or not the type demands
+   one.
 4. On submit, backend:
    - Validates dates (`start ≤ end`, not entirely in the past — in the *employee's*
      timezone, §3.9 — unless HR, not

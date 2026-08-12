@@ -53,7 +53,8 @@
 
 			<div v-if="needsReplacement" class="dialog__field">
 				<label class="dialog__label">
-					{{ t('absence', 'Replacement') }}<span class="dialog__req">*</span>
+					{{ t('absence', 'Replacement') }}<span v-if="replacementRequired" class="dialog__req">*</span>
+					<span v-else class="dialog__optional">{{ t('absence', '(optional)') }}</span>
 				</label>
 				<!-- eslint-disable @nextcloud/no-deprecated-library-props -- NcSelectUsers migration deferred: needs live-instance testing -->
 				<NcSelect
@@ -63,12 +64,12 @@
 					:userSelect="true"
 					label="displayName"
 					:filterable="false"
-					:placeholder="t('absence', 'Who covers for you?')"
+					:placeholder="replacementPlaceholder"
 					:aria-label-combobox="t('absence', 'Replacement')"
 					@search="onReplacementSearch" />
 				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
 				<p class="dialog__hint">
-					{{ t('absence', 'A colleague who covers your duties while you are away. They are notified once your leave is approved.') }}
+					{{ replacementHint }}
 				</p>
 			</div>
 
@@ -270,6 +271,48 @@ export default {
 			return this.selectedType ? this.selectedType.requiresReplacement : false
 		},
 
+		/** Whether this dialog is about the signed-in user's own leave. */
+		isOwnLeave() {
+			return this.subjectUid === store.session.uid
+		},
+
+		/**
+		 * Whose absence this is, for wording aimed at somebody else's record.
+		 * Empty until HR has picked an employee, which the strings below allow for.
+		 */
+		subjectName() {
+			if (this.hrMode) {
+				return this.selectedEmployee ? this.selectedEmployee.displayName : ''
+			}
+			return this.request ? (this.request.employeeName || this.request.employeeUid) : ''
+		},
+
+		/**
+		 * Demanded only of somebody arranging their own leave: they know who can cover
+		 * and are asked to sort it out before going (§5.1). HR recording an absence for
+		 * somebody else is stating a fact, often after it happened, and cannot nominate
+		 * cover on their behalf — so the field is offered there but never required.
+		 * Mirrors the same rule in RequestService::resolveReplacement().
+		 */
+		replacementRequired() {
+			return this.needsReplacement && this.isOwnLeave
+		},
+
+		replacementPlaceholder() {
+			return this.isOwnLeave
+				? t('absence', 'Who covers for you?')
+				: t('absence', 'Who is the replacement?')
+		},
+
+		replacementHint() {
+			if (this.isOwnLeave) {
+				return t('absence', 'A colleague who covers your duties while you are away. They are notified once your leave is approved.')
+			}
+			return this.subjectName
+				? t('absence', 'Optional. A colleague who covers for {name} while they are away, and is notified once this is recorded.', { name: this.subjectName })
+				: t('absence', 'Optional. A colleague who covers these duties while this employee is away, and is notified once this is recorded.')
+		},
+
 		// Bridge the native date pickers (Date objects) to our ISO string state.
 		startDate: {
 			get() {
@@ -405,7 +448,7 @@ export default {
 			if (this.hrMode && !this.selectedEmployee) {
 				return false
 			}
-			if (this.needsReplacement && !this.selectedReplacement) {
+			if (this.replacementRequired && !this.selectedReplacement) {
 				return false
 			}
 			if (this.requiresNote && this.reason.trim() === '') {

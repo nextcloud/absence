@@ -172,6 +172,73 @@ class RequestServiceTest extends TestCase {
 		]);
 	}
 
+	public function testApplyingForOwnLeaveStillDemandsAReplacement(): void {
+		// §5.1 unchanged for self-service: the employee knows who can cover and is
+		// asked to arrange it before going.
+		$type = $this->type(1, true);
+		$type->setRequiresReplacement(true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->expectException(ValidationException::class);
+		$this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+		]);
+	}
+
+	public function testHrRecordingForSomeoneElseNeedsNoReplacement(): void {
+		// HR is stating a fact about somebody else's absence, often after it happened,
+		// and cannot nominate cover on their behalf — so the type's requirement does
+		// not apply to them.
+		$type = $this->type(1, true);
+		$type->setRequiresReplacement(true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$created = $this->service->create('hr', [
+			'typeId' => 1,
+			'employeeUid' => 'emp',
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+		]);
+
+		self::assertNull($created->getReplacementUid());
+		self::assertSame('emp', $created->getEmployeeUid());
+	}
+
+	public function testAReplacementIsValidatedEvenWhenTheTypeDoesNotDemandOne(): void {
+		// Only the *demand* is conditional. Skipping the checks when the type happened
+		// not to require a replacement let a guest be recorded as covering.
+		$this->guestUids = ['ext'];
+		$this->userManager->method('userExists')->willReturn(true);
+		$type = $this->type(1, true);
+		$type->setRequiresReplacement(false);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->expectException(ValidationException::class);
+		$this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+			'replacementUid' => 'ext',
+		]);
+	}
+
 	public function testEmployeeCannotReclassifyIntoHrOnlyType(): void {
 		$request = $this->pendingOwnRequest();
 		$this->requestMapper->method('find')->with(5)->willReturn($request);
