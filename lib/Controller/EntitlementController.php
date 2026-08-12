@@ -67,6 +67,22 @@ class EntitlementController extends Controller {
 		});
 	}
 
+	/**
+	 * Who changed this entitlement, which figure, from what to what, and why (§6.1).
+	 * HR only, like every other entitlement endpoint.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function history(int $id): DataResponse {
+		return $this->handle(function () use ($id) {
+			$this->permission->assertHr((string)$this->userId);
+			return array_map(
+				static fn ($event) => $event->jsonSerialize(),
+				$this->service->historyFor($id),
+			);
+		});
+	}
+
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function bulk(int $year, int $typeId, float $baseDays, ?string $group = null): DataResponse {

@@ -31,6 +31,7 @@ return [
 		['name' => 'entitlement#create', 'url' => '/api/entitlements', 'verb' => 'POST'],
 		['name' => 'entitlement#update', 'url' => '/api/entitlements/{id}', 'verb' => 'PUT'],
 		['name' => 'entitlement#bulk', 'url' => '/api/entitlements/bulk', 'verb' => 'POST'],
+		['name' => 'entitlement#history', 'url' => '/api/entitlements/{id}/history', 'verb' => 'GET'],
 
 		// Coverage & calendar
 		['name' => 'coverage#index', 'url' => '/api/coverage', 'verb' => 'GET'],
