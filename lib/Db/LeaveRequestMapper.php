@@ -106,6 +106,26 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Render an instant the way `created_at` is stored.
+	 *
+	 * The timestamp columns hold UTC ({@see \OCA\Absence\Service\ClockService::now()}),
+	 * but the callers of the two queries below work out their cut-offs on the
+	 * *server's* calendar — which day boundary a request falls on is a company
+	 * question, not a UTC one. Formatting such a cut-off directly would write its
+	 * local wall-clock into the query and silently shift every bound by the
+	 * server's UTC offset: the reminder window is exactly one working day wide, so
+	 * off Berlin's or Auckland's offset it reminds a day early or skips a cohort
+	 * entirely. Converting here keeps the working-day arithmetic on the server's
+	 * calendar while the comparison happens in the column's own zone.
+	 *
+	 * Rebuilt from the timestamp rather than via setTimezone() so a caller's
+	 * mutable \DateTime is never altered as a side effect.
+	 */
+	private function asStoredTimestamp(\DateTimeInterface $moment): string {
+		return (new \DateTimeImmutable('@' . $moment->getTimestamp()))->format('Y-m-d H:i:s');
+	}
+
+	/**
 	 * Pending requests created before the given cut-off (for escalation/reminders).
 	 *
 	 * @return LeaveRequest[]
@@ -117,7 +137,7 @@ class LeaveRequestMapper extends QBMapper {
 			->where($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_PENDING)))
 			->andWhere($qb->expr()->isNotNull('manager_uid'))
 			->andWhere($qb->expr()->lt('created_at', $qb->createNamedParameter(
-				$cutoff->format('Y-m-d H:i:s'), IQueryBuilder::PARAM_STR)));
+				$this->asStoredTimestamp($cutoff), IQueryBuilder::PARAM_STR)));
 		return $this->findEntities($qb);
 	}
 
@@ -170,8 +190,8 @@ class LeaveRequestMapper extends QBMapper {
 			->from($this->getTableName())
 			->where($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_PENDING)))
 			->andWhere($qb->expr()->isNotNull('manager_uid'))
-			->andWhere($qb->expr()->lt('created_at', $qb->createNamedParameter($before->format('Y-m-d H:i:s'), IQueryBuilder::PARAM_STR)))
-			->andWhere($qb->expr()->gte('created_at', $qb->createNamedParameter($after->format('Y-m-d H:i:s'), IQueryBuilder::PARAM_STR)));
+			->andWhere($qb->expr()->lt('created_at', $qb->createNamedParameter($this->asStoredTimestamp($before), IQueryBuilder::PARAM_STR)))
+			->andWhere($qb->expr()->gte('created_at', $qb->createNamedParameter($this->asStoredTimestamp($after), IQueryBuilder::PARAM_STR)));
 		return $this->findEntities($qb);
 	}
 
