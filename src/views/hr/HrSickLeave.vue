@@ -18,8 +18,21 @@
 					</template>
 				</NcTextField>
 				<NcCheckboxRadioSwitch v-model="onlyAffected" type="switch">
-					{{ t('absence', 'Only employees with sick leave') }}
+					{{ t('absence', 'Only employees with {type}', { type: countedLabel }) }}
 				</NcCheckboxRadioSwitch>
+				<NcSelect
+					v-model="type"
+					:options="typeOptions"
+					label="label"
+					:placeholder="t('absence', 'Sick leave (default)')"
+					:aria-label-combobox="t('absence', 'Leave type counted')">
+					<template #option="{ icon, label }">
+						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					</template>
+					<template #selected-option="{ icon, label }">
+						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					</template>
+				</NcSelect>
 				<NcSelect
 					v-model="year"
 					:options="years"
@@ -33,7 +46,7 @@
 		<NcEmptyContent
 			v-else-if="!types.length"
 			:name="t('absence', 'No sick leave type configured')"
-			:description="t('absence', 'This overview counts the leave type with the key “sick”. Add or enable it in the admin settings to see figures here.')">
+			:description="t('absence', 'This overview counts the leave type with the key “sick” unless you pick another one above. Add or enable it in the admin settings to see figures here.')">
 			<template #icon>
 				<Thermometer :size="20" />
 			</template>
@@ -44,7 +57,7 @@
 				<StatTile
 					icon="🤒"
 					:value="fmt(totals.days)"
-					:label="t('absence', 'days of sick leave')"
+					:label="t('absence', 'days of {type}', { type: countedLabel })"
 					:caption="t('absence', 'in {year}', { year })"
 					accent="var(--color-warning)" />
 				<StatTile
@@ -144,10 +157,10 @@
 
 			<NcEmptyContent
 				v-if="!filtered.length"
-				:name="search ? t('absence', 'No matches') : t('absence', 'No sick leave recorded')"
+				:name="search ? t('absence', 'No matches') : t('absence', 'Nothing recorded')"
 				:description="search
 					? t('absence', 'No employee matches “{query}”.', { query: search })
-					: t('absence', 'Nobody has recorded sick leave in {year}.', { year })">
+					: t('absence', 'Nobody has recorded {type} in {year}.', { type: countedLabel, year })">
 				<template #icon>
 					<Thermometer :size="20" />
 				</template>
@@ -170,6 +183,7 @@ import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
+import { store } from '../../store.js'
 
 export default {
 	name: 'HrSickLeave',
@@ -184,12 +198,34 @@ export default {
 			totals: { employees: 0, affected: 0, days: 0, episodes: 0 },
 			search: '',
 			onlyAffected: true,
+			// null means "let the server pick" — it counts the type keyed "sick".
+			type: null,
 			year: y,
 			years: [y - 2, y - 1, y, y + 1],
 		}
 	},
 
 	computed: {
+		typeOptions() {
+			// A disabled type can still have history worth reporting on, so offer the
+			// full list rather than the enabled subset — same reasoning as HrAbsences.
+			return store.leaveTypes
+		},
+
+		/**
+		 * What the page is actually counting, in the report's own words. Taken from
+		 * the server's answer rather than from the picker so the labels stay true in
+		 * the default case too — where nothing is picked and the server resolved the
+		 * "sick" key on its own. Lowercased because every use sits mid-sentence
+		 * ("days of sick leave").
+		 */
+		countedLabel() {
+			if (!this.types.length) {
+				return t('absence', 'sick leave')
+			}
+			return this.types.map((type) => type.label).join(' / ').toLowerCase()
+		},
+
 		filtered() {
 			const q = this.search.trim().toLowerCase()
 			return this.rows.filter((row) => {
@@ -225,6 +261,10 @@ export default {
 
 	watch: {
 		year() {
+			this.reload()
+		},
+
+		type() {
 			this.reload()
 		},
 	},
@@ -273,7 +313,7 @@ export default {
 		async reload() {
 			this.loading = true
 			try {
-				const report = await api.reportSickLeave(this.year)
+				const report = await api.reportSickLeave(this.year, null, this.type?.id ?? null)
 				this.rows = report.rows ?? []
 				this.types = report.types ?? []
 				this.totals = report.totals ?? { employees: 0, affected: 0, days: 0, episodes: 0 }
@@ -301,6 +341,16 @@ export default {
 
 .strong {
 	font-weight: bold;
+}
+
+.opt {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+
+	&__icon {
+		font-size: 1.1em;
+	}
 }
 
 .emp {
