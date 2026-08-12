@@ -56,7 +56,7 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 					'id' => ConfigLexicon::KEY_DEFAULT_ENTITLEMENT,
 					'title' => $this->l->t('Default annual entitlement (days)'),
 					'type' => DeclarativeSettingsTypes::NUMBER,
-					'default' => 25.0,
+					'default' => 28.0,
 				],
 				[
 					'id' => ConfigLexicon::KEY_ESCALATION_WINDOW,
