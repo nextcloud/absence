@@ -14,6 +14,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 
 /**
@@ -263,7 +264,15 @@ class BalanceService {
 			// Mirror buildRow(): only the primary annual type inherits the configured
 			// default; other counting types start at zero, so creating the row never
 			// changes the computed balance (§6.1).
-			$type = $this->leaveTypeMapper->find($typeId);
+			//
+			// Its own try/catch: this runs *inside* the handler above, so a
+			// DoesNotExistException raised here is not caught by it and would leave
+			// the API answering a stale type id with a 500 instead of a 422.
+			try {
+				$type = $this->leaveTypeMapper->find($typeId);
+			} catch (DoesNotExistException) {
+				throw new ValidationException('Unknown leave type.');
+			}
 			$now = $this->clock->now();
 			$ent = new Entitlement();
 			$ent->setEmployeeUid($employeeUid);
