@@ -42,6 +42,13 @@
 					<!-- What this absence leaves them with, so nobody has to go to the
 					     Balances report to find out. Absent for leave that counts against
 					     nothing, where "left" has no answer. -->
+					<template v-if="detail.disability">
+						<dt>{{ t('absence', 'Disability') }}</dt>
+						<dd>
+							<span aria-hidden="true">♿</span>
+							{{ t('absence', 'Disability-related — visible to HR only') }}
+						</dd>
+					</template>
 					<template v-if="detail.balance">
 						<dt>{{ t('absence', 'Balance {year}', { year: detail.balance.year }) }}</dt>
 						<dd class="facts__balance">

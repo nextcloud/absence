@@ -92,6 +92,60 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Atomically flip one request from PENDING to ESCALATED. Returns whether this
+	 * call performed the flip.
+	 *
+	 * The escalation job picks its candidates from a list read moments earlier,
+	 * and a manager may decide one of them in between. An entity update would
+	 * write that stale read back over the decision — an approved request flipped
+	 * to ESCALATED. Here the status test and the write are one statement, so a
+	 * request that is no longer PENDING is left untouched and the caller is told.
+	 */
+	public function markEscalated(int $id, \DateTime $now): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('status', $qb->createNamedParameter(LeaveRequest::STATUS_ESCALATED))
+			->set('escalated', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
+			->set('updated_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_DATETIME_MUTABLE))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_PENDING)));
+		return $qb->executeStatement() === 1;
+	}
+
+	/**
+	 * Requests awaiting a decision from a given manager, as a bare count.
+	 *
+	 * The session bootstrap and the navigation badge only need the number, and
+	 * they run on every page load (and after every action) — hydrating full
+	 * entities there just to count them was measurable waste.
+	 */
+	public function countPendingForManager(string $managerUid): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'cnt'))
+			->from($this->getTableName())
+			->where($qb->expr()->eq('manager_uid', $qb->createNamedParameter($managerUid)))
+			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
+				[LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_WITHDRAWAL_PENDING],
+				IQueryBuilder::PARAM_STR_ARRAY)));
+		$result = $qb->executeQuery();
+		$count = (int)$result->fetchOne();
+		$result->closeCursor();
+		return $count;
+	}
+
+	/** Escalated requests as a bare count — see {@see countPendingForManager()}. */
+	public function countEscalated(): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'cnt'))
+			->from($this->getTableName())
+			->where($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_ESCALATED)));
+		$result = $qb->executeQuery();
+		$count = (int)$result->fetchOne();
+		$result->closeCursor();
+		return $count;
+	}
+
+	/**
 	 * Escalated requests + requests without a manager, for the HR queue.
 	 *
 	 * @return LeaveRequest[]
@@ -219,28 +273,76 @@ class LeaveRequestMapper extends QBMapper {
 
 	/**
 	 * All requests for an employee (any status), used for balance computation.
+	 * With $year, only requests *starting* in that year — the year balances
+	 * attribute them to — so one person's balance never loads their whole
+	 * multi-year history.
 	 *
 	 * @return LeaveRequest[]
 	 */
-	public function findAllForEmployee(string $employeeUid): array {
+	public function findAllForEmployee(string $employeeUid, ?int $year = null): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from($this->getTableName())
 			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($employeeUid)))
 			->orderBy('start_date', 'DESC');
+		if ($year !== null) {
+			$qb->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
+				->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))));
+		}
 		return $this->findEntities($qb);
 	}
 
 	/**
-	 * All requests (any status) for a set of employees, for computing many
-	 * balances at once. The single-employee {@see findAllForEmployee()} run in a
-	 * loop is one query per head, which an HR report over the whole company
-	 * cannot afford.
+	 * Working days per (employee, type, status) for requests *starting* in the
+	 * given year, aggregated in SQL.
+	 *
+	 * The batch balance path used to load every request ever written for every
+	 * employee and sum in PHP, so the HR balances report scaled with the total
+	 * history rather than the headcount. This returns at most a handful of rows
+	 * per employee and type, however many years pile up. Only the statuses that
+	 * affect a balance (§4.2) are aggregated.
 	 *
 	 * @param string[] $employeeUids
-	 * @return array<string,LeaveRequest[]> keyed by employee uid
+	 * @return list<array{employee_uid:string,type_id:int,status:string,days:float}>
 	 */
-	public function findAllForEmployees(array $employeeUids): array {
+	public function aggregateWorkingDaysForYear(array $employeeUids, int $year): array {
+		if ($employeeUids === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('employee_uid', 'type_id', 'status')
+			->selectAlias($qb->func()->sum('working_days'), 'days')
+			->from($this->getTableName())
+			->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($employeeUids, IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
+				LeaveRequest::ACTIVE_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
+			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))))
+			->groupBy('employee_uid', 'type_id', 'status');
+		$result = $qb->executeQuery();
+		$rows = [];
+		while ($row = $result->fetch()) {
+			$rows[] = [
+				'employee_uid' => (string)$row['employee_uid'],
+				'type_id' => (int)$row['type_id'],
+				'status' => (string)$row['status'],
+				'days' => (float)$row['days'],
+			];
+		}
+		$result->closeCursor();
+		return $rows;
+	}
+
+	/**
+	 * Pending edits of approved leave (§5.3) starting in the given year — the
+	 * few rows the SQL aggregation cannot net out on its own, fetched separately
+	 * so the netting rule of {@see \OCA\Absence\Service\BalanceService} can
+	 * subtract the days their originals already count.
+	 *
+	 * @param string[] $employeeUids
+	 * @return LeaveRequest[]
+	 */
+	public function findPendingSupersedingForYear(array $employeeUids, int $year): array {
 		if ($employeeUids === []) {
 			return [];
 		}
@@ -248,12 +350,31 @@ class LeaveRequestMapper extends QBMapper {
 		$qb->select('*')
 			->from($this->getTableName())
 			->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($employeeUids, IQueryBuilder::PARAM_STR_ARRAY)))
-			->orderBy('start_date', 'DESC');
-		$grouped = [];
-		foreach ($this->findEntities($qb) as $request) {
-			$grouped[$request->getEmployeeUid()][] = $request;
+			->andWhere($qb->expr()->isNotNull('supersedes_id'))
+			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
+				LeaveRequest::PENDING_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
+			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))));
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * @param int[] $ids
+	 * @return array<int,LeaveRequest> keyed by id
+	 */
+	public function findByIds(array $ids): array {
+		if ($ids === []) {
+			return [];
 		}
-		return $grouped;
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->in('id', $qb->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)));
+		$byId = [];
+		foreach ($this->findEntities($qb) as $request) {
+			$byId[(int)$request->getId()] = $request;
+		}
+		return $byId;
 	}
 
 	/**

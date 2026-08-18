@@ -23,6 +23,7 @@ use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\IDBConnection;
+use OCP\IL10N;
 use OCP\Lock\ILockingProvider;
 use OCP\Lock\LockedException;
 use Psr\Log\LoggerInterface;
@@ -72,6 +73,7 @@ class RequestService {
 		private ConfigService $config,
 		private EmployeeDirectory $employees,
 		private \OCP\IUserManager $userManager,
+		private IL10N $l,
 		private LoggerInterface $logger,
 		private IDBConnection $db,
 		private ILockingProvider $lockingProvider,
@@ -103,7 +105,7 @@ class RequestService {
 		try {
 			$this->lockingProvider->acquireLock($key, ILockingProvider::LOCK_EXCLUSIVE, 'leave of ' . $employeeUid);
 		} catch (LockedException) {
-			throw new ConflictException('Another change to this leave is being processed. Please try again.');
+			throw new ConflictException($this->l->t('Another change to this leave is being processed. Please try again.'));
 		}
 		try {
 			return $fn();
@@ -131,7 +133,7 @@ class RequestService {
 			// often after the event, and cannot be expected to nominate cover on their
 			// behalf — so there the field is offered but never demanded.
 			if ($required && $type->getRequiresReplacement()) {
-				throw new ValidationException('Please choose a replacement for this leave.');
+				throw new ValidationException($this->l->t('Please choose a replacement for this leave.'));
 			}
 			return null;
 		}
@@ -141,11 +143,11 @@ class RequestService {
 		// happened not to require one let a guest — or the employee themselves — be
 		// recorded as covering.
 		if ($replacementUid === $employeeUid) {
-			throw new ValidationException('You cannot be your own replacement.');
+			throw new ValidationException($this->l->t('You cannot be your own replacement.'));
 		}
 		// Also rejects guests: cover during an absence is a colleague's duty (§2.2).
 		if (!$this->employees->isEmployee($replacementUid)) {
-			throw new ValidationException('The chosen replacement is not a valid user.');
+			throw new ValidationException($this->l->t('The chosen replacement is not a valid user.'));
 		}
 		return $replacementUid;
 	}
@@ -160,10 +162,10 @@ class RequestService {
 		try {
 			$request = $this->requestMapper->find($id);
 		} catch (DoesNotExistException) {
-			throw new NotFoundException('Request not found');
+			throw new NotFoundException($this->l->t('Request not found'));
 		}
 		if (!$this->permission->canView($actorUid, $request)) {
-			throw new ForbiddenException('Not allowed to view this request');
+			throw new ForbiddenException($this->l->t('Not allowed to view this request'));
 		}
 		return $request;
 	}
@@ -177,6 +179,20 @@ class RequestService {
 	 */
 	public function getDetail(string $actorUid, int $id): array {
 		$request = $this->get($actorUid, $id);
+		// A confidential absence (§5.7): the employee may see that it exists —
+		// dates and status — but the category and every piece of content that
+		// could reveal it (reason, note, comments, the history with its type
+		// labels) belong to HR alone.
+		$viewerIsHr = $this->permission->isHr($actorUid);
+		if ($this->permission->isHrOnlyRequest($request) && !$viewerIsHr) {
+			$detail = $this->withheld($request->jsonSerialize());
+			$detail['disability'] = null;
+			$detail['comments'] = [];
+			$detail['history'] = [];
+			$detail['canDecide'] = false;
+			$detail['canModify'] = false;
+			return $this->withDisplayNames($detail, $request);
+		}
 		$detail = $request->jsonSerialize();
 		$detail['comments'] = array_map(
 			static fn (RequestComment $c) => $c->jsonSerialize(),
@@ -188,6 +204,10 @@ class RequestService {
 		);
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
+		if (!$viewerIsHr) {
+			// The disability flag (§5.8) exists for HR eyes only.
+			$detail['disability'] = null;
+		}
 		$detail = $this->withDisplayNames($detail, $request);
 		// What this absence leaves the person with. Without it, seeing that somebody
 		// took three days says nothing about whether they have any left, and the only
@@ -243,10 +263,40 @@ class RequestService {
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function listSerialized(string $actorUid, array $filters, ?int $limit, ?int $offset): array {
+		$viewerIsHr = $this->permission->isHr($actorUid);
+		$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
 		return array_map(
-			fn (LeaveRequest $r) => $this->withDisplayNames($r->jsonSerialize(), $r),
+			function (LeaveRequest $r) use ($viewerIsHr, $hrOnlyIds): array {
+				$data = $r->jsonSerialize();
+				if (!$viewerIsHr && in_array($r->getTypeId(), $hrOnlyIds, true)) {
+					$data = $this->withheld($data);
+				}
+				if (!$viewerIsHr) {
+					// The disability flag (§5.8) exists for HR eyes only.
+					$data['disability'] = null;
+				}
+				return $this->withDisplayNames($data, $r);
+			},
 			$this->list($actorUid, $filters, $limit, $offset),
 		);
+	}
+
+	/**
+	 * Reduce a serialized confidential request (§5.7) to the bare fact of the
+	 * absence: dates and status stay (the calendar shows that much anyway); the
+	 * category and everything written about it go. The client renders a null
+	 * type as a neutral "Absent".
+	 *
+	 * @param array<string,mixed> $data
+	 * @return array<string,mixed>
+	 */
+	private function withheld(array $data): array {
+		$data['typeId'] = null;
+		$data['disability'] = null;
+		$data['reason'] = null;
+		$data['attachmentNote'] = null;
+		$data['decisionComment'] = null;
+		return $data;
 	}
 
 	/**
@@ -316,7 +366,7 @@ class RequestService {
 	/**
 	 * Apply for leave (§5.1).
 	 *
-	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,attachmentNote?:?string,employeeUid?:?string,workingDays?:?float,replacementUid?:?string} $data
+	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,attachmentNote?:?string,employeeUid?:?string,workingDays?:?float,replacementUid?:?string,disability?:?bool} $data
 	 * @throws ValidationException|ConflictException|ForbiddenException
 	 */
 	public function create(string $actorUid, array $data): LeaveRequest {
@@ -327,16 +377,16 @@ class RequestService {
 		$onBehalf = $employeeUid !== $actorUid;
 		$isHr = $this->permission->isHr($actorUid);
 		if ($onBehalf && !$isHr) {
-			throw new ForbiddenException('Only HR can record leave for another employee.');
+			throw new ForbiddenException($this->l->t('Only HR can record leave for another employee.'));
 		}
 		// Guests are external accounts, not staff: they have no entitlement and take
 		// no leave, so no record may be created for one — including by HR (§2.2).
 		if (!$this->employees->isEmployee($employeeUid)) {
-			throw new ValidationException('Leave can only be recorded for an employee.');
+			throw new ValidationException($this->l->t('Leave can only be recorded for an employee.'));
 		}
 		// Some types (e.g. sick leave) are recorded by HR, not self-requested (§5.6).
 		if (!$type->getEmployeeRequestable() && !$isHr) {
-			throw new ForbiddenException('This leave type is recorded by HR, not self-requested.');
+			throw new ForbiddenException($this->l->t('This leave type is recorded by HR, not self-requested.'));
 		}
 
 		$start = $this->normaliseDate((string)($data['startDate'] ?? ''));
@@ -347,14 +397,18 @@ class RequestService {
 
 		// The employee enters the number of working days; the manager verifies it (§7).
 		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? null);
+		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
 
 		$managerUid = $this->managerResolver->getManagerUid($employeeUid);
+		// HR-only flag (§5.8): silently ignored from anyone else, so a crafted
+		// self-service payload cannot set it and does not fail the request either.
+		$disability = $isHr && !empty($data['disability']);
 		$now = $this->clock->now();
 
 		// The overlap check only means anything if nothing else can insert for this
 		// employee between it and the insert below.
 		$request = $this->withEmployeeLock($employeeUid, fn (): LeaveRequest => $this->atomic(function () use (
-			$actorUid, $employeeUid, $onBehalf, $type, $start, $end, $workingDays, $replacementUid, $managerUid, $now, $data,
+			$actorUid, $employeeUid, $onBehalf, $type, $start, $end, $workingDays, $replacementUid, $managerUid, $now, $data, $disability,
 		): LeaveRequest {
 			$this->assertNoOverlap($employeeUid, $start, $end);
 
@@ -368,6 +422,7 @@ class RequestService {
 			$request->setReason($data['reason'] ?? null);
 			$request->setReplacementUid($replacementUid);
 			$request->setAttachmentNote($data['attachmentNote'] ?? null);
+			$request->setDisability($disability);
 			$request->setCreatedAt($now);
 			$request->setUpdatedAt($now);
 
@@ -536,7 +591,7 @@ class RequestService {
 	public function update(string $actorUid, int $id, array $data): LeaveRequest {
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canModify($actorUid, $request)) {
-			throw new ForbiddenException('Not allowed to edit this request');
+			throw new ForbiddenException($this->l->t('Not allowed to edit this request'));
 		}
 		$isHr = $this->permission->isHr($actorUid);
 
@@ -554,7 +609,7 @@ class RequestService {
 		if ($status === LeaveRequest::STATUS_APPROVED) {
 			return $this->createSuperseding($actorUid, $request, $data);
 		}
-		throw new ConflictException('This request can no longer be edited.');
+		throw new ConflictException($this->l->t('This request can no longer be edited.'));
 	}
 
 	private function editInPlace(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
@@ -565,19 +620,21 @@ class RequestService {
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? $request->getReason() ?? ''), (string)($data['attachmentNote'] ?? $request->getAttachmentNote() ?? ''));
 
 		$replacementUid = $this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'] ?? $request->getReplacementUid());
+		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays());
+		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
 
 		// Captured before the entity is mutated below — afterwards the old values are gone.
 		$before = $this->snapshot($request);
 
 		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use (
-			$request, $type, $start, $end, $replacementUid, $data,
+			$request, $type, $start, $end, $replacementUid, $workingDays, $data,
 		): LeaveRequest {
 			$this->assertNoOverlap($request->getEmployeeUid(), $start, $end, $this->chainExcludeIds($request));
 
 			$request->setTypeId($type->getId());
 			$request->setStartDate($start);
 			$request->setEndDate($end);
-			$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays()));
+			$request->setWorkingDays($workingDays);
 			$request->setReplacementUid($replacementUid);
 			if (array_key_exists('reason', $data)) {
 				$request->setReason($data['reason']);
@@ -591,10 +648,16 @@ class RequestService {
 
 		// Re-notify the decider that the request changed.
 		if ($request->getStatus() === LeaveRequest::STATUS_ESCALATED) {
-			$this->notifications->notifyEscalation($request, $this->permission->getHrUids());
+			$hrUids = $this->permission->getHrUids();
+			$this->notifications->notifyEscalation($request, $hrUids);
+			$affected = [$request->getEmployeeUid(), ...$hrUids];
 		} elseif ($request->getManagerUid() !== null) {
 			$this->notifications->notifyNewRequest($request, $request->getManagerUid());
+			$affected = [$request->getEmployeeUid(), (string)$request->getManagerUid()];
+		} else {
+			$affected = [$request->getEmployeeUid()];
 		}
+		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), $affected, $request);
 		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)]);
 		return $request;
 	}
@@ -611,12 +674,14 @@ class RequestService {
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $original->getEndDate()));
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
 		$replacementUid = $this->resolveReplacement($actorUid, $type, $data['replacementUid'] ?? $original->getReplacementUid());
+		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays());
+		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
 
 		$now = $this->clock->now();
 		$managerUid = $this->managerResolver->getManagerUid($actorUid);
 
 		$new = $this->withEmployeeLock($actorUid, fn (): LeaveRequest => $this->atomic(function () use (
-			$actorUid, $original, $type, $start, $end, $replacementUid, $managerUid, $now, $data,
+			$actorUid, $original, $type, $start, $end, $replacementUid, $workingDays, $managerUid, $now, $data,
 		): LeaveRequest {
 			// Re-checked under the lock: two concurrent edits would otherwise both
 			// find no sibling in the fast check above and both insert.
@@ -630,7 +695,7 @@ class RequestService {
 			$new->setTypeId($type->getId());
 			$new->setStartDate($start);
 			$new->setEndDate($end);
-			$new->setWorkingDays($this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays()));
+			$new->setWorkingDays($workingDays);
 			$new->setReason($data['reason'] ?? null);
 			$new->setReplacementUid($replacementUid);
 			$new->setAttachmentNote($data['attachmentNote'] ?? null);
@@ -667,7 +732,7 @@ class RequestService {
 		}
 		if (array_key_exists('reason', $data)) {
 			if ($data['reason'] !== null && mb_strlen((string)$data['reason']) > self::MAX_REASON_LENGTH) {
-				throw new ValidationException('The reason is too long.');
+				throw new ValidationException($this->l->t('The reason is too long.'));
 			}
 			$request->setReason($data['reason']);
 		}
@@ -678,7 +743,7 @@ class RequestService {
 			try {
 				$type = $this->leaveTypeMapper->find($request->getTypeId());
 			} catch (DoesNotExistException) {
-				throw new ValidationException('This request refers to a leave type that no longer exists.');
+				throw new ValidationException($this->l->t('This request refers to a leave type that no longer exists.'));
 			}
 			$request->setReplacementUid($this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'], required: false));
 		}
@@ -686,9 +751,15 @@ class RequestService {
 		if (array_key_exists('workingDays', $data) && $data['workingDays'] !== null) {
 			$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays']));
 		}
-		if ($request->getEndDate() < $request->getStartDate()) {
-			throw new ValidationException('The end date must be on or after the start date.');
+		// HR-only flag (§5.8). Not part of describeChanges(): the history timeline
+		// is visible to the employee and manager, and the flag is not.
+		if (array_key_exists('disability', $data) && $data['disability'] !== null) {
+			$request->setDisability((bool)$data['disability']);
 		}
+		if ($request->getEndDate() < $request->getStartDate()) {
+			throw new ValidationException($this->l->t('The end date must be on or after the start date.'));
+		}
+		$this->assertWorkingDaysFitRange($request->getWorkingDays(), $request->getStartDate(), $request->getEndDate());
 		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($request): LeaveRequest {
 			$this->assertNoOverlap($request->getEmployeeUid(), $request->getStartDate(), $request->getEndDate(), $this->chainExcludeIds($request));
 			$request->setUpdatedAt($this->clock->now());
@@ -700,8 +771,8 @@ class RequestService {
 			$this->calendar->onRemoved($request);
 			$this->applyCalendar($request);
 		}
-		$this->activity->publish(ActivityPublisher::SUBJECT_CREATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
-		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)]);
+		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
+		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request), 'disability' => $request->getDisability()]);
 		return $request;
 	}
 
@@ -714,7 +785,7 @@ class RequestService {
 	public function cancel(string $actorUid, int $id): LeaveRequest {
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canModify($actorUid, $request)) {
-			throw new ForbiddenException('Not allowed to cancel this request');
+			throw new ForbiddenException($this->l->t('Not allowed to cancel this request'));
 		}
 		$status = $request->getStatus();
 		// HR cancels directly (no withdrawal step) for others' requests and for
@@ -723,7 +794,7 @@ class RequestService {
 			&& ($actorUid !== $request->getEmployeeUid() || $this->isHrRecordedType($request));
 
 		if (in_array($status, LeaveRequest::TERMINAL_STATUSES, true)) {
-			throw new ConflictException('This request is already closed.');
+			throw new ConflictException($this->l->t('This request is already closed.'));
 		}
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
@@ -758,7 +829,7 @@ class RequestService {
 		if ($status === LeaveRequest::STATUS_WITHDRAWAL_PENDING && $isHrOverride) {
 			return $this->transitionToCancelled($actorUid, $request);
 		}
-		throw new ConflictException('This request cannot be cancelled in its current state.');
+		throw new ConflictException($this->l->t('This request cannot be cancelled in its current state.'));
 	}
 
 	private function transitionToCancelled(string $actorUid, LeaveRequest $request, string $action = 'request_cancelled'): LeaveRequest {
@@ -793,11 +864,11 @@ class RequestService {
 
 	public function approve(string $actorUid, int $id, ?string $comment): LeaveRequest {
 		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
-			throw new ValidationException('Comment is too long.');
+			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canDecide($actorUid, $request)) {
-			throw new ForbiddenException('Not allowed to decide this request');
+			throw new ForbiddenException($this->l->t('Not allowed to decide this request'));
 		}
 		$status = $request->getStatus();
 
@@ -856,19 +927,19 @@ class RequestService {
 			// Approving a withdrawal cancels the leave.
 			return $this->transitionToCancelled($actorUid, $request, 'withdrawal_approved');
 		}
-		throw new ConflictException('This request cannot be approved in its current state.');
+		throw new ConflictException($this->l->t('This request cannot be approved in its current state.'));
 	}
 
 	public function reject(string $actorUid, int $id, string $comment): LeaveRequest {
 		if (trim($comment) === '') {
-			throw new ValidationException('A comment is required when rejecting.');
+			throw new ValidationException($this->l->t('A comment is required when rejecting.'));
 		}
 		if (mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
-			throw new ValidationException('Comment is too long.');
+			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canDecide($actorUid, $request)) {
-			throw new ForbiddenException('Not allowed to decide this request');
+			throw new ForbiddenException($this->l->t('Not allowed to decide this request'));
 		}
 		$status = $request->getStatus();
 
@@ -909,7 +980,7 @@ class RequestService {
 			$this->audit('withdrawal_rejected', $request, ['actor' => $actorUid, 'detail' => $comment]);
 			return $request;
 		}
-		throw new ConflictException('This request cannot be rejected in its current state.');
+		throw new ConflictException($this->l->t('This request cannot be rejected in its current state.'));
 	}
 
 	/**
@@ -919,10 +990,17 @@ class RequestService {
 		if ($request->getStatus() !== LeaveRequest::STATUS_PENDING) {
 			return;
 		}
+		$now = $this->clock->now();
+		// A conditional flip, not an entity update: the caller picked this request
+		// from a list read moments earlier, and the manager may have decided it in
+		// between. markEscalated() refuses to overwrite anything but PENDING, so a
+		// fresh decision can never be clobbered back to ESCALATED here.
+		if (!$this->requestMapper->markEscalated((int)$request->getId(), $now)) {
+			return;
+		}
 		$request->setStatus(LeaveRequest::STATUS_ESCALATED);
 		$request->setEscalated(true);
-		$request->setUpdatedAt($this->clock->now());
-		$this->requestMapper->update($request);
+		$request->setUpdatedAt($now);
 		$hrUids = $this->permission->getHrUids();
 		$this->notifications->notifyEscalation($request, $hrUids);
 		$this->activity->publish(ActivityPublisher::SUBJECT_ESCALATED, $this->activityParams($request), [$request->getEmployeeUid(), ...$hrUids], $request);
@@ -934,10 +1012,10 @@ class RequestService {
 	public function addComment(string $actorUid, int $id, string $body): RequestComment {
 		$request = $this->get($actorUid, $id);
 		if (trim($body) === '') {
-			throw new ValidationException('Comment cannot be empty.');
+			throw new ValidationException($this->l->t('Comment cannot be empty.'));
 		}
 		if (mb_strlen($body) > self::MAX_COMMENT_LENGTH) {
-			throw new ValidationException('Comment is too long.');
+			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
 		$comment = new RequestComment();
 		$comment->setRequestId($request->getId());
@@ -1068,10 +1146,10 @@ class RequestService {
 		try {
 			$type = $this->leaveTypeMapper->find($typeId);
 		} catch (DoesNotExistException) {
-			throw new ValidationException('Unknown leave type.');
+			throw new ValidationException($this->l->t('Unknown leave type.'));
 		}
 		if (!$type->getEnabled()) {
-			throw new ValidationException('This leave type is disabled.');
+			throw new ValidationException($this->l->t('This leave type is disabled.'));
 		}
 		return $type;
 	}
@@ -1086,7 +1164,7 @@ class RequestService {
 	 */
 	private function assertSelfRequestable(LeaveType $type): void {
 		if (!$type->getEmployeeRequestable()) {
-			throw new ForbiddenException('This leave type is recorded by HR, not self-requested.');
+			throw new ForbiddenException($this->l->t('This leave type is recorded by HR, not self-requested.'));
 		}
 	}
 
@@ -1102,7 +1180,7 @@ class RequestService {
 	private function normaliseDate(string $date): string {
 		$dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
 		if ($dt === false) {
-			throw new ValidationException('Invalid date: ' . $date);
+			throw new ValidationException($this->l->t('Invalid date: %s', [$date]));
 		}
 		return $dt->format('Y-m-d');
 	}
@@ -1115,35 +1193,50 @@ class RequestService {
 	 */
 	private function normaliseWorkingDays(mixed $value): float {
 		if ($value === null || $value === '' || !is_numeric($value)) {
-			throw new ValidationException('Please enter the number of working days.');
+			throw new ValidationException($this->l->t('Please enter the number of working days.'));
 		}
 		$days = round((float)$value, 1);
 		if ($days <= 0) {
-			throw new ValidationException('The number of working days must be greater than zero.');
+			throw new ValidationException($this->l->t('The number of working days must be greater than zero.'));
 		}
 		if ($days > 366) {
-			throw new ValidationException('That is too many working days for a single request.');
+			throw new ValidationException($this->l->t('That is too many working days for a single request.'));
 		}
 		return $days;
 	}
 
+	/**
+	 * A leave of N calendar days cannot contain more than N working days. The
+	 * count is entered by hand (§7), so this catches the typo — 40 for 4 — that
+	 * would otherwise go straight into the balance, while never rejecting a
+	 * legitimate count, which is at most one working day per calendar day.
+	 *
+	 * @throws ValidationException
+	 */
+	private function assertWorkingDaysFitRange(float $workingDays, string $start, string $end): void {
+		$span = ((int)(new \DateTimeImmutable($start))->diff(new \DateTimeImmutable($end))->days) + 1;
+		if ($workingDays > (float)$span) {
+			throw new ValidationException($this->l->t('The number of working days cannot exceed the length of the leave (%s calendar days).', [(string)$span]));
+		}
+	}
+
 	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, string $reason, string $note): void {
 		if ($end < $start) {
-			throw new ValidationException('The end date must be on or after the start date.');
+			throw new ValidationException($this->l->t('The end date must be on or after the start date.'));
 		}
 		// the employee's own today, not UTC's — see ClockService
 		$today = $this->clock->userToday();
 		if ($end < $today && !$this->permission->isHr($actorUid)) {
-			throw new ValidationException('You cannot request leave entirely in the past.');
+			throw new ValidationException($this->l->t('You cannot request leave entirely in the past.'));
 		}
 		if ($type->getRequiresNote() && trim($reason) === '' && trim($note) === '') {
-			throw new ValidationException('This leave type requires a note.');
+			throw new ValidationException($this->l->t('This leave type requires a note.'));
 		}
 		if (mb_strlen($reason) > self::MAX_REASON_LENGTH) {
-			throw new ValidationException('The reason is too long.');
+			throw new ValidationException($this->l->t('The reason is too long.'));
 		}
 		if (mb_strlen($note) > self::MAX_REASON_LENGTH) {
-			throw new ValidationException('The note is too long.');
+			throw new ValidationException($this->l->t('The note is too long.'));
 		}
 	}
 
@@ -1158,7 +1251,7 @@ class RequestService {
 	private function assertNoPendingEdit(LeaveRequest $original): void {
 		foreach ($this->requestMapper->findBySupersedesId($original->getId()) as $sibling) {
 			if (!in_array($sibling->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
-				throw new ConflictException('There is already a pending edit of this leave. Wait for a decision on it, or cancel it first.');
+				throw new ConflictException($this->l->t('There is already a pending edit of this leave. Wait for a decision on it, or cancel it first.'));
 			}
 		}
 	}
@@ -1168,7 +1261,7 @@ class RequestService {
 	 */
 	private function assertNoOverlap(string $employeeUid, string $start, string $end, array $excludeIds = []): void {
 		if ($this->requestMapper->findOverlapping($employeeUid, $start, $end, $excludeIds) !== []) {
-			throw new ConflictException('You already have a leave request overlapping these dates.');
+			throw new ConflictException($this->l->t('You already have a leave request overlapping these dates.'));
 		}
 	}
 

@@ -25,6 +25,7 @@ use OCP\Config\ValueType;
 class ConfigLexicon implements ILexicon {
 	// Admin settings (§12).
 	public const KEY_HR_GROUP = 'hr_group';
+	public const KEY_EMPLOYEES_GROUP = 'employees_group';
 	public const KEY_DEFAULT_ENTITLEMENT = 'default_entitlement';
 	public const KEY_ESCALATION_WINDOW = 'escalation_window_days';
 	public const KEY_REMINDER_LEAD = 'reminder_lead_days';
@@ -55,6 +56,8 @@ class ConfigLexicon implements ILexicon {
 		return [
 			new Entry(self::KEY_HR_GROUP, ValueType::STRING, 'hr',
 				'Group whose members have the HR role'),
+			new Entry(self::KEY_EMPLOYEES_GROUP, ValueType::STRING, '',
+				'Group whose members count as employees; empty = every non-guest account'),
 			new Entry(self::KEY_DEFAULT_ENTITLEMENT, ValueType::FLOAT, 28.0,
 				'Default annual-leave entitlement in working days (a full-time year)'),
 			new Entry(self::KEY_ESCALATION_WINDOW, ValueType::INT, 3,

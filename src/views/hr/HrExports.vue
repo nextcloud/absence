@@ -18,6 +18,15 @@
 					<NcDateTimePickerNative v-model="from" type="date" :label="t('absence', 'From')" />
 					<NcDateTimePickerNative v-model="to" type="date" :label="t('absence', 'To')" />
 				</div>
+				<div class="card__row">
+					<NcSelect
+						v-model="requestsGroup"
+						class="card__group"
+						:options="groupOptions"
+						:clearable="false"
+						label="displayName"
+						:aria-label-combobox="t('absence', 'Group')" />
+				</div>
 				<a :href="requestsUrl" class="dl">
 					<NcButton variant="primary">
 						<template #icon><Download :size="20" /></template>
@@ -35,6 +44,13 @@
 						:options="years"
 						:clearable="false"
 						:aria-label-combobox="t('absence', 'Year')" />
+					<NcSelect
+						v-model="balancesGroup"
+						class="card__group"
+						:options="groupOptions"
+						:clearable="false"
+						label="displayName"
+						:aria-label-combobox="t('absence', 'Group')" />
 				</div>
 				<a :href="balancesUrl" class="dl">
 					<NcButton variant="primary">
@@ -61,22 +77,39 @@ export default {
 	components: { NcButton, NcDateTimePickerNative, NcSelect, Download },
 	data() {
 		const now = new Date()
+		const everyone = { id: '', displayName: t('absence', 'All employees') }
 		return {
 			from: new Date(now.getFullYear(), 0, 1),
 			to: new Date(now.getFullYear(), 11, 31),
 			year: now.getFullYear(),
 			years: [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1],
+			everyone,
+			groups: [],
+			requestsGroup: everyone,
+			balancesGroup: everyone,
 		}
 	},
 
 	computed: {
+		groupOptions() {
+			return [this.everyone, ...this.groups]
+		},
+
 		requestsUrl() {
-			return api.exportRequestsUrl(toIso(this.from), toIso(this.to))
+			return api.exportRequestsUrl(toIso(this.from), toIso(this.to), this.requestsGroup?.id || '')
 		},
 
 		balancesUrl() {
-			return api.exportBalancesUrl(this.year)
+			return api.exportBalancesUrl(this.year, this.balancesGroup?.id || '')
 		},
+	},
+
+	async mounted() {
+		try {
+			this.groups = await api.listGroups()
+		} catch {
+			// The filter simply stays at "All employees" — the export works without it.
+		}
 	},
 
 	methods: { t },
@@ -102,6 +135,10 @@ export default {
 		display: flex;
 		gap: 12px;
 		flex-wrap: wrap;
+	}
+
+	&__group {
+		min-width: 200px;
 	}
 }
 

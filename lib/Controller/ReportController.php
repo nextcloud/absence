@@ -15,6 +15,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IL10N;
 use OCP\IRequest;
 
 class ReportController extends Controller {
@@ -27,6 +28,7 @@ class ReportController extends Controller {
 		private ReportService $service,
 		private PermissionService $permission,
 		private ClockService $clock,
+		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
 	}

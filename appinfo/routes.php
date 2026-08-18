@@ -23,9 +23,11 @@ return [
 
 		// People (autocomplete for the employee / replacement pickers)
 		['name' => 'employee#search', 'url' => '/api/employees/search', 'verb' => 'GET'],
+		['name' => 'employee#groups', 'url' => '/api/groups', 'verb' => 'GET'],
 
 		// Balances & entitlements
 		['name' => 'balance#mine', 'url' => '/api/balance', 'verb' => 'GET'],
+		['name' => 'balance#team', 'url' => '/api/team/balances', 'verb' => 'GET'],
 		['name' => 'balance#forEmployee', 'url' => '/api/employees/{uid}/balance', 'verb' => 'GET'],
 		['name' => 'entitlement#index', 'url' => '/api/entitlements', 'verb' => 'GET'],
 		['name' => 'entitlement#create', 'url' => '/api/entitlements', 'verb' => 'POST'],

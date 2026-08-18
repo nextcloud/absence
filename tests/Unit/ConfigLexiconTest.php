@@ -42,6 +42,7 @@ class ConfigLexiconTest extends TestCase {
 			ConfigLexicon::KEY_CARRYOVER_EXPIRY,
 			ConfigLexicon::KEY_CARRYOVER_POLICY,
 			ConfigLexicon::KEY_DEFAULT_ENTITLEMENT,
+			ConfigLexicon::KEY_EMPLOYEES_GROUP,
 			ConfigLexicon::KEY_ESCALATION_WINDOW,
 			ConfigLexicon::KEY_HR_GROUP,
 			ConfigLexicon::KEY_LAST_ROLLOVER_YEAR,

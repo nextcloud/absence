@@ -118,6 +118,10 @@ it.** Pick a type and a date range, and the app:
   it, and the app does not pretend otherwise;
 - remembers the **replacement colleague** you nominated last time.
 
+A built-in **handbook** sits in the sidebar for every employee and team lead —
+and HR gets an extended edition covering their whole toolset — so "how does this
+work?" never needs to leave the app.
+
 **My leave** is the home screen: a *next break* hero that counts the days down — and
 ticks second by second over the final 48 hours — above one animated **balance ring**
 per leave type, each with a full breakdown ledger (base + carry-over ± adjustment →
@@ -153,7 +157,10 @@ When you do open a request, the sidebar gives you the whole picture:
 
 **Team timeline** is a Gantt-style month view of your direct reports: continuous
 leave pills, hatched while still pending, with weekend shading and a *today* line —
-the view you want open when somebody asks "can I take that week?"
+the view you want open when somebody asks "can I take that week?" Below it, a
+**team balances table** shows each report's entitlement, used, pending and available
+days for the current year — the other half of "can I take that week?", answered on
+the same screen.
 
 Everything a manager needs sits on the request itself — coverage, notice, reason,
 history — so approving never means going looking for context elsewhere.
@@ -170,6 +177,19 @@ Filter by employee, leave type, status and year. Selecting a record opens the sa
 detail sidebar, where HR can fix the dates, type or working days, or cancel it.
 **Cancelling keeps the record and its history** for the audit trail — there is
 deliberately no delete.
+
+### Confidential categories, HR-only
+
+**Maternity leave**, **parental leave**, **medical work prohibition** and
+**doctor's note** ship as confidential categories: when HR picks *Sick leave* in the Record absence dialog,
+a *Category* selector appears offering them (general sick leave being the
+default). Only HR ever sees what they are.
+To the line manager and even in the employee's own app, such an absence is a
+neutral *"Absent"* — dates and status, no category, no notes. The team timeline
+and coverage warnings still count the absence (colleagues plan around the person
+being away, not the reason), the shared calendar says *"Absent"* even when the
+admin chose to reveal ordinary leave types, and non-HR browsers never receive so
+much as the category names. Enforced by the API, not merely hidden in the UI.
 
 ### Record absences directly
 
@@ -195,10 +215,15 @@ Every entitlement is a **base allowance plus an explicit adjustment with a note*
 
 ![HR statistics](screenshots/11.png)
 
-Stat tiles, an absence-days trend over time, and days by leave type — hand-written,
-theme-aware SVG charts that follow your Nextcloud theme and look right in dark mode,
-with no charting dependency shipped. A separate **sick-leave overview** ranks
-employees by days lost for a chosen year and drills down to the individual days.
+Stat tiles — approved leave days, **average sick days per employee across the
+calendar year**, the busiest month, leave types used — plus an absence-days trend
+over time and days by leave type: hand-written, theme-aware SVG charts that follow
+your Nextcloud theme and look right in dark mode, with no charting dependency
+shipped. A **"most vacation still to take"** list ranks who has the most unplanned
+days left in the year (flagging anyone with more than half their entitlement
+untouched), so nudging people to plan their leave takes one glance. A separate
+**sick-leave overview** ranks employees by days lost for a chosen year and drills
+down to the individual days.
 
 ### Who's off, company-wide
 
@@ -230,6 +255,7 @@ settings form, so there is no bespoke admin UI to learn.
 | Setting | Default | What it does |
 |---|---|---|
 | HR group | `hr` | Which Nextcloud group holds HR powers |
+| Employees group | empty (= everyone) | Optional: only members of this group count as employees — keeps service accounts out of leave, reports and pickers. Recommended on large instances: reports then read one group instead of enumerating the whole user directory |
 | Default annual entitlement | 28 days | Seed for new entitlement rows |
 | Escalation window | 3 working days | How long a manager may sit on a request before HR is pulled in |
 | Reminder lead time | 1 day | How long before escalation the manager is nudged |
@@ -258,7 +284,7 @@ country/region for public holidays). Notification preferences defer to Nextcloud
 | Role | How it is assigned | What it unlocks |
 |---|---|---|
 | **Employee** | every user account | Apply for leave, see own balances and history |
-| **Line manager** | the `manager` account property, from LDAP/AD or set on the account | Approve/decline reports' requests, team coverage and timeline |
+| **Line manager** | the `manager` account property, from LDAP/AD or set on the account | Approve/decline reports' requests, team coverage, timeline and balances |
 | **HR** | membership of a configurable group (default `hr`) | Company-wide view, record and correct absences, entitlements, statistics, export |
 | **Administrator** | Nextcloud server admin | App configuration and leave types |
 
@@ -275,6 +301,11 @@ Built for a European works council to be comfortable with:
 - **Authorisation on every endpoint**, centralised in one `PermissionService` — an
   employee reads only their own data, a manager only their reports', HR everything.
   Enforced server-side; the UI merely reflects it.
+- **Confidential categories.** Maternity leave, parental leave, medical work
+  prohibition and doctor's note are visible to HR alone; annual leave can
+  additionally carry an HR-only **disability flag** for the extra statutory
+  entitlement — everyone else, the employee's own views
+  included, sees a neutral absence (see *For HR*).
 - **Sensitive text stays sensitive.** Reasons and notes are never shown to peers. The
   nominated replacement is told the dates only — covering for someone does not come
   with a right to read why they are away. Whether a colleague's leave *type* is
@@ -372,8 +403,6 @@ Stated plainly, because a feature list you cannot trust is worth nothing:
 - **ICS holiday import.** Public holidays come from a bundled country/region database.
 - **XLSX export.** CSV only — it opens in Excel, LibreOffice and every payroll system
   we know of.
-- **Balances for managers.** Every balance view is HR-only today: a manager sees
-  their team's coverage and timeline, but not how many days a report has left.
 - **Payroll integration, time tracking and shift planning.** Deliberately out of
   scope: this app manages *leave*, and does that one thing properly.
 

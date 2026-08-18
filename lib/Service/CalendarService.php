@@ -12,6 +12,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Sabre\VObject\Component\VCalendar;
@@ -33,6 +34,7 @@ class CalendarService {
 		private ConfigService $config,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private IUserManager $userManager,
+		private IFactory $l10nFactory,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -66,7 +68,7 @@ class CalendarService {
 					$backend,
 					self::SHARED_PRINCIPAL,
 					self::SHARED_CALENDAR_URI,
-					'Team absences',
+					$this->sharedL10n()->t('Team absences'),
 					$request,
 					$this->sharedTitle($request),
 				);
@@ -145,22 +147,52 @@ class CalendarService {
 	}
 
 	private function personalTitle(LeaveRequest $request): string {
-		return $this->typeLabel($request) . ' — Absence';
+		// The employee's own calendar speaks their language, not the actor's:
+		// the event outlives whoever happened to click "approve".
+		$l = $this->personalL10n($request->getEmployeeUid());
+		// A confidential category (§5.7) never reaches a calendar title — personal
+		// calendars get shared, and the category is HR's alone.
+		if ($this->isHrOnly($request)) {
+			return $l->t('Absence');
+		}
+		return $this->typeLabel($request, $l) . ' — Absence';
 	}
 
 	private function sharedTitle(LeaveRequest $request): string {
+		// The shared calendar has every colleague as its audience, so it uses the
+		// instance default language rather than any one person's.
+		$l = $this->sharedL10n();
 		$name = $this->displayName($request->getEmployeeUid());
-		if ($this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL) {
-			return $name . ' — ' . $this->typeLabel($request);
+		// The admin's "reveal" setting does not extend to confidential types (§5.7).
+		if ($this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL && !$this->isHrOnly($request)) {
+			return $name . ' — ' . $this->typeLabel($request, $l);
 		}
-		return $name . ' — Absent';
+		return $name . ' — ' . $l->t('Absent');
 	}
 
-	private function typeLabel(LeaveRequest $request): string {
+	private function isHrOnly(LeaveRequest $request): bool {
+		try {
+			return $this->leaveTypeMapper->find($request->getTypeId())->getHrOnly();
+		} catch (DoesNotExistException) {
+			return false;
+		}
+	}
+
+	private function personalL10n(string $uid): \OCP\IL10N {
+		$user = $this->userManager->get($uid);
+		$lang = $user !== null ? $this->l10nFactory->getUserLanguage($user) : null;
+		return $this->l10nFactory->get(ConfigService::APP_ID, $lang);
+	}
+
+	private function sharedL10n(): \OCP\IL10N {
+		return $this->l10nFactory->get(ConfigService::APP_ID, $this->l10nFactory->findGenericLanguage(ConfigService::APP_ID));
+	}
+
+	private function typeLabel(LeaveRequest $request, \OCP\IL10N $l): string {
 		try {
 			return $this->leaveTypeMapper->find($request->getTypeId())->getLabel();
 		} catch (DoesNotExistException) {
-			return 'Leave';
+			return $l->t('Leave');
 		}
 	}
 

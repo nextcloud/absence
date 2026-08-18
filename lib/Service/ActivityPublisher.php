@@ -19,6 +19,7 @@ class ActivityPublisher {
 	public const TYPE = 'absence';
 
 	public const SUBJECT_CREATED = 'request_created';
+	public const SUBJECT_UPDATED = 'request_updated';
 	public const SUBJECT_APPROVED = 'request_approved';
 	public const SUBJECT_REJECTED = 'request_rejected';
 	public const SUBJECT_CANCELLED = 'request_cancelled';

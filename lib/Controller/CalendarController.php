@@ -12,6 +12,7 @@ use OCA\Absence\Service\CoverageService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IL10N;
 use OCP\IRequest;
 
 /**
@@ -25,6 +26,7 @@ class CalendarController extends Controller {
 		IRequest $request,
 		private ?string $userId,
 		private CoverageService $service,
+		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
 	}

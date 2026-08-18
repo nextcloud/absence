@@ -10,6 +10,8 @@ namespace OCA\Absence\Service;
 
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Db\LeaveTypeMapper;
+use OCP\IL10N;
 use OCP\IUserManager;
 
 /**
@@ -23,11 +25,13 @@ class CoverageService {
 
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
+		private LeaveTypeMapper $leaveTypeMapper,
 		private ManagerResolver $managerResolver,
 		private PermissionService $permission,
 		private ConfigService $config,
 		private EmployeeDirectory $employees,
 		private IUserManager $userManager,
+		private IL10N $l,
 	) {
 	}
 
@@ -77,10 +81,14 @@ class CoverageService {
 		// Resolve the viewer's reach once rather than asking canView() per request: a
 		// company-wide month can hold hundreds of rows, and the answer depends only on
 		// who is looking, not on which request.
-		$viewerIsHr = !$revealTypes && $viewerUid !== null && $this->permission->isHr($viewerUid);
-		$viewerReports = (!$revealTypes && !$viewerIsHr && $viewerUid !== null)
+		$isHrViewer = $viewerUid !== null && $this->permission->isHr($viewerUid);
+		$viewerReports = (!$revealTypes && !$isHrViewer && $viewerUid !== null)
 			? $this->managerResolver->getDirectReports($viewerUid)
 			: [];
+		// Confidential categories (§5.7) are neutral for everyone but HR — the
+		// admin's "reveal" setting, self-view and the manager relationship all
+		// stop mattering for these.
+		$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
 
 		$events = [];
 		$byDate = [];
@@ -89,10 +97,12 @@ class CoverageService {
 				continue;
 			}
 			$employeeUid = $request->getEmployeeUid();
-			$maySeeType = $revealTypes
-				|| $viewerIsHr
-				|| ($viewerUid !== null && $employeeUid === $viewerUid)
-				|| in_array($employeeUid, $viewerReports, true);
+			$maySeeType = in_array($request->getTypeId(), $hrOnlyIds, true)
+				? $isHrViewer
+				: ($revealTypes
+					|| $isHrViewer
+					|| ($viewerUid !== null && $employeeUid === $viewerUid)
+					|| in_array($employeeUid, $viewerReports, true));
 			$events[] = [
 				'requestId' => $request->getId(),
 				'employeeUid' => $employeeUid,

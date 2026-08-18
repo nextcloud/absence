@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Unit\Service;
 
+use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCP\IGroup;
 use OCP\IGroupManager;
@@ -15,6 +16,7 @@ use OCP\IUser;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * The app's definition of "employee". Everything that lists people goes through
@@ -24,13 +26,19 @@ use PHPUnit\Framework\TestCase;
 class EmployeeDirectoryTest extends TestCase {
 	private IUserManager&MockObject $userManager;
 	private IGroupManager&MockObject $groupManager;
+	private LoggerInterface&MockObject $logger;
+	/** Employees group the config reports; '' = every non-guest account. */
+	private string $employeesGroup = '';
 	private EmployeeDirectory $directory;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
-		$this->directory = new EmployeeDirectory($this->userManager, $this->groupManager);
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$config = $this->createMock(ConfigService::class);
+		$config->method('getEmployeesGroup')->willReturnCallback(fn (): string => $this->employeesGroup);
+		$this->directory = new EmployeeDirectory($this->userManager, $this->groupManager, $config, $this->logger);
 	}
 
 	/**
@@ -59,6 +67,30 @@ class EmployeeDirectoryTest extends TestCase {
 			},
 		);
 		return $users;
+	}
+
+	/**
+	 * Declare the groups of the instance: group id => member uids (subset of the
+	 * users wired up via {@see instance()}).
+	 *
+	 * @param array<string,IUser&MockObject> $users
+	 * @param array<string,string[]> $groups
+	 */
+	private function instanceGroups(array $users, array $groups): void {
+		$resolved = [];
+		foreach ($groups as $gid => $memberUids) {
+			$group = $this->createMock(IGroup::class);
+			$group->method('getUsers')->willReturn(
+				array_values(array_intersect_key($users, array_fill_keys($memberUids, true))),
+			);
+			$resolved[$gid] = $group;
+		}
+		$this->groupManager->method('get')->willReturnCallback(
+			static fn (string $gid): ?IGroup => $resolved[$gid] ?? null,
+		);
+		$this->groupManager->method('isInGroup')->willReturnCallback(
+			static fn (string $uid, string $gid): bool => in_array($uid, $groups[$gid] ?? [], true),
+		);
 	}
 
 	public function testListAllOmitsGuests(): void {
@@ -91,16 +123,14 @@ class EmployeeDirectoryTest extends TestCase {
 
 	public function testGroupMembersAreFilteredToo(): void {
 		$users = $this->instance(['alice' => 'Database', 'ext' => 'Guests']);
-		$group = $this->createMock(IGroup::class);
-		$group->method('getUsers')->willReturn(array_values($users));
-		$this->groupManager->method('get')->with('staff')->willReturn($group);
+		$this->instanceGroups($users, ['staff' => ['alice', 'ext']]);
 
 		self::assertSame(['alice'], $this->directory->listInGroup('staff'));
 	}
 
 	public function testAMissingGroupYieldsNobodyRatherThanEveryone(): void {
 		$this->instance(['alice' => 'Database']);
-		$this->groupManager->method('get')->with('gone')->willReturn(null);
+		$this->instanceGroups([], []);
 
 		// Widening to the whole company on a stale group name would quietly leak a
 		// company-wide report to someone who asked for one team.
@@ -118,5 +148,38 @@ class EmployeeDirectoryTest extends TestCase {
 		$this->instance(['alice' => 'Database', 'ext' => 'Guests', 'bob' => 'Database']);
 
 		self::assertSame(['bob', 'alice'], $this->directory->filter(['bob', 'ext', 'alice', 'ghost']));
+	}
+
+	public function testAConfiguredEmployeesGroupNarrowsWhoCounts(): void {
+		$users = $this->instance(['alice' => 'Database', 'bob' => 'Database', 'svc' => 'Database']);
+		$this->instanceGroups($users, ['staff' => ['alice', 'bob']]);
+		$this->employeesGroup = 'staff';
+
+		// The service account exists but is not staff: no leave, no reports, no pickers.
+		self::assertSame(['alice', 'bob'], $this->directory->listAll());
+		self::assertTrue($this->directory->isEmployee('alice'));
+		self::assertFalse($this->directory->isEmployee('svc'));
+		self::assertSame(['alice'], $this->directory->filter(['alice', 'svc']));
+	}
+
+	public function testAGuestInsideTheEmployeesGroupIsStillNoEmployee(): void {
+		$users = $this->instance(['alice' => 'Database', 'ext' => 'Guests']);
+		$this->instanceGroups($users, ['staff' => ['alice', 'ext']]);
+		$this->employeesGroup = 'staff';
+
+		self::assertSame(['alice'], $this->directory->listAll());
+		self::assertFalse($this->directory->isEmployee('ext'));
+	}
+
+	public function testADeletedEmployeesGroupFailsOpenWithALoudError(): void {
+		$this->instance(['alice' => 'Database', 'bob' => 'Database']);
+		$this->instanceGroups([], []); // the configured group no longer exists
+		$this->employeesGroup = 'gone';
+
+		// Failing closed would freeze leave booking for the whole company over a
+		// deleted group; failing open only widens who counts, and the admin is told.
+		$this->logger->expects(self::once())->method('error');
+		self::assertSame(['alice', 'bob'], $this->directory->listAll());
+		self::assertTrue($this->directory->isEmployee('alice'));
 	}
 }

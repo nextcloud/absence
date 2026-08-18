@@ -54,7 +54,7 @@ SPDX-FileCopyrightText = "2018-2024 Google LLC"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
-path = ["screenshots/*.png"]
+path = ["screenshots/*.png", "img/handbook/*.png"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "CC0-1.0"

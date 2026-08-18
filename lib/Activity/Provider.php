@@ -37,6 +37,7 @@ class Provider implements IProvider {
 
 		$subject = match ($event->getSubject()) {
 			ActivityPublisher::SUBJECT_CREATED => $l->t('%1$s requested leave for %2$s', [$employee, $range]),
+			ActivityPublisher::SUBJECT_UPDATED => $l->t('Leave for %1$s (%2$s) was updated', [$employee, $range]),
 			ActivityPublisher::SUBJECT_APPROVED => $l->t('Leave for %1$s (%2$s) was approved', [$employee, $range]),
 			ActivityPublisher::SUBJECT_REJECTED => $l->t('Leave for %1$s (%2$s) was declined', [$employee, $range]),
 			ActivityPublisher::SUBJECT_CANCELLED => $l->t('Leave for %1$s (%2$s) was cancelled', [$employee, $range]),

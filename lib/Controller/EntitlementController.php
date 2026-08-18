@@ -14,6 +14,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IL10N;
 use OCP\IRequest;
 
 class EntitlementController extends Controller {
@@ -25,6 +26,7 @@ class EntitlementController extends Controller {
 		private ?string $userId,
 		private EntitlementService $service,
 		private PermissionService $permission,
+		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
 	}

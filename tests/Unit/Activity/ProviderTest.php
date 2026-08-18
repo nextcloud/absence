@@ -88,4 +88,29 @@ class ProviderTest extends TestCase {
 
 		$this->assertSame($event, $this->provider->parse('en', $event));
 	}
+
+	public function testParseRendersAnUpdateAsAnUpdateNotACreation(): void {
+		$user = $this->createMock(IUser::class);
+		$user->method('getDisplayName')->willReturn('Alice Doe');
+		$this->userManager->method('get')->with('alice')->willReturn($user);
+		$this->urlGenerator->method('imagePath')->willReturn('/img/app-dark.svg');
+		$this->urlGenerator->method('getAbsoluteURL')->willReturn('https://cloud.example.com/img/app-dark.svg');
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example.com/apps/absence/');
+
+		$event = $this->createMock(IEvent::class);
+		$event->method('getApp')->willReturn(ConfigService::APP_ID);
+		$event->method('getSubject')->willReturn(ActivityPublisher::SUBJECT_UPDATED);
+		$event->method('getSubjectParameters')->willReturn([
+			'employee' => 'alice',
+			'start' => '2026-08-03',
+			'end' => '2026-08-07',
+		]);
+		$event->method('getObjectId')->willReturn(42);
+
+		$event->expects($this->once())
+			->method('setParsedSubject')
+			->with('Leave for Alice Doe (2026-08-03 – 2026-08-07) was updated');
+
+		$this->assertSame($event, $this->provider->parse('en', $event));
+	}
 }

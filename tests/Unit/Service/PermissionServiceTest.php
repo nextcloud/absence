@@ -15,6 +15,7 @@ use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroup;
 use OCP\IGroupManager;
@@ -29,6 +30,7 @@ use Psr\Log\LoggerInterface;
  * decide on and change a request, including the HR-recorded-leave carve-out.
  */
 class PermissionServiceTest extends TestCase {
+	use L10nMockTrait;
 	private IGroupManager&MockObject $groupManager;
 	private ManagerResolver&MockObject $managerResolver;
 	private ConfigService&MockObject $config;
@@ -49,6 +51,7 @@ class PermissionServiceTest extends TestCase {
 			$this->managerResolver,
 			$this->config,
 			$this->leaveTypeMapper,
+			$this->l10nMock(),
 			$this->logger,
 		);
 	}
@@ -222,5 +225,39 @@ class PermissionServiceTest extends TestCase {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
 		return $user;
+	}
+
+	public function testAManagerMayNotDecideAConfidentialRequest(): void {
+		// §5.7: confidential categories never reach a manager's desk.
+		$type = new LeaveType();
+		$type->setId(9);
+		$type->setHrOnly(true);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([9]);
+		$this->managerResolver->method('isManagerOf')->willReturn(true);
+		$this->groupManager->method('isInGroup')->willReturn(false);
+
+		$request = new LeaveRequest();
+		$request->setEmployeeUid('emp');
+		$request->setManagerUid('boss');
+		$request->setTypeId(9);
+
+		self::assertTrue($this->service->isHrOnlyRequest($request));
+		self::assertFalse($this->service->canDecide('boss', $request));
+		// The bare fact stays visible — the serialization withholds the content.
+		self::assertTrue($this->service->canView('boss', $request));
+	}
+
+	public function testConfidentialTypesAreFilteredFromNonHrTypeLists(): void {
+		$this->groupManager->method('isInGroup')->willReturnCallback(
+			static fn (string $uid): bool => $uid === 'hr-user',
+		);
+		$plain = new LeaveType();
+		$plain->setId(1);
+		$confidential = new LeaveType();
+		$confidential->setId(9);
+		$confidential->setHrOnly(true);
+
+		self::assertSame([$plain], $this->service->filterVisibleTypes('emp', [$plain, $confidential]));
+		self::assertSame([$plain, $confidential], $this->service->filterVisibleTypes('hr-user', [$plain, $confidential]));
 	}
 }

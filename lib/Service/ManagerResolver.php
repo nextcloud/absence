@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCP\Config\IUserConfig;
 use OCP\IUser;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
@@ -16,15 +17,37 @@ use Psr\Log\LoggerInterface;
  * Resolves the line-manager relationship from the user's `manager` account field
  * ({@see IUser::getManagerUids()}, populated from LDAP where configured), and the
  * inverse "direct reports" set. Results are cached per request (spec §2.1).
+ *
+ * The inverse direction is deliberately *not* answered by enumerating every
+ * account: this resolver sits inside `canView`/`canDecide` and the session
+ * bootstrap, so it runs on almost every request, and walking the whole user
+ * backend there made every click O(headcount) on large LDAP instances. Instead:
+ *
+ *  - `isManagerOf()` reads the *employee's* own manager property — one user
+ *    lookup, no directory access at all;
+ *  - `getDirectReports()` reads the stored `manager` preference for all users
+ *    in a single indexed query ({@see IUserConfig::getValuesByUsers()}; the
+ *    server stores {@see IUser::getManagerUids()} as the `settings/manager`
+ *    user preference) and resolves candidates from that in memory.
  */
 class ManagerResolver {
+	/**
+	 * Where the server keeps IUser::getManagerUids(): the `manager` preference
+	 * of the `settings` app, as a JSON list of uids (OC\User\User).
+	 */
+	private const MANAGER_PREF_APP = 'settings';
+	private const MANAGER_PREF_KEY = 'manager';
+
 	/** @var array<string,?string> uid => manager uid|null */
 	private array $managerCache = [];
-	/** @var array<string,string[]>|null manager uid => report uids (built lazily) */
-	private ?array $reportsIndex = null;
+	/** @var array<string,string[]> manager uid => report uids, resolved lazily */
+	private array $reportsCache = [];
+	/** @var array<string,string[]>|null uid => configured manager uids (one query) */
+	private ?array $configuredManagers = null;
 
 	public function __construct(
 		private IUserManager $userManager,
+		private IUserConfig $userConfig,
 		private EmployeeDirectory $employees,
 		private LoggerInterface $logger,
 	) {
@@ -40,26 +63,34 @@ class ManagerResolver {
 		$manager = null;
 		$user = $this->userManager->get($employeeUid);
 		if ($user instanceof IUser) {
-			$manager = $this->readManagerUid($user);
+			$manager = $this->firstValidManager($employeeUid, $this->readManagerUids($user));
 		}
 		return $this->managerCache[$employeeUid] = $manager;
 	}
 
 	/**
-	 * A user may have several configured managers; we use the first valid one.
+	 * @return string[] the raw configured manager uids, [] on backend failure
 	 */
-	private function readManagerUid(IUser $user): ?string {
+	private function readManagerUids(IUser $user): array {
 		try {
-			$managerUids = $user->getManagerUids();
+			return $user->getManagerUids();
 		} catch (\Throwable $e) {
 			$this->logger->debug('Absence: could not read manager for ' . $user->getUID(), ['exception' => $e]);
-			return null;
+			return [];
 		}
+	}
+
+	/**
+	 * A user may have several configured managers; we use the first valid one.
+	 *
+	 * @param string[] $managerUids
+	 */
+	private function firstValidManager(string $employeeUid, array $managerUids): ?string {
 		foreach ($managerUids as $uid) {
 			$uid = trim((string)$uid);
 			// A guest cannot be a line manager — they have no standing in the app,
 			// so routing an approval to them would strand the request (§2.2).
-			if ($uid !== '' && $uid !== $user->getUID() && $this->employees->isEmployee($uid)) {
+			if ($uid !== '' && $uid !== $employeeUid && $this->employees->isEmployee($uid)) {
 				return $uid;
 			}
 		}
@@ -72,7 +103,27 @@ class ManagerResolver {
 	 * @return string[]
 	 */
 	public function getDirectReports(string $managerUid): array {
-		return $this->getReportsIndex()[$managerUid] ?? [];
+		if (isset($this->reportsCache[$managerUid])) {
+			return $this->reportsCache[$managerUid];
+		}
+		$reports = [];
+		foreach ($this->configuredManagers() as $uid => $managerUids) {
+			// Cheap containment test first; the first-valid rule and the
+			// employee test only run for actual candidates.
+			if (!in_array($managerUid, array_map(trim(...), $managerUids), true)) {
+				continue;
+			}
+			// Guests are not employees, so they are nobody's direct report — which
+			// also keeps them out of getPeers() and every team-scoped view (§2.2).
+			if (!$this->employees->isEmployee($uid)) {
+				continue;
+			}
+			if ($this->firstValidManager($uid, $managerUids) === $managerUid) {
+				$this->managerCache[$uid] = $managerUid;
+				$reports[] = $uid;
+			}
+		}
+		return $this->reportsCache[$managerUid] = $reports;
 	}
 
 	/**
@@ -93,29 +144,33 @@ class ManagerResolver {
 	}
 
 	public function isManagerOf(string $managerUid, string $employeeUid): bool {
-		return in_array($employeeUid, $this->getDirectReports($managerUid), true);
+		// Answered from the employee's own manager property: one user lookup.
+		// This runs inside canView/canDecide on nearly every request, so it must
+		// never pay for the size of the directory.
+		return $managerUid !== ''
+			&& $this->getManagerUid($employeeUid) === $managerUid
+			&& $this->employees->isEmployee($employeeUid);
 	}
 
 	/**
+	 * Everybody's configured manager uids in one indexed query on the stored
+	 * preference — never a walk over the user backend. Only rows where the
+	 * property is set at all come back, which on any real instance is far
+	 * fewer values than users, and each is a tiny JSON list.
+	 *
 	 * @return array<string,string[]>
 	 */
-	private function getReportsIndex(): array {
-		if ($this->reportsIndex !== null) {
-			return $this->reportsIndex;
+	private function configuredManagers(): array {
+		if ($this->configuredManagers !== null) {
+			return $this->configuredManagers;
 		}
-		$index = [];
-		$this->userManager->callForAllUsers(function (IUser $user) use (&$index): void {
-			// Guests are not employees, so they are nobody's direct report — which
-			// also keeps them out of getPeers() and every team-scoped view (§2.2).
-			if (!$this->employees->isEmployee($user->getUID())) {
-				return;
+		$configured = [];
+		foreach ($this->userConfig->getValuesByUsers(self::MANAGER_PREF_APP, self::MANAGER_PREF_KEY) as $uid => $value) {
+			$decoded = is_array($value) ? $value : json_decode((string)$value, true);
+			if (is_array($decoded) && $decoded !== []) {
+				$configured[(string)$uid] = array_map(strval(...), $decoded);
 			}
-			$managerUid = $this->readManagerUid($user);
-			if ($managerUid !== null) {
-				$index[$managerUid][] = $user->getUID();
-				$this->managerCache[$user->getUID()] = $managerUid;
-			}
-		});
-		return $this->reportsIndex = $index;
+		}
+		return $this->configuredManagers = $configured;
 	}
 }

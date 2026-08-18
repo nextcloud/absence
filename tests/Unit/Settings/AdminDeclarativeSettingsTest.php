@@ -113,6 +113,7 @@ class AdminDeclarativeSettingsTest extends TestCase {
 	private static function adminConfigFixture(): array {
 		return [
 			ConfigLexicon::KEY_HR_GROUP => 'hr',
+			ConfigLexicon::KEY_EMPLOYEES_GROUP => '',
 			ConfigLexicon::KEY_DEFAULT_ENTITLEMENT => 25.0,
 			ConfigLexicon::KEY_ESCALATION_WINDOW => 3,
 			ConfigLexicon::KEY_REMINDER_LEAD => 1,

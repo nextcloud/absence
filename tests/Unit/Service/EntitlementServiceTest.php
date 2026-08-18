@@ -20,6 +20,7 @@ use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -29,6 +30,7 @@ use Psr\Log\LoggerInterface;
 
 class EntitlementServiceTest extends TestCase {
 	use ClockMockTrait;
+	use L10nMockTrait;
 
 	private EntitlementMapper&MockObject $entitlementMapper;
 	private EntitlementEventMapper&MockObject $eventMapper;
@@ -53,7 +55,13 @@ class EntitlementServiceTest extends TestCase {
 			$this->config,
 			$this->clockAtRealTime(),
 			$this->createMock(ActivityPublisher::class),
-			new EmployeeDirectory($this->createMock(IUserManager::class), $this->createMock(IGroupManager::class)),
+			new EmployeeDirectory(
+				$this->createMock(IUserManager::class),
+				$this->createMock(IGroupManager::class),
+				$this->createMock(ConfigService::class),
+				$this->createMock(LoggerInterface::class),
+			),
+			$this->l10nMock(),
 			$this->createMock(LoggerInterface::class),
 		);
 	}

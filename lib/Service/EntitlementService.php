@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\IL10N;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -31,6 +32,7 @@ class EntitlementService {
 		private ClockService $clock,
 		private ActivityPublisher $activity,
 		private EmployeeDirectory $employees,
+		private IL10N $l,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -61,10 +63,10 @@ class EntitlementService {
 		try {
 			$ent = $this->entitlementMapper->find($id);
 		} catch (DoesNotExistException) {
-			throw new NotFoundException('Entitlement not found');
+			throw new NotFoundException($this->l->t('Entitlement not found'));
 		}
 		if (array_key_exists('adjustmentDelta', $data) && array_key_exists('manualAdjustment', $data)) {
-			throw new ValidationException('Send either an adjustment to apply or an absolute adjustment, not both.');
+			throw new ValidationException($this->l->t('Send either an adjustment to apply or an absolute adjustment, not both.'));
 		}
 		// Read before any setter runs: these are what the history reports moving from.
 		$before = [
@@ -89,7 +91,7 @@ class EntitlementService {
 			$delta = (float)$data['adjustmentDelta'];
 			if (abs($delta) > 0.001) {
 				if ($note === '') {
-					throw new ValidationException('A note is required when adjusting an entitlement.');
+					throw new ValidationException($this->l->t('A note is required when adjusting an entitlement.'));
 				}
 				$ent->setManualAdjustment($ent->getManualAdjustment() + $delta);
 				$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
@@ -97,7 +99,7 @@ class EntitlementService {
 		} elseif (array_key_exists('manualAdjustment', $data)) {
 			$adjustment = (float)$data['manualAdjustment'];
 			if ($adjustment !== $ent->getManualAdjustment() && $note === '') {
-				throw new ValidationException('A note is required when adjusting an entitlement.');
+				throw new ValidationException($this->l->t('A note is required when adjusting an entitlement.'));
 			}
 			$ent->setManualAdjustment($adjustment);
 			$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
@@ -138,7 +140,7 @@ class EntitlementService {
 	public function setForEmployee(string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
 		// Also rejects guests: they have no entitlement to set (§2.2).
 		if (!$this->employees->isEmployee($employeeUid)) {
-			throw new ValidationException('Unknown employee.');
+			throw new ValidationException($this->l->t('Unknown employee.'));
 		}
 		$this->assertCountingType($typeId);
 		$ent = $this->balanceService->ensureEntitlement($employeeUid, $year, $typeId);
@@ -364,10 +366,10 @@ class EntitlementService {
 		try {
 			$type = $this->leaveTypeMapper->find($typeId);
 		} catch (DoesNotExistException) {
-			throw new ValidationException('Unknown leave type.');
+			throw new ValidationException($this->l->t('Unknown leave type.'));
 		}
 		if (!$type->getCountsAgainstBalance()) {
-			throw new ValidationException('Entitlements only apply to leave types that count against the balance.');
+			throw new ValidationException($this->l->t('Entitlements only apply to leave types that count against the balance.'));
 		}
 	}
 

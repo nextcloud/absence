@@ -28,6 +28,7 @@ use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\RequestService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\Lock\ILockingProvider;
@@ -37,6 +38,7 @@ use Psr\Log\LoggerInterface;
 
 class RequestServiceTest extends TestCase {
 	use ClockMockTrait;
+	use L10nMockTrait;
 
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private RequestCommentMapper&MockObject $commentMapper;
@@ -114,6 +116,7 @@ class RequestServiceTest extends TestCase {
 			$this->config,
 			$this->employees,
 			$this->userManager,
+			$this->l10nMock(),
 			$this->logger,
 			$this->db,
 			$this->lockingProvider,
@@ -634,5 +637,170 @@ class RequestServiceTest extends TestCase {
 			->with($request, 'We have nobody to cover that week.', 'boss');
 
 		$this->service->reject('boss', 5, 'We have nobody to cover that week.');
+	}
+
+	public function testWorkingDaysMayNotExceedTheCalendarSpan(): void {
+		// §7: the count is entered by hand, so 40 typed for 4 must be a clean 422
+		// instead of a wrecked balance. Three calendar days hold at most three
+		// working days.
+		$type = $this->type(1, true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$end = date('Y-m-d', strtotime('+32 days'));
+		$this->expectException(ValidationException::class);
+		$this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $end,
+			'workingDays' => 4.0,
+		]);
+	}
+
+	public function testAFullSpanOfWorkingDaysIsAccepted(): void {
+		// The boundary is inclusive: every calendar day a working day is legitimate.
+		$type = $this->type(1, true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$end = date('Y-m-d', strtotime('+32 days'));
+		$created = $this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $end,
+			'workingDays' => 3.0,
+		]);
+
+		self::assertSame(3.0, $created->getWorkingDays());
+	}
+
+	public function testEscalationYieldsToAConcurrentDecision(): void {
+		// The job picked this request from a list read moments earlier; by the time
+		// it acts, the manager has decided it. The conditional flip refuses, and no
+		// notification announces an escalation that never happened.
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('markEscalated')->willReturn(false);
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->notifications->expects(self::never())->method('notifyEscalation');
+
+		$this->service->escalate($request);
+
+		self::assertSame(LeaveRequest::STATUS_PENDING, $request->getStatus());
+	}
+
+	public function testEscalationFlipsAndNotifiesWhenStillPending(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('markEscalated')->with(5)->willReturn(true);
+		$this->permission->method('getHrUids')->willReturn(['hr1']);
+		$this->notifications->expects(self::once())->method('notifyEscalation')
+			->with($request, ['hr1']);
+
+		$this->service->escalate($request);
+
+		self::assertSame(LeaveRequest::STATUS_ESCALATED, $request->getStatus());
+		self::assertTrue($request->getEscalated());
+	}
+
+	public function testAConfidentialAbsenceIsWithheldFromItsOwnEmployee(): void {
+		// §5.7: the employee sees that the absence exists — dates and status —
+		// but not the category, the reason or anything HR wrote about it.
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		$request->setTypeId(9);
+		$request->setReason('Maternity leave until March');
+		$this->requestMapper->method('find')->willReturn($request);
+		$this->requestMapper->method('findFiltered')->willReturn([$request]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([9]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->permission->method('isHrOnlyRequest')->willReturn(true);
+
+		$detail = $this->service->getDetail('emp', 5);
+		self::assertNull($detail['typeId']);
+		self::assertNull($detail['reason']);
+		self::assertSame([], $detail['history']);
+		self::assertSame([], $detail['comments']);
+		self::assertFalse($detail['canModify']);
+
+		$rows = $this->service->listSerialized('emp', ['scope' => 'mine'], null, null);
+		self::assertNull($rows[0]['typeId']);
+		self::assertNull($rows[0]['reason']);
+		self::assertSame($request->getStartDate(), $rows[0]['startDate']);
+	}
+
+	public function testAConfidentialAbsenceIsFullyVisibleToHr(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setTypeId(9);
+		$request->setReason('Maternity leave until March');
+		$this->requestMapper->method('findFiltered')->willReturn([$request]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([9]);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+
+		$rows = $this->service->listSerialized('hr', ['scope' => 'hr'], null, null);
+		self::assertSame(9, $rows[0]['typeId']);
+		self::assertSame('Maternity leave until March', $rows[0]['reason']);
+	}
+
+	public function testOnlyHrCanSetTheDisabilityFlag(): void {
+		// §5.8: a crafted self-service payload must not set it — and must not
+		// fail the request either; the flag is simply ignored.
+		$type = $this->type(1, true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$created = $this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+			'replacementUid' => 'aisha',
+			'disability' => true,
+		]);
+
+		self::assertFalse($created->getDisability());
+	}
+
+	public function testHrSetsTheDisabilityFlagWhenRecording(): void {
+		$type = $this->type(1, true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$created = $this->service->create('hr', [
+			'typeId' => 1,
+			'employeeUid' => 'emp',
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+			'disability' => true,
+		]);
+
+		self::assertTrue($created->getDisability());
+	}
+
+	public function testTheDisabilityFlagIsWithheldFromNonHrViewers(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setDisability(true);
+		$this->requestMapper->method('findFiltered')->willReturn([$request]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([]);
+		$this->permission->method('isHr')->willReturnCallback(
+			static fn (string $uid): bool => $uid === 'hr',
+		);
+
+		$own = $this->service->listSerialized('emp', ['scope' => 'mine'], null, null);
+		self::assertNull($own[0]['disability']);
+
+		$hr = $this->service->listSerialized('hr', ['scope' => 'hr'], null, null);
+		self::assertTrue($hr[0]['disability']);
 	}
 }

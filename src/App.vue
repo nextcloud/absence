@@ -40,6 +40,14 @@
 					</template>
 				</NcAppNavigationItem>
 
+				<NcAppNavigationItem
+					:name="t('absence', 'Handbook')"
+					:to="{ name: 'handbook' }">
+					<template #icon>
+						<BookOpenVariant :size="20" />
+					</template>
+				</NcAppNavigationItem>
+
 				<template v-if="session.isHr">
 					<NcAppNavigationCaption :name="t('absence', 'HR')" />
 					<NcAppNavigationItem :name="t('absence', 'Record absence')" @click="openRecord">
@@ -73,6 +81,11 @@
 						</template>
 						<template v-if="session.escalatedCount > 0" #counter>
 							<NcCounterBubble :count="session.escalatedCount" />
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem :name="t('absence', 'HR handbook')" :to="{ name: 'hr-handbook' }">
+						<template #icon>
+							<BookOpenPageVariant :size="20" />
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'Exports')" :to="{ name: 'hr-exports' }">
@@ -114,6 +127,8 @@ import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import BookOpenPageVariant from 'vue-material-design-icons/BookOpenPageVariant.vue'
+import BookOpenVariant from 'vue-material-design-icons/BookOpenVariant.vue'
 import CalendarAccountOutline from 'vue-material-design-icons/CalendarAccountOutline.vue'
 import CalendarMonth from 'vue-material-design-icons/CalendarMonth.vue'
 import CalendarSearch from 'vue-material-design-icons/CalendarSearch.vue'
@@ -137,6 +152,8 @@ export default {
 		NcAppNavigationNew,
 		NcAppNavigationItem,
 		NcAppNavigationCaption,
+		BookOpenPageVariant,
+		BookOpenVariant,
 		NcCounterBubble,
 		RequestDialog,
 		RequestSidebar,
