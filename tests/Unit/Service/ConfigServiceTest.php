@@ -11,6 +11,7 @@ namespace OCA\Absence\Tests\Unit\Service;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
 use OCP\IGroupManager;
@@ -18,6 +19,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class ConfigServiceTest extends TestCase {
+	use L10nMockTrait;
 	private IAppConfig&MockObject $appConfig;
 	private IGroupManager&MockObject $groupManager;
 	private ConfigService $service;
@@ -30,6 +32,7 @@ class ConfigServiceTest extends TestCase {
 			$this->appConfig,
 			$this->createMock(IUserConfig::class),
 			$this->groupManager,
+			$this->l10nMock(),
 		);
 	}
 

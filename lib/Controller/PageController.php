@@ -26,6 +26,8 @@ class PageController extends Controller {
 		private IInitialState $initialState,
 		private SessionService $sessionService,
 		private LeaveTypeMapper $leaveTypeMapper,
+		private \OCA\Absence\Service\PermissionService $permission,
+		private ?string $userId,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -37,9 +39,11 @@ class PageController extends Controller {
 	#[NoCSRFRequired]
 	public function index(): TemplateResponse {
 		$this->initialState->provideInitialState('session', $this->sessionService->getSessionInfo());
+		// Same visibility rule as the leave-types API: confidential categories
+		// (§5.7) never reach a non-HR browser, not even in the bootstrap payload.
 		$this->initialState->provideInitialState('leaveTypes', array_map(
 			static fn ($t) => $t->jsonSerialize(),
-			$this->leaveTypeMapper->findAll(),
+			$this->permission->filterVisibleTypes((string)$this->userId, $this->leaveTypeMapper->findAll()),
 		));
 
 		Util::addScript($this->appName, 'absence-main');

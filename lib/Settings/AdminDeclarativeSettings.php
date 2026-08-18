@@ -53,6 +53,14 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 					'default' => 'hr',
 				],
 				[
+					'id' => ConfigLexicon::KEY_EMPLOYEES_GROUP,
+					'title' => $this->l->t('Employees group (optional)'),
+					'description' => $this->l->t('Only members of this group count as employees: they can book leave and appear in reports and pickers. Leave empty to treat every account (except guests) as an employee. Useful to keep service accounts out.'),
+					'type' => DeclarativeSettingsTypes::TEXT,
+					'placeholder' => $this->l->t('Empty: everyone'),
+					'default' => '',
+				],
+				[
 					'id' => ConfigLexicon::KEY_DEFAULT_ENTITLEMENT,
 					'title' => $this->l->t('Default annual entitlement (days)'),
 					'type' => DeclarativeSettingsTypes::NUMBER,

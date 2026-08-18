@@ -18,6 +18,8 @@ use OCA\Absence\Exception\ValidationException;
  * over an arbitrary range.
  */
 trait DateRangeTrait {
+	// Every class using this trait injects IL10N as $this->l.
+
 	/**
 	 * @return array{0:string,1:string} the normalised [from, to] pair
 	 * @throws ValidationException
@@ -25,17 +27,17 @@ trait DateRangeTrait {
 	private function assertValidRange(string $from, string $to, int $maxDays = 3660): array {
 		$parsedFrom = \DateTimeImmutable::createFromFormat('!Y-m-d', $from);
 		if ($parsedFrom === false || $parsedFrom->format('Y-m-d') !== $from) {
-			throw new ValidationException('Invalid start date.');
+			throw new ValidationException($this->l->t('Invalid start date.'));
 		}
 		$parsedTo = \DateTimeImmutable::createFromFormat('!Y-m-d', $to);
 		if ($parsedTo === false || $parsedTo->format('Y-m-d') !== $to) {
-			throw new ValidationException('Invalid end date.');
+			throw new ValidationException($this->l->t('Invalid end date.'));
 		}
 		if ($parsedTo < $parsedFrom) {
-			throw new ValidationException('The end date must be on or after the start date.');
+			throw new ValidationException($this->l->t('The end date must be on or after the start date.'));
 		}
 		if ((int)$parsedFrom->diff($parsedTo)->days > $maxDays) {
-			throw new ValidationException('The selected date range is too large.');
+			throw new ValidationException($this->l->t('The selected date range is too large.'));
 		}
 		return [$parsedFrom->format('Y-m-d'), $parsedTo->format('Y-m-d')];
 	}

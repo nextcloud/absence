@@ -84,11 +84,13 @@ properly. Every rule and design decision is documented in the
 	</background-jobs>
 	<repair-steps>
 		<post-migration>
+			<step>OCA\Absence\Migration\SeedConfidentialLeaveTypes</step>
 			<step>OCA\Absence\Migration\EnableAuditLogging</step>
 			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
 		</post-migration>
 		<install>
 			<step>OCA\Absence\Migration\SeedLeaveTypes</step>
+			<step>OCA\Absence\Migration\SeedConfidentialLeaveTypes</step>
 			<step>OCA\Absence\Migration\EnableAuditLogging</step>
 		</install>
 		<uninstall>

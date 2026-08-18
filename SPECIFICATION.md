@@ -69,6 +69,14 @@ There are four effective roles. A single user may hold several simultaneously
 - Resolution is cached per-request. The resolved manager user id is denormalized
   onto each leave request at submission time (`manager_uid`) so historical
   requests remain stable even if the org chart changes later.
+- **The inverse direction never enumerates the user backend.** `isManagerOf()`
+  is answered from the *employee's* own manager property (one user lookup — it
+  runs inside `canView`/`canDecide` on nearly every request), and
+  `getDirectReports()` reads the stored `settings/manager` preference for all
+  users in a single indexed query (`IUserConfig::getValuesByUsers()` — the
+  server persists `IUser::getManagerUids()` there as a JSON list), resolving
+  the first-valid-manager rule in memory. Walking every account per request
+  made each click O(headcount) on large LDAP instances.
 - **No manager found:** the request is created with `manager_uid = NULL` and is
   routed directly to HR (treated as immediately escalated — see §5.4).
 
@@ -113,6 +121,18 @@ calendar forever, with an empty allowance and nothing to show.
   this one result is not gated on enumeration settings.
 - Existing records for someone who later becomes a guest are left untouched in
   the database — they simply stop being listed.
+- **Optional employees group (§12).** An admin can narrow "everyone who is not a
+  guest" down to the members of one Nextcloud group. Left empty — the default —
+  the rule stays as above. Configured, only members of that group count as
+  employees: everyone else is excluded exactly like a guest (no leave — enforced
+  by the API, not just hidden —, no entitlement, absent from reports, pickers and
+  the who's-off views), which keeps service and functional accounts out. It also
+  bounds enumeration: `EmployeeDirectory::listAll()` reads that one group instead
+  of walking the entire user backend, which matters on large LDAP instances. The
+  setter refuses a group that does not exist; should the configured group be
+  deleted later, the app **fails open** (every non-guest account counts again) and
+  logs an error — failing closed would silently freeze leave booking for the whole
+  company.
 
 ---
 
@@ -148,7 +168,9 @@ The central table: one row per leave request.
 | `created_at` | datetime | |
 | `updated_at` | datetime | |
 
-Indexes: `(employee_uid, status)`, `(manager_uid, status)`, `(start_date, end_date)`, `(type_id)`.
+Indexes: `(employee_uid, status)`, `(manager_uid, status)`, `(start_date, end_date)`,
+`(type_id)`, `(status, created_at)` (escalation/reminder scans and the HR queue) and
+`(supersedes_id)` (the supersedes chain is read inside every edit and approval).
 
 ### 3.2 `absence_leave_types`
 
@@ -177,6 +199,11 @@ Configurable leave types. Seeded with defaults on install; HR/admin can add/edit
 | `sick` | Sick leave | false | false | false | false | **false** (HR-recorded) |
 | `unpaid` | Unpaid leave | false | true | false | true | true |
 | `special` | Special leave | false | true | false | true | true |
+
+The `hr_only` flag (§5.7) marks a type as confidential: recorded by HR and
+visible only to HR. Seeded confidential types: `maternity`, `work_prohibition`,
+`doctors_note`, `parental` — added idempotently on update too (`SeedConfidentialLeaveTypes`),
+so existing installations receive them without touching HR customisations.
 
 ### 3.3 Granularity
 
@@ -440,6 +467,11 @@ HR can change it via the HR edit path.
   no decision).
 - Such requests are marked `ESCALATED` (`escalated = true`), and HR is notified
   (notification + email + activity). HR can then approve/reject on the manager's behalf.
+- **Race-safe:** the job picks its candidates from a list read moments earlier, and a
+  manager may decide one of them in between. The flip is therefore a single conditional
+  `UPDATE … WHERE status = 'PENDING'` (`LeaveRequestMapper::markEscalated()`), never an
+  entity write-back — so a fresh decision cannot be clobbered back to `ESCALATED`, and
+  nobody is notified about an escalation that did not happen.
 - Requests with no manager (§2.1) start life effectively escalated and are surfaced
   in the HR queue immediately.
 
@@ -484,6 +516,71 @@ employees — sick leave is the canonical example (`employee_requestable = false
 
 ---
 
+### 5.7 Confidential leave types (HR-only visibility)
+
+Some absence categories are nobody's business but HR's: **maternity leave**,
+**parental leave**, a **medical work prohibition** (Beschäftigungsverbot) and a
+**doctor's note** are seeded (§3.2), all flagged `hr_only`. HR can add, rename or disable such
+types like any other; the API refuses an `hr_only` type that is self-requestable
+(the invariant is what makes the visibility rules below coherent).
+
+Rules, enforced server-side at every surface:
+
+- **Recorded by HR only** — `hr_only` implies `employee_requestable = false`,
+  so the existing §5.6 machinery applies: booked straight to `APPROVED`, no
+  approval workflow, HR-only edit and cancel paths.
+- **The category is visible to HR alone.** Everyone else — the line manager
+  *and the employee's own views* — sees the absence as a neutral "Absent":
+  dates and status, no type, no reason, no notes, no comments, no history.
+  Withholding happens at serialization (`typeId` is nulled; the client already
+  renders a null type as "Absent"), in the coverage/timeline feeds (where the
+  admin's "reveal" visibility setting deliberately does not extend to these
+  types), in balance rows, in the dashboard widget, and in both CalDAV event
+  titles (a personal calendar can be shared, so even the employee's own event
+  says only "Absence").
+- **Presentation:** in the Record absence dialog the confidential categories do
+  not appear as top-level leave types. HR picks **Sick leave** and a *Category*
+  sub-select appears — *General sick leave* (default), *Maternity leave*,
+  *Parental leave*, *Medical work prohibition*, *Doctor's note*. The chosen category's type id is
+  what gets stored, so everything downstream (statistics, sick-leave report,
+  exports, confidentiality) still works per type. Editing a confidential record
+  re-opens as Sick leave + its category. Should no type keyed `sick` exist, the
+  confidential types fall back to being listed directly.
+- **The type list itself is filtered**: non-HR clients never receive the
+  confidential types in `GET /api/leave-types` or the SPA bootstrap payload —
+  the names are the sensitive part.
+- **Decisions**: `canDecide()` is false for non-HR on confidential requests,
+  categorically. `canView()` is deliberately *not* narrowed — the bare fact of
+  the absence is already on the team timeline, so the employee and manager may
+  open the (withheld) record; refusing would only turn timeline clicks into
+  errors without hiding anything.
+- **The bare fact stays visible everywhere it must**: overlap checks, coverage
+  counts, the who's-off timelines and the team calendar all treat a
+  confidential absence like any other — colleagues plan around the absence,
+  not the reason.
+- HR-only surfaces (absences list, statistics, sick-leave report with its type
+  picker, exports) show confidential types in full.
+
+---
+
+### 5.8 The disability flag (HR-only)
+
+HR can mark an annual-leave request as **disability-related** — the additional
+statutory entitlement for employees with a recognised disability. Rules:
+
+- **Set by HR alone**: offered in the record/edit dialog when the type is
+  annual leave; the API silently ignores the field from anyone else (the
+  request itself still succeeds).
+- **Seen by HR alone**: serialization nulls the flag for every non-HR viewer —
+  the employee's own views included — and the request-history timeline never
+  mentions it (`describeChanges()` deliberately excludes it, since the history
+  is visible to the employee and manager). Changes are recorded in the
+  always-on server log instead.
+- The flag rides on the request row (`disability`, boolean); it does not alter
+  balances or workflows.
+
+---
+
 ## 6. Balances & Entitlements
 
 ### 6.1 Entitlement management (HR)
@@ -515,8 +612,10 @@ public-holiday calendar for every region is impractical, so the app does not att
   request (`working_days`).
 - The **line manager reviews and verifies** this number when approving. HR may correct it
   via the HR edit path (§5.5).
-- The server validates only that it is a positive, sane number (`> 0`, `≤ 366`); it never
-  recomputes it. `working_days` is stored as entered and is authoritative.
+- The server validates only that it is a positive, sane number (`> 0`, `≤ 366`, and **at
+  most one working day per calendar day of the leave** — a 3-day range cannot carry 40
+  working days; the typo guard never rejects a legitimate count); it never recomputes
+  it. `working_days` is stored as entered and is authoritative.
 - **Accounting simplification:** because there is no day-by-day breakdown, a request's
   working days are attributed wholly to the **year (for balances, §3.4) and month (for
   trends, §13) in which it starts**. Year-boundary requests are rare; split them into two
@@ -525,6 +624,11 @@ public-holiday calendar for every region is impractical, so the app does not att
 > Consequences of removing holidays: there is **no `WorkingDayCalculator`, no public
 > holidays feature (`absence_holidays`)**, and the admin "default region" option is gone.
 > The entered value is always authoritative; the server never recomputes it.
+
+The dialog labels the prefilled count as **an estimate that must always be
+checked and adjusted manually** — in the self-service flow *and* in HR's
+record-absence flow. The warning is part of the field, not fine print: the
+count drives the balance, and the server never recomputes it (§7).
 
 ### 7.1 Client-side prefill (convenience only)
 
@@ -716,6 +820,7 @@ new "Absence" settings section or "Personal info"/"Administration"):
 | Setting | Default | Notes |
 |---------|---------|-------|
 | HR group id | `hr` | Which NC group is HR (§2). |
+| Employees group | empty (= everyone) | Optional: only members count as employees (§2.2). |
 | Default annual entitlement (days) | 28 | Seed for new entitlement rows. |
 | Escalation window | 3 working days | For EscalationJob (§5.4). |
 | Reminder lead time | 1 day before escalation | For ReminderJob. |
@@ -746,24 +851,60 @@ The HR area (visible only to HR-group members) provides:
 
 1. **Per-employee balances table:** entitlement / used / pending / remaining /
    carry-over, per year and type. Filterable by group/department, searchable,
-   sortable. Drill-down to an employee's request history.
+   sortable. Drill-down to an employee's request history. The usage sums are
+   aggregated by the database (`SUM(working_days)` grouped by employee, type and
+   status for the report year), so the report scales with headcount, not with
+   how many years of requests have accumulated; only the netting rule for
+   pending superseding edits (§5.3) is applied in PHP, to the handful of rows
+   it can concern. Single-employee balance views load only the requested year
+   for the same reason.
 2. **Company-wide trends (charts):** absence days over time (by month), by leave
-   type, by department/group; headcount-on-leave heatmap. Use a lightweight charting
+   type, by department/group; headcount-on-leave heatmap. Stat tiles show approved
+   leave days in the range, the **average sick days per employee over the calendar
+   year** (total sick days ÷ all employees, not just the affected ones), the
+   busiest month, and the number of leave types used. Below the charts, a **"most
+   vacation still to take"** list ranks employees by *available* annual days
+   (neither taken nor booked) for the year of the range's end date, top 10,
+   flagging anyone with more than half their entitlement still unplanned — the
+   view HR uses to nudge people before the year closes. Use a lightweight charting
    approach consistent with Nextcloud (e.g. `vue-chartjs`/Chart.js already used
    elsewhere in the ecosystem — confirm a bundled option; otherwise a small SVG
    chart component). Follow the `dataviz` design guidance for palette/accessibility.
 3. **Who's-off calendar (org-wide):** all absences, filterable by team/type, for
    planning.
 4. **Export:** CSV and Excel (`.xlsx`) export of raw requests and of the balances
-   report, with date-range and group filters, for payroll/external HR. CSV via
-   native PHP; XLSX via a bundled library (e.g. PhpSpreadsheet) or a documented CSV
-   fallback if a dependency is undesirable.
+   report, with date-range and group filters (the group filter narrows to the
+   employees of one Nextcloud group; an unknown group yields an empty export, never
+   a silently widened one), for payroll/external HR. CSV via native PHP; XLSX via a
+   bundled library (e.g. PhpSpreadsheet) or a documented CSV fallback if a
+   dependency is undesirable. The group pickers are fed by `GET /api/groups`
+   (HR-only), so ordinary employees cannot enumerate the instance's groups through
+   this app.
 
 Managers get a scoped version (their reports only) of the who's-off calendar — the
-Team timeline. **The scoped balances table is specified but not yet built:** every
-balance view is HR-only today, and `report#balances` asserts HR. `balance#forEmployee`
-already authorises a manager to read one report's balance (`canViewBalanceOf`), so the
-gap is a UI one; no frontend calls it yet.
+Team timeline — and, below it, a **scoped balances table** of their direct reports
+(entitlement / used / pending / available for the current year). It is served by
+`GET /api/team/balances` (`balance#team`), which is not HR-gated: the manager
+relationship itself is the permission — the same rule (`canViewBalanceOf`) that
+already lets a manager read each report's balance one by one, and the request detail
+already shows it to whoever may decide. The endpoint is always scoped to the
+*caller's own* reports; for a non-manager it is simply empty.
+
+---
+
+### 13.1 In-app handbooks
+
+Two handbook pages, served by the SPA itself (static, translatable content — no
+backend), illustrated with element-level screenshots shipped under
+`img/handbook/` (served via the app's image route; regenerate them alongside
+`screenshots/` when the UI changes): `#/handbook`, linked in the sidebar for everyone, walks employees and
+team leads through booking, editing, deciding, coverage, the Team page and the
+who-sees-what rules; `#/hr/handbook`, linked in the HR section, is the extended
+edition — the same chapters plus recording (incl. confidential categories),
+absence management, entitlements, reports, the audit trail and the admin knobs
+worth knowing. A non-HR visitor deep-linking to the HR edition is redirected to
+the employee one; the HR chapters are documentation, not secrets, but the
+handbook shown should match what its reader can actually see.
 
 ---
 
@@ -792,6 +933,8 @@ the SPA). All list endpoints paginate and accept filters.
 
 **Balances & entitlements**
 - `GET  /api/balance` — current user's balance (all years/types or filtered).
+- `GET  /api/team/balances` — balances of the caller's own direct reports (§13);
+  empty for a non-manager, never someone else's team.
 - `GET  /api/employees/{uid}/balance` — manager (reports) / HR only.
 - `GET  /api/entitlements` / `PUT /api/entitlements/{id}` — HR manage.
 - `POST /api/entitlements/bulk` — HR bulk set.
@@ -811,6 +954,8 @@ the SPA). All list endpoints paginate and accept filters.
 
 **Reference data**
 - `GET  /api/leave-types`.
+- `GET  /api/groups` — group ids + display names for the HR report/export filters
+  (HR only).
 - HR/admin CRUD for leave types. (No holidays endpoints — the holidays/region
   feature was removed, §7.)
 
@@ -886,6 +1031,7 @@ NcContent(app-name="absence")
 │   ├── NcAppNavigationItem    Balances
 │   ├── NcAppNavigationItem    Statistics
 │   ├── NcAppNavigationItem    Who's off
+│   ├── NcAppNavigationItem    HR handbook      (extended handbook incl. the HR chapters)
 │   └── NcAppNavigationItem    Exports          (no settings entry — §12: no personal settings)
 ├── NcAppContent                            ← CENTER (the active routed view)
 │   └── router-view

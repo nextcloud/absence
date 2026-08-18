@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\IL10N;
 
 /**
  * Computes leave balances from requests + entitlements (spec §3.4, §6). Balances
@@ -28,6 +29,7 @@ class BalanceService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private ConfigService $config,
 		private ClockService $clock,
+		private IL10N $l,
 	) {
 	}
 
@@ -36,12 +38,14 @@ class BalanceService {
 	}
 
 	/**
-	 * Sum working days per (typeId, year, bucket) for an employee.
+	 * Sum working days per (typeId, year, bucket) for an employee. With $year,
+	 * only that year's requests are loaded — the common case (the My Leave
+	 * screen, the request-detail balance) never reads the whole history.
 	 *
 	 * @return array<int,array<int,array{used:float,pending:float}>> [typeId][year] => buckets
 	 */
-	private function computeUsage(string $employeeUid): array {
-		return $this->usageFromRequests($this->requestMapper->findAllForEmployee($employeeUid));
+	private function computeUsage(string $employeeUid, ?int $year = null): array {
+		return $this->usageFromRequests($this->requestMapper->findAllForEmployee($employeeUid, $year));
 	}
 
 	/**
@@ -94,7 +98,9 @@ class BalanceService {
 	 * @return array{employeeUid:string,balances:list<array<string,mixed>>}
 	 */
 	public function getBalance(string $employeeUid, ?int $year = null): array {
-		$usage = $this->computeUsage($employeeUid);
+		// The netting rule for superseding edits (§5.3) only ever relates rows of
+		// the same year, so a year-filtered load still nets correctly.
+		$usage = $this->computeUsage($employeeUid, $year);
 		$types = $this->typesById();
 
 		// Entitlements for this employee: restricted to the reported year when there
@@ -112,12 +118,12 @@ class BalanceService {
 
 	/**
 	 * Balances for many employees in one year, in a fixed number of queries
-	 * regardless of headcount.
-	 *
-	 * The obvious loop over {@see getBalance()} costs one request query, one leave
-	 * type query and one entitlement query *per leave type* for every employee —
-	 * several thousand queries for a mid-sized company, which is what made the HR
-	 * balances report unusable at scale.
+	 * regardless of headcount — and, since the sums are computed by the
+	 * database ({@see LeaveRequestMapper::aggregateWorkingDaysForYear()}),
+	 * regardless of how many years of history have accumulated. The PHP side
+	 * only handles the netting rule for pending superseding edits (§5.3),
+	 * which the aggregation cannot express and which concerns at most a
+	 * handful of rows.
 	 *
 	 * @param string[] $employeeUids
 	 * @return array<string,list<array<string,mixed>>> balance rows keyed by employee uid
@@ -127,7 +133,7 @@ class BalanceService {
 			return [];
 		}
 		$types = $this->typesById();
-		$requestsByEmployee = $this->requestMapper->findAllForEmployees($employeeUids);
+		$usageByEmployee = $this->usageFromAggregates($employeeUids, $year);
 
 		$entitlementsByEmployee = [];
 		foreach ($this->entitlementMapper->findForYear($year) as $ent) {
@@ -136,10 +142,65 @@ class BalanceService {
 
 		$result = [];
 		foreach ($employeeUids as $uid) {
-			$usage = $this->usageFromRequests($requestsByEmployee[$uid] ?? []);
-			$result[$uid] = $this->assembleRows($uid, $year, $usage, $types, $entitlementsByEmployee[$uid] ?? []);
+			$result[$uid] = $this->assembleRows($uid, $year, $usageByEmployee[$uid] ?? [], $types, $entitlementsByEmployee[$uid] ?? []);
 		}
 		return $result;
+	}
+
+	/**
+	 * The usage of many employees for one year, from SQL aggregates plus the
+	 * netting correction. Produces the same buckets as {@see usageFromRequests()}
+	 * — the unit tests hold the two paths to the same numbers.
+	 *
+	 * @param string[] $employeeUids
+	 * @return array<string,array<int,array<int,array{used:float,pending:float}>>> [uid][typeId][year] => buckets
+	 */
+	private function usageFromAggregates(array $employeeUids, int $year): array {
+		$usage = [];
+		foreach ($this->requestMapper->aggregateWorkingDaysForYear($employeeUids, $year) as $row) {
+			$status = $row['status'];
+			$isUsed = in_array($status, LeaveRequest::USED_STATUSES, true);
+			$isPending = in_array($status, LeaveRequest::PENDING_STATUSES, true);
+			if (!$isUsed && !$isPending) {
+				continue;
+			}
+			$uid = $row['employee_uid'];
+			$typeId = $row['type_id'];
+			$usage[$uid][$typeId][$year] ??= ['used' => 0.0, 'pending' => 0.0];
+			$usage[$uid][$typeId][$year][$isUsed ? 'used' : 'pending'] += $row['days'];
+		}
+
+		// Netting (§5.3): a pending edit supersedes a request that is still counted
+		// itself, so only the extra days it asks for are genuinely pending. The
+		// aggregate above counted the edit in full; subtract the overlap with its
+		// still-active original — min(edit, original), because
+		// max(0, edit − original) = edit − min(edit, original).
+		$edits = $this->requestMapper->findPendingSupersedingForYear($employeeUids, $year);
+		if ($edits !== []) {
+			$originals = $this->requestMapper->findByIds(array_values(array_filter(array_map(
+				static fn (LeaveRequest $e): ?int => $e->getSupersedesId(),
+				$edits,
+			))));
+			foreach ($edits as $edit) {
+				$original = $originals[$edit->getSupersedesId()] ?? null;
+				if ($original === null
+					|| !in_array($original->getStatus(), LeaveRequest::ACTIVE_STATUSES, true)
+					|| $original->getTypeId() !== $edit->getTypeId()
+					|| (int)substr($original->getStartDate(), 0, 4) !== $year) {
+					continue;
+				}
+				$uid = $edit->getEmployeeUid();
+				$typeId = $edit->getTypeId();
+				if (!isset($usage[$uid][$typeId][$year])) {
+					continue;
+				}
+				$usage[$uid][$typeId][$year]['pending'] = max(
+					0.0,
+					$usage[$uid][$typeId][$year]['pending'] - min($edit->getWorkingDays(), $original->getWorkingDays()),
+				);
+			}
+		}
+		return $usage;
 	}
 
 	/**
@@ -271,7 +332,7 @@ class BalanceService {
 			try {
 				$type = $this->leaveTypeMapper->find($typeId);
 			} catch (DoesNotExistException) {
-				throw new ValidationException('Unknown leave type.');
+				throw new ValidationException($this->l->t('Unknown leave type.'));
 			}
 			$now = $this->clock->now();
 			$ent = new Entitlement();

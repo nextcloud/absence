@@ -13,6 +13,7 @@ use OCA\Absence\Exception\ValidationException;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
 use OCP\IGroupManager;
+use OCP\IL10N;
 
 /**
  * Typed access to the app's admin settings (§12) and per-user personal settings.
@@ -36,11 +37,17 @@ class ConfigService {
 		private IAppConfig $appConfig,
 		private IUserConfig $userConfig,
 		private IGroupManager $groupManager,
+		private IL10N $l,
 	) {
 	}
 
 	public function getHrGroup(): string {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_HR_GROUP);
+	}
+
+	/** Group whose members count as employees; '' means every non-guest account (§2.2). */
+	public function getEmployeesGroup(): string {
+		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP);
 	}
 
 	public function getDefaultEntitlement(): float {
@@ -101,6 +108,7 @@ class ConfigService {
 	public function getAdminConfig(): array {
 		return [
 			ConfigLexicon::KEY_HR_GROUP => $this->getHrGroup(),
+			ConfigLexicon::KEY_EMPLOYEES_GROUP => $this->getEmployeesGroup(),
 			ConfigLexicon::KEY_DEFAULT_ENTITLEMENT => $this->getDefaultEntitlement(),
 			ConfigLexicon::KEY_ESCALATION_WINDOW => $this->getEscalationWindowDays(),
 			ConfigLexicon::KEY_REMINDER_LEAD => $this->getReminderLeadDays(),
@@ -145,7 +153,7 @@ class ConfigService {
 			case ConfigLexicon::KEY_NOTICE_PERIOD:
 				$int = (int)$value;
 				if ($int < 0) {
-					throw new ValidationException('This setting must be zero or greater.');
+					throw new ValidationException($this->l->t('This setting must be zero or greater.'));
 				}
 				$this->appConfig->setValueInt(self::APP_ID, $key, $int);
 				break;
@@ -153,7 +161,7 @@ class ConfigService {
 			case ConfigLexicon::KEY_CARRYOVER_CAP:
 				$float = (float)$value;
 				if ($float < 0.0) {
-					throw new ValidationException('This setting must be zero or greater.');
+					throw new ValidationException($this->l->t('This setting must be zero or greater.'));
 				}
 				$this->appConfig->setValueFloat(self::APP_ID, $key, $float);
 				break;
@@ -163,20 +171,20 @@ class ConfigService {
 				break;
 			case ConfigLexicon::KEY_CARRYOVER_POLICY:
 				if (!in_array($value, [self::CARRYOVER_NONE, self::CARRYOVER_CAPPED, self::CARRYOVER_UNLIMITED], true)) {
-					throw new ValidationException('Invalid carry-over policy.');
+					throw new ValidationException($this->l->t('Invalid carry-over policy.'));
 				}
 				$this->appConfig->setValueString(self::APP_ID, $key, $value);
 				break;
 			case ConfigLexicon::KEY_SHARED_VISIBILITY:
 				if (!in_array($value, [self::VISIBILITY_NEUTRAL, self::VISIBILITY_REVEAL], true)) {
-					throw new ValidationException('Invalid shared-calendar visibility.');
+					throw new ValidationException($this->l->t('Invalid shared-calendar visibility.'));
 				}
 				$this->appConfig->setValueString(self::APP_ID, $key, $value);
 				break;
 			case ConfigLexicon::KEY_CARRYOVER_EXPIRY:
 				$expiry = (string)$value;
 				if ($expiry !== '' && !preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/', $expiry)) {
-					throw new ValidationException('The carry-over expiry must be empty or a day in MM-DD format.');
+					throw new ValidationException($this->l->t('The carry-over expiry must be empty or a day in MM-DD format.'));
 				}
 				$this->appConfig->setValueString(self::APP_ID, $key, $expiry);
 				break;
@@ -186,12 +194,22 @@ class ConfigService {
 				// the HR role (nobody can act on escalations), and a typo'd group name
 				// would do the same without any feedback.
 				if ($gid === '' || !$this->groupManager->groupExists($gid)) {
-					throw new ValidationException('The chosen HR group does not exist.');
+					throw new ValidationException($this->l->t('The chosen HR group does not exist.'));
+				}
+				$this->appConfig->setValueString(self::APP_ID, $key, $gid);
+				break;
+			case ConfigLexicon::KEY_EMPLOYEES_GROUP:
+				$gid = (string)$value;
+				// Unlike the HR group, empty is a valid choice here: it is the default
+				// "every non-guest account is an employee". A non-empty name still has
+				// to exist, or a typo would silently lock everyone out of booking leave.
+				if ($gid !== '' && !$this->groupManager->groupExists($gid)) {
+					throw new ValidationException($this->l->t('The chosen employees group does not exist.'));
 				}
 				$this->appConfig->setValueString(self::APP_ID, $key, $gid);
 				break;
 			default:
-				throw new ValidationException('Unknown setting: ' . $key);
+				throw new ValidationException($this->l->t('Unknown setting: %s', [$key]));
 		}
 	}
 }

@@ -13,8 +13,11 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
+use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\ReportService;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IGroup;
 use OCP\IGroupManager;
 use OCP\IUser;
@@ -23,11 +26,13 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class ReportServiceTest extends TestCase {
+	use L10nMockTrait;
 	private BalanceService&MockObject $balanceService;
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
 	private IUserManager&MockObject $userManager;
 	private IGroupManager&MockObject $groupManager;
+	private ManagerResolver&MockObject $managerResolver;
 	private ReportService $service;
 
 	protected function setUp(): void {
@@ -37,12 +42,20 @@ class ReportServiceTest extends TestCase {
 		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->managerResolver = $this->createMock(ManagerResolver::class);
 		$this->service = new ReportService(
 			$this->balanceService,
 			$this->requestMapper,
 			$this->leaveTypeMapper,
-			new EmployeeDirectory($this->userManager, $this->groupManager),
+			new EmployeeDirectory(
+				$this->userManager,
+				$this->groupManager,
+				$this->createMock(ConfigService::class),
+				$this->createMock(\Psr\Log\LoggerInterface::class),
+			),
+			$this->managerResolver,
 			$this->userManager,
+			$this->l10nMock(),
 		);
 	}
 
@@ -189,5 +202,35 @@ class ReportServiceTest extends TestCase {
 
 		$this->assertSame([], $report['types']);
 		$this->assertSame(0.0, $report['totals']['days']);
+	}
+
+	public function testTeamBalancesAreScopedToTheDirectReports(): void {
+		$this->managerResolver->method('getDirectReports')->with('mgr')->willReturn(['bob', 'alice']);
+		$this->userManager->method('get')->willReturnCallback(function (string $uid): IUser {
+			$user = $this->createMock(IUser::class);
+			$user->method('getUID')->willReturn($uid);
+			$user->method('getDisplayName')->willReturn(ucfirst($uid));
+			return $user;
+		});
+		$this->balanceService->expects(self::once())->method('getBalancesForEmployees')
+			->with(['bob', 'alice'], 2026)
+			->willReturn([
+				'alice' => [['typeId' => 1, 'sortOrder' => 0, 'available' => 5.0]],
+				'bob' => [['typeId' => 1, 'sortOrder' => 0, 'available' => 2.0]],
+			]);
+
+		$rows = $this->service->teamBalances('mgr', 2026);
+
+		self::assertCount(2, $rows);
+		// Sorted by display name, each row naming its employee.
+		self::assertSame(['Alice', 'Bob'], array_column($rows, 'displayName'));
+		self::assertSame(['alice', 'bob'], array_column($rows, 'employeeUid'));
+	}
+
+	public function testTeamBalancesOfANonManagerAreEmpty(): void {
+		$this->managerResolver->method('getDirectReports')->willReturn([]);
+		$this->balanceService->method('getBalancesForEmployees')->willReturn([]);
+
+		self::assertSame([], $this->service->teamBalances('emp', 2026));
 	}
 }

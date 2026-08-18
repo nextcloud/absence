@@ -13,6 +13,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IL10N;
 use OCP\IRequest;
 
 class RequestController extends Controller {
@@ -23,6 +24,7 @@ class RequestController extends Controller {
 		IRequest $request,
 		private ?string $userId,
 		private RequestService $service,
+		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -55,7 +57,7 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function create(int $typeId, string $startDate, string $endDate, ?float $workingDays = null, ?string $reason = null, ?string $attachmentNote = null, ?string $employeeUid = null, ?string $replacementUid = null): DataResponse {
+	public function create(int $typeId, string $startDate, string $endDate, ?float $workingDays = null, ?string $reason = null, ?string $attachmentNote = null, ?string $employeeUid = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
 		return $this->handle(fn () => $this->service->create((string)$this->userId, [
 			'typeId' => $typeId,
 			'startDate' => $startDate,
@@ -65,12 +67,13 @@ class RequestController extends Controller {
 			'attachmentNote' => $attachmentNote,
 			'employeeUid' => $employeeUid,
 			'replacementUid' => $replacementUid,
+			'disability' => $disability,
 		])->jsonSerialize());
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function update(int $id, ?int $typeId = null, ?string $startDate = null, ?string $endDate = null, ?string $reason = null, ?string $attachmentNote = null, ?float $workingDays = null, ?string $replacementUid = null): DataResponse {
+	public function update(int $id, ?int $typeId = null, ?string $startDate = null, ?string $endDate = null, ?string $reason = null, ?string $attachmentNote = null, ?float $workingDays = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
 		$data = array_filter([
 			'typeId' => $typeId,
 			'startDate' => $startDate,
@@ -86,6 +89,9 @@ class RequestController extends Controller {
 		}
 		if ($replacementUid !== null) {
 			$data['replacementUid'] = $replacementUid;
+		}
+		if ($disability !== null) {
+			$data['disability'] = $disability;
 		}
 		return $this->handle(fn () => $this->service->update((string)$this->userId, $id, $data)->jsonSerialize());
 	}

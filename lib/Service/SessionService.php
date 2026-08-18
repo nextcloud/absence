@@ -52,8 +52,10 @@ class SessionService {
 			'isManager' => $isManager,
 			'managerUid' => $managerUid,
 			'managerName' => $managerUid !== null ? $this->displayName($managerUid) : null,
-			'pendingApprovals' => $isManager ? count($this->requestMapper->findPendingForManager($uid)) : 0,
-			'escalatedCount' => $isHr ? count($this->requestMapper->findEscalated()) : 0,
+			// Bare COUNT(*) queries: this payload is fetched on every page load and
+			// after every action, so it must not hydrate rows it only counts.
+			'pendingApprovals' => $isManager ? $this->requestMapper->countPendingForManager($uid) : 0,
+			'escalatedCount' => $isHr ? $this->requestMapper->countEscalated() : 0,
 		];
 	}
 

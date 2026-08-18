@@ -39,6 +39,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setDecisionComment(?string $decisionComment)
  * @method bool getEscalated()
  * @method void setEscalated(bool $escalated)
+ * @method bool getDisability()
+ * @method void setDisability(bool $disability)
  * @method int|null getSupersedesId()
  * @method void setSupersedesId(?int $supersedesId)
  * @method string|null getCalendarEventUri()
@@ -80,6 +82,8 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 	protected ?\DateTime $decidedAt = null;
 	protected ?string $decisionComment = null;
 	protected bool $escalated = false;
+	/** HR-only flag (§5.8): disability-related leave. Withheld from non-HR viewers. */
+	protected bool $disability = false;
 	protected ?int $supersedesId = null;
 	protected ?string $calendarEventUri = null;
 	protected ?\DateTime $createdAt = null;
@@ -90,6 +94,7 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 		$this->addType('workingDays', 'float');
 		$this->addType('decidedAt', 'datetime');
 		$this->addType('escalated', 'boolean');
+		$this->addType('disability', 'boolean');
 		$this->addType('supersedesId', 'integer');
 		$this->addType('createdAt', 'datetime');
 		$this->addType('updatedAt', 'datetime');
@@ -113,6 +118,7 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 			'decidedAt' => $this->decidedAt?->format(\DateTimeInterface::ATOM),
 			'decisionComment' => $this->decisionComment,
 			'escalated' => $this->escalated,
+			'disability' => $this->disability,
 			'supersedesId' => $this->supersedesId,
 			'createdAt' => $this->createdAt?->format(\DateTimeInterface::ATOM),
 			'updatedAt' => $this->updatedAt?->format(\DateTimeInterface::ATOM),

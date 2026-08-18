@@ -25,6 +25,8 @@ export default {
 
 	// Balances & entitlements
 	getMyBalance: (year) => axios.get(url('/api/balance'), { params: { year } }).then((r) => r.data),
+	// Balances of the caller's own direct reports (empty for non-managers).
+	getTeamBalances: (year) => axios.get(url('/api/team/balances'), { params: { year } }).then((r) => r.data),
 	getEmployeeBalance: (uid, year) => axios.get(url(`/api/employees/${encodeURIComponent(uid)}/balance`), { params: { year } }).then((r) => r.data),
 	listEntitlements: (employeeUid, year) => axios.get(url('/api/entitlements'), { params: { employeeUid, year } }).then((r) => r.data),
 	createEntitlement: (data) => axios.post(url('/api/entitlements'), data).then((r) => r.data),
@@ -49,12 +51,27 @@ export default {
 	// admin's user-enumeration settings still apply.
 	searchUsers: (search) => axios.get(url('/api/employees/search'), { params: { search } }).then((r) => r.data),
 
+	// Group list for the HR report/export filters (HR-only endpoint).
+	listGroups: () => axios.get(url('/api/groups')).then((r) => r.data),
+
 	// Reports & export
 	reportBalances: (year, group) => axios.get(url('/api/reports/balances'), { params: { year, group } }).then((r) => r.data),
 	reportTrends: (from, to) => axios.get(url('/api/reports/trends'), { params: { from, to } }).then((r) => r.data),
 	// `typeId` overrides which leave type is counted; omitted, the server falls
 	// back to the type keyed "sick".
 	reportSickLeave: (year, group, typeId) => axios.get(url('/api/reports/sick-leave'), { params: { year, group, typeId } }).then((r) => r.data),
-	exportRequestsUrl: (from, to) => url(`/api/export/requests?from=${from}&to=${to}`),
-	exportBalancesUrl: (year) => url(`/api/export/balances?year=${year}`),
+	exportRequestsUrl: (from, to, group) => {
+		const query = new URLSearchParams({ from, to })
+		if (group) {
+			query.set('group', group)
+		}
+		return url('/api/export/requests?' + query.toString())
+	},
+	exportBalancesUrl: (year, group) => {
+		const query = new URLSearchParams({ year: String(year) })
+		if (group) {
+			query.set('group', group)
+		}
+		return url('/api/export/balances?' + query.toString())
+	},
 }

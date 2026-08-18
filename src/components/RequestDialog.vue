@@ -51,6 +51,35 @@
 				</NcSelect>
 			</div>
 
+			<div v-if="showSickCategories" class="dialog__field">
+				<label class="dialog__label">{{ t('absence', 'Category') }}</label>
+				<NcSelect
+					v-model="sickCategory"
+					:options="sickCategoryOptions"
+					label="label"
+					:clearable="false"
+					:aria-label-combobox="t('absence', 'Category')">
+					<template #option="{ icon, label }">
+						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					</template>
+					<template #selected-option="{ icon, label }">
+						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					</template>
+				</NcSelect>
+				<p class="dialog__hint">
+					{{ t('absence', 'Only HR ever sees this category — everyone else, including the employee, sees a neutral absence.') }}
+				</p>
+			</div>
+
+			<div v-if="showDisability" class="dialog__field">
+				<NcCheckboxRadioSwitch v-model="disability">
+					{{ t('absence', 'Disability-related leave') }}
+				</NcCheckboxRadioSwitch>
+				<p class="dialog__hint">
+					{{ t('absence', 'For the additional statutory entitlement. Only HR can set and see this flag.') }}
+				</p>
+			</div>
+
 			<div v-if="needsReplacement" class="dialog__field">
 				<label class="dialog__label">
 					{{ t('absence', 'Replacement') }}<span v-if="replacementRequired" class="dialog__req">*</span>
@@ -96,7 +125,8 @@
 					:label="t('absence', 'Working days')"
 					:labelVisible="false"
 					@update:modelValue="onWorkingDaysInput" />
-				<p class="dialog__hint">
+				<p class="dialog__hint dialog__hint--estimate">
+					<span aria-hidden="true">⚠️</span>
 					<template v-if="prefillActive">
 						{{ t('absence', 'Prefilled from your') }}
 						<a
@@ -104,10 +134,16 @@
 							target="_blank"
 							rel="noreferrer noopener"
 							class="dialog__link">{{ t('absence', 'working days and public holidays') }}</a>
-						{{ t('absence', '— adjust it if needed. Your manager will verify it.') }}
+						{{ t('absence', '— this is only an estimate: always check the number and adjust it manually if it is off.') }}
+						<template v-if="!hrMode">
+							{{ t('absence', 'Your manager will verify it.') }}
+						</template>
 					</template>
 					<template v-else>
-						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays). Your manager will verify it.') }}
+						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays) — this is only an estimate: always check the number and adjust it manually if it is off.') }}
+						<template v-if="!hrMode">
+							{{ t('absence', 'Your manager will verify it.') }}
+						</template>
 					</template>
 				</p>
 			</div>
@@ -169,6 +205,7 @@ import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
@@ -184,17 +221,7 @@ import { makeHolidayChecker } from '../utils/holidays.js'
 
 export default {
 	name: 'RequestDialog',
-	components: {
-		NcModal,
-		NcSelect,
-		NcDateTimePickerNative,
-		NcTextArea,
-		NcTextField,
-		NcNoteCard,
-		NcButton,
-		NcLoadingIcon,
-		Send,
-	},
+	components: { NcCheckboxRadioSwitch, NcModal, NcSelect, NcDateTimePickerNative, NcTextArea, NcTextField, NcNoteCard, NcButton, NcLoadingIcon, Send },
 
 	props: {
 		request: { type: Object, default: null },
@@ -206,6 +233,8 @@ export default {
 	data() {
 		return {
 			selectedType: null,
+			sickCategory: null,
+			disability: false,
 			startIso: null,
 			endIso: null,
 			workingDays: '',
@@ -254,9 +283,47 @@ export default {
 			// HR correcting an existing record needs the same full list — otherwise the
 			// record's own type (sick) is missing from the picker it is preselected in.
 			if (this.hrMode || (this.isEdit && store.session.isHr)) {
-				return store.enabledLeaveTypes
+				// Confidential categories (hrOnly) are picked as a sub-option of sick
+				// leave, not as top-level types — unless no sick type exists to hang
+				// them off, in which case they stay listed directly.
+				return store.enabledLeaveTypes.filter((t) => !t.hrOnly || !this.sickType)
 			}
 			return store.requestableLeaveTypes
+		},
+
+		/** The type keyed 'sick' that the confidential categories nest under. */
+		sickType() {
+			return store.enabledLeaveTypes.find((t) => t.key === 'sick' && t.enabled) || null
+		},
+
+		/** Confidential (HR-only) types — the server only sends these to HR. */
+		confidentialCategories() {
+			return store.enabledLeaveTypes.filter((t) => t.hrOnly)
+		},
+
+		showSickCategories() {
+			return (this.hrMode || (this.isEdit && store.session.isHr))
+				&& this.confidentialCategories.length > 0
+				&& this.selectedType
+				&& this.sickType
+				&& this.selectedType.id === this.sickType.id
+		},
+
+		/**
+		 * The disability flag (§5.8) is HR's alone, and belongs to annual leave —
+		 * the additional statutory entitlement it marks is annual leave.
+		 */
+		showDisability() {
+			return (this.hrMode || (this.isEdit && store.session.isHr))
+				&& this.selectedType
+				&& this.selectedType.key === 'annual'
+		},
+
+		sickCategoryOptions() {
+			return [
+				{ id: null, icon: this.sickType ? this.sickType.icon : '🤒', label: t('absence', 'General sick leave') },
+				...this.confidentialCategories.map((c) => ({ id: c.id, icon: c.icon, label: c.label })),
+			]
 		},
 
 		typeColor() {
@@ -459,6 +526,16 @@ export default {
 	},
 
 	watch: {
+		selectedType() {
+			// Leaving "Sick leave" abandons any picked confidential category;
+			// arriving on it starts from the explicit default, never an empty field.
+			if (!this.showSickCategories) {
+				this.sickCategory = null
+			} else if (!this.sickCategory) {
+				this.sickCategory = this.sickCategoryOptions[0]
+			}
+		},
+
 		startIso() {
 			this.recomputePrefill()
 			this.scheduleCoverage()
@@ -542,7 +619,15 @@ export default {
 		async initFromProps() {
 			const types = this.typeOptions
 			if (this.request) {
-				this.selectedType = store.enabledLeaveTypes.find((x) => x.id === this.request.typeId) || types[0]
+				const requestType = store.enabledLeaveTypes.find((x) => x.id === this.request.typeId) || null
+				if (requestType && requestType.hrOnly && this.sickType) {
+					// A confidential record edits as "Sick leave" + its category.
+					this.selectedType = this.sickType
+					this.sickCategory = { id: requestType.id, icon: requestType.icon, label: requestType.label }
+				} else {
+					this.selectedType = requestType || types[0]
+				}
+				this.disability = !!this.request.disability
 				this.startIso = this.request.startDate
 				this.endIso = this.request.endDate
 				this.workingDays = String(this.request.workingDays)
@@ -622,7 +707,10 @@ export default {
 			}
 			this.submitting = true
 			const payload = {
-				typeId: this.selectedType.id,
+				typeId: (this.showSickCategories && this.sickCategory && this.sickCategory.id !== null)
+					? this.sickCategory.id
+					: this.selectedType.id,
+
 				startDate: this.startIso,
 				endDate: this.endIso,
 				workingDays: this.workingDaysNum,
@@ -630,6 +718,9 @@ export default {
 			}
 			if (this.hrMode && this.selectedEmployee) {
 				payload.employeeUid = this.selectedEmployee.uid
+			}
+			if (this.showDisability) {
+				payload.disability = this.disability
 			}
 			if (this.needsReplacement && this.selectedReplacement) {
 				payload.replacementUid = this.selectedReplacement.uid
@@ -698,6 +789,12 @@ export default {
 		margin: 4px 0 0;
 		font-size: 0.8rem;
 		color: var(--color-text-maxcontrast);
+	}
+
+	// The working-day estimate warning carries the message, not just decoration:
+	// the number is a guess until a human checked it, so it reads as a caution.
+	&__hint--estimate {
+		color: var(--color-warning-text);
 	}
 
 	&__link {

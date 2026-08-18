@@ -25,10 +25,10 @@
 					:caption="rangeCaption"
 					accent="var(--color-success)" />
 				<StatTile
-					icon="📊"
-					:value="fmt(perMonthAvg)"
-					:label="t('absence', 'avg. days per month')"
-					:caption="t('absence', 'across the whole company')"
+					icon="🤒"
+					:value="fmt(sickAvg)"
+					:label="t('absence', 'avg. sick days per employee')"
+					:caption="t('absence', 'calendar year {year}, counting everybody', { year: statsYear })"
 					accent="var(--color-primary-element)" />
 				<StatTile
 					icon="🗓️"
@@ -61,18 +61,50 @@
 					</div>
 				</div>
 			</template>
+
+			<div v-if="vacationRows.length" class="surface vacation">
+				<h3 class="vacation__title">
+					{{ t('absence', 'Most vacation still to take ({year})', { year: statsYear }) }}
+				</h3>
+				<p class="vacation__caption">
+					{{ t('absence', 'Days not yet taken or booked — the people to nudge about planning their leave.') }}
+				</p>
+				<ol class="vacation__list">
+					<li v-for="row in vacationRows" :key="row.employeeUid" class="vacation__row">
+						<span class="vacation__who">
+							<NcAvatar
+								:user="row.employeeUid"
+								:displayName="row.displayName"
+								:size="24"
+								hideStatus />
+							{{ row.displayName }}
+						</span>
+						<MeterBar
+							class="vacation__bar"
+							:value="row.available"
+							:max="row.entitlement"
+							:color="row.significant ? 'var(--color-warning)' : 'var(--color-success)'"
+							:ariaLabel="t('absence', '{days} of {total} days still available', { days: fmt(row.available), total: fmt(row.entitlement) })" />
+						<span class="vacation__days" :class="{ 'vacation__days--significant': row.significant }">
+							{{ n('absence', '%n day left', '%n days left', row.available) }}
+						</span>
+					</li>
+				</ol>
+			</div>
 		</template>
 	</div>
 </template>
 
 <script>
 import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import ChartLine from 'vue-material-design-icons/ChartLine.vue'
 import DonutChart from '../../components/DonutChart.vue'
 import LineChart from '../../components/LineChart.vue'
+import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
@@ -84,7 +116,7 @@ const MAX_MONTHS = 120
 
 export default {
 	name: 'HrStatistics',
-	components: { NcDateTimePickerNative, NcEmptyContent, ChartLine, LineChart, DonutChart, SkeletonList, StatTile },
+	components: { NcAvatar, NcDateTimePickerNative, NcEmptyContent, ChartLine, LineChart, DonutChart, MeterBar, SkeletonList, StatTile },
 	data() {
 		const now = new Date()
 		return {
@@ -92,6 +124,8 @@ export default {
 			from: new Date(now.getFullYear(), 0, 1),
 			to: new Date(now.getFullYear(), 11, 31),
 			trends: { byMonth: {}, byType: [], total: 0 },
+			sickTotals: { days: 0, employees: 0 },
+			balanceReport: [],
 		}
 	},
 
@@ -142,10 +176,38 @@ export default {
 			}))
 		},
 
-		/** Averaged over the months asked about, not the months that happened to be busy. */
-		perMonthAvg() {
-			const months = this.monthsInRange.length
-			return months ? this.trends.total / months : 0
+		/** The calendar year the per-year figures describe: the year of the "To" date. */
+		statsYear() {
+			return this.to ? this.to.getFullYear() : new Date().getFullYear()
+		},
+
+		/**
+		 * Sick days averaged over *everybody*, not just those who were sick —
+		 * the burden across the company, per head and per calendar year.
+		 */
+		sickAvg() {
+			return this.sickTotals.employees ? this.sickTotals.days / this.sickTotals.employees : 0
+		},
+
+		/**
+		 * Who still has vacation to take, most days first — the list HR scans to
+		 * nudge people before the year ends. "Available" (not merely remaining):
+		 * days that are neither taken nor booked as pending, i.e. genuinely
+		 * unplanned. Rows with more than half the entitlement unplanned are
+		 * flagged as significant.
+		 */
+		vacationRows() {
+			return this.balanceReport
+				.filter((row) => row.countsAgainstBalance && (row.entitlement ?? 0) > 0 && (row.available ?? 0) > 0)
+				.map((row) => ({
+					employeeUid: row.employeeUid,
+					displayName: row.displayName,
+					available: row.available,
+					entitlement: row.entitlement,
+					significant: row.available >= row.entitlement / 2,
+				}))
+				.sort((a, b) => b.available - a.available)
+				.slice(0, 10)
 		},
 
 		/**
@@ -184,6 +246,7 @@ export default {
 
 	methods: {
 		t,
+		n,
 		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
 
 		/**
@@ -205,11 +268,21 @@ export default {
 			}
 			this.loading = true
 			try {
-				this.trends = await api.reportTrends(toIso(this.from), toIso(this.to))
+				const year = this.to.getFullYear()
+				const [trends, sick, balances] = await Promise.all([
+					api.reportTrends(toIso(this.from), toIso(this.to)),
+					api.reportSickLeave(year),
+					api.reportBalances(year),
+				])
+				this.trends = trends
+				this.sickTotals = sick.totals
+				this.balanceReport = balances
 			} catch (e) {
 				// Without this the view kept the previous range's figures on screen
 				// with no hint that the new ones never arrived.
 				this.trends = { byMonth: {}, byType: [], total: 0 }
+				this.sickTotals = { days: 0, employees: 0 }
+				this.balanceReport = []
 				showError(e.response?.data?.message || t('absence', 'Could not load statistics'))
 			} finally {
 				this.loading = false
@@ -232,5 +305,54 @@ export default {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 	gap: calc(var(--default-grid-baseline, 4px) * 4);
+}
+
+.vacation {
+	margin-top: calc(var(--default-grid-baseline, 4px) * 4);
+
+	&__title {
+		margin: 0;
+	}
+
+	&__caption {
+		margin: 2px 0 12px;
+		color: var(--color-text-maxcontrast);
+		font-size: 0.85rem;
+	}
+
+	&__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	&__row {
+		display: grid;
+		grid-template-columns: minmax(160px, 1fr) 2fr auto;
+		align-items: center;
+		gap: 12px;
+	}
+
+	&__who {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&__days {
+		font-variant-numeric: tabular-nums;
+		text-align: end;
+
+		&--significant {
+			color: var(--color-warning-text);
+			font-weight: 600;
+		}
+	}
 }
 </style>

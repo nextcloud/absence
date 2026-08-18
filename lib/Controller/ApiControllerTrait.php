@@ -32,7 +32,8 @@ trait ApiControllerTrait {
 				'Absence: unhandled error in API request',
 				['exception' => $e, 'app' => 'absence'],
 			);
-			return new DataResponse(['message' => 'An unexpected error occurred.'], Http::STATUS_INTERNAL_SERVER_ERROR);
+			// $this->l is the IL10N every controller using this trait injects.
+			return new DataResponse(['message' => $this->l->t('An unexpected error occurred.')], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 }

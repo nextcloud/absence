@@ -12,6 +12,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroupManager;
+use OCP\IL10N;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -24,6 +25,7 @@ class PermissionService {
 		private ManagerResolver $managerResolver,
 		private ConfigService $config,
 		private LeaveTypeMapper $leaveTypeMapper,
+		private IL10N $l,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -43,11 +45,39 @@ class PermissionService {
 
 	/**
 	 * May the actor view this request (own, is manager of employee, or HR).
+	 *
+	 * Confidential types (§5.7) do not narrow *this* check: the bare fact of the
+	 * absence is already on the team timeline, so the employee and the manager
+	 * may open the record — what they get is the withheld serialization (dates
+	 * and status, no category, no content). Only HR receives the full record.
 	 */
 	public function canView(string $actorUid, LeaveRequest $request): bool {
 		return $actorUid === $request->getEmployeeUid()
 			|| $this->isHr($actorUid)
 			|| $this->isManagerOf($actorUid, $request->getEmployeeUid());
+	}
+
+	/** Whether the request's leave type is confidential — visible to HR only (§5.7). */
+	public function isHrOnlyRequest(LeaveRequest $request): bool {
+		return in_array($request->getTypeId(), $this->leaveTypeMapper->hrOnlyTypeIds(), true);
+	}
+
+	/**
+	 * The leave types this viewer may know exist. HR sees all; everyone else
+	 * never learns the confidential categories (§5.7), so neither the type list
+	 * API nor the SPA bootstrap can leak their names.
+	 *
+	 * @param \OCA\Absence\Db\LeaveType[] $types
+	 * @return \OCA\Absence\Db\LeaveType[]
+	 */
+	public function filterVisibleTypes(string $viewerUid, array $types): array {
+		if ($this->isHr($viewerUid)) {
+			return $types;
+		}
+		return array_values(array_filter(
+			$types,
+			static fn ($type): bool => !$type->getHrOnly(),
+		));
 	}
 
 	/**
@@ -60,6 +90,12 @@ class PermissionService {
 		}
 		if ($this->isHr($actorUid)) {
 			return true;
+		}
+		// Confidential types never reach a manager's desk (§5.7) — they are
+		// recorded without an approval step, and even a hypothetical pending one
+		// must not surface outside HR.
+		if ($this->isHrOnlyRequest($request)) {
+			return false;
 		}
 		return $request->getManagerUid() === $actorUid
 			|| $this->isManagerOf($actorUid, $request->getEmployeeUid());
@@ -98,7 +134,7 @@ class PermissionService {
 	 */
 	public function assertHr(string $uid): void {
 		if (!$this->isHr($uid)) {
-			throw new \OCA\Absence\Exception\ForbiddenException('HR role required');
+			throw new \OCA\Absence\Exception\ForbiddenException($this->l->t('HR role required'));
 		}
 	}
 

@@ -10,7 +10,9 @@ namespace OCA\Absence\Tests\Unit\Controller;
 
 use OCA\Absence\Controller\EmployeeController;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\PermissionService;
 use OCP\Collaboration\Collaborators\ISearch;
+use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -33,8 +35,11 @@ class EmployeeControllerTest extends TestCase {
 			$this->createMock(IRequest::class),
 			'hr-user',
 			$this->userManager,
+			$this->createMock(IGroupManager::class),
 			$this->collaboratorSearch,
 			$this->employees,
+			$this->createMock(PermissionService::class),
+			$this->createMock(\OCP\IL10N::class),
 		);
 	}
 

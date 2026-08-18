@@ -17,12 +17,14 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class BalanceServiceTest extends TestCase {
 	use ClockMockTrait;
+	use L10nMockTrait;
 
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private EntitlementMapper&MockObject $entitlementMapper;
@@ -42,6 +44,7 @@ class BalanceServiceTest extends TestCase {
 			$this->leaveTypeMapper,
 			$this->config,
 			$this->clockAtRealTime(),
+			$this->l10nMock(),
 		);
 	}
 
@@ -167,5 +170,70 @@ class BalanceServiceTest extends TestCase {
 
 		$entitlement = $this->service->ensureEntitlement('alice', 2027, 2);
 		$this->assertSame(0.0, $entitlement->getBaseDays());
+	}
+
+	// ---- batch path: SQL aggregates + the netting correction ----
+
+	public function testBatchBalancesBucketAggregatesByStatus(): void {
+		$this->leaveTypeMapper->method('findAll')->willReturn([$this->annualType()]);
+		$this->entitlementMapper->method('findForYear')->willReturn([]);
+		$this->config->method('getDefaultEntitlement')->willReturn(28.0);
+		$this->requestMapper->method('aggregateWorkingDaysForYear')
+			->with(['alice'], 2026)
+			->willReturn([
+				['employee_uid' => 'alice', 'type_id' => 1, 'status' => LeaveRequest::STATUS_APPROVED, 'days' => 10.0],
+				['employee_uid' => 'alice', 'type_id' => 1, 'status' => LeaveRequest::STATUS_PENDING, 'days' => 3.0],
+				['employee_uid' => 'alice', 'type_id' => 1, 'status' => LeaveRequest::STATUS_WITHDRAWAL_PENDING, 'days' => 2.0],
+			]);
+		$this->requestMapper->method('findPendingSupersedingForYear')->willReturn([]);
+
+		$rows = $this->service->getBalancesForEmployees(['alice'], 2026);
+
+		self::assertSame(10.0, $rows['alice'][0]['used']);
+		self::assertSame(5.0, $rows['alice'][0]['pending']);
+		self::assertSame(13.0, $rows['alice'][0]['available']);
+	}
+
+	public function testBatchBalancesNetPendingSupersedingEdits(): void {
+		// The aggregate counted the 7-day edit in full; only the 2 extra days over
+		// its still-approved 5-day original are genuinely pending — the same
+		// arithmetic the row-based path applies (§5.3).
+		$this->leaveTypeMapper->method('findAll')->willReturn([$this->annualType()]);
+		$this->entitlementMapper->method('findForYear')->willReturn([]);
+		$this->config->method('getDefaultEntitlement')->willReturn(28.0);
+		$this->requestMapper->method('aggregateWorkingDaysForYear')->willReturn([
+			['employee_uid' => 'alice', 'type_id' => 1, 'status' => LeaveRequest::STATUS_APPROVED, 'days' => 5.0],
+			['employee_uid' => 'alice', 'type_id' => 1, 'status' => LeaveRequest::STATUS_PENDING, 'days' => 7.0],
+		]);
+		$edit = $this->request(2, LeaveRequest::STATUS_PENDING, 7.0, supersedesId: 1);
+		$edit->setEmployeeUid('alice');
+		$original = $this->request(1, LeaveRequest::STATUS_APPROVED, 5.0);
+		$original->setEmployeeUid('alice');
+		$this->requestMapper->method('findPendingSupersedingForYear')->willReturn([$edit]);
+		$this->requestMapper->method('findByIds')->with([1])->willReturn([1 => $original]);
+
+		$rows = $this->service->getBalancesForEmployees(['alice'], 2026);
+
+		self::assertSame(5.0, $rows['alice'][0]['used']);
+		self::assertSame(2.0, $rows['alice'][0]['pending']);
+	}
+
+	public function testBatchNettingIgnoresAnEditWhoseOriginalIsClosed(): void {
+		$this->leaveTypeMapper->method('findAll')->willReturn([$this->annualType()]);
+		$this->entitlementMapper->method('findForYear')->willReturn([]);
+		$this->config->method('getDefaultEntitlement')->willReturn(28.0);
+		$this->requestMapper->method('aggregateWorkingDaysForYear')->willReturn([
+			['employee_uid' => 'alice', 'type_id' => 1, 'status' => LeaveRequest::STATUS_PENDING, 'days' => 7.0],
+		]);
+		$edit = $this->request(2, LeaveRequest::STATUS_PENDING, 7.0, supersedesId: 1);
+		$edit->setEmployeeUid('alice');
+		$original = $this->request(1, LeaveRequest::STATUS_CANCELLED, 5.0);
+		$original->setEmployeeUid('alice');
+		$this->requestMapper->method('findPendingSupersedingForYear')->willReturn([$edit]);
+		$this->requestMapper->method('findByIds')->willReturn([1 => $original]);
+
+		$rows = $this->service->getBalancesForEmployees(['alice'], 2026);
+
+		self::assertSame(7.0, $rows['alice'][0]['pending']);
 	}
 }

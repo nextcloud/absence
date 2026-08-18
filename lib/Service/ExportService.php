@@ -10,6 +10,7 @@ namespace OCA\Absence\Service;
 
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCP\IL10N;
 use OCP\IUserManager;
 
 /**
@@ -23,20 +24,31 @@ class ExportService {
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private ReportService $reportService,
+		private EmployeeDirectory $employees,
 		private IUserManager $userManager,
+		private IL10N $l,
 	) {
 	}
 
 	/**
+	 * @param ?string $group restrict to the employees of one Nextcloud group
 	 * @return array{filename:string,content:string}
 	 */
-	public function requestsCsv(string $from, string $to): array {
+	public function requestsCsv(string $from, string $to, ?string $group = null): array {
 		[$from, $to] = $this->assertValidRange($from, $to);
+		// null = no filter; a set means "only these people" — and an unknown group
+		// resolves to an empty set rather than everyone, like every report (§13).
+		$memberUids = $group !== null && $group !== ''
+			? array_fill_keys($this->employees->listInGroup($group), true)
+			: null;
 		$types = $this->typeLabels();
 		$rows = [[
 			'ID', 'Employee', 'Manager', 'Type', 'Start', 'End', 'Working days', 'Status', 'Decided by', 'Decided at',
 		]];
 		foreach ($this->requestMapper->findAllInRange($from, $to) as $r) {
+			if ($memberUids !== null && !isset($memberUids[$r->getEmployeeUid()])) {
+				continue;
+			}
 			$rows[] = [
 				(string)$r->getId(),
 				$this->displayName($r->getEmployeeUid()),
@@ -50,14 +62,15 @@ class ExportService {
 				$r->getDecidedAt()?->format('Y-m-d H:i') ?? '',
 			];
 		}
-		return ['filename' => "absence-requests-{$from}_{$to}.csv", 'content' => $this->toCsv($rows)];
+		return ['filename' => 'absence-requests-' . $from . '_' . $to . $this->groupSuffix($group) . '.csv', 'content' => $this->toCsv($rows)];
 	}
 
 	/**
+	 * @param ?string $group restrict to the employees of one Nextcloud group
 	 * @return array{filename:string,content:string}
 	 */
-	public function balancesCsv(int $year): array {
-		$report = $this->reportService->balancesReport($year);
+	public function balancesCsv(int $year, ?string $group = null): array {
+		$report = $this->reportService->balancesReport($year, $group);
 		$rows = [[
 			'Employee', 'Year', 'Type', 'Entitlement', 'Base', 'Carry-over', 'Adjustment', 'Used', 'Pending', 'Remaining', 'Available',
 		]];
@@ -76,7 +89,15 @@ class ExportService {
 				(string)($entry['available'] ?? ''),
 			];
 		}
-		return ['filename' => "absence-balances-{$year}.csv", 'content' => $this->toCsv($rows)];
+		return ['filename' => 'absence-balances-' . $year . $this->groupSuffix($group) . '.csv', 'content' => $this->toCsv($rows)];
+	}
+
+	/** Group marker for a filename, reduced to filesystem-safe characters. */
+	private function groupSuffix(?string $group): string {
+		if ($group === null || $group === '') {
+			return '';
+		}
+		return '-' . preg_replace('/[^A-Za-z0-9_-]+/', '_', $group);
 	}
 
 	/**

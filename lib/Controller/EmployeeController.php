@@ -9,11 +9,14 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\Collaboration\Collaborators\ISearch;
+use OCP\IGroupManager;
+use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserManager;
 use OCP\Share\IShare;
@@ -26,8 +29,11 @@ class EmployeeController extends Controller {
 		IRequest $request,
 		private ?string $userId,
 		private IUserManager $userManager,
+		private IGroupManager $groupManager,
 		private ISearch $collaboratorSearch,
 		private EmployeeDirectory $employees,
+		private PermissionService $permission,
+		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -130,5 +136,29 @@ class EmployeeController extends Controller {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * The instance's groups, for the HR report and export filters. HR-only: the
+	 * group list is organisational structure, which ordinary employees have no
+	 * reason to enumerate through this app.
+	 *
+	 * @return DataResponse
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function groups(): DataResponse {
+		return $this->handle(function (): array {
+			$this->permission->assertHr((string)$this->userId);
+			$groups = [];
+			foreach ($this->groupManager->search('') as $group) {
+				$groups[] = [
+					'id' => $group->getGID(),
+					'displayName' => $group->getDisplayName(),
+				];
+			}
+			usort($groups, static fn (array $a, array $b): int => strcasecmp($a['displayName'], $b['displayName']));
+			return $groups;
+		});
 	}
 }

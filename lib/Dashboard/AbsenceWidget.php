@@ -108,6 +108,9 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		$isHr = $this->permission->isHr($userId);
 		$isManager = $this->managerResolver->getDirectReports($userId) !== [];
 		$types = $this->typeLabels();
+		// Confidential categories (§5.7): even the employee's own widget shows a
+		// neutral label, matching every other non-HR surface.
+		$hrOnlyIds = $isHr ? [] : $this->leaveTypeMapper->hrOnlyTypeIds();
 
 		$items = [];
 
@@ -125,8 +128,11 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 
 		// 2. Own upcoming / pending leave (all employees).
 		foreach ($this->ownUpcoming($userId) as $r) {
+			$label = in_array($r->getTypeId(), $hrOnlyIds, true)
+				? $this->l->t('Absent')
+				: ($types[$r->getTypeId()] ?? $this->l->t('Leave'));
 			$items[] = new WidgetItem(
-				($types[$r->getTypeId()] ?? $this->l->t('Leave')) . ' · ' . $this->range($r),
+				$label . ' · ' . $this->range($r),
 				$this->statusLabel($r->getStatus()),
 				$base . '#/requests/' . $r->getId(),
 				$appIcon,

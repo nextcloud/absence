@@ -11,6 +11,7 @@ namespace OCA\Absence\Service;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCP\IL10N;
 use OCP\IUserManager;
 
 /**
@@ -27,7 +28,9 @@ class ReportService {
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private EmployeeDirectory $employees,
+		private ManagerResolver $managerResolver,
 		private IUserManager $userManager,
+		private IL10N $l,
 	) {
 	}
 
@@ -39,6 +42,32 @@ class ReportService {
 	public function balancesReport(int $year, ?string $group = null): array {
 		$uids = $this->employeeUids($group);
 		// One batched call, not one per employee — see getBalancesForEmployees().
+		$balances = $this->balanceService->getBalancesForEmployees($uids, $year);
+		$report = [];
+		foreach ($uids as $uid) {
+			$displayName = $this->displayName($uid);
+			foreach ($balances[$uid] ?? [] as $row) {
+				$report[] = array_merge($row, [
+					'employeeUid' => $uid,
+					'displayName' => $displayName,
+				]);
+			}
+		}
+		usort($report, static fn (array $a, array $b): int => [$a['displayName'], $a['sortOrder']] <=> [$b['displayName'], $b['sortOrder']]);
+		return $report;
+	}
+
+	/**
+	 * Balances of a manager's direct reports (§2.1) — the same rows as
+	 * {@see balancesReport()}, but scoped to the people whose leave the manager
+	 * decides, so approving never means guessing whether days are left. The
+	 * caller passes the *actor* as the manager: the scope is always "your own
+	 * reports", never somebody else's team.
+	 *
+	 * @return list<array<string,mixed>>
+	 */
+	public function teamBalances(string $managerUid, int $year): array {
+		$uids = $this->employees->filter($this->managerResolver->getDirectReports($managerUid));
 		$balances = $this->balanceService->getBalancesForEmployees($uids, $year);
 		$report = [];
 		foreach ($uids as $uid) {

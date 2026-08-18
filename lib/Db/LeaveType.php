@@ -29,6 +29,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setRequiresReplacement(bool $requiresReplacement)
  * @method bool getEmployeeRequestable()
  * @method void setEmployeeRequestable(bool $employeeRequestable)
+ * @method bool getHrOnly()
+ * @method void setHrOnly(bool $hrOnly)
  * @method bool getEnabled()
  * @method void setEnabled(bool $enabled)
  * @method int getSortOrder()
@@ -46,6 +48,12 @@ class LeaveType extends Entity implements \JsonSerializable {
 	protected bool $requiresReplacement = false;
 	/** When false, employees cannot self-request this type; HR records it (e.g. sick leave). */
 	protected bool $employeeRequestable = true;
+	/**
+	 * Confidential category (§5.7): recorded by HR and *visible* only to HR.
+	 * Everyone else — the line manager and the employee's own views included —
+	 * sees such an absence as a neutral "Absent" with dates but no category.
+	 */
+	protected bool $hrOnly = false;
 	protected bool $enabled = true;
 	protected int $sortOrder = 0;
 
@@ -55,6 +63,7 @@ class LeaveType extends Entity implements \JsonSerializable {
 		$this->addType('requiresNote', 'boolean');
 		$this->addType('requiresReplacement', 'boolean');
 		$this->addType('employeeRequestable', 'boolean');
+		$this->addType('hrOnly', 'boolean');
 		$this->addType('enabled', 'boolean');
 		$this->addType('sortOrder', 'integer');
 	}
@@ -72,6 +81,7 @@ class LeaveType extends Entity implements \JsonSerializable {
 			'requiresNote' => $this->requiresNote,
 			'requiresReplacement' => $this->requiresReplacement,
 			'employeeRequestable' => $this->employeeRequestable,
+			'hrOnly' => $this->hrOnly,
 			'enabled' => $this->enabled,
 			'sortOrder' => $this->sortOrder,
 		];

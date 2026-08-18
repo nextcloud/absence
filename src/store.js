@@ -59,6 +59,12 @@ export const store = reactive({
 	 * @param request
 	 */
 	isHrRecorded(request) {
+		// A withheld type (null: the server kept a confidential category to
+		// itself) is by definition HR-recorded — confidential types cannot be
+		// self-requested.
+		if (request.typeId === null || request.typeId === undefined) {
+			return true
+		}
 		const type = this.leaveType(request.typeId)
 		return type && type.employeeRequestable === false
 	},
