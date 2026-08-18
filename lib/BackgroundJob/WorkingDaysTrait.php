@@ -13,6 +13,17 @@ namespace OCA\Absence\BackgroundJob;
  * has no holiday data (§7), so working days are approximated as Monday–Friday.
  */
 trait WorkingDaysTrait {
+	private function addWorkingDays(\DateTimeImmutable $from, int $workingDays): \DateTimeImmutable {
+		$date = $from;
+		while ($workingDays > 0) {
+			$date = $date->modify('+1 day');
+			if ((int)$date->format('N') <= 5) {
+				$workingDays--;
+			}
+		}
+		return $date;
+	}
+
 	private function subtractWorkingDays(\DateTimeImmutable $from, int $workingDays): \DateTimeImmutable {
 		$date = $from;
 		while ($workingDays > 0) {

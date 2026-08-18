@@ -72,7 +72,8 @@ Absence puts it on infrastructure you already run and already trust:
 | 🌴 **Leave types you define** | Annual, sick, unpaid and special leave are seeded; add your own with colour, emoji, and flags for balance-counting, approval, mandatory note and mandatory replacement |
 | ⚖️ **Real balance tracking** | Entitlement, used, pending, remaining, carry-over and manual adjustments — per employee, per type, per year |
 | ✅ **One-click approval** | Approve straight from the notification, without opening the app |
-| ⏰ **Nothing gets stuck** | Ignored requests are reminded, then automatically escalated to HR |
+| ⏰ **Nothing gets stuck** | Ignored requests are reminded, then escalated to HR — immediately when the app knows the manager is on leave themselves |
+| 📎 **Attachments** | Doctor's notes and other documents on the request — visible to HR and the employee, never the manager |
 | 👥 **Coverage warnings** | Both the employee booking and the manager approving are told who else is already off |
 | 📅 **Calendar sync** | Approved leave written to the employee's personal calendar and a shared team calendar over CalDAV |
 | 🔔 **Four channels** | Notification, email, Activity feed and audit log — carrying what people actually wrote |
@@ -198,6 +199,13 @@ much as the category names. Enforced by the API, not merely hidden in the UI.
 Sick leave is not something anyone applies for in advance. HR books it (or any type)
 on an employee's behalf, straight to approved, with no approval step — and the
 employee, their manager and their replacement are told.
+
+### Onboarding from a spreadsheet
+
+`occ absence:import-entitlements balances.csv --dry-run` validates and imports
+current entitlements (base days, carry-over, adjustments with notes) in one
+audited, all-or-nothing pass — uids or e-mail addresses, comma- or
+semicolon-separated, straight out of Excel.
 
 ### Balances and entitlements
 
@@ -399,7 +407,6 @@ Stated plainly, because a feature list you cannot trust is worth nothing:
 
 - **Half-days and hourly leave.** Full days only. The schema already reserves room
   for half-days, so adding them will not need a migration.
-- **File attachments** for doctor's notes. A free-text note field stands in for now.
 - **ICS holiday import.** Public holidays come from a bundled country/region database.
 - **XLSX export.** CSV only — it opens in Excel, LibreOffice and every payroll system
   we know of.

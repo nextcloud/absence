@@ -17,6 +17,7 @@ use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
+use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
@@ -56,6 +57,7 @@ class RequestServiceTest extends TestCase {
 	private NotificationService&MockObject $notifications;
 	private ActivityPublisher&MockObject $activity;
 	private ConfigService&MockObject $config;
+	private AttachmentService&MockObject $attachments;
 	private IUserManager&MockObject $userManager;
 	private LoggerInterface&MockObject $logger;
 	private IDBConnection&MockObject $db;
@@ -80,6 +82,8 @@ class RequestServiceTest extends TestCase {
 		$this->notifications = $this->createMock(NotificationService::class);
 		$this->activity = $this->createMock(ActivityPublisher::class);
 		$this->config = $this->createMock(ConfigService::class);
+		$this->attachments = $this->createMock(AttachmentService::class);
+		$this->attachments->method('listForRequest')->willReturn([]);
 		// Everyone is an employee unless a test says otherwise, so the existing
 		// cases keep testing what they were written to test.
 		$this->employees = $this->createMock(EmployeeDirectory::class);
@@ -115,6 +119,7 @@ class RequestServiceTest extends TestCase {
 			$this->activity,
 			$this->config,
 			$this->employees,
+			$this->attachments,
 			$this->userManager,
 			$this->l10nMock(),
 			$this->logger,
@@ -802,5 +807,31 @@ class RequestServiceTest extends TestCase {
 
 		$hr = $this->service->listSerialized('hr', ['scope' => 'hr'], null, null);
 		self::assertTrue($hr[0]['disability']);
+	}
+
+	public function testARequestRoutesToHrWhileTheManagerIsAway(): void {
+		// §5.4a: the decider is on approved leave today — waiting out the whole
+		// escalation window would only delay the answer HR gives anyway.
+		$type = $this->type(1, true);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($type);
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->permission->method('getHrUids')->willReturn(['hr1']);
+		$this->managerResolver->method('getManagerUid')->willReturn('boss');
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('hasApprovedAbsenceCovering')->willReturn(true);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+		$this->notifications->expects(self::once())->method('notifyEscalation');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$created = $this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+			'replacementUid' => 'aisha',
+		]);
+
+		self::assertSame(LeaveRequest::STATUS_ESCALATED, $created->getStatus());
+		self::assertTrue($created->getEscalated());
 	}
 }

@@ -47,5 +47,30 @@ class EscalationJob extends TimedJob {
 		foreach ($this->requestMapper->findPendingOlderThan($cutoff) as $request) {
 			$this->requestService->escalate($request);
 		}
+
+		// §5.4a: escalate early when the manager cannot possibly decide in time —
+		// they are on approved leave today, and it lasts beyond the request's own
+		// escalation deadline. Waiting out the window would only delay the answer
+		// HR is going to give anyway. escalate() flips conditionally, so a request
+		// the first pass already moved (or a manager deciding this very second)
+		// is never clobbered.
+		$todayIso = $today->format('Y-m-d');
+		/** @var array<string,array<string,bool>> manager => deadline => away-through-deadline */
+		$awayCache = [];
+		foreach ($this->requestMapper->findPendingOlderThan($this->clock->serverNow()) as $request) {
+			$managerUid = $request->getManagerUid();
+			if ($managerUid === null) {
+				continue;
+			}
+			$createdDay = \DateTimeImmutable::createFromInterface($request->getCreatedAt())
+				->setTimezone($today->getTimezone())
+				->setTime(0, 0);
+			$deadline = $this->addWorkingDays($createdDay, $window)->format('Y-m-d');
+			$awayCache[$managerUid][$deadline] ??= $this->requestMapper
+				->hasApprovedAbsenceCovering($managerUid, $todayIso, $deadline);
+			if ($awayCache[$managerUid][$deadline]) {
+				$this->requestService->escalate($request);
+			}
+		}
 	}
 }

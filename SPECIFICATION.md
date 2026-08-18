@@ -307,11 +307,25 @@ editor in HR → Balances, and carried into the activity entry so it says what
 changed rather than only that something did. Best-effort, like §3.7: an unwritable
 history must not cost HR the adjustment they just made.
 
-### 3.8 Attachments (optional, phase 2)
+### 3.8 Attachments
 
-For doctor's notes: allow attaching a file reference stored in the user's Files.
-Model as a nullable `attachment_file_id` on `absence_requests` pointing at a
-Nextcloud file id. **Phase 2** — for phase 1 a free-text `attachment_note` suffices.
+Files on a leave request — the doctor's note above all. Metadata lives in
+`absence_attachments` (id, request_id, uploader_uid, name, mime, size,
+created_at); the bytes live in the app's **appdata** storage, keyed by the
+row id, never in anybody's Files — a document in a user's home could be
+renamed, shared or deleted underneath the record, and its visibility could
+not be governed by this app.
+
+Visibility is deliberately narrower than `canView()`: **HR and the employee
+only** — the manager reads the request, not the medical documents on it. On
+confidential requests (§5.7) even the employee sees none. Upload: HR always;
+the employee on their own non-terminal, non-confidential request (which
+includes HR-recorded sick leave — exactly where a doctor's note belongs).
+Delete: HR, or the uploader. Limits: 10 MB per file, 10 files per request.
+Attachments never appear in the request-history timeline (it is
+manager-visible); adds and removals go to the always-on audit log. The GDPR
+purge removes rows and bytes. API: §14; the earlier `attachment_note`
+free-text field remains for a quick remark.
 
 ### 3.9 Which "today" applies (`ClockService`)
 
@@ -475,6 +489,23 @@ HR can change it via the HR edit path.
 - Requests with no manager (§2.1) start life effectively escalated and are surfaced
   in the HR queue immediately.
 
+#### 5.4a Manager-absence awareness
+
+The app knows when the decider is away — it manages their leave too:
+
+- **At submission:** if the assigned manager has an *approved* absence covering
+  today (server calendar), the request is created `ESCALATED` straight away,
+  with the history saying so ("Manager is away — routed to HR"). Waiting the
+  full window to tell HR what the app already knows would only delay the answer.
+- **Hourly:** the escalation job additionally escalates pending requests whose
+  manager is away today *and* stays away beyond that request's own escalation
+  deadline (created + window, working days) — they cannot possibly decide in
+  time. Both paths use the race-safe conditional flip (§5.4), so a manager
+  deciding at that very second is never clobbered.
+- Deliberately **not** given to the manager's replacement: deciding leave means
+  reading reasons and balances, and covering someone's duties does not come
+  with that. HR decides, as for every escalation.
+
 ### 5.5 HR override
 
 - HR can approve/reject/cancel **any** request regardless of state, edit dates,
@@ -589,6 +620,18 @@ statutory entitlement for employees with a recognised disability. Rules:
 - Bulk actions: set a default entitlement for a whole group/all employees for a
   given year (admin default in settings, §11, used to seed).
 - Manual adjustments (+/−) require an `adjustment_note`.
+
+### 6.3 CSV import (onboarding)
+
+`occ absence:import-entitlements <file.csv> [--year N] [--dry-run]` brings
+current entitlements over from the spreadsheet every company migrates away
+from. Columns (header required, order free): `user` (uid or e-mail),
+`base_days`, `carry_over_days`, `adjustment` (absolute), `note`, `type`
+(key, default `annual`), `year` (default: `--year`). Comma or semicolon
+separated (German Excel), BOM tolerated. **All-or-nothing:** every broken
+row is reported and nothing is written — half an imported company is the
+worst outcome of a typo. Writes go through `EntitlementService`, so the
+entitlement history records the import like any HR edit.
 
 ### 6.2 Carry-over (year rollover)
 
@@ -915,6 +958,12 @@ guarded by the appropriate middleware/attribute-based access checks
 (`#[NoAdminRequired]` for employee endpoints; explicit HR/manager checks in a shared
 `PermissionService`). Use OCS or app routes consistently (app routes recommended for
 the SPA). All list endpoints paginate and accept filters.
+
+**Attachments (§3.8)**
+- `GET  /api/requests/{id}/attachments` — list (HR + employee only; [] otherwise).
+- `POST /api/requests/{id}/attachments` — multipart upload (field `file`).
+- `GET  /api/attachments/{id}` — download (plain link; permission is the gate).
+- `DELETE /api/attachments/{id}` — HR or the uploader.
 
 **Requests**
 - `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status, type, date range, employee, group).

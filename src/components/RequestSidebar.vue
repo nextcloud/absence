@@ -91,6 +91,47 @@
 					</template>
 				</dl>
 
+				<div v-if="detail.canAttach || (detail.attachments && detail.attachments.length)" class="attachments">
+					<h4 class="attachments__title">
+						{{ t('absence', 'Attachments') }}
+						<span class="attachments__hint">{{ t('absence', 'visible to HR and the employee') }}</span>
+					</h4>
+					<ul v-if="detail.attachments && detail.attachments.length" class="attachments__list">
+						<li v-for="a in detail.attachments" :key="a.id" class="attachments__row">
+							<a
+								:href="attachmentUrl(a.id)"
+								class="attachments__link"
+								target="_blank"
+								rel="noreferrer noopener">
+								📎 {{ a.name }}
+							</a>
+							<span class="attachments__meta">{{ formatSize(a.size) }}</span>
+							<NcButton
+								v-if="canRemoveAttachment(a)"
+								variant="tertiary"
+								:aria-label="t('absence', 'Remove attachment')"
+								@click="removeAttachment(a)">
+								<template #icon>
+									<Close :size="16" />
+								</template>
+							</NcButton>
+						</li>
+					</ul>
+					<template v-if="detail.canAttach">
+						<input
+							ref="attachmentInput"
+							type="file"
+							class="attachments__input"
+							@change="onAttachmentPicked">
+						<NcButton variant="tertiary" :disabled="uploading" @click="pickAttachment">
+							<template #icon>
+								<Paperclip :size="18" />
+							</template>
+							{{ uploading ? t('absence', 'Uploading…') : t('absence', 'Attach a file') }}
+						</NcButton>
+					</template>
+				</div>
+
 				<div class="actions">
 					<template v-if="detail.canDecide && isDecidable">
 						<NcButton variant="success" :disabled="busy" @click="approve">
@@ -251,6 +292,7 @@ import Close from 'vue-material-design-icons/Close.vue'
 import CommentOutline from 'vue-material-design-icons/CommentOutline.vue'
 import History from 'vue-material-design-icons/History.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
+import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import CoveragePanel from './CoveragePanel.vue'
 import LeaveTypeChip from './LeaveTypeChip.vue'
@@ -263,6 +305,7 @@ import { formatRange } from '../utils/dates.js'
 export default {
 	name: 'RequestSidebar',
 	components: {
+		Paperclip,
 		NcAppSidebar,
 		NcAppSidebarTab,
 		NcAvatar,
@@ -293,6 +336,7 @@ export default {
 			confirmingCancel: false,
 			rejectComment: '',
 			newComment: '',
+			uploading: false,
 		}
 	},
 
@@ -400,6 +444,55 @@ export default {
 
 	methods: {
 		t,
+
+		attachmentUrl(id) {
+			return api.attachmentUrl(id)
+		},
+
+		canRemoveAttachment(a) {
+			return store.session.isHr || a.uploaderUid === store.session.uid
+		},
+
+		formatSize(bytes) {
+			if (bytes < 1024) {
+				return bytes + ' B'
+			}
+			if (bytes < 1024 * 1024) {
+				return Math.round(bytes / 1024) + ' KB'
+			}
+			return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+		},
+
+		pickAttachment() {
+			this.$refs.attachmentInput?.click()
+		},
+
+		async onAttachmentPicked(event) {
+			const file = event.target.files?.[0]
+			event.target.value = ''
+			if (!file) {
+				return
+			}
+			this.uploading = true
+			try {
+				await api.uploadAttachment(this.detail.id, file)
+				await this.reload()
+			} catch (e) {
+				showError(e.response?.data?.message || t('absence', 'Could not upload the file'))
+			} finally {
+				this.uploading = false
+			}
+		},
+
+		async removeAttachment(a) {
+			try {
+				await api.deleteAttachment(a.id)
+				await this.reload()
+			} catch (e) {
+				showError(e.response?.data?.message || t('absence', 'Could not remove the attachment'))
+			}
+		},
+
 		eventMeta(type) {
 			const map = {
 				request_created: { label: t('absence', 'Requested'), icon: '📝' },
@@ -578,6 +671,56 @@ export default {
 	&__muted {
 		color: var(--color-text-maxcontrast);
 		font-weight: 400;
+	}
+
+	// hidden native input; the visible control is the NcButton
+	.attachments {
+		margin-top: 16px;
+
+		&__title {
+			margin: 0 0 6px;
+			font-size: 0.95rem;
+		}
+
+		&__hint {
+			font-weight: normal;
+			font-size: 0.75rem;
+			color: var(--color-text-maxcontrast);
+			margin-inline-start: 6px;
+		}
+
+		&__list {
+			list-style: none;
+			margin: 0 0 8px;
+			padding: 0;
+		}
+
+		&__row {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		&__link {
+			text-decoration: none;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+
+			&:hover {
+				text-decoration: underline;
+			}
+		}
+
+		&__meta {
+			color: var(--color-text-maxcontrast);
+			font-size: 0.8rem;
+			flex-shrink: 0;
+		}
+
+		&__input {
+			display: none;
+		}
 	}
 
 	// The balance is three facts, not one sentence: stack them so the headline

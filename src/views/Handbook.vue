@@ -58,7 +58,7 @@
 					<li>{{ t('absence', 'If colleagues are already off during those dates, the dialog names them while you can still cheaply pick different days.') }}</li>
 					<li>{{ t('absence', 'Some leave types ask for a replacement: a colleague who covers your duties. They are notified once the leave is approved — they see your dates, never your reason.') }}</li>
 				</ul>
-				<p>{{ t('absence', 'After you submit, your manager gets a notification with Approve and Decline right on it. If they sit on it too long, the request is automatically escalated to HR, so nothing gets stuck — including when you have no manager assigned at all.') }}</p>
+				<p>{{ t('absence', 'After you submit, your manager gets a notification with Approve and Decline right on it. If they sit on it too long, the request is automatically escalated to HR, so nothing gets stuck — including when you have no manager assigned at all, or when your manager is on leave themselves.') }}</p>
 				<figure class="handbook__figure">
 					<img :src="img('request-dialog.png')" :alt="t('absence', 'The request dialog with balance preview and coverage warning')">
 					<figcaption>{{ t('absence', 'The request dialog: live balance preview, the working-day estimate to double-check, and who else is already off.') }}</figcaption>
@@ -124,6 +124,7 @@
 					<li>{{ t('absence', 'Colleagues see that you are absent, never the leave type or your reason (unless the admin deliberately switched the shared calendar to reveal types).') }}</li>
 					<li>{{ t('absence', 'Your manager and HR see your requests, reasons and balances; a nominated replacement sees only your dates.') }}</li>
 					<li>{{ t('absence', 'Certain sensitive categories recorded by HR (for example maternity leave) are visible to HR alone — everyone else, including yourself in this app, sees a neutral "Absent".') }}</li>
+					<li>{{ t('absence', 'Files you attach to a request — a doctor\'s note, say — are visible to HR and you alone. Your manager never sees them. Attaching works from the request\'s detail view, including on sick leave HR recorded for you.') }}</li>
 					<li>{{ t('absence', 'Every decision is written to the request\'s own history, so how a request was handled is always on the record.') }}</li>
 				</ul>
 			</section>
@@ -133,7 +134,7 @@
 				<section :ref="setRef('hr-role')" class="handbook__section handbook__section--hr">
 					<h3>🗄️ {{ t('absence', 'HR: your role') }}</h3>
 					<p>{{ t('absence', 'HR sees the whole company and can correct anything — with every correction on the record. You can approve, decline, edit and cancel any request regardless of its state, and every HR override is written to the history and the audit log.') }}</p>
-					<p>{{ t('absence', 'You are also the safety net: requests whose manager does not act, and requests from employees without a manager, land in your escalated queue (the counter on "Who\'s off" and the dashboard widget).') }}</p>
+					<p>{{ t('absence', 'You are also the safety net: requests whose manager does not act, requests from employees without a manager, and requests whose manager is currently on leave themselves all land in your escalated queue (the counter on "Who\'s off" and the dashboard widget).') }}</p>
 				</section>
 
 				<section :ref="setRef('hr-record')" class="handbook__section handbook__section--hr">

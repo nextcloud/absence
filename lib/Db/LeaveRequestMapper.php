@@ -220,6 +220,26 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Whether the given person has an *approved* absence covering the whole
+	 * [$from, $to] range (dates inclusive). Used by §5.4a: a manager who is
+	 * away for the entire remaining escalation window cannot possibly decide
+	 * in time, so their pending requests route to HR early.
+	 */
+	public function hasApprovedAbsenceCovering(string $uid, string $from, string $to): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'cnt'))
+			->from($this->getTableName())
+			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))
+			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_APPROVED)))
+			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter($from)))
+			->andWhere($qb->expr()->gte('end_date', $qb->createNamedParameter($to)));
+		$result = $qb->executeQuery();
+		$count = (int)$result->fetchOne();
+		$result->closeCursor();
+		return $count > 0;
+	}
+
+	/**
 	 * Requests that supersede the given request (the pending edits of an approved one).
 	 *
 	 * @return LeaveRequest[]

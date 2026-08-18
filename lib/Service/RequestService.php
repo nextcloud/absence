@@ -72,6 +72,7 @@ class RequestService {
 		private ActivityPublisher $activity,
 		private ConfigService $config,
 		private EmployeeDirectory $employees,
+		private AttachmentService $attachments,
 		private \OCP\IUserManager $userManager,
 		private IL10N $l,
 		private LoggerInterface $logger,
@@ -191,6 +192,8 @@ class RequestService {
 			$detail['history'] = [];
 			$detail['canDecide'] = false;
 			$detail['canModify'] = false;
+			$detail['attachments'] = [];
+			$detail['canAttach'] = false;
 			return $this->withDisplayNames($detail, $request);
 		}
 		$detail = $request->jsonSerialize();
@@ -204,6 +207,13 @@ class RequestService {
 		);
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
+		// Attachments follow their own, narrower visibility (HR + the employee,
+		// §3.8) — the service returns [] for anyone else.
+		$detail['attachments'] = array_map(
+			static fn ($a) => $a->jsonSerialize(),
+			$this->attachments->listForRequest($actorUid, $id),
+		);
+		$detail['canAttach'] = $this->attachments->canAttach($actorUid, $request);
 		if (!$viewerIsHr) {
 			// The disability flag (§5.8) exists for HR eyes only.
 			$detail['disability'] = null;
@@ -437,6 +447,12 @@ class RequestService {
 			} elseif ($managerUid === null) {
 				$request->setStatus(LeaveRequest::STATUS_ESCALATED);
 				$request->setEscalated(true);
+			} elseif ($this->managerCurrentlyAway($managerUid)) {
+				// §5.4a: the decider is on approved leave right now. Waiting the
+				// full escalation window to tell HR what the app already knows
+				// would only delay the answer.
+				$request->setStatus(LeaveRequest::STATUS_ESCALATED);
+				$request->setEscalated(true);
 			} else {
 				$request->setStatus(LeaveRequest::STATUS_PENDING);
 				$request->setEscalated(false);
@@ -483,7 +499,9 @@ class RequestService {
 			!$type->getEmployeeRequestable() => 'Recorded by HR',
 			$onBehalf => 'Recorded by HR on behalf',
 			$request->getStatus() === LeaveRequest::STATUS_APPROVED => 'Automatically approved',
-			$request->getStatus() === LeaveRequest::STATUS_ESCALATED => 'No line manager — routed to HR',
+			$request->getStatus() === LeaveRequest::STATUS_ESCALATED => $request->getManagerUid() === null
+				? 'No line manager — routed to HR'
+				: 'Manager is away — routed to HR',
 			default => null,
 		};
 		if ($how !== null) {
@@ -1203,6 +1221,15 @@ class RequestService {
 			throw new ValidationException($this->l->t('That is too many working days for a single request.'));
 		}
 		return $days;
+	}
+
+	/**
+	 * Whether the assigned manager is on approved leave today (§5.4a) — on the
+	 * server's calendar, like every company-wide decision.
+	 */
+	private function managerCurrentlyAway(string $managerUid): bool {
+		$today = $this->clock->serverToday();
+		return $this->requestMapper->hasApprovedAbsenceCovering($managerUid, $today, $today);
 	}
 
 	/**
