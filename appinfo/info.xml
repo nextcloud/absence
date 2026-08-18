@@ -65,15 +65,15 @@ properly. Every rule and design decision is documented in the
 	<website>https://github.com/nextcloud/absence</website>
 	<bugs>https://github.com/nextcloud/absence/issues</bugs>
 	<repository type="git">https://github.com/nextcloud/absence.git</repository>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/2.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/1.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/3.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/4.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/5.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/11.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/7.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/9.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/13.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/my-leave.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/dashboard.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/request-dialog.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/request-detail.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/team-timeline.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/hr-statistics.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/hr-balances.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/hr-whos-off.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/admin-settings.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="34" max-version="36"/>
 	</dependencies>
