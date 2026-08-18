@@ -27,6 +27,7 @@ class UserDeletedListener implements IEventListener {
 		private IDBConnection $db,
 		private LeaveRequestMapper $requestMapper,
 		private CalendarService $calendar,
+		private \OCA\Absence\Service\AttachmentService $attachments,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -61,6 +62,13 @@ class UserDeletedListener implements IEventListener {
 		if ($requestIds !== []) {
 			$this->deleteWhereIn('absence_comments', 'request_id', $requestIds, IQueryBuilder::PARAM_INT_ARRAY);
 			$this->deleteWhereIn('absence_request_events', 'request_id', $requestIds, IQueryBuilder::PARAM_INT_ARRAY);
+			// Attachments carry the most sensitive payload of all (§3.8): purge
+			// the stored bytes along with the rows.
+			try {
+				$this->attachments->purgeForRequests($requestIds);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: could not purge attachments for deleted user', ['exception' => $e]);
+			}
 		}
 		$this->deleteWhereEquals('absence_comments', 'author_uid', $uid);
 

@@ -23,6 +23,15 @@ export default {
 	rejectRequest: (id, comment) => axios.post(url(`/api/requests/${id}/reject`), { comment }).then((r) => r.data),
 	addComment: (id, body) => axios.post(url(`/api/requests/${id}/comments`), { body }).then((r) => r.data),
 
+	// Attachments (doctor's notes etc.) — HR and the employee only
+	uploadAttachment: (id, file) => {
+		const form = new FormData()
+		form.append('file', file)
+		return axios.post(url(`/api/requests/${id}/attachments`), form).then((r) => r.data)
+	},
+	deleteAttachment: (id) => axios.delete(url(`/api/attachments/${id}`)).then((r) => r.data),
+	attachmentUrl: (id) => url(`/api/attachments/${id}`),
+
 	// Balances & entitlements
 	getMyBalance: (year) => axios.get(url('/api/balance'), { params: { year } }).then((r) => r.data),
 	// Balances of the caller's own direct reports (empty for non-managers).

@@ -14,7 +14,15 @@ if (!defined('PHPUNIT_RUN')) {
 	define('PHPUNIT_RUN', 1);
 }
 
-require_once __DIR__ . '/../../../lib/base.php';
-require_once __DIR__ . '/../../../tests/autoload.php';
+// __DIR__ resolves symlinks, so an app checked out beside the server and
+// symlinked into apps/ cannot find the server relatively — NEXTCLOUD_ROOT
+// overrides the guess in that case.
+$serverRoot = getenv('NEXTCLOUD_ROOT') ?: __DIR__ . '/../../..';
+require_once $serverRoot . '/lib/base.php';
+// The server's test autoloader only exists in a git checkout (CI), not in a
+// packaged server — and these tests do not need it to run.
+if (is_file($serverRoot . '/tests/autoload.php')) {
+	require_once $serverRoot . '/tests/autoload.php';
+}
 
 Server::get(IAppManager::class)->loadApp('absence');

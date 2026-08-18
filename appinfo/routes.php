@@ -21,6 +21,12 @@ return [
 		['name' => 'request#reject', 'url' => '/api/requests/{id}/reject', 'verb' => 'POST'],
 		['name' => 'request#addComment', 'url' => '/api/requests/{id}/comments', 'verb' => 'POST'],
 
+		// Attachments (doctor's notes etc., §3.8) — HR and the employee only
+		['name' => 'attachment#index', 'url' => '/api/requests/{id}/attachments', 'verb' => 'GET'],
+		['name' => 'attachment#create', 'url' => '/api/requests/{id}/attachments', 'verb' => 'POST'],
+		['name' => 'attachment#download', 'url' => '/api/attachments/{id}', 'verb' => 'GET'],
+		['name' => 'attachment#destroy', 'url' => '/api/attachments/{id}', 'verb' => 'DELETE'],
+
 		// People (autocomplete for the employee / replacement pickers)
 		['name' => 'employee#search', 'url' => '/api/employees/search', 'verb' => 'GET'],
 		['name' => 'employee#groups', 'url' => '/api/groups', 'verb' => 'GET'],
