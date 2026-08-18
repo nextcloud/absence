@@ -15,7 +15,7 @@ No spreadsheets, no per-seat SaaS bill, no employee data leaving your server.
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue)](LICENSE)
 [![Built to a spec](https://img.shields.io/badge/built%20to-SPECIFICATION.md-success)](./SPECIFICATION.md)
 
-![My leave](screenshots/2.png)
+![My leave](screenshots/my-leave.png)
 
 </div>
 
@@ -86,7 +86,7 @@ Absence puts it on infrastructure you already run and already trust:
 
 ## On the dashboard
 
-![Dashboard widget](screenshots/1.png)
+![Dashboard widget](screenshots/dashboard.png)
 
 Most people should not have to open a leave app to use one. The **dashboard widget**
 is role-aware and shows each person exactly what is theirs to know: every employee
@@ -103,7 +103,7 @@ calendar, on the page they already open every morning.
 > *"How many days do I have left, and can I take them in August?"* — answered on one
 > screen, in about three seconds.
 
-![Request time off dialog](screenshots/3.png)
+![Request time off dialog](screenshots/request-dialog.png)
 
 **Booking leave takes four fields and tells you everything you need before you send
 it.** Pick a type and a date range, and the app:
@@ -135,7 +135,7 @@ already been approved politely asks your manager first, because they planned aro
 
 ## For line managers
 
-![Request detail with approve/decline](screenshots/4.png)
+![Request detail with approve/decline](screenshots/request-detail.png)
 
 **The common answer costs one click.** A request arrives as a Nextcloud notification
 with **Approve**, **Decline** and **Review** buttons; approving happens in place and
@@ -154,7 +154,7 @@ When you do open a request, the sidebar gives you the whole picture:
 - the employee's **reason**, the full **comment thread**, and a complete **history**
   of every edit, escalation and decision.
 
-![Team timeline](screenshots/5.png)
+![Team timeline](screenshots/team-timeline.png)
 
 **Team timeline** is a Gantt-style month view of your direct reports: continuous
 leave pills, hatched while still pending, with weekend shading and a *today* line —
@@ -194,7 +194,7 @@ much as the category names. Enforced by the API, not merely hidden in the UI.
 
 ### Record absences directly
 
-![Record absence dialog](screenshots/6.png)
+![Record absence dialog](screenshots/record-absence.png)
 
 Sick leave is not something anyone applies for in advance. HR books it (or any type)
 on an employee's behalf, straight to approved, with no approval step — and the
@@ -209,19 +209,19 @@ semicolon-separated, straight out of Excel.
 
 ### Balances and entitlements
 
-![HR balances table](screenshots/7.png)
+![HR balances table](screenshots/hr-balances.png)
 
 Per-employee entitlement, used, pending, remaining and available, per year and type,
 filterable by group. Set entitlements individually or **in bulk for a whole group**.
 
-![Edit entitlement dialog](screenshots/8.png)
+![Edit entitlement dialog](screenshots/edit-entitlement.png)
 
 Every entitlement is a **base allowance plus an explicit adjustment with a note**, so
 "why does Ada have 27 days?" always has an answer written down next to the number.
 
 ### Statistics
 
-![HR statistics](screenshots/11.png)
+![HR statistics](screenshots/hr-statistics.png)
 
 Stat tiles — approved leave days, **average sick days per employee across the
 calendar year**, the busiest month, leave types used — plus an absence-days trend
@@ -235,27 +235,27 @@ down to the individual days.
 
 ### Who's off, company-wide
 
-![Company-wide who's off timeline](screenshots/9.png)
+![Company-wide who's off timeline](screenshots/hr-whos-off.png)
 
 The same timeline as the team view, across the entire organisation — and each pill
 opens the record behind it.
 
 ### Export
 
-![CSV exports](screenshots/10.png)
+![CSV exports](screenshots/hr-exports.png)
 
 Leave requests and balances as CSV, with date-range and group filters, for payroll or
 an external HR system.
 
 **And HR requests their own leave like everybody else:**
 
-![Request dialog in the HR area](screenshots/12.png)
+![Request dialog in the HR area](screenshots/hr-new-request.png)
 
 ---
 
 ## For administrators
 
-![Admin settings](screenshots/13.png)
+![Admin settings](screenshots/admin-settings.png)
 
 Everything is configured from **Administration settings → Absence** — a declarative
 settings form, so there is no bespoke admin UI to learn.
