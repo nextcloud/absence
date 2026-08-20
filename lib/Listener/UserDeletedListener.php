@@ -23,6 +23,9 @@ use Psr\Log\LoggerInterface;
  * @template-implements IEventListener<UserDeletedEvent>
  */
 class UserDeletedListener implements IEventListener {
+	/** Sentinel that replaces a purged user's uid on history/attachment rows about other people. */
+	private const DELETED_ACTOR = 'deleted_user';
+
 	public function __construct(
 		private IDBConnection $db,
 		private LeaveRequestMapper $requestMapper,
@@ -87,6 +90,26 @@ class UserDeletedListener implements IEventListener {
 				->where($qb->expr()->eq($column, $qb->createNamedParameter($uid)));
 			$qb->executeStatement();
 		}
+
+		// The rows above removed everything *about* the user. What remains is where
+		// the user acted on *someone else's* record — approved/rejected/commented on
+		// another employee's request, adjusted their entitlement, uploaded a note to
+		// their request. Those history/attachment rows belong to the other employee's
+		// audit trail and must stay, but they still name the deleted person as actor/
+		// uploader, so anonymize that identity to a sentinel (the columns are notnull,
+		// so the uid cannot simply be nulled). Mirrors the comment cleanup above (§17).
+		$this->anonymizeActor('absence_request_events', 'actor_uid', $uid);
+		$this->anonymizeActor('absence_entitlement_events', 'actor_uid', $uid);
+		$this->anonymizeActor('absence_attachments', 'uploader_uid', $uid);
+	}
+
+	/** Replace a deleted user's uid, where they are the actor on a surviving row, with a sentinel. */
+	private function anonymizeActor(string $table, string $column, string $uid): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($table)
+			->set($column, $qb->createNamedParameter(self::DELETED_ACTOR))
+			->where($qb->expr()->eq($column, $qb->createNamedParameter($uid)));
+		$qb->executeStatement();
 	}
 
 	/**

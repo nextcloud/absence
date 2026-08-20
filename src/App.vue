@@ -70,6 +70,11 @@
 							<ChartBar :size="20" />
 						</template>
 					</NcAppNavigationItem>
+					<NcAppNavigationItem :name="t('absence', 'Insights')" :to="{ name: 'hr-insights' }">
+						<template #icon>
+							<LightbulbOnOutline :size="20" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'Sick leave')" :to="{ name: 'hr-sick-leave' }">
 						<template #icon>
 							<Thermometer :size="20" />
@@ -114,6 +119,8 @@
 			:hrMode="recordMode"
 			@close="closeDialog"
 			@saved="onChanged" />
+
+		<Confetti />
 	</NcContent>
 </template>
 
@@ -136,9 +143,11 @@ import ChartBar from 'vue-material-design-icons/ChartBar.vue'
 import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
 import Download from 'vue-material-design-icons/Download.vue'
+import LightbulbOnOutline from 'vue-material-design-icons/LightbulbOnOutline.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
+import Confetti from './components/Confetti.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
 import { store } from './store.js'
@@ -155,6 +164,7 @@ export default {
 		BookOpenPageVariant,
 		BookOpenVariant,
 		NcCounterBubble,
+		Confetti,
 		RequestDialog,
 		RequestSidebar,
 		Plus,
@@ -168,6 +178,7 @@ export default {
 		Download,
 		ClipboardPlusOutline,
 		Thermometer,
+		LightbulbOnOutline,
 	},
 
 	setup() {

@@ -809,6 +809,103 @@ class RequestServiceTest extends TestCase {
 		self::assertTrue($hr[0]['disability']);
 	}
 
+	public function testSerializeForActorWithholdsTheDisabilityFlagFromNonHr(): void {
+		// The write endpoints (approve/reject/update/cancel) return their result
+		// through serializeForActor, so a mutation response must not leak what a
+		// read would withhold — the disability flag (§5.8) among it.
+		$request = $this->pendingOwnRequest();
+		$request->setDisability(true);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->permission->method('isHrOnlyRequest')->willReturn(false);
+
+		$data = $this->service->serializeForActor('boss', $request);
+
+		self::assertNull($data['disability']);
+		self::assertSame(1, $data['typeId']); // an ordinary type is still shown
+	}
+
+	public function testSerializeForActorWithholdsAConfidentialCategoryFromNonHr(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setTypeId(9);
+		$request->setReason('Maternity leave until March');
+		$request->setDisability(true);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->permission->method('isHrOnlyRequest')->willReturn(true);
+
+		$data = $this->service->serializeForActor('boss', $request);
+
+		self::assertNull($data['typeId']);
+		self::assertNull($data['reason']);
+		self::assertNull($data['disability']);
+	}
+
+	public function testSerializeForActorGivesHrTheFullRecord(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setTypeId(9);
+		$request->setReason('Maternity leave until March');
+		$request->setDisability(true);
+		$this->permission->method('isHr')->willReturn(true);
+
+		$data = $this->service->serializeForActor('hr', $request);
+
+		self::assertSame(9, $data['typeId']);
+		self::assertSame('Maternity leave until March', $data['reason']);
+		self::assertTrue($data['disability']);
+	}
+
+	public function testAddCommentOnAConfidentialRequestReachesHrOnly(): void {
+		// The comment thread on a confidential absence is HR-only (§5.7): getDetail
+		// hides it from the employee and manager, so its body must not be pushed to
+		// them by notification/email either. Only HR is notified.
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('boss');
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('isHrOnlyRequest')->willReturn(true);
+		$this->permission->method('getHrUids')->willReturn(['hr1', 'hr2']);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+
+		$this->notifications->expects(self::once())->method('notifyComment')
+			->with($request, 'hr1', 'Keep on file.', ['hr1', 'hr2']);
+
+		$this->service->addComment('hr1', 5, 'Keep on file.');
+	}
+
+	public function testHrEditingAWithdrawalPendingRequestRebuildsTheCalendar(): void {
+		// A WITHDRAWAL_PENDING request is still in force and already carries a
+		// calendar event, so an HR date edit must rebuild it — it used to fire only
+		// for STATUS_APPROVED, leaving the calendar (and, if the withdrawal was later
+		// rejected, the standing leave) on the old dates.
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$this->calendar->expects(self::once())->method('onRemoved')->with($request);
+		$this->calendar->expects(self::once())->method('onApproved')->with($request);
+
+		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
+	}
+
+	public function testHrEditingAStillPendingRequestDoesNotTouchTheCalendar(): void {
+		// A PENDING request has no calendar event yet, so an HR edit must not try to
+		// rebuild one — the guard is "was there an event", not "is HR editing".
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$this->calendar->expects(self::never())->method('onRemoved');
+		$this->calendar->expects(self::never())->method('onApproved');
+
+		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
+	}
+
 	public function testARequestRoutesToHrWhileTheManagerIsAway(): void {
 		// §5.4a: the decider is on approved leave today — waiting out the whole
 		// escalation window would only delay the answer HR gives anyway.

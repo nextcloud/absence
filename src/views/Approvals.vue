@@ -12,6 +12,20 @@
 
 		<SkeletonList v-if="loading" :rows="3" />
 
+		<NcEmptyContent
+			v-else-if="loadError"
+			:name="t('absence', 'Could not load the approvals')"
+			:description="t('absence', 'Something went wrong while fetching the requests waiting for you.')">
+			<template #icon>
+				<AlertCircleOutline :size="20" />
+			</template>
+			<template #action>
+				<NcButton @click="reload">
+					{{ t('absence', 'Try again') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
+
 		<template v-else>
 			<section v-if="teamQueue.length" class="group">
 				<h3 class="group__title">
@@ -56,8 +70,11 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import CheckAll from 'vue-material-design-icons/CheckAll.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
@@ -68,7 +85,7 @@ const ACTIONABLE = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING']
 
 export default {
 	name: 'Approvals',
-	components: { NcEmptyContent, CheckAll, RequestListItem, SkeletonList },
+	components: { NcButton, NcEmptyContent, CheckAll, AlertCircleOutline, RequestListItem, SkeletonList },
 	setup() {
 		// Expose the module-level reactive store to the template (Options API).
 		return { store }
@@ -77,6 +94,7 @@ export default {
 	data() {
 		return {
 			loading: true,
+			loadError: false,
 			teamQueue: [],
 			escalated: [],
 		}
@@ -95,12 +113,21 @@ export default {
 		t,
 		async reload() {
 			this.loading = true
+			this.loadError = false
 			try {
 				const reports = await api.listRequests({ scope: 'reports' })
 				this.teamQueue = reports.filter((r) => ACTIONABLE.includes(r.status))
 				if (store.session.isHr) {
 					this.escalated = await api.listRequests({ scope: 'hr', status: 'ESCALATED' })
 				}
+			} catch {
+				// Without this a failed load leaves both lists empty and the
+				// "All caught up!" state renders — a manager with pending requests
+				// would think there was nothing to do. Show the failure instead.
+				this.loadError = true
+				this.teamQueue = []
+				this.escalated = []
+				showError(t('absence', 'Could not load the approvals'))
 			} finally {
 				this.loading = false
 			}

@@ -10,6 +10,7 @@ namespace OCA\Absence\Service;
 
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
+use OCP\IDBConnection;
 use OCP\IUserManager;
 
 /**
@@ -38,6 +39,7 @@ class ImportService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private EmployeeDirectory $employees,
 		private IUserManager $userManager,
+		private IDBConnection $db,
 	) {
 	}
 
@@ -117,12 +119,22 @@ class ImportService {
 	 * @return int rows applied
 	 */
 	public function apply(array $plan, string $actorUid): int {
-		$applied = 0;
-		foreach ($plan as $row) {
-			$this->entitlements->setForEmployee($actorUid, $row['uid'], $row['year'], $row['typeId'], $row['data']);
-			$applied++;
+		// All-or-nothing (see the class docstring): if any row fails part-way through
+		// — a transient DB error, or a type deleted between plan() and apply() — the
+		// whole batch rolls back rather than leaving "half the company imported".
+		$this->db->beginTransaction();
+		try {
+			$applied = 0;
+			foreach ($plan as $row) {
+				$this->entitlements->setForEmployee($actorUid, $row['uid'], $row['year'], $row['typeId'], $row['data']);
+				$applied++;
+			}
+			$this->db->commit();
+			return $applied;
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
 		}
-		return $applied;
 	}
 
 	/**

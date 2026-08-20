@@ -93,25 +93,25 @@ class RequestController extends Controller {
 		if ($disability !== null) {
 			$data['disability'] = $disability;
 		}
-		return $this->handle(fn () => $this->service->update((string)$this->userId, $id, $data)->jsonSerialize());
+		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->update((string)$this->userId, $id, $data)));
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function cancel(int $id): DataResponse {
-		return $this->handle(fn () => $this->service->cancel((string)$this->userId, $id)->jsonSerialize());
+		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->cancel((string)$this->userId, $id)));
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function approve(int $id, ?string $comment = null): DataResponse {
-		return $this->handle(fn () => $this->service->approve((string)$this->userId, $id, $comment)->jsonSerialize());
+		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->approve((string)$this->userId, $id, $comment)));
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function reject(int $id, string $comment): DataResponse {
-		return $this->handle(fn () => $this->service->reject((string)$this->userId, $id, $comment)->jsonSerialize());
+		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->reject((string)$this->userId, $id, $comment)));
 	}
 
 	#[NoAdminRequired]

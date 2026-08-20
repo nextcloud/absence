@@ -30,6 +30,7 @@ class SeedConfidentialLeaveTypes implements IRepairStep {
 		['key' => 'work_prohibition', 'label' => 'Medical work prohibition', 'color' => '#a04545', 'icon' => '⚕️'],
 		['key' => 'doctors_note', 'label' => "Doctor's note", 'color' => '#2e7da6', 'icon' => '🩺'],
 		['key' => 'parental', 'label' => 'Parental leave', 'color' => '#0e7d6e', 'icon' => '🍼'],
+		['key' => 'child_sick', 'label' => 'Child sick leave', 'color' => '#c98a1e', 'icon' => '🧒'],
 	];
 
 	public function __construct(

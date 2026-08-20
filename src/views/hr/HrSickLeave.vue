@@ -193,6 +193,8 @@ export default {
 		const y = new Date().getFullYear()
 		return {
 			loading: true,
+			// Bumped on every reload; a response whose seq is stale on return is discarded.
+			reloadSeq: 0,
 			rows: [],
 			types: [],
 			totals: { employees: 0, affected: 0, days: 0, episodes: 0 },
@@ -311,16 +313,26 @@ export default {
 		},
 
 		async reload() {
+			// Guard against overlapping reloads (rapid year/type changes): a slow earlier
+			// response must not overwrite the rows of a newer one already on screen.
+			const seq = ++this.reloadSeq
 			this.loading = true
 			try {
 				const report = await api.reportSickLeave(this.year, null, this.type?.id ?? null)
+				if (seq !== this.reloadSeq) {
+					return
+				}
 				this.rows = report.rows ?? []
 				this.types = report.types ?? []
 				this.totals = report.totals ?? { employees: 0, affected: 0, days: 0, episodes: 0 }
 			} catch {
-				showError(t('absence', 'Could not load the sick leave overview'))
+				if (seq === this.reloadSeq) {
+					showError(t('absence', 'Could not load the sick leave overview'))
+				}
 			} finally {
-				this.loading = false
+				if (seq === this.reloadSeq) {
+					this.loading = false
+				}
 			}
 		},
 	},
