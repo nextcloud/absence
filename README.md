@@ -103,7 +103,7 @@ calendar, on the page they already open every morning.
 > *"How many days do I have left, and can I take them in August?"* — answered on one
 > screen, in about three seconds.
 
-![Request time off dialog](screenshots/request-dialog.png)
+![Filling in the request-time-off form: picking a leave type, a date range, and watching the working-day count, balance preview and coverage warning fill in](screenshots/request-form.gif)
 
 **Booking leave takes four fields and tells you everything you need before you send
 it.** Pick a type and a date range, and the app:

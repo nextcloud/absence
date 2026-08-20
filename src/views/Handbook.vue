@@ -65,8 +65,8 @@
 				<p>{{ t('absence', 'After you submit, your manager gets a notification with Approve and Decline right on it. If they sit on it too long, the request is automatically escalated to HR, so nothing gets stuck — including when you have no manager assigned at all, or when your manager is on leave themselves.') }}</p>
 				<p>{{ t('absence', 'You cannot book two leaves that overlap the same day, and a leave lying entirely in the past is refused (only HR may record one after the fact). The working-day count may use halves for a half day, but never more days than the calendar range contains.') }}</p>
 				<figure class="handbook__figure">
-					<img :src="img('request-dialog.png')" :alt="t('absence', 'The request dialog with balance preview and coverage warning')">
-					<figcaption>{{ t('absence', 'The request dialog: live balance preview, the working-day estimate to double-check, and who else is already off.') }}</figcaption>
+					<img :src="img('request-form.gif')" :alt="t('absence', 'A walkthrough of filling in the request form: leave type, dates, the working-day estimate, the balance preview and the coverage warning')">
+					<figcaption>{{ t('absence', 'Filling it in: pick a type and a range, and the working-day estimate, live balance preview and coverage warning fill themselves in — check the number before you send.') }}</figcaption>
 				</figure>
 			</section>
 
