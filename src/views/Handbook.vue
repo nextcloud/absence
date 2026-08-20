@@ -48,7 +48,7 @@
 				<p>{{ t('absence', 'Each request in the history carries a coloured status: pending, approved, declined, cancelled, or awaiting a withdrawal decision. Click one to open its full detail and history.') }}</p>
 				<p>{{ t('absence', 'At the top of the page, a countdown to your next approved break keeps the good news in view, and a "Your year so far" summary tallies the days you have taken, your longest break and your busiest month. When a request of yours is approved you will get a small celebration — a nudge to go and plan the trip.') }}</p>
 				<figure class="handbook__figure handbook__figure--wide">
-					<img :src="img('balance-card.png')" :alt="t('absence', 'The annual leave balance ring with its breakdown')">
+					<img :src="img('balance-card.webp')" :alt="t('absence', 'The annual leave balance ring with its breakdown')">
 					<figcaption>{{ t('absence', 'The balance ring and its ledger: base, carry-over, adjustments — and what is left.') }}</figcaption>
 				</figure>
 			</section>
@@ -65,7 +65,7 @@
 				<p>{{ t('absence', 'After you submit, your manager gets a notification with Approve and Decline right on it. If they sit on it too long, the request is automatically escalated to HR, so nothing gets stuck — including when you have no manager assigned at all, or when your manager is on leave themselves.') }}</p>
 				<p>{{ t('absence', 'You cannot book two leaves that overlap the same day, and a leave lying entirely in the past is refused (only HR may record one after the fact). The working-day count may use halves for a half day, but never more days than the calendar range contains.') }}</p>
 				<figure class="handbook__figure">
-					<img :src="img('request-form.gif')" :alt="t('absence', 'A walkthrough of filling in the request form: leave type, dates, the working-day estimate, the balance preview and the coverage warning')">
+					<img :src="img('request-form.webp')" :alt="t('absence', 'A walkthrough of filling in the request form: leave type, dates, the working-day estimate, the balance preview and the coverage warning')">
 					<figcaption>{{ t('absence', 'Filling it in: pick a type and a range, and the working-day estimate, live balance preview and coverage warning fill themselves in — check the number before you send.') }}</figcaption>
 				</figure>
 			</section>
@@ -102,16 +102,10 @@
 					<li>{{ t('absence', 'The employee\'s balance for that leave type, so you never approve blind.') }}</li>
 					<li>{{ t('absence', 'The reason, the comment thread, and the full history of every change and decision.') }}</li>
 				</ul>
-				<div class="handbook__figrow">
-					<figure class="handbook__figure">
-						<img :src="img('request-detail.png')" :alt="t('absence', 'The request detail sidebar with the decision buttons')">
-						<figcaption>{{ t('absence', 'The whole picture on one request: stepper, balance, reason — and the decision.') }}</figcaption>
-					</figure>
-					<figure class="handbook__figure">
-						<img :src="img('request-coverage.png')" :alt="t('absence', 'The coverage tab warning about team members off at once')">
-						<figcaption>{{ t('absence', 'The Coverage tab: who else is off, and whether approving hits the team limit.') }}</figcaption>
-					</figure>
-				</div>
+				<figure class="handbook__figure">
+					<img :src="img('request-detail.webp')" :alt="t('absence', 'Opening a request in the sidebar and switching from Details to the Coverage tab')">
+					<figcaption>{{ t('absence', 'One request, end to end: the stepper, balance, reason and decision on Details — then the Coverage tab, showing who else is off and whether approving would hit the team limit.') }}</figcaption>
+				</figure>
 				<p>{{ t('absence', 'Verify the working-day count when approving — it is entered by hand and prefills are only estimates.') }}</p>
 				<p>{{ t('absence', 'Mind the clock: requests you leave undecided are first reminded, then escalated to HR after the configured number of working days. A short-notice request (starting sooner than the expected notice period) is flagged so you can prioritise it.') }}</p>
 				<p>{{ t('absence', 'The comment thread on a request reaches the employee and, once escalated, HR — use it to ask a question ("can you move this a week?") without declining outright. Approving an edit to already-approved leave automatically retires the original, so the balance is never charged twice.') }}</p>
@@ -121,7 +115,7 @@
 				<h3>👥 {{ t('absence', 'For team leads: the Team page') }}</h3>
 				<p>{{ t('absence', 'The Team page shows a month timeline of your direct reports — approved leave as solid pills, pending as hatched — and below it their balances for the year: entitlement, used, pending and what is still free to book. That is the view to have open when somebody asks "can I take that week?".') }}</p>
 				<figure class="handbook__figure handbook__figure--wide">
-					<img :src="img('team-page.png')" :alt="t('absence', 'The team timeline with the balances table below it')">
+					<img :src="img('team-page.webp')" :alt="t('absence', 'The team timeline with the balances table below it')">
 					<figcaption>{{ t('absence', 'The Team page: the month at a glance, balances underneath.') }}</figcaption>
 				</figure>
 			</section>
@@ -161,7 +155,7 @@
 					<p>{{ t('absence', 'Recording for someone else never demands a replacement — you are stating a fact, often after the event.') }}</p>
 					<p>{{ t('absence', 'Annual leave offers a "Disability-related" tick for the additional statutory entitlement. Like the sick-leave categories, only HR can set and see it — it never appears in the request history or to the employee.') }}</p>
 					<figure class="handbook__figure">
-						<img :src="img('record-absence-categories.png')" :alt="t('absence', 'The record absence dialog with the confidential category dropdown open')">
+						<img :src="img('record-absence-categories.webp')" :alt="t('absence', 'The record absence dialog with the confidential category dropdown open')">
 						<figcaption>{{ t('absence', 'Sick leave opens a Category selector — general, child sick, maternity, parental, work prohibition, doctor\'s note. Only HR ever sees the choice.') }}</figcaption>
 					</figure>
 				</section>
@@ -170,7 +164,7 @@
 					<h3>🗂️ {{ t('absence', 'Managing absences') }}</h3>
 					<p>{{ t('absence', 'The Absences page lists every record, filterable by employee, type, status and year. Opening one lets you fix the dates, type or working days, or cancel it. Cancelling keeps the record and its history for the audit trail — there is deliberately no delete.') }}</p>
 					<figure class="handbook__figure handbook__figure--wide">
-						<img :src="img('hr-absences.png')" :alt="t('absence', 'The company-wide absences list with filters and status chips')">
+						<img :src="img('hr-absences.webp')" :alt="t('absence', 'The company-wide absences list with filters and status chips')">
 						<figcaption>{{ t('absence', 'Every absence in one list — every status, every filter.') }}</figcaption>
 					</figure>
 				</section>
@@ -220,7 +214,7 @@
 					</ul>
 					<p>{{ t('absence', 'Like every HR screen, Insights is HR-only: it names people and includes health-adjacent figures, so a line manager never sees it. Teams are grouped by the manager each person reports to; people with no manager form their own group.') }}</p>
 					<figure class="handbook__figure handbook__figure--wide">
-						<img :src="img('hr-insights.png')" :alt="t('absence', 'The Insights tab with approval health, the Bradford Factor, utilisation and liability')">
+						<img :src="img('hr-insights.webp')" :alt="t('absence', 'The Insights tab with approval health, the Bradford Factor, utilisation and liability')">
 						<figcaption>{{ t('absence', 'Insights: approval turnaround, the Bradford Factor, leave utilisation with a well-being watchlist, and the outstanding leave liability.') }}</figcaption>
 					</figure>
 				</section>
