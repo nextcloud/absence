@@ -33,7 +33,7 @@ class SeedConfidentialLeaveTypesTest extends TestCase {
 
 		(new SeedConfidentialLeaveTypes($mapper))->run($this->createMock(IOutput::class));
 
-		self::assertSame(['maternity', 'work_prohibition', 'doctors_note', 'parental'], array_map(
+		self::assertSame(['maternity', 'work_prohibition', 'doctors_note', 'parental', 'child_sick'], array_map(
 			static fn (LeaveType $t): string => $t->getKey(),
 			$inserted,
 		));
@@ -44,7 +44,7 @@ class SeedConfidentialLeaveTypesTest extends TestCase {
 			self::assertFalse($type->getCountsAgainstBalance());
 		}
 		// Appended after the existing types, not interleaved.
-		self::assertSame([2, 3, 4, 5], array_map(
+		self::assertSame([2, 3, 4, 5, 6], array_map(
 			static fn (LeaveType $t): int => $t->getSortOrder(),
 			$inserted,
 		));
@@ -68,7 +68,8 @@ class SeedConfidentialLeaveTypesTest extends TestCase {
 
 		(new SeedConfidentialLeaveTypes($mapper))->run($this->createMock(IOutput::class));
 
-		self::assertSame(['parental'], array_map(
+		// Only the types still missing are created; the existing three are left alone.
+		self::assertSame(['parental', 'child_sick'], array_map(
 			static fn (LeaveType $t): string => $t->getKey(),
 			$inserted,
 		));

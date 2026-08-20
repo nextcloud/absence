@@ -121,6 +121,8 @@ export default {
 		const now = new Date()
 		return {
 			loading: true,
+			// Bumped on every reload; a response whose seq is stale on return is discarded.
+			reloadSeq: 0,
 			from: new Date(now.getFullYear(), 0, 1),
 			to: new Date(now.getFullYear(), 11, 31),
 			trends: { byMonth: {}, byType: [], total: 0 },
@@ -266,6 +268,9 @@ export default {
 			if (!this.from || !this.to) {
 				return
 			}
+			// Guard against overlapping reloads (rapid from/to changes): a slow earlier
+			// response must not overwrite the figures of a newer one already on screen.
+			const seq = ++this.reloadSeq
 			this.loading = true
 			try {
 				const year = this.to.getFullYear()
@@ -274,10 +279,16 @@ export default {
 					api.reportSickLeave(year),
 					api.reportBalances(year),
 				])
+				if (seq !== this.reloadSeq) {
+					return
+				}
 				this.trends = trends
 				this.sickTotals = sick.totals
 				this.balanceReport = balances
 			} catch (e) {
+				if (seq !== this.reloadSeq) {
+					return
+				}
 				// Without this the view kept the previous range's figures on screen
 				// with no hint that the new ones never arrived.
 				this.trends = { byMonth: {}, byType: [], total: 0 }
@@ -285,7 +296,9 @@ export default {
 				this.balanceReport = []
 				showError(e.response?.data?.message || t('absence', 'Could not load statistics'))
 			} finally {
-				this.loading = false
+				if (seq === this.reloadSeq) {
+					this.loading = false
+				}
 			}
 		},
 	},

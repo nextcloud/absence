@@ -60,9 +60,18 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 	public const STATUS_WITHDRAWAL_PENDING = 'WITHDRAWAL_PENDING';
 
 	/** Statuses that occupy the "pending" balance bucket (§4.2). */
-	public const PENDING_STATUSES = [self::STATUS_PENDING, self::STATUS_ESCALATED, self::STATUS_WITHDRAWAL_PENDING];
-	/** Statuses that occupy the "used" balance bucket (§4.2). */
-	public const USED_STATUSES = [self::STATUS_APPROVED];
+	public const PENDING_STATUSES = [self::STATUS_PENDING, self::STATUS_ESCALATED];
+	/**
+	 * Statuses that occupy the "used" balance bucket (§4.2).
+	 *
+	 * WITHDRAWAL_PENDING belongs here, not in "pending": the leave was approved and
+	 * remains in force — it holds its dates and its calendar entry — until the
+	 * withdrawal is decided. Counting it as merely "pending" would drop it out of
+	 * `used` (and therefore `remaining = entitlement − used`), over-stating what is
+	 * left and, at year-end, carrying over days the employee has not got back.
+	 * `available = entitlement − used − pending` is unchanged either way.
+	 */
+	public const USED_STATUSES = [self::STATUS_APPROVED, self::STATUS_WITHDRAWAL_PENDING];
 	/** Terminal statuses that can no longer transition. */
 	public const TERMINAL_STATUSES = [self::STATUS_REJECTED, self::STATUS_CANCELLED];
 	/** Non-terminal statuses used for overlap detection. */

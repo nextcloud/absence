@@ -188,27 +188,41 @@ class EntitlementService {
 		// Only roll over employees who actually had an entitlement last year, so we
 		// never fabricate balances for users/types HR never granted (§6.1/§6.2).
 		foreach ($this->entitlementMapper->findForYear($fromYear) as $prior) {
-			$carry = $this->computeCarryOver($prior->getEmployeeUid(), $fromYear, $prior->getTypeId(), $policy);
+			// One employee whose rollover throws must not abort the whole job: that
+			// would leave everyone after them with no carry-over and stop the caller
+			// (YearRolloverJob) from recording the year as done or running the expiry
+			// pass. Log the offending row and carry on.
 			try {
-				$next = $this->entitlementMapper->findFor($prior->getEmployeeUid(), $toYear, $prior->getTypeId());
-			} catch (DoesNotExistException) {
-				// The new year continues the prior year's base — never the global
-				// default, which would silently override HR-set custom entitlements.
-				$now = $this->clock->now();
-				$next = new Entitlement();
-				$next->setEmployeeUid($prior->getEmployeeUid());
-				$next->setYear($toYear);
-				$next->setTypeId($prior->getTypeId());
-				$next->setBaseDays($prior->getBaseDays());
-				$next->setCarryOverDays(0.0);
-				$next->setManualAdjustment(0.0);
-				$next->setCreatedAt($now);
-				$next = $this->entitlementMapper->insert($next);
+				$carry = $this->computeCarryOver($prior->getEmployeeUid(), $fromYear, $prior->getTypeId(), $policy);
+				try {
+					$next = $this->entitlementMapper->findFor($prior->getEmployeeUid(), $toYear, $prior->getTypeId());
+				} catch (DoesNotExistException) {
+					// The new year continues the prior year's base — never the global
+					// default, which would silently override HR-set custom entitlements.
+					$now = $this->clock->now();
+					$next = new Entitlement();
+					$next->setEmployeeUid($prior->getEmployeeUid());
+					$next->setYear($toYear);
+					$next->setTypeId($prior->getTypeId());
+					$next->setBaseDays($prior->getBaseDays());
+					$next->setCarryOverDays(0.0);
+					$next->setManualAdjustment(0.0);
+					$next->setCreatedAt($now);
+					$next = $this->entitlementMapper->insert($next);
+				}
+				$next->setCarryOverDays($carry);
+				$next->setUpdatedAt($this->clock->now());
+				$this->entitlementMapper->update($next);
+				$affected++;
+			} catch (\Throwable $e) {
+				$this->logger->error('Absence: failed to roll over entitlement', [
+					'app' => 'absence',
+					'employee' => $prior->getEmployeeUid(),
+					'typeId' => $prior->getTypeId(),
+					'fromYear' => $fromYear,
+					'exception' => $e,
+				]);
 			}
-			$next->setCarryOverDays($carry);
-			$next->setUpdatedAt($this->clock->now());
-			$this->entitlementMapper->update($next);
-			$affected++;
 		}
 		$this->logger->info('Absence action: carryover_rollover', [
 			'app' => 'absence',

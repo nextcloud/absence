@@ -334,6 +334,28 @@ class RequestService {
 	}
 
 	/**
+	 * Serialize a single request for one actor, applying the same confidentiality
+	 * withholding as the read paths (§5.7/§5.8): a non-HR viewer never receives the
+	 * category/reason of a confidential absence, nor the disability flag of any
+	 * request. The write endpoints (approve/reject/update/cancel) return their
+	 * result through this so a mutation response cannot leak what a read would not.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function serializeForActor(string $actorUid, LeaveRequest $request): array {
+		$data = $request->jsonSerialize();
+		$viewerIsHr = $this->permission->isHr($actorUid);
+		if (!$viewerIsHr && $this->permission->isHrOnlyRequest($request)) {
+			$data = $this->withheld($data);
+		}
+		if (!$viewerIsHr) {
+			// The disability flag (§5.8) exists for HR eyes only.
+			$data['disability'] = null;
+		}
+		return $this->withDisplayNames($data, $request);
+	}
+
+	/**
 	 * List requests scoped by role (own / reports / all for HR).
 	 *
 	 * @param array<string,mixed> $filters
@@ -736,7 +758,15 @@ class RequestService {
 	}
 
 	private function hrEdit(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
-		$wasApproved = $request->getStatus() === LeaveRequest::STATUS_APPROVED;
+		// A WITHDRAWAL_PENDING request is still in force and already carries a
+		// calendar event (written when it was approved), so an HR date/type edit
+		// must rebuild it too — not only for a plain APPROVED request. Otherwise the
+		// calendar keeps the old dates and, if the withdrawal is later rejected, the
+		// leave stands on the wrong days.
+		$hadCalendarEvent = in_array($request->getStatus(), [
+			LeaveRequest::STATUS_APPROVED,
+			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
+		], true);
 		// Before the setters below overwrite them; the history reports the difference.
 		$before = $this->snapshot($request);
 		if (isset($data['typeId'])) {
@@ -784,7 +814,7 @@ class RequestService {
 			return $this->requestMapper->update($request);
 		}, $this->db));
 
-		if ($wasApproved) {
+		if ($hadCalendarEvent) {
 			// Rebuild the calendar entry for the new dates.
 			$this->calendar->onRemoved($request);
 			$this->applyCalendar($request);
@@ -1054,6 +1084,12 @@ class RequestService {
 	 * @return string[]
 	 */
 	private function commentRecipients(LeaveRequest $request): array {
+		// On a confidential absence (§5.7) the comment thread is HR-only: getDetail
+		// hides comments from the employee and manager, so their content must not be
+		// pushed out by notification/email either. Only HR hears about it.
+		if ($this->permission->isHrOnlyRequest($request)) {
+			return array_values(array_unique(array_filter($this->permission->getHrUids())));
+		}
 		$recipients = [$request->getEmployeeUid(), (string)$request->getManagerUid()];
 		if ($request->getEscalated()) {
 			$recipients = [...$recipients, ...$this->permission->getHrUids()];

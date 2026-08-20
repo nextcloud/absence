@@ -202,7 +202,7 @@ Configurable leave types. Seeded with defaults on install; HR/admin can add/edit
 
 The `hr_only` flag (§5.7) marks a type as confidential: recorded by HR and
 visible only to HR. Seeded confidential types: `maternity`, `work_prohibition`,
-`doctors_note`, `parental` — added idempotently on update too (`SeedConfidentialLeaveTypes`),
+`doctors_note`, `parental`, `child_sick` — added idempotently on update too (`SeedConfidentialLeaveTypes`),
 so existing installations receive them without touching HR customisations.
 
 ### 3.3 Granularity
@@ -550,8 +550,8 @@ employees — sick leave is the canonical example (`employee_requestable = false
 ### 5.7 Confidential leave types (HR-only visibility)
 
 Some absence categories are nobody's business but HR's: **maternity leave**,
-**parental leave**, a **medical work prohibition** (Beschäftigungsverbot) and a
-**doctor's note** are seeded (§3.2), all flagged `hr_only`. HR can add, rename or disable such
+**parental leave**, **child sick leave**, a **medical work prohibition**
+(Beschäftigungsverbot) and a **doctor's note** are seeded (§3.2), all flagged `hr_only`. HR can add, rename or disable such
 types like any other; the API refuses an `hr_only` type that is self-requestable
 (the invariant is what makes the visibility rules below coherent).
 
@@ -571,8 +571,8 @@ Rules, enforced server-side at every surface:
   says only "Absence").
 - **Presentation:** in the Record absence dialog the confidential categories do
   not appear as top-level leave types. HR picks **Sick leave** and a *Category*
-  sub-select appears — *General sick leave* (default), *Maternity leave*,
-  *Parental leave*, *Medical work prohibition*, *Doctor's note*. The chosen category's type id is
+  sub-select appears — *General sick leave* (default), *Child sick leave*,
+  *Maternity leave*, *Parental leave*, *Medical work prohibition*, *Doctor's note*. The chosen category's type id is
   what gets stored, so everything downstream (statistics, sick-leave report,
   exports, confidentiality) still works per type. Editing a confidential record
   re-opens as Sick leave + its category. Should no type keyed `sick` exist, the
@@ -915,7 +915,27 @@ The HR area (visible only to HR-group members) provides:
    chart component). Follow the `dataviz` design guidance for palette/accessibility.
 3. **Who's-off calendar (org-wide):** all absences, filterable by team/type, for
    planning.
-4. **Export:** CSV and Excel (`.xlsx`) export of raw requests and of the balances
+4. **Insights (diagnostic):** where the trends above describe what happened, the
+   Insights tab (`GET /api/reports/insights`, HR-gated) points at what to act on,
+   for a chosen year:
+   - **Approval health** — median and 95th-percentile time from request creation to
+     decision, and a per-manager table (decisions, median, escalations). Only leave
+     that went to a manager is counted, so HR-recorded absences (booked without a
+     decision) never flatter the figure. Escalation rate = escalated ÷ requests that
+     needed a decision.
+   - **Bradford Factor** — recorded sick leave scored per employee as
+     *spells² × days*, ranked, coloured amber/red at the conventional 500/900 review
+     thresholds. A well-being prompt, deliberately not shown to line managers.
+   - **Leave utilisation** — annual `used ÷ entitlement`, company-wide and per team,
+     plus a watchlist of employees with no non-sick leave in the last ~90 days
+     (computed from a rolling one-year window), longest-neglected first.
+   - **Leave liability** — accrued-but-untaken annual leave (Σ `remaining`) as a
+     balance-sheet figure, company- and team-wide, plus the carry-over at risk
+     (Σ `min(carryOverDays, remaining)`) and the date it expires (§6.2). Teams are
+     grouped by the manager each employee reports to; those without a manager form
+     one group. All of it is HR-only — it names people and includes health-adjacent
+     figures.
+5. **Export:** CSV and Excel (`.xlsx`) export of raw requests and of the balances
    report, with date-range and group filters (the group filter narrows to the
    employees of one Nextcloud group; an unknown group yields an empty export, never
    a silently widened one), for payroll/external HR. CSV via native PHP; XLSX via a

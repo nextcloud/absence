@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\ClockService;
+use OCA\Absence\Service\InsightsService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ReportService;
 use OCP\AppFramework\Controller;
@@ -26,11 +27,25 @@ class ReportController extends Controller {
 		IRequest $request,
 		private ?string $userId,
 		private ReportService $service,
+		private InsightsService $insights,
 		private PermissionService $permission,
 		private ClockService $clock,
 		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
+	}
+
+	/**
+	 * The HR Insights tab: approval health, Bradford Factor, leave utilization and
+	 * outstanding liability. HR only — diagnostic data about named people.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
+	public function insights(?int $year = null): DataResponse {
+		return $this->handle(function () use ($year) {
+			$this->permission->assertHr((string)$this->userId);
+			return $this->insights->getInsights($year ?? $this->clock->userYear());
+		});
 	}
 
 	#[NoAdminRequired]

@@ -14,6 +14,7 @@ use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\RequestService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use Psr\Log\LoggerInterface;
 
 /**
  * Escalates pending requests a manager has not acted on within the configured
@@ -28,6 +29,7 @@ class EscalationJob extends TimedJob {
 		private LeaveRequestMapper $requestMapper,
 		private RequestService $requestService,
 		private ConfigService $config,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($time);
 		$this->setInterval(3600);
@@ -45,7 +47,14 @@ class EscalationJob extends TimedJob {
 		$today = $this->clock->serverNow()->setTime(0, 0);
 		$cutoff = $this->subtractWorkingDays($today, $window);
 		foreach ($this->requestMapper->findPendingOlderThan($cutoff) as $request) {
-			$this->requestService->escalate($request);
+			// One request that fails to escalate (e.g. a bad notification recipient)
+			// must not abort the run and leave every later request stuck — and stuck
+			// forever, since each hourly re-run would hit the same bad row first.
+			try {
+				$this->requestService->escalate($request);
+			} catch (\Throwable $e) {
+				$this->logger->error('Absence: failed to escalate request', ['app' => 'absence', 'request' => $request->getId(), 'exception' => $e]);
+			}
 		}
 
 		// §5.4a: escalate early when the manager cannot possibly decide in time —
@@ -69,7 +78,11 @@ class EscalationJob extends TimedJob {
 			$awayCache[$managerUid][$deadline] ??= $this->requestMapper
 				->hasApprovedAbsenceCovering($managerUid, $todayIso, $deadline);
 			if ($awayCache[$managerUid][$deadline]) {
-				$this->requestService->escalate($request);
+				try {
+					$this->requestService->escalate($request);
+				} catch (\Throwable $e) {
+					$this->logger->error('Absence: failed to early-escalate request', ['app' => 'absence', 'request' => $request->getId(), 'exception' => $e]);
+				}
 			}
 		}
 	}

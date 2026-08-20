@@ -181,8 +181,8 @@ deliberately no delete.
 
 ### Confidential categories, HR-only
 
-**Maternity leave**, **parental leave**, **medical work prohibition** and
-**doctor's note** ship as confidential categories: when HR picks *Sick leave* in the Record absence dialog,
+**Maternity leave**, **parental leave**, **child sick leave**, **medical work
+prohibition** and **doctor's note** ship as confidential categories: when HR picks *Sick leave* in the Record absence dialog,
 a *Category* selector appears offering them (general sick leave being the
 default). Only HR ever sees what they are.
 To the line manager and even in the employee's own app, such an absence is a
@@ -232,6 +232,21 @@ days left in the year (flagging anyone with more than half their entitlement
 untouched), so nudging people to plan their leave takes one glance. A separate
 **sick-leave overview** ranks employees by days lost for a chosen year and drills
 down to the individual days.
+
+### Insights
+
+![HR insights](screenshots/hr-insights.png)
+
+Where *Statistics* describes what happened, **Insights** is diagnostic. **Approval
+health** shows the median (and 95th-percentile) time from request to decision and
+which managers hold requests up or keep escalating. The **Bradford Factor** scores
+recorded sick leave as spells² × days — the long-standing HR measure that weights
+frequent short absences more heavily than one long illness — as a prompt for a
+supportive conversation. **Leave utilisation** shows how much of their entitlement
+people actually take, per team, with a watchlist of anyone who has not been off in a
+while (an early burnout signal). **Leave liability** totals the accrued-but-untaken
+leave carried on the books and the carry-over about to expire. HR-only, like every
+report here.
 
 ### Who's off, company-wide
 
@@ -309,8 +324,8 @@ Built for a European works council to be comfortable with:
 - **Authorisation on every endpoint**, centralised in one `PermissionService` — an
   employee reads only their own data, a manager only their reports', HR everything.
   Enforced server-side; the UI merely reflects it.
-- **Confidential categories.** Maternity leave, parental leave, medical work
-  prohibition and doctor's note are visible to HR alone; annual leave can
+- **Confidential categories.** Maternity leave, parental leave, child sick
+  leave, medical work prohibition and doctor's note are visible to HR alone; annual leave can
   additionally carry an HR-only **disability flag** for the extra statutory
   entitlement — everyone else, the employee's own views
   included, sees a neutral absence (see *For HR*).

@@ -189,8 +189,12 @@ class BalanceServiceTest extends TestCase {
 
 		$rows = $this->service->getBalancesForEmployees(['alice'], 2026);
 
-		self::assertSame(10.0, $rows['alice'][0]['used']);
-		self::assertSame(5.0, $rows['alice'][0]['pending']);
+		// WITHDRAWAL_PENDING leave is still in force, so it counts as used, not
+		// pending: used = 10 approved + 2 withdrawal-pending. That keeps remaining
+		// (= entitlement − used) honest, which is what year-end carry-over reads.
+		self::assertSame(12.0, $rows['alice'][0]['used']);
+		self::assertSame(3.0, $rows['alice'][0]['pending']);
+		self::assertSame(16.0, $rows['alice'][0]['remaining']);
 		self::assertSame(13.0, $rows['alice'][0]['available']);
 	}
 

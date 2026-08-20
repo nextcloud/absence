@@ -34,6 +34,8 @@
 			<BalanceCard v-for="row in rings" :key="row.typeId + '-' + row.year" :row="row" />
 		</section>
 
+		<YearInReview :year="year" />
+
 		<section v-if="leaveByMonth || sickByMonth" class="charts">
 			<div v-if="leaveByMonth" class="surface">
 				<BarChart :title="t('absence', 'Leave taken by month ({year})', { year })" :data="leaveByMonth" />
@@ -78,6 +80,7 @@
 </template>
 
 <script>
+import { showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -87,6 +90,7 @@ import BarChart from '../components/BarChart.vue'
 import PalmIllustration from '../components/PalmIllustration.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
+import YearInReview from '../components/YearInReview.vue'
 import { store } from '../store.js'
 import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.js'
 
@@ -94,9 +98,14 @@ import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../u
 // Two days is roughly where "2 days to go" stops being the more useful sentence.
 const LIVE_COUNTDOWN_MS = 48 * 60 * 60 * 1000
 
+// Which of my own approvals have already been celebrated, so the confetti fires
+// once when leave is approved — not again on every later visit, and never for the
+// backlog that already existed the first time this browser ran the app.
+const CELEBRATED_KEY = 'absence:celebrated'
+
 export default {
 	name: 'MyLeave',
-	components: { NcButton, NcEmptyContent, Plus, BalanceCard, BarChart, RequestListItem, SkeletonList, PalmIllustration },
+	components: { NcButton, NcEmptyContent, Plus, BalanceCard, BarChart, RequestListItem, SkeletonList, PalmIllustration, YearInReview },
 	inject: ['absence:openNew'],
 	props: {
 		id: { type: [String, Number], default: null },
@@ -254,6 +263,57 @@ export default {
 				store.loadRequests({ scope: 'mine' }),
 				store.loadMyBalance(),
 			])
+			this.celebrateNewApprovals()
+		},
+
+		/**
+		 * Fire a one-time celebration when one of my own leave requests has newly
+		 * been approved since the last visit. Sick leave and past-dated records are
+		 * excluded — this is for a trip to look forward to, not every status change.
+		 */
+		celebrateNewApprovals() {
+			let raw
+			try {
+				raw = window.localStorage.getItem(CELEBRATED_KEY)
+			} catch {
+				return // no storage (private mode, etc.) — skip quietly.
+			}
+			const approvedIds = store.requests.filter((r) => r.status === 'APPROVED').map((r) => r.id)
+			const persist = () => {
+				try {
+					window.localStorage.setItem(CELEBRATED_KEY, JSON.stringify(approvedIds))
+				} catch { /* ignore */ }
+			}
+			// First run on this browser: adopt the existing approvals silently so the
+			// backlog never sets off a burst — only future approvals celebrate.
+			if (raw === null) {
+				persist()
+				return
+			}
+			let seen
+			try {
+				seen = new Set(JSON.parse(raw))
+			} catch {
+				persist()
+				return
+			}
+			const today = toIso(new Date())
+			const fresh = store.requests.filter((r) => {
+				if (r.status !== 'APPROVED' || seen.has(r.id) || r.endDate < today) {
+					return false
+				}
+				// Only a genuine trip to look forward to — never sick leave, and never
+				// a withheld confidential absence (its type is null on this view).
+				const type = store.leaveType(r.typeId)
+				return type.countsAgainstBalance === true && type.key && type.key !== 'sick'
+			})
+			persist()
+			if (!fresh.length) {
+				return
+			}
+			window.dispatchEvent(new CustomEvent('absence:celebrate'))
+			const type = store.leaveType(fresh[0].typeId)
+			showSuccess(t('absence', 'Your {type} is approved — enjoy! ✈️', { type: type.label.toLowerCase() }))
 		},
 	},
 }

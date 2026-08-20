@@ -169,6 +169,8 @@ export default {
 		return {
 			loading: true,
 			loadingMore: false,
+			// Bumped on every reload; a fetch whose seq is stale on return is discarded.
+			reloadSeq: 0,
 			// employeeUid|typeId => remaining days, for the selected year.
 			balances: {},
 			rows: [],
@@ -286,18 +288,32 @@ export default {
 		},
 
 		async reload() {
+			// Guard against overlapping reloads (rapid filter changes): a slow earlier
+			// fetch must not overwrite the rows of a newer one that already resolved.
+			const seq = ++this.reloadSeq
 			this.loading = true
 			try {
-				this.rows = await this.fetch(0)
-				this.hasMore = this.rows.length === PAGE_SIZE
+				const rows = await this.fetch(0)
+				if (seq !== this.reloadSeq) {
+					return
+				}
+				this.rows = rows
+				this.hasMore = rows.length === PAGE_SIZE
 			} catch {
+				if (seq !== this.reloadSeq) {
+					return
+				}
 				this.rows = []
 				this.hasMore = false
 				showError(t('absence', 'Could not load the absences'))
 			} finally {
-				this.loading = false
+				if (seq === this.reloadSeq) {
+					this.loading = false
+				}
 			}
-			await this.loadBalances()
+			if (seq === this.reloadSeq) {
+				await this.loadBalances()
+			}
 		},
 
 		/**

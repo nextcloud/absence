@@ -127,13 +127,19 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		}
 
 		// 2. Own upcoming / pending leave (all employees).
+		$today = $this->clock->userToday();
 		foreach ($this->ownUpcoming($userId) as $r) {
 			$label = in_array($r->getTypeId(), $hrOnlyIds, true)
 				? $this->l->t('Absent')
 				: ($types[$r->getTypeId()] ?? $this->l->t('Leave'));
+			// For approved leave the countdown ("In 12 days") is the fun, useful line;
+			// anything still undecided keeps its status, which is what matters there.
+			$subtitle = $r->getStatus() === LeaveRequest::STATUS_APPROVED
+				? $this->countdownLabel($r, $today)
+				: $this->statusLabel($r->getStatus());
 			$items[] = new WidgetItem(
 				$label . ' · ' . $this->range($r),
-				$this->statusLabel($r->getStatus()),
+				$subtitle,
 				$base . '#/requests/' . $r->getId(),
 				$appIcon,
 				'own-' . $r->getId(),
@@ -202,6 +208,25 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		);
 		usort($requests, static fn (LeaveRequest $a, LeaveRequest $b): int => $a->getStartDate() <=> $b->getStartDate());
 		return $requests;
+	}
+
+	/**
+	 * The countdown line for an approved leave: days until it starts, or where it
+	 * stands once it is under way. {@see ownUpcoming()} only ever passes leave that
+	 * has not yet ended, so there is no "already over" case to handle.
+	 */
+	private function countdownLabel(LeaveRequest $r, string $today): string {
+		if ($r->getStartDate() > $today) {
+			$days = (int)(new \DateTimeImmutable($today))->diff(new \DateTimeImmutable($r->getStartDate()))->days;
+			if ($days <= 1) {
+				return $this->l->t('Starts tomorrow');
+			}
+			return $this->l->n('In %n day', 'In %n days', $days);
+		}
+		if ($r->getEndDate() > $today) {
+			return $this->l->t('Off right now 🌴');
+		}
+		return $this->l->t('Last day today');
 	}
 
 	private function range(LeaveRequest $r): string {

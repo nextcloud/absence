@@ -69,6 +69,7 @@ export default {
 	// `typeId` overrides which leave type is counted; omitted, the server falls
 	// back to the type keyed "sick".
 	reportSickLeave: (year, group, typeId) => axios.get(url('/api/reports/sick-leave'), { params: { year, group, typeId } }).then((r) => r.data),
+	reportInsights: (year) => axios.get(url('/api/reports/insights'), { params: { year } }).then((r) => r.data),
 	exportRequestsUrl: (from, to, group) => {
 		const query = new URLSearchParams({ from, to })
 		if (group) {

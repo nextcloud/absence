@@ -8,12 +8,14 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Unit\Service;
 
+use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\ImportService;
+use OCP\IDBConnection;
 use OCP\IUser;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -22,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 class ImportServiceTest extends TestCase {
 	private EntitlementService&MockObject $entitlements;
 	private IUserManager&MockObject $userManager;
+	private IDBConnection&MockObject $db;
 	private ImportService $service;
 
 	protected function setUp(): void {
@@ -50,11 +53,13 @@ class ImportServiceTest extends TestCase {
 		$employees->method('isEmployee')->willReturnCallback(
 			static fn (string $uid): bool => in_array($uid, ['alice', 'bob'], true),
 		);
+		$this->db = $this->createMock(IDBConnection::class);
 		$this->service = new ImportService(
 			$this->entitlements,
 			$leaveTypeMapper,
 			$employees,
 			$this->userManager,
+			$this->db,
 		);
 	}
 
@@ -109,7 +114,33 @@ class ImportServiceTest extends TestCase {
 		$plan = $this->service->plan($csv, 2026);
 		$this->entitlements->expects(self::once())->method('setForEmployee')
 			->with('import:cli', 'alice', 2026, 1, ['baseDays' => 28.0, 'adjustmentNote' => 'Imported from CSV']);
+		// The whole batch is one transaction, committed once every row succeeded.
+		$this->db->expects(self::once())->method('beginTransaction');
+		$this->db->expects(self::once())->method('commit');
+		$this->db->expects(self::never())->method('rollBack');
 
 		self::assertSame(1, $this->service->apply($plan, 'import:cli'));
+	}
+
+	public function testApplyRollsBackWhenARowFailsPartWay(): void {
+		// "Half the company imported" is the outcome the all-or-nothing promise
+		// exists to prevent: a mid-batch failure must roll the whole thing back.
+		$csv = "user,base_days\nalice,28\nbob,30\n";
+		$plan = $this->service->plan($csv, 2026);
+		$calls = 0;
+		$this->entitlements->method('setForEmployee')->willReturnCallback(
+			function () use (&$calls): Entitlement {
+				if (++$calls === 2) {
+					throw new \RuntimeException('DB went away');
+				}
+				return $this->createMock(Entitlement::class);
+			},
+		);
+		$this->db->expects(self::once())->method('beginTransaction');
+		$this->db->expects(self::never())->method('commit');
+		$this->db->expects(self::once())->method('rollBack');
+
+		$this->expectException(\RuntimeException::class);
+		$this->service->apply($plan, 'import:cli');
 	}
 }

@@ -14,6 +14,7 @@ use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\NotificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use Psr\Log\LoggerInterface;
 
 /**
  * Reminds managers about pending requests that are approaching the escalation
@@ -28,6 +29,7 @@ class ReminderJob extends TimedJob {
 		private LeaveRequestMapper $requestMapper,
 		private NotificationService $notifications,
 		private ConfigService $config,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($time);
 		$this->setInterval(24 * 3600);
@@ -55,8 +57,16 @@ class ReminderJob extends TimedJob {
 		$after = $this->subtractWorkingDays($before, 1);
 
 		foreach ($this->requestMapper->findPendingCreatedBetween($after, $before) as $request) {
-			if ($request->getManagerUid() !== null) {
+			if ($request->getManagerUid() === null) {
+				continue;
+			}
+			// One failed reminder must not abort the run: this cohort is reminded
+			// exactly once (the working-day band moves on the next run), so a throw
+			// here would silently skip every later request in the band for good.
+			try {
 				$this->notifications->notifyReminder($request, $request->getManagerUid());
+			} catch (\Throwable $e) {
+				$this->logger->error('Absence: failed to send reminder', ['app' => 'absence', 'request' => $request->getId(), 'exception' => $e]);
 			}
 		}
 	}
