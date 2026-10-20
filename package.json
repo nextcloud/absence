@@ -12,9 +12,9 @@
 		"lint:fix": "eslint --fix",
 		"stylelint": "stylelint src/**/*.scss src/**/*.vue",
 		"stylelint:fix": "stylelint src/**/*.scss src/**/*.vue --fix",
-		"watch": "vite --mode development build --watch",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"watch": "vite --mode development build --watch"
 	},
 	"browserslist": [
 		"extends @nextcloud/browserslist-config"

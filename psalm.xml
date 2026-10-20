@@ -4,6 +4,7 @@
 	errorBaseline="tests/psalm-baseline.xml"
 	resolveFromConfigFile="true"
 	findUnusedBaselineEntry="true"
+	findUnusedIssueHandlerSuppression="false"
 	findUnusedCode="false"
 	phpVersion="8.2"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"

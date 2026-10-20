@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\Api\AbsenceProvider;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
@@ -16,12 +17,14 @@ use OCA\Absence\Db\RequestComment;
 use OCA\Absence\Db\RequestCommentMapper;
 use OCA\Absence\Db\RequestEvent;
 use OCA\Absence\Db\RequestEventMapper;
+use OCA\Absence\Event\LeaveRequestChangedEvent;
 use OCA\Absence\Exception\ConflictException;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\TTransactional;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\Lock\ILockingProvider;
@@ -50,7 +53,12 @@ use Psr\Log\LoggerInterface;
  * from inside would announce leave that the database then refused.
  */
 class RequestService {
-	use TTransactional;
+	use TTransactional {
+		atomic as private transactional;
+	}
+
+	/** Change events of the running transaction, dispatched once it commits */
+	private array $pendingEvents = [];
 
 	/** Cap on free-text fields to keep rows bounded and prevent storage abuse. */
 	private const MAX_REASON_LENGTH = 2000;
@@ -78,7 +86,28 @@ class RequestService {
 		private LoggerInterface $logger,
 		private IDBConnection $db,
 		private ILockingProvider $lockingProvider,
+		private AbsenceProvider $absenceProvider,
+		private IEventDispatcher $eventDispatcher,
 	) {
+	}
+
+	/**
+	 * TTransactional::atomic(), plus the change events: queued while the
+	 * transaction runs, dispatched after the outermost commit, dropped on rollback.
+	 */
+	protected function atomic(callable $fn, IDBConnection $db): mixed {
+		try {
+			$result = $this->transactional($fn, $db);
+		} catch (\Throwable $e) {
+			if (!$db->inTransaction()) {
+				$this->pendingEvents = [];
+			}
+			throw $e;
+		}
+		if (!$db->inTransaction()) {
+			$this->dispatchPendingEvents();
+		}
+		return $result;
 	}
 
 	/**
@@ -698,7 +727,7 @@ class RequestService {
 			$affected = [$request->getEmployeeUid()];
 		}
 		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), $affected, $request);
-		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)]);
+		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)], $before);
 		return $request;
 	}
 
@@ -820,7 +849,7 @@ class RequestService {
 			$this->applyCalendar($request);
 		}
 		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
-		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request), 'disability' => $request->getDisability()]);
+		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request), 'disability' => $request->getDisability()], $before);
 		return $request;
 	}
 
@@ -1107,7 +1136,10 @@ class RequestService {
 	 * @param array<string,mixed> $extra `actor` and optional `detail` are consumed;
 	 *                                   everything else is added to the log context.
 	 */
-	private function audit(string $action, LeaveRequest $request, array $extra = []): void {
+	/**
+	 * @param array<string,mixed>|null $before {@see snapshot()} of an edited request, for the change event
+	 */
+	private function audit(string $action, LeaveRequest $request, array $extra = [], ?array $before = null): void {
 		$actor = (string)($extra['actor'] ?? 'system');
 		$detail = isset($extra['detail']) && $extra['detail'] !== null && $extra['detail'] !== ''
 			? (string)$extra['detail']
@@ -1126,6 +1158,14 @@ class RequestService {
 			'status' => $request->getStatus(),
 		], $extra));
 
+		// Other apps learn about changes to the absence itself, not about comments
+		if ($action !== 'comment_added') {
+			$this->pendingEvents[] = [$action, $request, $before];
+			if (!$this->db->inTransaction()) {
+				$this->dispatchPendingEvents();
+			}
+		}
+
 		try {
 			$event = new RequestEvent();
 			$event->setRequestId((int)$request->getId());
@@ -1137,6 +1177,24 @@ class RequestService {
 		} catch (\Throwable $e) {
 			// History is best-effort: never let it break the workflow.
 			$this->logger->warning('Absence: could not record history event', ['exception' => $e]);
+		}
+	}
+
+	private function dispatchPendingEvents(): void {
+		$events = $this->pendingEvents;
+		$this->pendingEvents = [];
+		foreach ($events as [$action, $request, $before]) {
+			try {
+				// Mapped at dispatch time: the request carries its committed state
+				$this->eventDispatcher->dispatchTyped(new LeaveRequestChangedEvent(
+					$action,
+					$this->absenceProvider->toAbsence($request),
+					$before === null ? null : $this->absenceProvider->toAbsence($request, $before),
+				));
+			} catch (\Throwable $e) {
+				// A failing listener must never break the leave workflow
+				$this->logger->warning('Absence: change event listener failed', ['exception' => $e]);
+			}
 		}
 	}
 

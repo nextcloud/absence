@@ -77,9 +77,6 @@ properly. Every rule and design decision is documented in the
 	<dependencies>
 		<nextcloud min-version="34" max-version="36"/>
 	</dependencies>
-	<commands>
-		<command>OCA\Absence\Command\ImportEntitlements</command>
-	</commands>
 
 	<background-jobs>
 		<job>OCA\Absence\BackgroundJob\EscalationJob</job>
@@ -101,6 +98,9 @@ properly. Every rule and design decision is documented in the
 			<step>OCA\Absence\Migration\DisableAuditLogging</step>
 		</uninstall>
 	</repair-steps>
+	<commands>
+		<command>OCA\Absence\Command\ImportEntitlements</command>
+	</commands>
 	<settings>
 		<admin-section>OCA\Absence\Settings\AdminSection</admin-section>
 		<personal>OCA\Absence\Settings\Personal</personal>

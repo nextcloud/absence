@@ -8,12 +8,14 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Unit\Service;
 
+use OCA\Absence\Api\AbsenceProvider;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Db\RequestCommentMapper;
 use OCA\Absence\Db\RequestEventMapper;
+use OCA\Absence\Event\LeaveRequestChangedEvent;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
@@ -27,9 +29,11 @@ use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\PersonalDefaultsService;
 use OCA\Absence\Service\RequestService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\Lock\ILockingProvider;
@@ -62,6 +66,7 @@ class RequestServiceTest extends TestCase {
 	private LoggerInterface&MockObject $logger;
 	private IDBConnection&MockObject $db;
 	private ILockingProvider&MockObject $lockingProvider;
+	private IEventDispatcher&MockObject $eventDispatcher;
 	private RequestService $service;
 
 	protected function setUp(): void {
@@ -92,6 +97,7 @@ class RequestServiceTest extends TestCase {
 		);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->eventDispatcher = $this->createMock(IEventDispatcher::class);
 		$this->rebuildService();
 	}
 
@@ -125,6 +131,8 @@ class RequestServiceTest extends TestCase {
 			$this->logger,
 			$this->db,
 			$this->lockingProvider,
+			new AbsenceProvider($this->requestMapper, $this->leaveTypeMapper, $this->createMock(PersonalDefaultsService::class)),
+			$this->eventDispatcher,
 		);
 	}
 
@@ -472,6 +480,52 @@ class RequestServiceTest extends TestCase {
 
 		$this->assertSame(LeaveRequest::STATUS_APPROVED, $edit->getStatus());
 		$this->assertSame(LeaveRequest::STATUS_CANCELLED, $original->getStatus());
+	}
+
+	public function testOtherAppsHearAboutADecisionOnlyOnceItIsCommitted(): void {
+		// A listener that reads the request back must see the committed state.
+		$request = $this->pendingOwnRequest();
+		$request->setId(6);
+		$request->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('find')->with(6)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$inTransaction = false;
+		$this->db->method('beginTransaction')->willReturnCallback(function () use (&$inTransaction): void {
+			$inTransaction = true;
+		});
+		$this->db->method('commit')->willReturnCallback(function () use (&$inTransaction): void {
+			$inTransaction = false;
+		});
+		$this->db->method('inTransaction')->willReturnCallback(fn (): bool => $inTransaction);
+
+		$dispatched = [];
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (LeaveRequestChangedEvent $event) use (&$dispatched, &$inTransaction): void {
+			self::assertFalse($inTransaction, 'dispatched before the commit');
+			$dispatched[] = [$event->getAction(), $event->getAbsence()->status];
+		});
+		$this->rebuildService();
+
+		$this->service->approve('boss', 6, null);
+
+		self::assertSame([['request_approved', 'approved']], $dispatched);
+	}
+
+	public function testARolledBackChangeIsNeverAnnounced(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setId(6);
+		$request->setStatus(LeaveRequest::STATUS_PENDING);
+		$this->requestMapper->method('find')->with(6)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->requestMapper->method('update')->willThrowException(new \RuntimeException('nope'));
+		$this->eventDispatcher->expects(self::never())->method('dispatchTyped');
+		$this->rebuildService();
+
+		$this->expectException(\RuntimeException::class);
+		$this->service->approve('boss', 6, null);
 	}
 
 	public function testReplacingTheReplacementReleasesThePreviousOne(): void {
@@ -888,6 +942,41 @@ class RequestServiceTest extends TestCase {
 		$this->calendar->expects(self::once())->method('onApproved')->with($request);
 
 		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
+	}
+
+	public function testAnEditAnnouncesTheDatesItReplaced(): void {
+		// A rota listening to the event must be able to free the old days.
+		$request = $this->pendingOwnRequest();
+		$oldStart = $request->getStartDate();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$events = [];
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (LeaveRequestChangedEvent $event) use (&$events): void {
+			$events[] = $event;
+		});
+		$this->rebuildService();
+
+		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
+
+		self::assertCount(1, $events);
+		self::assertSame('request_hr_edited', $events[0]->getAction());
+		self::assertSame('2026-03-10', $events[0]->getAbsence()->startDate);
+		self::assertSame(substr($oldStart, 0, 10), $events[0]->getPreviousAbsence()?->startDate);
+	}
+
+	public function testCommentsAreNotAnnounced(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+		$this->eventDispatcher->expects(self::never())->method('dispatchTyped');
+		$this->rebuildService();
+
+		$this->service->addComment($request->getEmployeeUid(), 5, 'See you next week');
 	}
 
 	public function testHrEditingAStillPendingRequestDoesNotTouchTheCalendar(): void {
