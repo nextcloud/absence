@@ -1042,6 +1042,28 @@ the SPA). All list endpoints paginate and accept filters.
 All write endpoints require CSRF protection (default AppFramework) and validate role
 server-side. Never trust client-computed `working_days` or `manager_uid`.
 
+### 14b. Integration API for other apps
+
+Apps on the same server (duty rotas, coverage planners) ask who is away through PHP,
+not HTTP:
+
+- **`OCA\Absence\Api\IAbsenceProvider`**: `getAbsencesForUsers($userIds, $from, $to, $includePending)`
+  and `getAbsencesForEveryone($from, $to, $includePending)`. Both return
+  `OCA\Absence\Api\Absence` objects: id, user, first and last day, working
+  days, status (`approved` for APPROVED and WITHDRAWAL_PENDING, `pending` for PENDING
+  and ESCALATED), type key and label. Rejected and cancelled requests are never
+  returned. Get it with `\OCP\Server::get(IAbsenceProvider::class)` once the app is
+  enabled.
+- **`OCA\Absence\Event\LeaveRequestChangedEvent`** carries the history action (§3.7)
+  and the request as an `Absence` (status `closed` once rejected or cancelled), plus
+  `getPreviousAbsence()` with the old dates and type after an edit. It is dispatched after the
+  transaction commits, never for a rolled-back change, and not for comments. Deleting a
+  user removes their requests without an event; core's `UserDeletedEvent` covers that.
+- **`getWorkingDaysSettings($userId)`** returns the working weekdays and holiday country/region
+  this app uses for its own estimate (§7.1), so another app need not ask again.
+- **Confidentiality holds (§5.7):** for an `hr_only` type the type key and label are
+  null and `confidential` is true. A consumer learns the dates and nothing else.
+
 ---
 
 ## 15. Frontend (Vue 3 + @nextcloud/vue) — Design System & UX
@@ -1513,3 +1535,6 @@ Recorded during the build so the spec matches the code:
   HR record dialog's primary button reads **"Record"** instead of "Submit request".
   Fixed: `workingDays` was not accepted by the create endpoint (every new request
   failed validation), and page titles now clear the floating navigation-toggle button.
+- **Integration API** (§14b): `IAbsenceProvider` and `LeaveRequestChangedEvent` let
+  other apps plan around absences without reading the tables. Events are queued while
+  `RequestService` runs a transaction and dispatched after the outermost commit.
