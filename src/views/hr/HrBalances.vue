@@ -310,7 +310,7 @@ export default {
 		/**
 		 * Nearly spent, but not yet overdrawn.
 		 *
-		 * @param row
+		 * @param {object} row
 		 */
 		isLow(row) {
 			if (!row.countsAgainstBalance || !(row.entitlement > 0)) {
@@ -332,7 +332,7 @@ export default {
 		 * the shape as well as the number — the type colour is decoration until the
 		 * row needs attention, at which point it should stop being decoration.
 		 *
-		 * @param row
+		 * @param {object} row
 		 */
 		barColor(row) {
 			if ((row.available ?? 0) < 0) {
