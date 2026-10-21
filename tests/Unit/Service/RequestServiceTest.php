@@ -25,6 +25,7 @@ use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
@@ -131,7 +132,7 @@ class RequestServiceTest extends TestCase {
 			$this->logger,
 			$this->db,
 			$this->lockingProvider,
-			new AbsenceProvider($this->requestMapper, $this->leaveTypeMapper, $this->createMock(PersonalDefaultsService::class)),
+			new AbsenceProvider($this->requestMapper, $this->leaveTypeMapper, $this->createMock(PersonalDefaultsService::class), $this->createMock(HolidayService::class)),
 			$this->eventDispatcher,
 		);
 	}

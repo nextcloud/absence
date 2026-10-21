@@ -5,6 +5,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Approvals from './views/Approvals.vue'
 import Handbook from './views/Handbook.vue'
+import Holidays from './views/Holidays.vue'
 import HrAbsences from './views/hr/HrAbsences.vue'
 import HrBalances from './views/hr/HrBalances.vue'
 import HrExports from './views/hr/HrExports.vue'
@@ -28,6 +29,7 @@ const routes = [
 	{ path: '/hr/whos-off', name: 'hr-whos-off', component: HrWhosOff },
 	{ path: '/hr/exports', name: 'hr-exports', component: HrExports },
 	{ path: '/handbook', name: 'handbook', component: Handbook },
+	{ path: '/holidays', name: 'holidays', component: Holidays },
 	{ path: '/hr/handbook', name: 'hr-handbook', component: Handbook, props: { hr: true } },
 	// Deep link from notifications/activity: open My leave with the request selected.
 	{ path: '/requests/:id', name: 'request', component: MyLeave, props: true },

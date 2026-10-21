@@ -54,6 +54,15 @@ export default {
 	updateLeaveType: (id, data) => axios.put(url(`/api/leave-types/${id}`), data).then((r) => r.data),
 	deleteLeaveType: (id) => axios.delete(url(`/api/leave-types/${id}`)).then((r) => r.data),
 
+	// Public holidays (§7.2): everyone reads, HR maintains
+	listHolidays: (year, region) => axios.get(url('/api/holidays'), { params: { year, region } }).then((r) => r.data),
+	createHoliday: (data) => axios.post(url('/api/holidays'), data).then((r) => r.data),
+	updateHoliday: (id, data) => axios.put(url(`/api/holidays/${id}`), data).then((r) => r.data),
+	deleteHoliday: (id) => axios.delete(url(`/api/holidays/${id}`)).then((r) => r.data),
+	setHolidayEditing: (everyone) => axios.put(url('/api/holidays/editing'), { everyone }).then((r) => r.data),
+	holidayHistory: () => axios.get(url('/api/holidays/history')).then((r) => r.data),
+	importHolidays: (json, dryRun) => axios.post(url('/api/holidays/import'), { json, dryRun }).then((r) => r.data),
+
 	// Employee search for the people pickers. Deliberately not core's autocomplete:
 	// only the server can tell a guest account from a colleague, and guests are not
 	// employees (§2.2). The endpoint wraps the same collaborator search, so the
