@@ -75,3 +75,18 @@ export function makeHolidayChecker(holidays) {
 	const dates = new Set(holidays.map((h) => h.date))
 	return (iso) => dates.has(iso)
 }
+
+/**
+ * Days grouped by their year, in date order, for a list split under year headings.
+ *
+ * @param {Array<{date: string}>} days the days to group
+ * @return {Array<{year: string, days: Array<{date: string}>}>}
+ */
+export function groupByYear(days) {
+	const years = new Map()
+	for (const day of [...days].sort((a, b) => a.date.localeCompare(b.date))) {
+		const year = day.date.slice(0, 4)
+		years.set(year, [...(years.get(year) ?? []), day])
+	}
+	return [...years].map(([year, list]) => ({ year, days: list }))
+}

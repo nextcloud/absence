@@ -117,11 +117,11 @@
 
 				<section :ref="setRef('settings')" class="handbook__section">
 					<h3>⚙️ {{ t('absence', 'Your settings') }}</h3>
-					<p>{{ t('absence', 'Under Personal settings → Availability you set your working weekdays and your country/region for public holidays. Both only feed the working-day prefill on new requests — every prefilled value stays editable on the request itself.') }}</p>
+					<p>{{ t('absence', 'Your profile (first in the navigation) shows your vacation, your contract and your sick days. You set your holiday region code there yourself: before a change is saved, you see which days stop being days off and which are new. Your working days come from the contract HR keeps; both only prefill the working days of a new request, which stay editable.') }}</p>
 					<p>{{ t('absence', 'Approved leave is written to your personal calendar, and to the shared team calendar as a neutral "Absent" (unless your admin chose otherwise). Colleagues never see why you are away — reasons are between you, your manager and HR.') }}</p>
 					<figure class="handbook__figure handbook__figure--wide">
-						<img :src="img('personal-settings.png')" :alt="t('absence', 'The Absence section on the Availability settings page')">
-						<figcaption>{{ t('absence', 'Working days and holiday region live on the Availability page and only feed the prefill.') }}</figcaption>
+						<img :src="img('profile.png')" :alt="t('absence', 'The profile page with vacation, public holidays, contract and sick days')">
+						<figcaption>{{ t('absence', 'Your profile: the region code is yours to set, the contract is set by HR.') }}</figcaption>
 					</figure>
 				</section>
 
