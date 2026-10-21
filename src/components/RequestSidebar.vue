@@ -476,7 +476,7 @@ export default {
 			this.uploading = true
 			try {
 				await api.uploadAttachment(this.detail.id, file)
-				await this.reload()
+				await this.load()
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not upload the file'))
 			} finally {
@@ -487,7 +487,7 @@ export default {
 		async removeAttachment(a) {
 			try {
 				await api.deleteAttachment(a.id)
-				await this.reload()
+				await this.load()
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not remove the attachment'))
 			}
