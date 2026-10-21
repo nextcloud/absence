@@ -206,7 +206,7 @@ import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
-import api from '../../api.js'
+import api from '../../api.ts'
 
 // Below this share of the entitlement, a balance is worth flagging rather than
 // simply reporting — the number is still fine, but it is nearly spent.

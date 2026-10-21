@@ -74,7 +74,7 @@
 import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import TeamTimeline from '../components/TeamTimeline.vue'
-import api from '../api.js'
+import api from '../api.ts'
 
 export default {
 	name: 'Team',

@@ -112,7 +112,7 @@ import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
+import api from '../api.ts'
 import { store } from '../store.js'
 import { formatRange, toIso } from '../utils/dates.js'
 
