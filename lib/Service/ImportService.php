@@ -169,20 +169,21 @@ class ImportService {
 		return $rows;
 	}
 
-	/** uid first, e-mail as the fallback spreadsheets usually carry. */
+	/**
+	 * A uid, or the e-mail address spreadsheets usually carry. Addresses are
+	 * looked up first: the server's own user lookup accepts an address too, but
+	 * then reports the address itself as the uid.
+	 */
 	private function resolveUser(string $identifier): ?string {
 		if ($identifier === '') {
 			return null;
 		}
-		if ($this->userManager->userExists($identifier)) {
-			return $identifier;
-		}
 		if (str_contains($identifier, '@')) {
 			$byEmail = $this->userManager->getByEmail($identifier);
-			if (count($byEmail) === 1) {
-				return $byEmail[0]->getUID();
+			if ($byEmail !== []) {
+				return count($byEmail) === 1 ? $byEmail[0]->getUID() : null;
 			}
 		}
-		return null;
+		return $this->userManager->userExists($identifier) ? $identifier : null;
 	}
 }
