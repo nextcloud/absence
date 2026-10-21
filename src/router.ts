@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import type { RouteRecordRaw } from 'vue-router'
+
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Approvals from './views/Approvals.vue'
 import Handbook from './views/Handbook.vue'
@@ -15,7 +17,7 @@ import HrWhosOff from './views/hr/HrWhosOff.vue'
 import MyLeave from './views/MyLeave.vue'
 import Team from './views/Team.vue'
 
-const routes = [
+const routes: RouteRecordRaw[] = [
 	{ path: '/', redirect: '/my' },
 	{ path: '/my', name: 'my', component: MyLeave },
 	{ path: '/approvals', name: 'approvals', component: Approvals },

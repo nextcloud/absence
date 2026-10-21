@@ -300,7 +300,7 @@ import RequestStepper from './RequestStepper.vue'
 import StatusChip from './StatusChip.vue'
 import api from '../api.ts'
 import { store } from '../store.js'
-import { formatRange } from '../utils/dates.js'
+import { formatRange } from '../utils/dates.ts'
 
 export default {
 	name: 'RequestSidebar',

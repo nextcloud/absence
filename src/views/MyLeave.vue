@@ -92,7 +92,7 @@ import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import YearInReview from '../components/YearInReview.vue'
 import { store } from '../store.js'
-import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.js'
+import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.ts'
 
 // Inside this window the hero counts down in seconds rather than whole days.
 // Two days is roughly where "2 days to go" stops being the more useful sentence.

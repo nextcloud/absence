@@ -93,7 +93,7 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
 import api from '../../api.ts'
-import { parseWeekdays } from '../../utils/dates.js'
+import { parseWeekdays } from '../../utils/dates.ts'
 import { listCountries, listRegions } from '../../utils/holidays.js'
 
 export default {

@@ -103,7 +103,7 @@
 
 <script>
 import { store } from '../store.js'
-import { seasonOf } from '../utils/dates.js'
+import { seasonOf } from '../utils/dates.ts'
 
 export default {
 	name: 'PalmIllustration',

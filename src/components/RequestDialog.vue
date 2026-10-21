@@ -216,7 +216,7 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Send from 'vue-material-design-icons/Send.vue'
 import api from '../api.ts'
 import { store } from '../store.js'
-import { countWorkingDays, parseWeekdays, toIso } from '../utils/dates.js'
+import { countWorkingDays, parseWeekdays, toIso } from '../utils/dates.ts'
 import { makeHolidayChecker } from '../utils/holidays.js'
 
 export default {

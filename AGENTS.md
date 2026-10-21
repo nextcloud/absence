@@ -19,8 +19,8 @@ Frontend (Node 24 / npm 11):
 - `npm run watch` — development build with watch
 - `npm run lint` / `npm run lint:fix` — ESLint
 - `npm run stylelint` / `npm run stylelint:fix`
-- `npm run test` — Vitest (specs live next to sources, e.g. `src/utils/dates.spec.js`)
-- Single JS test: `npx vitest run src/utils/dates.spec.js`
+- `npm run test` — Vitest (specs live next to sources, e.g. `src/utils/dates.spec.ts`)
+- Single JS test: `npx vitest run src/utils/dates.spec.ts`
 
 PHP (via composer scripts):
 - `composer cs:check` / `composer cs:fix` — php-cs-fixer
@@ -62,7 +62,7 @@ Leave-type semantics worth knowing: types carry `requires_approval` and `employe
 
 ### Frontend (`src/`)
 
-Vue 3 SPA with hash-based `vue-router` (`src/router.js`): `/my`, `/approvals`, `/team`, `/hr/*`, plus `/requests/:id` deep links from notifications. State is a single lightweight `reactive()` store in `src/store.js` (no Pinia/Vuex), bootstrapped from `@nextcloud/initial-state` (`session`, `leaveTypes`) and talking to the backend through `src/api.js`. Views live in `src/views/` (HR pages under `views/hr/`), shared components in `src/components/`.
+Vue 3 SPA with hash-based `vue-router` (`src/router.ts`): `/my`, `/approvals`, `/team`, `/hr/*`, plus `/requests/:id` deep links from notifications. State is a single lightweight `reactive()` store in `src/store.js` (no Pinia/Vuex), bootstrapped from `@nextcloud/initial-state` (`session`, `leaveTypes`) and talking to the backend through `src/api.ts` (payload types in `src/types/`). Views live in `src/views/` (HR pages under `views/hr/`), shared components in `src/components/`.
 
 Two Vite entries (`vite.config.js`): `main` and `personal-settings`. CSS is inlined into the JS bundles (`inlineCSS: { relativeCSSInjection: true }`), so the PHP side only ever calls `Util::addScript` — never add a separate stylesheet.
 

@@ -5,6 +5,7 @@
 		"lib": ["DOM", "ESNext"],
 		"noEmit": true,
 		"allowImportingTsExtensions": true,
+		"allowJs": true,
 		"moduleResolution": "Bundler",
 		"strict": true,
 		"types": ["vite/client"]

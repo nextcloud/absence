@@ -7,8 +7,8 @@ import { createAppConfig } from '@nextcloud/vite-config'
 // Entry names are prefixed with the app id (from appinfo/info.xml) at build time,
 // producing js/absence-main.mjs, js/absence-personal-settings.mjs, etc.
 export default createAppConfig({
-	main: 'src/main.js',
-	'personal-settings': 'src/personal-settings.js',
+	main: 'src/main.ts',
+	'personal-settings': 'src/personal-settings.ts',
 }, {
 	// Inject component CSS from the JS entries (relative injection also covers
 	// lazily-loaded chunk CSS), so a single Util::addScript() styles the whole app.
