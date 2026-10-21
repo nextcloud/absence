@@ -61,6 +61,9 @@ export default {
 	deleteHoliday: (id) => axios.delete(url(`/api/holidays/${id}`)).then((r) => r.data),
 	setHolidayEditing: (everyone) => axios.put(url('/api/holidays/editing'), { everyone }).then((r) => r.data),
 	holidayHistory: () => axios.get(url('/api/holidays/history')).then((r) => r.data),
+	// The days a region code gets: its own, its country's and the everywhere ones
+	listApplyingHolidays: (code, from, to) => axios.get(url('/api/holidays/applying'), { params: { code, from, to } }).then((r) => r.data),
+	listHolidayRegions: () => axios.get(url('/api/holidays/regions')).then((r) => r.data),
 	importHolidays: (json, dryRun) => axios.post(url('/api/holidays/import'), { json, dryRun }).then((r) => r.data),
 
 	// Employee search for the people pickers. Deliberately not core's autocomplete:

@@ -78,6 +78,23 @@ class HolidayController extends Controller {
 		});
 	}
 
+	/**
+	 * The days someone with this region code gets, for the personal settings and the
+	 * working-days prefill.
+	 */
+	#[NoAdminRequired]
+	public function applying(string $code, string $from, string $to): DataResponse {
+		return $this->handle(fn () => array_map(
+			static fn (Holiday $h): array => $h->jsonSerialize(),
+			$this->service->forRegions($code === '' ? [] : [$code], $from, $to),
+		));
+	}
+
+	#[NoAdminRequired]
+	public function regions(): DataResponse {
+		return $this->handle(fn () => $this->service->regions());
+	}
+
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function create(string $date, string $region, string $label, bool $recurring = false): DataResponse {

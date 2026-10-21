@@ -93,6 +93,13 @@ class HolidayService {
 	}
 
 	/**
+	 * @return list<string> the region codes that have holidays, `*` included
+	 */
+	public function regions(): array {
+		return $this->mapper->findRegions();
+	}
+
+	/**
 	 * @throws ValidationException
 	 */
 	public function create(string $date, string $region, string $label, bool $recurring = false, ?string $actor = null): Holiday {

@@ -5,19 +5,30 @@ SPDX-FileCopyrightText: Antoni Andre <antoniandre.web@gmail.com>
 SPDX-FileCopyrightText: Eduardo San Martin Morote
 SPDX-FileCopyrightText: Eric Norris (https://github.com/ericnorris)
 SPDX-FileCopyrightText: Jacob Clevenger<https://github.com/wheatjs>
+SPDX-FileCopyrightText: Jeff Sagal <sagalbot@gmail.com>
 SPDX-FileCopyrightText: Nextcloud GmbH and Nextcloud contributors
 SPDX-FileCopyrightText: Nick Frasser (https://nfrasser.com)
 SPDX-FileCopyrightText: Rob Cresswell <robcresswell@pm.me>
 SPDX-FileCopyrightText: absence developers
+SPDX-FileCopyrightText: atomiks
 SPDX-FileCopyrightText: ts-md5 developers
 
 This file is generated from multiple sources. Included packages:
+- @floating-ui/dom
+	- version: 1.8.0
+	- license: MIT
+- @floating-ui/utils
+	- version: 0.2.12
+	- license: MIT
 - @nextcloud/capabilities
 	- version: 1.2.1
 	- license: GPL-3.0-or-later
 - @nextcloud/vue
 	- version: 9.9.0
 	- license: AGPL-3.0-or-later
+- @nextcloud/vue-select
+	- version: 4.1.0
+	- license: MIT
 - @vueuse/components
 	- version: 14.3.0
 	- license: MIT

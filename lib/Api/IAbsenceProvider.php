@@ -45,12 +45,13 @@ interface IAbsenceProvider {
 
 	/**
 	 * When the user works and which public holidays apply to them, as this app
-	 * uses them for its working-day estimate (§7.1): their Availability weekdays and
-	 * holiday country/region, each overridable in the personal settings.
+	 * uses them for its working-day estimate (§7.1): their Availability weekdays,
+	 * overridable in the personal settings, and the holiday region code they set
+	 * themselves (§7.2).
 	 *
-	 * `workWeekdays` are ISO weekdays (Mon=1..Sun=7), `holidayCountry` is an
-	 * ISO 3166-1 alpha-2 code and `holidayRegion` follows the `date-holidays` data,
-	 * e.g. `BY` for Bavaria. Both are null when not set.
+	 * `workWeekdays` are ISO weekdays (Mon=1..Sun=7). The region code `DE-BY` comes as
+	 * `holidayCountry` `DE` and `holidayRegion` `BY`; both are null when not set.
+	 * Pass the code to getPublicHolidays() for the days themselves.
 	 *
 	 * @return array{workWeekdays: list<int>, holidayCountry: ?string, holidayRegion: ?string}
 	 * @since 1.1.0

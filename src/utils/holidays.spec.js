@@ -3,52 +3,54 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { listCountries, listRegions, makeHolidayChecker } from './holidays.js'
+import { compareHolidays, hasHolidays, makeHolidayChecker, parseRegionCode } from './holidays.js'
+
+describe('parseRegionCode', () => {
+	it('splits and uppercases a code', () => {
+		expect(parseRegionCode(' de-by ')).toEqual({ country: 'DE', region: 'BY' })
+		expect(parseRegionCode('DE_BY')).toEqual({ country: 'DE', region: 'BY' })
+		expect(parseRegionCode('FR')).toEqual({ country: 'FR', region: '' })
+		expect(parseRegionCode('')).toEqual({ country: '', region: '' })
+	})
+
+	it('rejects what is not a code', () => {
+		expect(parseRegionCode('Bavaria')).toBeNull()
+		expect(parseRegionCode('DE-BAVARIA')).toBeNull()
+		expect(parseRegionCode('*')).toBeNull()
+	})
+})
+
+describe('hasHolidays', () => {
+	it('counts holidays entered for the country of a region', () => {
+		expect(hasHolidays('DE-BY', ['*', 'DE'])).toBe(true)
+		expect(hasHolidays('DE-BY', ['*', 'DE-BY'])).toBe(true)
+		expect(hasHolidays('IN', ['*', 'DE'])).toBe(false)
+	})
+})
+
+describe('compareHolidays', () => {
+	it('lists the days lost and gained, and counts the rest', () => {
+		const bavaria = [
+			{ date: '2027-01-01', label: 'New Year' },
+			{ date: '2027-01-06', label: 'Epiphany' },
+			{ date: '2027-08-15', label: 'Assumption Day' },
+		]
+		const berlin = [
+			{ date: '2027-01-01', label: 'New Year' },
+			{ date: '2027-03-08', label: 'Women\'s Day' },
+		]
+		expect(compareHolidays(bavaria, berlin)).toEqual({
+			lost: [{ date: '2027-01-06', label: 'Epiphany' }, { date: '2027-08-15', label: 'Assumption Day' }],
+			gained: [{ date: '2027-03-08', label: 'Women\'s Day' }],
+			kept: 1,
+		})
+	})
+})
 
 describe('makeHolidayChecker', () => {
-	it('returns null when no country is configured (no subtraction)', async () => {
-		expect(await makeHolidayChecker('')).toBeNull()
-		expect(await makeHolidayChecker(undefined)).toBeNull()
-	})
-
-	it('marks nationwide public holidays', async () => {
-		const isHoliday = await makeHolidayChecker('DE')
-		expect(isHoliday('2026-01-01')).toBe(true) // Neujahr
-		expect(isHoliday('2026-10-03')).toBe(true) // Tag der Deutschen Einheit
-		expect(isHoliday('2026-07-15')).toBe(false) // an ordinary Wednesday
-	})
-
-	it('honours the sub-region: Epiphany is public in Bavaria, not in Berlin', async () => {
-		const bavaria = await makeHolidayChecker('DE', 'BY')
-		const berlin = await makeHolidayChecker('DE', 'BE')
-		expect(bavaria('2026-01-06')).toBe(true)
-		expect(berlin('2026-01-06')).toBe(false)
-	})
-
-	it('does not count observances as public holidays', async () => {
-		const isHoliday = await makeHolidayChecker('DE')
-		// Valentine's Day is in the dataset as an observance, never a public holiday.
-		expect(isHoliday('2026-02-14')).toBe(false)
-	})
-})
-
-describe('listCountries', () => {
-	it('lists countries as {id, label} pairs', async () => {
-		const countries = await listCountries()
-		expect(countries.length).toBeGreaterThan(50)
-		const de = countries.find((c) => c.id === 'DE')
-		expect(de).toBeTruthy()
-		expect(typeof de.label).toBe('string')
-	})
-})
-
-describe('listRegions', () => {
-	it('lists the German Bundesländer', async () => {
-		const regions = await listRegions('DE')
-		expect(regions.map((r) => r.id)).toContain('BY')
-	})
-
-	it('is empty for no country and for countries without regions', async () => {
-		expect(await listRegions('')).toEqual([])
+	it('is true on the listed days only', () => {
+		const isHoliday = makeHolidayChecker([{ date: '2027-01-01' }])
+		expect(isHoliday('2027-01-01')).toBe(true)
+		expect(isHoliday('2027-01-02')).toBe(false)
 	})
 })

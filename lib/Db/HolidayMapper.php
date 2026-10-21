@@ -57,6 +57,18 @@ class HolidayMapper extends QBMapper {
 	}
 
 	/**
+	 * @return list<string> every region code that has at least one holiday
+	 */
+	public function findRegions(): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('region')->from($this->getTableName())->orderBy('region');
+		$result = $qb->executeQuery();
+		$regions = array_map('strval', $result->fetchAll(\PDO::FETCH_COLUMN));
+		$result->closeCursor();
+		return $regions;
+	}
+
+	/**
 	 * @return list<Holiday>
 	 */
 	public function findByRegionAndDate(string $region, string $date): array {
