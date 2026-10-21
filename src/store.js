@@ -8,7 +8,7 @@ import { t } from '@nextcloud/l10n'
  * Lightweight reactive store shared across views (no Vuex/Pinia dependency).
  */
 import { reactive } from 'vue'
-import api from './api.js'
+import api from './api.ts'
 
 /**
  *

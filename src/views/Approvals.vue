@@ -78,7 +78,7 @@ import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue
 import CheckAll from 'vue-material-design-icons/CheckAll.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
-import api from '../api.js'
+import api from '../api.ts'
 import { store } from '../store.js'
 
 const ACTIONABLE = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING']

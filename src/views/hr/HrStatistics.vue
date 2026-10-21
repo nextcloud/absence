@@ -107,8 +107,8 @@ import LineChart from '../../components/LineChart.vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
-import api from '../../api.js'
-import { formatDate, toIso } from '../../utils/dates.js'
+import api from '../../api.ts'
+import { formatDate, toIso } from '../../utils/dates.ts'
 
 // Enough for a decade of monthly points; past this a line chart is unreadable
 // anyway and the range is almost certainly a typo.

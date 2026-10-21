@@ -1,0 +1,16 @@
+{
+	"extends": "@vue/tsconfig/tsconfig.json",
+	"include": ["./src/**/*.ts", "./src/**/*.vue"],
+	"compilerOptions": {
+		"lib": ["DOM", "ESNext"],
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"allowJs": true,
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"types": ["vite/client"]
+	},
+	"vueCompilerOptions": {
+		"target": 3.5
+	}
+}

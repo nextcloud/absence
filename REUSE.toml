@@ -58,3 +58,9 @@ path = ["screenshots/*.png", "screenshots/*.gif", "img/handbook/*.png", "img/han
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ["tsconfig.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

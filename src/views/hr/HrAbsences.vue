@@ -128,7 +128,7 @@ import CalendarSearch from 'vue-material-design-icons/CalendarSearch.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
 import RequestListItem from '../../components/RequestListItem.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
-import api from '../../api.js'
+import api from '../../api.ts'
 import { statusMeta, store } from '../../store.js'
 
 const PAGE_SIZE = 100

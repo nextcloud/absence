@@ -69,8 +69,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import Download from 'vue-material-design-icons/Download.vue'
-import api from '../../api.js'
-import { toIso } from '../../utils/dates.js'
+import api from '../../api.ts'
+import { toIso } from '../../utils/dates.ts'
 
 export default {
 	name: 'HrExports',

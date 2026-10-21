@@ -561,7 +561,7 @@ export default {
 		/**
 		 * Open the lightbox when a figure image is clicked.
 		 *
-		 * @param e
+		 * @param {MouseEvent} e
 		 */
 		onContentClick(e) {
 			const img = e.target.closest?.('.handbook__figure img')
