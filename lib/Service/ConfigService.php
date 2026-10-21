@@ -129,15 +129,12 @@ class ConfigService {
 	}
 
 	/**
-	 * Per-user settings used to prefill the "Working days" field (§7 prefill).
+	 * The holiday region code a person set for themselves (§7.2).
 	 *
-	 * @return array{work_weekdays: string, holiday_country: string, holiday_region: string}
+	 * @return array{holiday_country: string, holiday_region: string}
 	 */
 	public function getPersonalConfig(string $uid): array {
 		return [
-			// Empty means "no override" — resolve() then uses the detected Availability,
-			// falling back to Mon–Fri only when nothing is detected.
-			ConfigLexicon::KEY_WORK_WEEKDAYS => $this->userConfig->getValueString($uid, self::APP_ID, ConfigLexicon::KEY_WORK_WEEKDAYS),
 			ConfigLexicon::KEY_HOLIDAY_COUNTRY => $this->userConfig->getValueString($uid, self::APP_ID, ConfigLexicon::KEY_HOLIDAY_COUNTRY),
 			ConfigLexicon::KEY_HOLIDAY_REGION => $this->userConfig->getValueString($uid, self::APP_ID, ConfigLexicon::KEY_HOLIDAY_REGION),
 		];

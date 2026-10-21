@@ -81,6 +81,10 @@ class UserDeletedListener implements IEventListener {
 		$this->deleteWhereEquals('absence_requests', 'employee_uid', $uid);
 		$this->deleteWhereEquals('absence_entitlements', 'employee_uid', $uid);
 		$this->deleteWhereEquals('absence_entitlement_events', 'employee_uid', $uid);
+		// Their contract data and its history go too (§6.4).
+		$this->deleteWhereEquals('absence_employments', 'employee_uid', $uid);
+		$this->deleteWhereEquals('absence_contract_periods', 'employee_uid', $uid);
+		$this->deleteWhereEquals('absence_employee_history', 'employee_uid', $uid);
 
 		// Detach the user as a manager or replacement from any remaining requests.
 		foreach (['manager_uid', 'replacement_uid'] as $column) {
@@ -101,6 +105,7 @@ class UserDeletedListener implements IEventListener {
 		$this->anonymizeActor('absence_request_events', 'actor_uid', $uid);
 		$this->anonymizeActor('absence_entitlement_events', 'actor_uid', $uid);
 		$this->anonymizeActor('absence_attachments', 'uploader_uid', $uid);
+		$this->anonymizeActor('absence_employee_history', 'actor_uid', $uid);
 	}
 
 	/** Replace a deleted user's uid, where they are the actor on a surviving row, with a sentinel. */

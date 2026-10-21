@@ -18,11 +18,11 @@ use Sabre\VObject\Reader;
  * Works out sensible defaults for the request form's "Working days" prefill from
  * data the user already maintains in Nextcloud, so they need not re-enter it:
  *
- *  - working weekdays ← their Availability (/settings/user/availability)
+ *  - working weekdays ← their contract (§6.4), or their Availability
+ *    (/settings/user/availability) while HR has not entered one
  *
- * The detected weekdays are only a suggestion: the per-user override stored via
- * ConfigService always wins, and the request field stays editable. The holiday
- * region code is never guessed: people set it themselves (§7.2).
+ * The weekdays are only a suggestion: the request field stays editable. The
+ * holiday region code is never guessed: people set it themselves (§7.2).
  */
 class PersonalDefaultsService {
 	/** Availability RRULE BYDAY tokens → ISO weekday (Mon=1..Sun=7). */
@@ -30,36 +30,28 @@ class PersonalDefaultsService {
 
 	public function __construct(
 		private ConfigService $appConfig,
+		private EmployeeService $employees,
+		private ClockService $clock,
 		private PropertyMapper $propertyMapper,
 		private LoggerInterface $logger,
 	) {
 	}
 
 	/**
-	 * Everything the settings page and the SPA session need: the effective values
-	 * (override ?: detected ?: default) plus what was detected, so the settings UI
-	 * can show feedback and whether Availability has been filled out.
+	 * What the request-form prefill needs: the weekdays someone works today
+	 * (contract ?: Availability ?: Mon-Fri) and their region code.
 	 *
-	 * @return array<string,mixed>
+	 * @return array{workWeekdays: string, holidayCountry: string, holidayRegion: string}
 	 */
 	public function resolve(string $uid): array {
 		$stored = $this->appConfig->getPersonalConfig($uid);
-		$overrideWeekdays = $stored[ConfigLexicon::KEY_WORK_WEEKDAYS];
-		$overrideCountry = $stored[ConfigLexicon::KEY_HOLIDAY_COUNTRY];
-		$region = $stored[ConfigLexicon::KEY_HOLIDAY_REGION];
-
-		$detectedWeekdays = $this->detectWorkingWeekdays($uid);
-		$detectedCsv = $detectedWeekdays !== null ? implode(',', $detectedWeekdays) : null;
+		$weekdays = $this->employees->weekdaysOn($uid, $this->clock->userToday()) ?? $this->detectWorkingWeekdays($uid);
 
 		return [
-			// Effective values consumed by the request-form prefill (always a CSV string).
-			'workWeekdays' => $overrideWeekdays !== '' ? $overrideWeekdays : ($detectedCsv ?? ConfigService::DEFAULT_WORK_WEEKDAYS),
-			'holidayCountry' => $overrideCountry,
-			'holidayRegion' => $region,
-			// Detection details for the settings UI.
-			'availabilitySet' => $detectedWeekdays !== null,
-			'workWeekdaysDetected' => $detectedWeekdays,
-			'workWeekdaysOverride' => $overrideWeekdays,
+			// Always a CSV string
+			'workWeekdays' => $weekdays !== null ? implode(',', $weekdays) : ConfigService::DEFAULT_WORK_WEEKDAYS,
+			'holidayCountry' => $stored[ConfigLexicon::KEY_HOLIDAY_COUNTRY],
+			'holidayRegion' => $stored[ConfigLexicon::KEY_HOLIDAY_REGION],
 		];
 	}
 
