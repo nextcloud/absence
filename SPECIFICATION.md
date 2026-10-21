@@ -274,7 +274,7 @@ happened and when. One row is written for every meaningful transition.
 | `id` | bigint, PK | |
 | `request_id` | bigint FK, indexed | The request this event belongs to. |
 | `actor_uid` | string(64) | Who performed the action; the literal `system` for automated events (e.g. escalation). |
-| `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`. |
+| `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`, `request_imported` (§6.5). |
 | `detail` | text, nullable | Human-readable extra. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`. Recording only the resulting state cannot answer what anybody opens the history to ask — what changed and by how much — and a day count means nothing without the number it replaced. On creation it carries the type, dates, day count and the employee's reason, since the request itself only ever shows its *current* state. |
 | `created_at` | datetime | |
 
@@ -634,6 +634,44 @@ row is reported and nothing is written — half an imported company is the
 worst outcome of a typo. Writes go through `EntitlementService`, so the
 entitlement history records the import like any HR edit.
 
+### 6.5 Leave import (onboarding)
+
+Past leave comes over from the shared calendar people used before, so that
+balances count it as used from day one. HR imports it from **HR → Absences →
+Import leave** (paste JSON or pick a `.json` file), or with
+`occ absence:import-leave <file.json> [--dry-run]`. Both run the same
+`LeaveImportService` behind `POST /api/import/leave` (`json`, `dryRun`), HR only.
+
+The file is a JSON list of entries:
+
+```json
+[{"user": "robin", "type": "annual", "from": "2025-03-03", "to": "2025-03-07", "workingDays": 5, "note": "Ski trip"}]
+```
+
+`user` is a uid or an e-mail address, resolved like the CSV import (§6.3);
+`type` is a leave-type key and defaults to `annual`; `note` is optional and
+becomes the request's reason.
+
+- **Review first, all-or-nothing.** The dry run returns, per person, the
+  entries and working days to add and the entries skipped, plus every invalid
+  entry with its 1-based position and user. While one entry is invalid nothing
+  is written. An entry is valid when the user is an employee (§2.2, guests
+  excluded), the type exists and is enabled, `from` ≤ `to`, and `workingDays`
+  passes the same checks as a request (> 0, at most one per calendar day, §7).
+  There is no overlap check (§5.1): the old calendar is the record being copied.
+- **Duplicates are skipped, not errors.** An entry whose person already has a
+  request in force (not rejected or cancelled) with the same type and dates is
+  counted as skipped, and so is a second copy within the file. Importing the
+  same file twice adds nothing the second time.
+- **Booked like HR-recorded leave (§5.6)**: `APPROVED`, `decided_by` the HR
+  member (`system` from occ), the manager denormalized as at submission (§2.1),
+  one transaction for the whole file.
+- **No side effects.** The leave already sits in the old calendar and the
+  people know about it: no notification, e-mail, activity, CalDAV event or
+  `LeaveRequestChangedEvent` (§14b). Each request gets one
+  `request_imported` history event (§3.7) and the import as a whole one
+  `leave_imported` server-log entry (§11) with the actor and the counts.
+
 ### 6.2 Carry-over (year rollover)
 
 - A background job (or HR-triggered action) at year start computes carry-over into
@@ -886,8 +924,8 @@ All four channels are required.
   the applicant wrote on creation. Covered actions: the full request lifecycle (create,
   edit, superseding edit, HR edit, approve, reject, cancel, withdrawal
   request/approve/reject, escalate, comment), entitlement changes, bulk-set,
-  carry-over rollover/expiry, leave-type and holiday changes, admin-config changes,
-  and GDPR user-data purge.
+  carry-over rollover/expiry, leave import (§6.5), leave-type and holiday changes,
+  admin-config changes, and GDPR user-data purge.
   - These entries must appear **regardless of the instance log level**. Achieve this
     with Nextcloud's `log.condition.apps` mechanism: on install/update a repair step
     merges `absence` into `log.condition.apps` (never clobbering existing config),
@@ -1057,6 +1095,7 @@ the SPA). All list endpoints paginate and accept filters.
   deltas ("+2 for the wedding", later "−2, booked in error") and must cancel to
   nothing — treating the second as an absolute set is what made 25 → +2 → 27 → −2
   land on 23 instead of back on 25. Sending both is refused rather than guessed at.
+- `POST /api/import/leave` (`json`, `dryRun`): HR only, the leave import (§6.5).
 - `GET  /api/entitlements/{id}/history` — HR only: who changed which figure on an
   entitlement, from what to what, and the note they gave. One row per figure per
   save, so a single adjustment reads on its own rather than having to be diffed
@@ -1107,7 +1146,8 @@ not HTTP:
 - **`OCA\Absence\Event\LeaveRequestChangedEvent`** carries the history action (§3.7)
   and the request as an `Absence` (status `closed` once rejected or cancelled), plus
   `getPreviousAbsence()` with the old dates and type after an edit. It is dispatched after the
-  transaction commits, never for a rolled-back change, and not for comments. Deleting a
+  transaction commits, never for a rolled-back change, and not for comments or for
+  leave brought in by the leave import (§6.5). Deleting a
   user removes their requests without an event; core's `UserDeletedEvent` covers that.
 - **`getWorkingDaysSettings($userId)`** returns the working weekdays and the holiday region
   code (as country and region) this app uses for its own estimate (§7.1), so another
@@ -1612,3 +1652,6 @@ Recorded during the build so the spec matches the code:
   ones people set for themselves, which are dropped (`Version1010…`, app 1.2.0). The
   personal section on the Availability page is gone: the region code moved to the
   profile page.
+- **Leave import** (§6.5): HR imports past leave as JSON (HR → Absences, or
+  `occ absence:import-leave`), booked as approved HR-recorded leave without
+  notifications, activity, CalDAV writes or change events.

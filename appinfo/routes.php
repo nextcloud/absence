@@ -40,6 +40,7 @@ return [
 		['name' => 'entitlement#update', 'url' => '/api/entitlements/{id}', 'verb' => 'PUT'],
 		['name' => 'entitlement#bulk', 'url' => '/api/entitlements/bulk', 'verb' => 'POST'],
 		['name' => 'entitlement#history', 'url' => '/api/entitlements/{id}/history', 'verb' => 'GET'],
+		['name' => 'import#leave', 'url' => '/api/import/leave', 'verb' => 'POST'],
 
 		// Coverage & calendar
 		['name' => 'coverage#index', 'url' => '/api/coverage', 'verb' => 'GET'],

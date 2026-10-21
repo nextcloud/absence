@@ -174,7 +174,7 @@ class ImportService {
 	 * looked up first: the server's own user lookup accepts an address too, but
 	 * then reports the address itself as the uid.
 	 */
-	private function resolveUser(string $identifier): ?string {
+	public function resolveUser(string $identifier): ?string {
 		if ($identifier === '') {
 			return null;
 		}
