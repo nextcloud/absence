@@ -100,6 +100,8 @@ properly. Every rule and design decision is documented in the
 	</repair-steps>
 	<commands>
 		<command>OCA\Absence\Command\ImportEntitlements</command>
+		<command>OCA\Absence\Command\ImportHolidays</command>
+		<command>OCA\Absence\Command\ExportHolidays</command>
 	</commands>
 	<settings>
 		<admin-section>OCA\Absence\Settings\AdminSection</admin-section>

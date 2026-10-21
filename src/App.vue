@@ -88,6 +88,11 @@
 							<NcCounterBubble :count="session.escalatedCount" />
 						</template>
 					</NcAppNavigationItem>
+					<NcAppNavigationItem :name="t('absence', 'Public holidays')" :to="{ name: 'hr-holidays' }">
+						<template #icon>
+							<PartyPopper :size="20" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'HR handbook')" :to="{ name: 'hr-handbook' }">
 						<template #icon>
 							<BookOpenPageVariant :size="20" />
@@ -144,6 +149,7 @@ import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import LightbulbOnOutline from 'vue-material-design-icons/LightbulbOnOutline.vue'
+import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
@@ -176,6 +182,7 @@ export default {
 		ChartBar,
 		CalendarMonth,
 		Download,
+		PartyPopper,
 		ClipboardPlusOutline,
 		Thermometer,
 		LightbulbOnOutline,

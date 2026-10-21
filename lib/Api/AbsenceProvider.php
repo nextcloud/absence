@@ -8,10 +8,12 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Api;
 
+use OCA\Absence\Db\Holiday;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PersonalDefaultsService;
 
 class AbsenceProvider implements IAbsenceProvider {
@@ -19,6 +21,7 @@ class AbsenceProvider implements IAbsenceProvider {
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private PersonalDefaultsService $personalDefaults,
+		private HolidayService $holidays,
 	) {
 	}
 
@@ -56,6 +59,15 @@ class AbsenceProvider implements IAbsenceProvider {
 			'holidayCountry' => $defaults['holidayCountry'] !== '' ? strtoupper((string)$defaults['holidayCountry']) : null,
 			'holidayRegion' => $defaults['holidayRegion'] !== '' ? strtoupper((string)$defaults['holidayRegion']) : null,
 		];
+	}
+
+	#[\Override]
+	public function getPublicHolidays(array $regionCodes, string $from, string $to): array {
+		return array_map(static fn (Holiday $h): array => [
+			'date' => $h->getDate(),
+			'region' => $h->getRegion(),
+			'label' => $h->getLabel(),
+		], $this->holidays->forRegions($regionCodes, $from, $to));
 	}
 
 	/**

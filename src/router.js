@@ -8,6 +8,7 @@ import Handbook from './views/Handbook.vue'
 import HrAbsences from './views/hr/HrAbsences.vue'
 import HrBalances from './views/hr/HrBalances.vue'
 import HrExports from './views/hr/HrExports.vue'
+import HrHolidays from './views/hr/HrHolidays.vue'
 import HrInsights from './views/hr/HrInsights.vue'
 import HrSickLeave from './views/hr/HrSickLeave.vue'
 import HrStatistics from './views/hr/HrStatistics.vue'
@@ -27,6 +28,7 @@ const routes = [
 	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave },
 	{ path: '/hr/whos-off', name: 'hr-whos-off', component: HrWhosOff },
 	{ path: '/hr/exports', name: 'hr-exports', component: HrExports },
+	{ path: '/hr/holidays', name: 'hr-holidays', component: HrHolidays },
 	{ path: '/handbook', name: 'handbook', component: Handbook },
 	{ path: '/hr/handbook', name: 'hr-handbook', component: Handbook, props: { hr: true } },
 	// Deep link from notifications/activity: open My leave with the request selected.

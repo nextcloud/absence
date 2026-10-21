@@ -51,6 +51,13 @@ return [
 		['name' => 'leaveType#update', 'url' => '/api/leave-types/{id}', 'verb' => 'PUT'],
 		['name' => 'leaveType#destroy', 'url' => '/api/leave-types/{id}', 'verb' => 'DELETE'],
 
+		// Public holidays (§7.2): everyone reads, HR maintains
+		['name' => 'holiday#index', 'url' => '/api/holidays', 'verb' => 'GET'],
+		['name' => 'holiday#create', 'url' => '/api/holidays', 'verb' => 'POST'],
+		['name' => 'holiday#import', 'url' => '/api/holidays/import', 'verb' => 'POST'],
+		['name' => 'holiday#update', 'url' => '/api/holidays/{id}', 'verb' => 'PUT'],
+		['name' => 'holiday#destroy', 'url' => '/api/holidays/{id}', 'verb' => 'DELETE'],
+
 		// HR reporting & export
 		['name' => 'report#balances', 'url' => '/api/reports/balances', 'verb' => 'GET'],
 		['name' => 'report#trends', 'url' => '/api/reports/trends', 'verb' => 'GET'],

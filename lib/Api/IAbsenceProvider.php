@@ -56,4 +56,16 @@ interface IAbsenceProvider {
 	 * @since 1.1.0
 	 */
 	public function getWorkingDaysSettings(string $userId): array;
+
+	/**
+	 * The public holidays HR entered (§7.2) for these region codes, between two
+	 * days (Y-m-d, both included). A code is a country (`DE`) or a subdivision
+	 * (`DE-BY`); a subdivision also gets its country's days, and days entered
+	 * for `*` apply everywhere. Recurring holidays are returned for each year.
+	 *
+	 * @param list<string> $regionCodes
+	 * @return list<array{date: string, region: string, label: string}> in date order
+	 * @since 1.1.0
+	 */
+	public function getPublicHolidays(array $regionCodes, string $from, string $to): array;
 }

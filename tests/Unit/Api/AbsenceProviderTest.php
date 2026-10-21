@@ -14,6 +14,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PersonalDefaultsService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -32,7 +33,7 @@ class AbsenceProviderTest extends TestCase {
 			$this->type(8, 'parental', true),
 		]);
 		$this->personalDefaults = $this->createMock(PersonalDefaultsService::class);
-		$this->provider = new AbsenceProvider($this->requestMapper, $leaveTypeMapper, $this->personalDefaults);
+		$this->provider = new AbsenceProvider($this->requestMapper, $leaveTypeMapper, $this->personalDefaults, $this->createMock(HolidayService::class));
 	}
 
 	private function type(int $id, string $key, bool $hrOnly): LeaveType {
