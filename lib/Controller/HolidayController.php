@@ -65,20 +65,6 @@ class HolidayController extends Controller {
 	}
 
 	/**
-	 * HR lets everyone edit the list, or only HR.
-	 */
-	#[NoAdminRequired]
-	#[UserRateLimit(limit: 20, period: 60)]
-	public function editing(bool $everyone): DataResponse {
-		return $this->handle(function () use ($everyone) {
-			$this->permission->assertHr((string)$this->userId);
-			$this->service->setEveryoneCanEdit($everyone, (string)$this->userId);
-			$this->logger->info('Absence action: holidays_editing', ['app' => 'absence', 'action' => 'holidays_editing', 'actor' => $this->userId, 'everyone' => $everyone]);
-			return ['everyone' => $everyone];
-		});
-	}
-
-	/**
 	 * The days someone with this region code gets, for the personal settings and the
 	 * working-days prefill.
 	 */

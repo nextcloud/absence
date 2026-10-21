@@ -53,15 +53,12 @@
 				{{ t('absence', 'Only HR edits public holidays.') }}
 			</template>
 		</p>
-		<NcCheckboxRadioSwitch
-			v-if="session.isHr"
-			class="holidays__everyone"
-			type="switch"
-			:modelValue="session.holidaysEveryoneEdits"
-			:disabled="saving"
-			@update:modelValue="setEveryone">
-			{{ t('absence', 'Everyone can add and edit public holidays') }}
-		</NcCheckboxRadioSwitch>
+		<p v-if="session.isHr" class="holidays__who">
+			{{ session.holidaysEveryoneEdits ? t('absence', 'Who may edit: everyone.') : t('absence', 'Who may edit: HR only.') }}
+			<RouterLink :to="{ name: 'hr-settings' }">
+				{{ t('absence', 'Change in Settings') }}
+			</RouterLink>
+		</p>
 
 		<SkeletonList v-if="loading" :rows="6" />
 
@@ -393,18 +390,6 @@ export default {
 			return holiday.updatedByName ? t('absence', 'Changed by {name}', { name: holiday.updatedByName }, undefined, { escape: false }) : ''
 		},
 
-		async setEveryone(everyone) {
-			this.saving = true
-			try {
-				await api.setHolidayEditing(everyone)
-				await store.refreshSession()
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not change who edits public holidays'))
-			} finally {
-				this.saving = false
-			}
-		},
-
 		async openHistory() {
 			try {
 				this.history = await api.holidayHistory()
@@ -464,8 +449,12 @@ export default {
 		font-weight: bold;
 	}
 
-	&__everyone {
+	&__who {
 		margin-block-end: calc(2 * var(--default-grid-baseline));
+
+		a {
+			text-decoration: underline;
+		}
 	}
 
 	&__byline,

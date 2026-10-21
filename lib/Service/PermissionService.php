@@ -34,6 +34,10 @@ class PermissionService {
 		return $this->groupManager->isInGroup($uid, $this->config->getHrGroup());
 	}
 
+	public function isAdmin(string $uid): bool {
+		return $this->groupManager->isAdmin($uid);
+	}
+
 	public function isManagerOf(string $actorUid, string $employeeUid): bool {
 		return $this->managerResolver->isManagerOf($actorUid, $employeeUid);
 	}
@@ -151,6 +155,19 @@ class PermissionService {
 	public function assertCanEditHolidays(string $uid): void {
 		if (!$this->canEditHolidays($uid)) {
 			throw new \OCA\Absence\Exception\ForbiddenException($this->l->t('Only HR edits public holidays'));
+		}
+	}
+
+	/**
+	 * The app settings (§12) belong to HR and to Nextcloud admins. Admins need
+	 * them without being in HR: on a fresh install nobody is, and an admin has
+	 * to pick the HR group first.
+	 *
+	 * @throws \OCA\Absence\Exception\ForbiddenException
+	 */
+	public function assertCanManageSettings(string $uid): void {
+		if (!$this->isHr($uid) && !$this->isAdmin($uid)) {
+			throw new \OCA\Absence\Exception\ForbiddenException($this->l->t('HR or admin role required'));
 		}
 	}
 

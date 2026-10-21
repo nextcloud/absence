@@ -52,6 +52,7 @@ class SessionService {
 			'isHr' => $isHr,
 			'canEditHolidays' => $this->permission->canEditHolidays($uid),
 			'holidaysEveryoneEdits' => $this->config->canEveryoneEditHolidays(),
+			'isAdmin' => $this->permission->isAdmin($uid),
 			'isManager' => $isManager,
 			'managerUid' => $managerUid,
 			'managerName' => $managerUid !== null ? $this->displayName($managerUid) : null,

@@ -10,6 +10,7 @@ import HrAbsences from './views/hr/HrAbsences.vue'
 import HrEmployees from './views/hr/HrEmployees.vue'
 import HrExports from './views/hr/HrExports.vue'
 import HrInsights from './views/hr/HrInsights.vue'
+import HrSettings from './views/hr/HrSettings.vue'
 import HrSickLeave from './views/hr/HrSickLeave.vue'
 import HrStatistics from './views/hr/HrStatistics.vue'
 import HrWhosOff from './views/hr/HrWhosOff.vue'
@@ -30,6 +31,7 @@ const routes = [
 	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave },
 	{ path: '/hr/whos-off', name: 'hr-whos-off', component: HrWhosOff },
 	{ path: '/hr/exports', name: 'hr-exports', component: HrExports },
+	{ path: '/hr/settings', name: 'hr-settings', component: HrSettings },
 	{ path: '/handbook', name: 'handbook', component: Handbook },
 	{ path: '/holidays', name: 'holidays', component: Holidays },
 	{ path: '/profile', name: 'profile', component: Profile },
