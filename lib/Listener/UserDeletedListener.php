@@ -10,6 +10,7 @@ namespace OCA\Absence\Listener;
 
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\CalendarService;
+use OCA\Absence\Service\EmployeeService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -32,6 +33,7 @@ class UserDeletedListener implements IEventListener {
 		private CalendarService $calendar,
 		private \OCA\Absence\Service\AttachmentService $attachments,
 		private LoggerInterface $logger,
+		private EmployeeService $employees,
 	) {
 	}
 
@@ -82,9 +84,7 @@ class UserDeletedListener implements IEventListener {
 		$this->deleteWhereEquals('absence_entitlements', 'employee_uid', $uid);
 		$this->deleteWhereEquals('absence_entitlement_events', 'employee_uid', $uid);
 		// Their contract data and its history go too (§6.4).
-		$this->deleteWhereEquals('absence_employments', 'employee_uid', $uid);
-		$this->deleteWhereEquals('absence_contract_periods', 'employee_uid', $uid);
-		$this->deleteWhereEquals('absence_employee_history', 'employee_uid', $uid);
+		$this->employees->purge($uid);
 
 		// Detach the user as a manager or replacement from any remaining requests.
 		foreach (['manager_uid', 'replacement_uid'] as $column) {

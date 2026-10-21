@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -44,8 +45,16 @@ class BalanceServiceTest extends TestCase {
 			$this->leaveTypeMapper,
 			$this->config,
 			$this->clockAtRealTime(),
+			$this->noContracts(),
 			$this->l10nMock(),
 		);
+	}
+
+	/** People HR has entered no contract data for keep the full allowance. */
+	private function noContracts(): EmployeeService&MockObject {
+		$employees = $this->createMock(EmployeeService::class);
+		$employees->method('getContract')->willReturn(['start' => null, 'end' => null, 'periods' => []]);
+		return $employees;
 	}
 
 	private function annualType(int $id = 1): LeaveType {

@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Db;
 
 use OCP\AppFramework\Db\QBMapper;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
@@ -26,6 +27,18 @@ class ContractPeriodMapper extends QBMapper {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->getTableName())
 			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))
+			->orderBy('valid_from', 'ASC');
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * @param list<string> $uids
+	 * @return list<ContractPeriod> oldest first
+	 */
+	public function findForEmployees(array $uids): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($uids, IQueryBuilder::PARAM_STR_ARRAY)))
 			->orderBy('valid_from', 'ASC');
 		return $this->findEntities($qb);
 	}

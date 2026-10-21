@@ -657,7 +657,18 @@ once); the person, their manager and HR read it. Every change goes to the person
 history (`absence_employee_history`, with the values before and after and the author)
 and to the admin audit log; the region code people set themselves (§7.2) goes to the
 same history. The weekdays drive the working-days prefill (§7.1); the percentage is
-not used for leave yet.
+not used for leave: someone working 5 days at 50% gets the full allowance.
+
+**Annual allowance from the contract.** HR's full-time days for the year (the
+entitlement's `base_days`, seeded from the default, §12) are scaled to the part of a
+full-time year someone works: each month counts when they are employed on its 15th
+(joining on the 15th counts the month, leaving on the 14th does not), with the number
+of weekdays of the period in force that day out of five. Days = full-time days ×
+weekday-months / 60, rounded to the nearest whole day, half a day up; carry-over and
+HR's adjustment come on top. 4 days a week from July after 5 before: 30 × 54 / 60 = 27.
+Someone HR has entered no contract data for keeps the full-time days. Balance rows
+carry the breakdown (`contract.days`, `contract.segments`), and the carry-over of the
+year-end rollover follows from the scaled balance.
 
 ## 7. Working Days (manually entered)
 
@@ -1612,3 +1623,6 @@ Recorded during the build so the spec matches the code:
   ones people set for themselves, which are dropped (`Version1010…`, app 1.2.0). The
   personal section on the Availability page is gone: the region code moved to the
   profile page.
+- **Annual allowance from the contract** (§6.4): the annual balance scales the
+  full-time days to the weekday-months someone works, computed when the balance is
+  read, never stored; the HR balances report preloads every contract in two queries.

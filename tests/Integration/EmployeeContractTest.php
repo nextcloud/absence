@@ -16,8 +16,10 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeService;
+use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\PersonalDefaultsService;
 use OCA\Absence\Service\ProfileService;
@@ -193,6 +195,45 @@ class EmployeeContractTest extends TestCase {
 		self::assertSame([], Server::get(ContractPeriodMapper::class)->findForEmployee(self::EMPLOYEE));
 		self::assertSame([], $this->service->history(self::EMPLOYEE));
 		self::assertNull($this->service->getContract(self::EMPLOYEE)['start']);
+	}
+
+	public function testTheAllowanceFollowsTheContract(): void {
+		$balances = Server::get(BalanceService::class);
+		$annual = $this->typeId('annual');
+		$entitlement = $balances->ensureEntitlement(self::EMPLOYEE, 2026, $annual);
+		Server::get(EntitlementService::class)->update(self::HR, $entitlement->getId(), [
+			'baseDays' => 30.0, 'carryOverDays' => 3.0, 'adjustmentDelta' => 2.0, 'adjustmentNote' => 'itest moving day',
+		]);
+		self::assertSame(35.0, $this->annualRow($balances->getBalance(self::EMPLOYEE, 2026))['entitlement']);
+
+		// Joins on 16 March, four days a week from July: 30 x (3 + 6 x 0.8) / 12 = 19.5, half a day up
+		$this->service->saveContract(self::EMPLOYEE, '2026-03-16', null, [
+			['from' => '2026-03-16', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100],
+			['from' => '2026-07-01', 'weekdays' => [1, 2, 3, 4], 'percent' => 80],
+		], self::HR);
+
+		$row = $this->annualRow($balances->getBalance(self::EMPLOYEE, 2026));
+		self::assertSame(30.0, $row['baseDays']);
+		self::assertSame(20.0, $row['contract']['days']);
+		self::assertSame(25.0, $row['entitlement']);
+		self::assertSame([[4, 6, 5], [7, 12, 4]], array_map(static fn (array $s): array => [$s['from'], $s['to'], $s['weekdays']], $row['contract']['segments']));
+
+		$batch = $balances->getBalancesForEmployees([self::EMPLOYEE, self::OTHER], 2026);
+		self::assertSame(25.0, $this->annualRow(['balances' => $batch[self::EMPLOYEE]])['entitlement']);
+		self::assertNull($this->annualRow(['balances' => $batch[self::OTHER]])['contract']);
+	}
+
+	/**
+	 * @param array{balances: list<array<string, mixed>>} $balance
+	 * @return array<string, mixed>
+	 */
+	private function annualRow(array $balance): array {
+		foreach ($balance['balances'] as $row) {
+			if ($row['typeKey'] === 'annual') {
+				return $row;
+			}
+		}
+		self::fail('No annual leave row');
 	}
 
 	private function typeId(string $key): int {

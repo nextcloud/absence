@@ -23,12 +23,15 @@ use OCP\IL10N;
  * are always computed, never stored.
  */
 class BalanceService {
+	private const ANNUAL = 'annual';
+
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
 		private EntitlementMapper $entitlementMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private ConfigService $config,
 		private ClockService $clock,
+		private EmployeeService $employees,
 		private IL10N $l,
 	) {
 	}
@@ -140,6 +143,7 @@ class BalanceService {
 			$entitlementsByEmployee[$ent->getEmployeeUid()][$year][$ent->getTypeId()] = $ent;
 		}
 
+		$this->employees->preload(array_values($employeeUids));
 		$result = [];
 		foreach ($employeeUids as $uid) {
 			$result[$uid] = $this->assembleRows($uid, $year, $usageByEmployee[$uid] ?? [], $types, $entitlementsByEmployee[$uid] ?? []);
@@ -274,20 +278,21 @@ class BalanceService {
 		$carry = 0.0;
 		$adjust = 0.0;
 		$entitlementId = null;
+		$contract = null;
 		if ($type->getCountsAgainstBalance()) {
 			if ($ent !== null) {
 				$base = $ent->getBaseDays();
 				$carry = $ent->getCarryOverDays();
 				$adjust = $ent->getManualAdjustment();
-				$entitlement = $ent->getEntitlement();
 				$entitlementId = $ent->getId();
 			} else {
 				// No row yet: only the primary annual type inherits the configured
 				// default allotment; other counting types start at zero until HR
 				// grants an entitlement (avoids fabricating balances, §6.1).
 				$base = $type->getKey() === 'annual' ? $this->config->getDefaultEntitlement() : 0.0;
-				$entitlement = $base;
 			}
+			$contract = $type->getKey() === self::ANNUAL ? $this->contractDays($employeeUid, $year, $base) : null;
+			$entitlement = ($contract['days'] ?? $base) + $carry + $adjust;
 		}
 
 		$remaining = $entitlement === null ? null : round($entitlement - $used, 1);
@@ -304,6 +309,7 @@ class BalanceService {
 			'countsAgainstBalance' => $type->getCountsAgainstBalance(),
 			'entitlementId' => $entitlementId,
 			'baseDays' => $base,
+			'contract' => $contract,
 			'carryOverDays' => $carry,
 			'manualAdjustment' => $adjust,
 			'entitlement' => $entitlement,
@@ -311,6 +317,27 @@ class BalanceService {
 			'pending' => round($pending, 1),
 			'remaining' => $remaining,
 			'available' => $available,
+		];
+	}
+
+	/**
+	 * The annual allowance scaled to someone's contract (§6.4): the full-time
+	 * days times the share of a full-time year they work, rounded to whole days,
+	 * half a day up. Null while HR has entered no contract data.
+	 *
+	 * @return array{days: float, segments: list<array{from: int, to: int, weekdays: int, days: float}>}|null
+	 */
+	private function contractDays(string $employeeUid, int $year, float $fullTime): ?array {
+		$share = EmployeeService::yearShare($this->employees->getContract($employeeUid), $year);
+		if ($share === null) {
+			return null;
+		}
+		return [
+			'days' => round($fullTime * (float)$share['weekdayMonths'] / (float)EmployeeService::FULL_YEAR),
+			'segments' => array_map(static fn (array $segment): array => [
+				...$segment,
+				'days' => round($fullTime * (float)$segment['weekdays'] / 5.0 * (float)($segment['to'] - $segment['from'] + 1) / 12.0, 2),
+			], $share['segments']),
 		];
 	}
 

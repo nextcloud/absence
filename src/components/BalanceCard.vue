@@ -4,15 +4,26 @@
   -
   - Balance ring plus a breakdown ledger explaining how the number is composed:
   - base + carryover ± adjustment = entitlement, minus used/pending → available.
+  - With a contract (§6.4) the base is scaled first, period by period.
 -->
 <template>
 	<div class="card">
 		<BalanceRing :row="row" />
 		<dl v-if="row.entitlement !== null" class="ledger">
 			<div class="ledger__row">
-				<dt>{{ t('absence', 'Base allowance') }}</dt>
+				<dt>{{ row.contract ? t('absence', 'Full-time allowance') : t('absence', 'Base allowance') }}</dt>
 				<dd>{{ format(row.baseDays) }}</dd>
 			</div>
+			<template v-if="row.contract">
+				<div v-for="segment in row.contract.segments" :key="segment.from" class="ledger__row ledger__row--detail">
+					<dt>{{ describeSegment(segment) }}</dt>
+					<dd>{{ format(segment.days) }}</dd>
+				</div>
+				<div class="ledger__row">
+					<dt>{{ t('absence', 'For the contract, rounded') }}</dt>
+					<dd>{{ format(row.contract.days) }}</dd>
+				</div>
+			</template>
 			<div v-if="row.carryOverDays" class="ledger__row">
 				<dt>{{ t('absence', 'Carried over') }}</dt>
 				<dd>{{ signed(row.carryOverDays) }}</dd>
@@ -42,7 +53,7 @@
 </template>
 
 <script>
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import BalanceRing from './BalanceRing.vue'
 
 export default {
@@ -53,6 +64,17 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * "Mar–Jun, 4 days a week"
+		 *
+		 * @param {{from: number, to: number, weekdays: number}} segment months with the same working days
+		 */
+		describeSegment(segment) {
+			const month = (m) => new Date(2000, m - 1, 1).toLocaleDateString(undefined, { month: 'short' })
+			const months = segment.from === segment.to ? month(segment.from) : `${month(segment.from)}–${month(segment.to)}`
+			return n('absence', '{months}, {count} day a week', '{months}, {count} days a week', segment.weekdays, { months, count: segment.weekdays })
+		},
+
 		t,
 		format(v) {
 			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
@@ -134,6 +156,12 @@ export default {
 			border-top: 1px solid var(--color-border);
 			color: var(--color-main-text);
 			font-weight: 600;
+		}
+
+		&--detail {
+			padding-inline-start: 12px;
+			color: var(--color-text-maxcontrast);
+			font-size: 0.9em;
 		}
 
 		&--pending {
