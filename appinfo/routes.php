@@ -53,6 +53,8 @@ return [
 
 		// Public holidays (§7.2): everyone reads, HR maintains
 		['name' => 'holiday#index', 'url' => '/api/holidays', 'verb' => 'GET'],
+		['name' => 'holiday#applying', 'url' => '/api/holidays/applying', 'verb' => 'GET'],
+		['name' => 'holiday#regions', 'url' => '/api/holidays/regions', 'verb' => 'GET'],
 		['name' => 'holiday#create', 'url' => '/api/holidays', 'verb' => 'POST'],
 		['name' => 'holiday#import', 'url' => '/api/holidays/import', 'verb' => 'POST'],
 		['name' => 'holiday#editing', 'url' => '/api/holidays/editing', 'verb' => 'PUT'],

@@ -677,9 +677,8 @@ count drives the balance, and the server never recomputes it (§7).
 
 To save typing, the request dialog **prefills** the working-days field with a
 client-side estimate: days in the picked range that fall on the user's working
-weekdays (detected from their Availability settings, overridable) minus public
-holidays (from the bundled `date-holidays` data, for a country/region the user may
-set; detected from locale/phone as a suggestion). The estimate is served by
+weekdays (detected from their Availability settings, overridable) minus the public
+public holidays listed for the user's region code (§7.2). The estimate is served by
 `PersonalDefaultsService` + `/api/personal/config`, with a small personal-settings
 section appended to the built-in **Availability** page (`lib/Settings/Personal.php`).
 The prefill stops as soon as the user edits the field, is absent when editing an
@@ -712,6 +711,14 @@ Every change also goes to the admin audit log (`CriticalActionPerformedEvent`, w
 the *Auditing / Logging* app is enabled) and to `nextcloud.log` like the other audit
 entries. Nothing is sent to the Activity stream, by notification or by email. Other apps read
 the list through `getPublicHolidays()` (§14b).
+
+**Each person sets their own region code** in the personal settings (Availability
+page); it is never guessed from the locale, phone number or timezone. Changing it
+first shows what changes over this year and next: the days no longer off, the new
+days off, and how many stay the same. A code with no holidays of its own or of its
+country gets a warning (only the `*` days would apply), but can still be saved, since
+its days may be added later. The code is stored as `holiday_country` and
+`holiday_region` (`DE-BY` is `DE` + `BY`), uppercase and checked on save.
 
 ---
 
@@ -1056,9 +1063,10 @@ the SPA). All list endpoints paginate and accept filters.
 - HR/admin CRUD for leave types.
 - `GET /api/holidays?year&region` (everyone), `POST /api/holidays`,
   `PUT|DELETE /api/holidays/{id}` (HR, or everyone when allowed),
-  `POST /api/holidays/import {json, dryRun}` (HR), `PUT /api/holidays/editing {everyone}` (HR) and
-  `GET /api/holidays/history` (everyone):
-  public holidays (§7.2).
+  `POST /api/holidays/import {json, dryRun}` (HR), `PUT /api/holidays/editing {everyone}`
+  (HR) and `GET /api/holidays/history` (everyone): public holidays (§7.2).
+  `GET /api/holidays/applying?code&from&to` returns the days a region code gets and
+  `GET /api/holidays/regions` the codes that have holidays; both are open to everyone.
 
 **HR reporting**
 - `GET  /api/reports/balances` — balances report (filters).
@@ -1091,8 +1099,9 @@ not HTTP:
   `getPreviousAbsence()` with the old dates and type after an edit. It is dispatched after the
   transaction commits, never for a rolled-back change, and not for comments. Deleting a
   user removes their requests without an event; core's `UserDeletedEvent` covers that.
-- **`getWorkingDaysSettings($userId)`** returns the working weekdays and holiday country/region
-  this app uses for its own estimate (§7.1), so another app need not ask again.
+- **`getWorkingDaysSettings($userId)`** returns the working weekdays and the holiday region
+  code (as country and region) this app uses for its own estimate (§7.1), so another
+  app need not ask again.
 - **`getPublicHolidays($regionCodes, $from, $to)`** returns the public holidays
   (§7.2) for those region codes, recurring ones once per year in the range.
 - **Confidentiality holds (§5.7):** for an `hr_only` type the type key and label are
@@ -1577,3 +1586,7 @@ Recorded during the build so the spec matches the code:
   existing `absence_holidays` table (plus `created_by`/`updated_by`), with a JSON import
   and export (page and `occ`), a change history, and an HR switch that lets everyone
   edit it. Other apps read it through `getPublicHolidays()`.
+- **Holiday region code instead of a detected country** (§7.2): the personal settings
+  ask for the region code and show what a change does before saving it. The guess from
+  locale and phone number is gone, and so is the `date-holidays` dependency: the
+  prefill reads the list.

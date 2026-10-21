@@ -143,7 +143,21 @@ class ConfigService {
 		];
 	}
 
+	/**
+	 * @throws ValidationException for a holiday country or region that cannot be part of a region code (§7.2)
+	 */
 	public function setPersonalValue(string $uid, string $key, string $value): void {
+		$pattern = match ($key) {
+			ConfigLexicon::KEY_HOLIDAY_COUNTRY => '/^([A-Z]{2})?$/',
+			ConfigLexicon::KEY_HOLIDAY_REGION => '/^([A-Z0-9]{1,3})?$/',
+			default => null,
+		};
+		if ($pattern !== null) {
+			$value = strtoupper(trim($value));
+			if (preg_match($pattern, $value) !== 1) {
+				throw new ValidationException($this->l->t('"%s" is not a region code: use a country like DE or a region like DE-BY', [$value]));
+			}
+		}
 		$this->userConfig->setValueString($uid, self::APP_ID, $key, $value);
 	}
 

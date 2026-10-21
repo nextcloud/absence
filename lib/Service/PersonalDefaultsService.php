@@ -11,9 +11,6 @@ namespace OCA\Absence\Service;
 use OCA\Absence\ConfigLexicon;
 use OCA\DAV\CalDAV\Schedule\Plugin;
 use OCA\DAV\Db\PropertyMapper;
-use OCP\Accounts\IAccountManager;
-use OCP\Config\IUserConfig;
-use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 use Sabre\VObject\Reader;
 
@@ -22,37 +19,17 @@ use Sabre\VObject\Reader;
  * data the user already maintains in Nextcloud, so they need not re-enter it:
  *
  *  - working weekdays ← their Availability (/settings/user/availability)
- *  - holiday country  ← their locale, falling back to their phone country code
  *
- * Every detected value is only a suggestion: the per-user override stored via
- * ConfigService always wins, and the request field stays editable.
+ * The detected weekdays are only a suggestion: the per-user override stored via
+ * ConfigService always wins, and the request field stays editable. The holiday
+ * region code is never guessed: people set it themselves (§7.2).
  */
 class PersonalDefaultsService {
 	/** Availability RRULE BYDAY tokens → ISO weekday (Mon=1..Sun=7). */
 	private const BYDAY = ['MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6, 'SU' => 7];
 
-	// Phone calling code → ISO country, longest-prefix matched. Not exhaustive —
-	// it is a best-effort suggestion the user can override.
-	// TODO: hand-picked common codes; swap for libphonenumber if coverage matters.
-	private const CALLING_CODES = [
-		'1' => 'US', '7' => 'RU', '20' => 'EG', '27' => 'ZA', '30' => 'GR', '31' => 'NL',
-		'32' => 'BE', '33' => 'FR', '34' => 'ES', '36' => 'HU', '39' => 'IT', '40' => 'RO',
-		'41' => 'CH', '43' => 'AT', '44' => 'GB', '45' => 'DK', '46' => 'SE', '47' => 'NO',
-		'48' => 'PL', '49' => 'DE', '51' => 'PE', '52' => 'MX', '53' => 'CU', '54' => 'AR',
-		'55' => 'BR', '56' => 'CL', '57' => 'CO', '58' => 'VE', '60' => 'MY', '61' => 'AU',
-		'62' => 'ID', '63' => 'PH', '64' => 'NZ', '65' => 'SG', '66' => 'TH', '81' => 'JP',
-		'82' => 'KR', '84' => 'VN', '86' => 'CN', '90' => 'TR', '91' => 'IN', '92' => 'PK',
-		'93' => 'AF', '94' => 'LK', '95' => 'MM', '98' => 'IR', '351' => 'PT', '352' => 'LU',
-		'353' => 'IE', '354' => 'IS', '358' => 'FI', '359' => 'BG', '370' => 'LT', '371' => 'LV',
-		'372' => 'EE', '380' => 'UA', '385' => 'HR', '386' => 'SI', '420' => 'CZ', '421' => 'SK',
-		'972' => 'IL', '971' => 'AE', '966' => 'SA',
-	];
-
 	public function __construct(
-		private IUserConfig $userConfig,
 		private ConfigService $appConfig,
-		private IAccountManager $accountManager,
-		private IUserManager $userManager,
 		private PropertyMapper $propertyMapper,
 		private LoggerInterface $logger,
 	) {
@@ -73,19 +50,16 @@ class PersonalDefaultsService {
 
 		$detectedWeekdays = $this->detectWorkingWeekdays($uid);
 		$detectedCsv = $detectedWeekdays !== null ? implode(',', $detectedWeekdays) : null;
-		$detectedCountry = $this->detectCountry($uid);
 
 		return [
 			// Effective values consumed by the request-form prefill (always a CSV string).
 			'workWeekdays' => $overrideWeekdays !== '' ? $overrideWeekdays : ($detectedCsv ?? ConfigService::DEFAULT_WORK_WEEKDAYS),
-			'holidayCountry' => $overrideCountry !== '' ? $overrideCountry : ($detectedCountry ?? ''),
+			'holidayCountry' => $overrideCountry,
 			'holidayRegion' => $region,
 			// Detection details for the settings UI.
 			'availabilitySet' => $detectedWeekdays !== null,
 			'workWeekdaysDetected' => $detectedWeekdays,
 			'workWeekdaysOverride' => $overrideWeekdays,
-			'holidayCountryDetected' => $detectedCountry,
-			'holidayCountryOverride' => $overrideCountry,
 		];
 	}
 
@@ -135,43 +109,6 @@ class PersonalDefaultsService {
 			$this->logger->debug('Absence: could not parse availability for ' . $uid, ['exception' => $e]);
 			return null;
 		}
-	}
-
-	/** Suggested ISO country code from the user's locale, then phone; null if unknown. */
-	public function detectCountry(string $uid): ?string {
-		$locale = $this->userConfig->getValueString($uid, 'core', 'locale');
-		if (str_contains($locale, '_')) {
-			$region = strtoupper(substr($locale, strpos($locale, '_') + 1));
-			if (preg_match('/^[A-Z]{2}$/', $region)) {
-				return $region;
-			}
-		}
-		return $this->countryFromPhone($uid);
-	}
-
-	private function countryFromPhone(string $uid): ?string {
-		$user = $this->userManager->get($uid);
-		if ($user === null) {
-			return null;
-		}
-		try {
-			$phone = $this->accountManager->getAccount($user)->getProperty(IAccountManager::PROPERTY_PHONE)->getValue();
-		} catch (\Throwable $e) {
-			return null;
-		}
-		$digits = preg_replace('/\D/', '', $phone);
-		if ($phone === '' || !str_starts_with(trim($phone), '+') || $digits === '') {
-			// Without a leading "+" the calling code is ambiguous — do not guess.
-			return null;
-		}
-		for ($len = 3; $len >= 1; $len--) {
-			// Numeric-string array keys are stored as ints, so match with an int offset.
-			$prefix = (int)substr($digits, 0, $len);
-			if (isset(self::CALLING_CODES[$prefix])) {
-				return self::CALLING_CODES[$prefix];
-			}
-		}
-		return null;
 	}
 
 	/** Raw VAVAILABILITY string from the user's CalDAV inbox, or null if unset. */

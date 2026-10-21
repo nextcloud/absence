@@ -217,7 +217,7 @@ import Send from 'vue-material-design-icons/Send.vue'
 import api from '../api.js'
 import { store } from '../store.js'
 import { countWorkingDays, parseWeekdays, toIso } from '../utils/dates.js'
-import { makeHolidayChecker } from '../utils/holidays.js'
+import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.js'
 
 export default {
 	name: 'RequestDialog',
@@ -556,13 +556,15 @@ export default {
 		if (!this.hrMode && !store.balance.balances.length) {
 			await store.loadMyBalance()
 		}
-		// Holiday data is heavy, so it loads in the background; prefill refreshes
-		// once it is ready. Weekday counting works immediately without it.
+		// The holidays load in the background; prefill refreshes once they are
+		// there. Weekday counting works immediately without them.
 		try {
-			this.holidayChecker = await makeHolidayChecker(store.session.holidayCountry, store.session.holidayRegion)
+			const year = new Date().getFullYear()
+			const code = formatRegionCode(store.session.holidayCountry, store.session.holidayRegion)
+			this.holidayChecker = makeHolidayChecker(await api.listApplyingHolidays(code, `${year - 1}-01-01`, `${year + 1}-12-31`))
 			this.recomputePrefill()
 		} catch {
-			// No holiday region / load failed — prefill stays weekday-only.
+			// Load failed: prefill stays weekday-only
 		}
 	},
 

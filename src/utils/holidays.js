@@ -2,58 +2,76 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Thin wrapper around `date-holidays`, which carries the public-holiday data for
- * all countries and sub-regions (incl. German Bundesländer). It is heavy, so it
- * is dynamically imported only when a holiday region is configured — the main
- * bundle never pulls it in.
+ * Public holidays come from the list HR maintains (§7.2), by region code:
+ * a country (`DE`), a region (`DE-BY`) or `*` for everywhere.
  */
 
+const CODE = /^([A-Z]{2})(?:[-_]([A-Z0-9]{1,3}))?$/
+
 /**
- * Build a predicate `(iso) => boolean` that is true on public holidays for the
- * given country/region. Returns null when no country is set (no subtraction).
+ * `de-by` or `DE_BY` → { country: 'DE', region: 'BY' }. Null when it is not a code; an empty
+ * code is valid and means "no region".
  *
- * @param {string} country ISO country code, e.g. 'DE'
- * @param {string} [region] sub-region/state code, e.g. 'BY'
- * @return {Promise<((iso: string) => boolean) | null>}
+ * @param {string} code what the person typed
+ * @return {{country: string, region: string} | null}
  */
-export async function makeHolidayChecker(country, region) {
-	if (!country) {
-		return null
+export function parseRegionCode(code) {
+	const value = (code || '').trim().toUpperCase()
+	if (value === '') {
+		return { country: '', region: '' }
 	}
-	const { default: Holidays } = await import('date-holidays')
-	const hd = region ? new Holidays(country, region) : new Holidays(country)
-	return (iso) => {
-		// Midday avoids any DST/timezone edge landing on the wrong day.
-		const res = hd.isHoliday(new Date(iso + 'T12:00:00'))
-		// isHoliday returns false or an array of matches; count only real public
-		// holidays (not observances, optional or school days).
-		return Array.isArray(res) && res.some((h) => h.type === 'public')
+	const match = CODE.exec(value)
+	return match ? { country: match[1], region: match[2] || '' } : null
+}
+
+/**
+ * @param {string} country two-letter country
+ * @param {string} region subdivision, may be empty
+ * @return {string} `DE-BY`, `DE`, or '' when no country is set
+ */
+export function formatRegionCode(country, region) {
+	if (!country) {
+		return ''
+	}
+	return region ? `${country}-${region}` : country
+}
+
+/**
+ * Whether HR entered any holiday for this code or its country.
+ *
+ * @param {string} code a valid, non-empty region code
+ * @param {string[]} regions the codes that have holidays
+ * @return {boolean}
+ */
+export function hasHolidays(code, regions) {
+	const parsed = parseRegionCode(code)
+	return parsed !== null && (regions.includes(formatRegionCode(parsed.country, parsed.region)) || regions.includes(parsed.country))
+}
+
+/**
+ * What changes for someone moving from one region code to another.
+ *
+ * @param {Array<{date: string, label: string}>} before holidays of the old code
+ * @param {Array<{date: string, label: string}>} after holidays of the new code
+ * @return {{lost: Array<{date: string, label: string}>, gained: Array<{date: string, label: string}>, kept: number}}
+ */
+export function compareHolidays(before, after) {
+	const beforeDates = new Set(before.map((h) => h.date))
+	const afterDates = new Set(after.map((h) => h.date))
+	return {
+		lost: before.filter((h) => !afterDates.has(h.date)),
+		gained: after.filter((h) => !beforeDates.has(h.date)),
+		kept: after.filter((h) => beforeDates.has(h.date)).length,
 	}
 }
 
 /**
- * List of { id, label } countries for the settings dropdown. Lazily imported.
+ * A predicate `(iso) => boolean` for the working-days prefill.
  *
- * @return {Promise<Array<{id: string, label: string}>>}
+ * @param {Array<{date: string}>} holidays the days off
+ * @return {(iso: string) => boolean}
  */
-export async function listCountries() {
-	const { default: Holidays } = await import('date-holidays')
-	const map = new Holidays().getCountries()
-	return Object.keys(map).map((id) => ({ id, label: map[id] }))
-}
-
-/**
- * List of { id, label } states/regions for a country (empty if the country has
- * none). Lazily imported.
- *
- * @param {string} country
- * @return {Promise<Array<{id: string, label: string}>>}
- */
-export async function listRegions(country) {
-	if (!country) {
-		return []
-	}
-	const { default: Holidays } = await import('date-holidays')
-	const map = new Holidays().getStates(country) || {}
-	return Object.keys(map).map((id) => ({ id, label: map[id] }))
+export function makeHolidayChecker(holidays) {
+	const dates = new Set(holidays.map((h) => h.date))
+	return (iso) => dates.has(iso)
 }
