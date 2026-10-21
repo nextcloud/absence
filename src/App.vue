@@ -47,6 +47,11 @@
 						<BookOpenVariant :size="20" />
 					</template>
 				</NcAppNavigationItem>
+				<NcAppNavigationItem :name="t('absence', 'Public holidays')" :to="{ name: 'holidays' }">
+					<template #icon>
+						<PartyPopper :size="20" />
+					</template>
+				</NcAppNavigationItem>
 
 				<template v-if="session.isHr">
 					<NcAppNavigationCaption :name="t('absence', 'HR')" />
@@ -86,11 +91,6 @@
 						</template>
 						<template v-if="session.escalatedCount > 0" #counter>
 							<NcCounterBubble :count="session.escalatedCount" />
-						</template>
-					</NcAppNavigationItem>
-					<NcAppNavigationItem :name="t('absence', 'Public holidays')" :to="{ name: 'hr-holidays' }">
-						<template #icon>
-							<PartyPopper :size="20" />
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'HR handbook')" :to="{ name: 'hr-handbook' }">

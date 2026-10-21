@@ -124,6 +124,7 @@ class AdminDeclarativeSettingsTest extends TestCase {
 			ConfigLexicon::KEY_NOTICE_PERIOD => 14,
 			ConfigLexicon::KEY_CALDAV_PERSONAL => true,
 			ConfigLexicon::KEY_CALDAV_SHARED => true,
+			ConfigLexicon::KEY_HOLIDAYS_EVERYONE => false,
 			ConfigLexicon::KEY_SHARED_VISIBILITY => ConfigService::VISIBILITY_NEUTRAL,
 		];
 	}

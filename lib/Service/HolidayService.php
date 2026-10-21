@@ -9,13 +9,18 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\Holiday;
+use OCA\Absence\Db\HolidayChange;
+use OCA\Absence\Db\HolidayChangeMapper;
 use OCA\Absence\Db\HolidayMapper;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IL10N;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 
 /**
  * The public holidays HR maintains by hand (§7.2). A region code is a country
@@ -32,7 +37,31 @@ class HolidayService {
 		private HolidayMapper $mapper,
 		private IDBConnection $db,
 		private IL10N $l,
+		private ConfigService $config,
+		private HolidayChangeMapper $history,
+		private ClockService $clock,
+		private IEventDispatcher $dispatcher,
 	) {
+	}
+
+	/**
+	 * Lets everyone, or HR only, edit the list.
+	 */
+	public function setEveryoneCanEdit(bool $everyone, string $actor): void {
+		$this->config->setAdminValue(ConfigLexicon::KEY_HOLIDAYS_EVERYONE, $everyone);
+		$this->record($everyone ? HolidayChange::EVERYONE_EDITS : HolidayChange::HR_EDITS, [], $actor);
+	}
+
+	/**
+	 * @return list<array{action: string, actorUid: ?string, at: string, detail: array<string, mixed>}> newest first
+	 */
+	public function history(int $limit = 200): array {
+		return array_map(static fn (HolidayChange $c): array => [
+			'action' => $c->getAction(),
+			'actorUid' => $c->getActorUid(),
+			'at' => $c->getCreatedAt()->format(\DateTimeInterface::ATOM),
+			'detail' => json_decode($c->getDetail(), true) ?: [],
+		], $this->history->findRecent($limit));
 	}
 
 	/**
@@ -66,26 +95,35 @@ class HolidayService {
 	/**
 	 * @throws ValidationException
 	 */
-	public function create(string $date, string $region, string $label, bool $recurring = false): Holiday {
+	public function create(string $date, string $region, string $label, bool $recurring = false, ?string $actor = null): Holiday {
 		$holiday = new Holiday();
 		$this->fill($holiday, $date, $region, $label, $recurring);
-		return $this->mapper->insert($holiday);
+		$holiday->setCreatedBy($actor);
+		$holiday = $this->mapper->insert($holiday);
+		$this->record(HolidayChange::ADDED, $this->describe($holiday), $actor);
+		return $holiday;
 	}
 
 	/**
 	 * @throws ValidationException|NotFoundException
 	 */
-	public function update(int $id, string $date, string $region, string $label, bool $recurring = false): Holiday {
+	public function update(int $id, string $date, string $region, string $label, bool $recurring = false, ?string $actor = null): Holiday {
 		$holiday = $this->find($id);
+		$before = $this->describe($holiday);
 		$this->fill($holiday, $date, $region, $label, $recurring);
-		return $this->mapper->update($holiday);
+		$holiday->setUpdatedBy($actor);
+		$holiday = $this->mapper->update($holiday);
+		$this->record(HolidayChange::CHANGED, ['before' => $before, 'after' => $this->describe($holiday)], $actor);
+		return $holiday;
 	}
 
 	/**
 	 * @throws NotFoundException
 	 */
-	public function delete(int $id): Holiday {
-		return $this->mapper->delete($this->find($id));
+	public function delete(int $id, ?string $actor = null): Holiday {
+		$holiday = $this->mapper->delete($this->find($id));
+		$this->record(HolidayChange::DELETED, $this->describe($holiday), $actor);
+		return $holiday;
 	}
 
 	/**
@@ -148,7 +186,7 @@ class HolidayService {
 	 * @return array{new: list<array{date: string, region: string, label: string, recurring: bool}>, existing: int}
 	 * @throws ValidationException
 	 */
-	public function import(string $json): array {
+	public function import(string $json, ?string $actor = null): array {
 		$plan = $this->plan($json);
 		$this->db->beginTransaction();
 		try {
@@ -158,12 +196,16 @@ class HolidayService {
 				$holiday->setRegion($entry['region']);
 				$holiday->setLabel($entry['label']);
 				$holiday->setRecurring($entry['recurring']);
+				$holiday->setCreatedBy($actor);
 				$this->mapper->insert($holiday);
 			}
 			$this->db->commit();
 		} catch (\Throwable $e) {
 			$this->db->rollBack();
 			throw $e;
+		}
+		if ($plan['new'] !== []) {
+			$this->record(HolidayChange::IMPORTED, ['count' => count($plan['new'])], $actor);
 		}
 		return $plan;
 	}
@@ -197,6 +239,42 @@ class HolidayService {
 			throw new ValidationException($this->l->t('"%s" is not a region code: use a country like DE, a region like DE-BY, or * for everywhere', [$region]));
 		}
 		return $region;
+	}
+
+	/**
+	 * @return array{label: string, date: string, region: string, recurring: bool}
+	 */
+	private function describe(Holiday $holiday): array {
+		return ['label' => $holiday->getLabel(), 'date' => $holiday->getDate(), 'region' => $holiday->getRegion(), 'recurring' => $holiday->getRecurring()];
+	}
+
+	/**
+	 * Keeps the history of the list, and tells the admin audit log when it is
+	 * enabled. Changes from occ have no actor.
+	 *
+	 * @param array<string, mixed> $detail
+	 */
+	private function record(string $action, array $detail, ?string $actor): void {
+		$change = new HolidayChange();
+		$change->setAction($action);
+		$change->setActorUid($actor);
+		$change->setDetail(json_encode($detail, JSON_THROW_ON_ERROR));
+		$change->setCreatedAt($this->clock->now());
+		$this->history->insert($change);
+
+		$by = $actor ?? 'occ';
+		[$message, $parameters] = match ($action) {
+			HolidayChange::ADDED => ['Public holiday "%s" added for %s on %s by %s', [$detail['label'], $detail['region'], $detail['date'], $by]],
+			HolidayChange::CHANGED => ['Public holiday "%s" for %s on %s changed to "%s" for %s on %s by %s', [
+				$detail['before']['label'], $detail['before']['region'], $detail['before']['date'],
+				$detail['after']['label'], $detail['after']['region'], $detail['after']['date'], $by,
+			]],
+			HolidayChange::DELETED => ['Public holiday "%s" for %s on %s deleted by %s', [$detail['label'], $detail['region'], $detail['date'], $by]],
+			HolidayChange::IMPORTED => ['%s public holidays imported by %s', [$detail['count'], $by]],
+			HolidayChange::EVERYONE_EDITS => ['Everyone may edit public holidays, set by %s', [$by]],
+			default => ['Only HR may edit public holidays, set by %s', [$by]],
+		};
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent($message, $parameters));
 	}
 
 	/**

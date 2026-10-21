@@ -135,6 +135,13 @@ class AdminDeclarativeSettings implements IDeclarativeSettingsFormWithHandlers {
 					'default' => true,
 				],
 				[
+					'id' => ConfigLexicon::KEY_HOLIDAYS_EVERYONE,
+					'title' => $this->l->t('Public holidays'),
+					'label' => $this->l->t('Everyone can add and edit public holidays, not only HR'),
+					'type' => DeclarativeSettingsTypes::CHECKBOX,
+					'default' => false,
+				],
+				[
 					'id' => ConfigLexicon::KEY_SHARED_VISIBILITY,
 					'title' => $this->l->t('Shared calendar visibility'),
 					'type' => DeclarativeSettingsTypes::RADIO,

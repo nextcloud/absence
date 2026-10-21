@@ -59,6 +59,8 @@ export default {
 	createHoliday: (data) => axios.post(url('/api/holidays'), data).then((r) => r.data),
 	updateHoliday: (id, data) => axios.put(url(`/api/holidays/${id}`), data).then((r) => r.data),
 	deleteHoliday: (id) => axios.delete(url(`/api/holidays/${id}`)).then((r) => r.data),
+	setHolidayEditing: (everyone) => axios.put(url('/api/holidays/editing'), { everyone }).then((r) => r.data),
+	holidayHistory: () => axios.get(url('/api/holidays/history')).then((r) => r.data),
 	importHolidays: (json, dryRun) => axios.post(url('/api/holidays/import'), { json, dryRun }).then((r) => r.data),
 
 	// Employee search for the people pickers. Deliberately not core's autocomplete:

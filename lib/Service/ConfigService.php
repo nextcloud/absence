@@ -95,6 +95,10 @@ class ConfigService {
 		return $this->appConfig->getValueBool(self::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED);
 	}
 
+	public function canEveryoneEditHolidays(): bool {
+		return $this->appConfig->getValueBool(self::APP_ID, ConfigLexicon::KEY_HOLIDAYS_EVERYONE);
+	}
+
 	/** @return string self::VISIBILITY_NEUTRAL|self::VISIBILITY_REVEAL */
 	public function getSharedCalendarVisibility(): string {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_SHARED_VISIBILITY);
@@ -119,6 +123,7 @@ class ConfigService {
 			ConfigLexicon::KEY_NOTICE_PERIOD => $this->getNoticePeriodDays(),
 			ConfigLexicon::KEY_CALDAV_PERSONAL => $this->isCalDavPersonalEnabled(),
 			ConfigLexicon::KEY_CALDAV_SHARED => $this->isCalDavSharedEnabled(),
+			ConfigLexicon::KEY_HOLIDAYS_EVERYONE => $this->canEveryoneEditHolidays(),
 			ConfigLexicon::KEY_SHARED_VISIBILITY => $this->getSharedCalendarVisibility(),
 		];
 	}
@@ -167,6 +172,7 @@ class ConfigService {
 				break;
 			case ConfigLexicon::KEY_CALDAV_PERSONAL:
 			case ConfigLexicon::KEY_CALDAV_SHARED:
+			case ConfigLexicon::KEY_HOLIDAYS_EVERYONE:
 				$this->appConfig->setValueBool(self::APP_ID, $key, (bool)$value);
 				break;
 			case ConfigLexicon::KEY_CARRYOVER_POLICY:

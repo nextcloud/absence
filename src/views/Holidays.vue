@@ -26,13 +26,19 @@
 					</template>
 					{{ t('absence', 'Download') }}
 				</NcButton>
-				<NcButton @click="openImport">
+				<NcButton @click="openHistory">
+					<template #icon>
+						<History :size="20" />
+					</template>
+					{{ t('absence', 'History') }}
+				</NcButton>
+				<NcButton v-if="canEdit" @click="openImport">
 					<template #icon>
 						<Upload :size="20" />
 					</template>
 					{{ t('absence', 'Import') }}
 				</NcButton>
-				<NcButton variant="primary" @click="edit(null)">
+				<NcButton v-if="canEdit" variant="primary" @click="edit(null)">
 					<template #icon>
 						<Plus :size="20" />
 					</template>
@@ -43,7 +49,19 @@
 
 		<p class="holidays__intro">
 			{{ t('absence', 'People get the days of their region code, of its country, and the days entered for * (everywhere). DE-BY gets DE-BY, DE and * days.') }}
+			<template v-if="!canEdit">
+				{{ t('absence', 'Only HR edits public holidays.') }}
+			</template>
 		</p>
+		<NcCheckboxRadioSwitch
+			v-if="session.isHr"
+			class="holidays__everyone"
+			type="switch"
+			:modelValue="session.holidaysEveryoneEdits"
+			:disabled="saving"
+			@update:modelValue="setEveryone">
+			{{ t('absence', 'Everyone can add and edit public holidays') }}
+		</NcCheckboxRadioSwitch>
 
 		<SkeletonList v-if="loading" :rows="6" />
 
@@ -54,7 +72,7 @@
 						<th>{{ t('absence', 'Date') }}</th>
 						<th>{{ t('absence', 'Region') }}</th>
 						<th>{{ t('absence', 'Name') }}</th>
-						<th />
+						<th v-if="canEdit" />
 					</tr>
 				</thead>
 				<tbody>
@@ -66,14 +84,17 @@
 						<td>
 							{{ holiday.label }}
 							<span v-if="holiday.recurring" class="holidays__recurring">{{ t('absence', 'every year') }}</span>
+							<div v-if="byline(holiday)" class="holidays__byline">
+								{{ byline(holiday) }}
+							</div>
 						</td>
-						<td class="holidays__actions">
-							<NcButton variant="tertiary" :aria-label="t('absence', 'Edit {name}', { name: holiday.label })" @click="edit(holiday)">
+						<td v-if="canEdit" class="holidays__actions">
+							<NcButton variant="tertiary" :aria-label="t('absence', 'Edit {name}', { name: holiday.label }, undefined, { escape: false })" @click="edit(holiday)">
 								<template #icon>
 									<Pencil :size="18" />
 								</template>
 							</NcButton>
-							<NcButton variant="tertiary" :aria-label="t('absence', 'Delete {name}', { name: holiday.label })" @click="remove(holiday)">
+							<NcButton variant="tertiary" :aria-label="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false })" @click="remove(holiday)">
 								<template #icon>
 									<Delete :size="18" />
 								</template>
@@ -85,7 +106,7 @@
 			<NcEmptyContent
 				v-if="!shown.length"
 				:name="t('absence', 'No public holidays for {year}', { year })"
-				:description="t('absence', 'Add them one by one, or import a whole year as JSON.')">
+				:description="canEdit ? t('absence', 'Add them one by one, or import a whole year as JSON.') : ''">
 				<template #icon>
 					<PartyPopper :size="20" />
 				</template>
@@ -174,6 +195,25 @@
 				</div>
 			</div>
 		</NcModal>
+
+		<NcModal
+			v-if="history"
+			:name="t('absence', 'History')"
+			size="normal"
+			@close="history = null">
+			<div class="holidays__form">
+				<h3>{{ t('absence', 'Changes to the public holidays') }}</h3>
+				<p v-if="!history.length">
+					{{ t('absence', 'No changes yet.') }}
+				</p>
+				<ul class="holidays__history">
+					<li v-for="(change, i) in history" :key="i">
+						<span class="holidays__when">{{ formatWhen(change.at) }}</span>
+						{{ describeChange(change) }}
+					</li>
+				</ul>
+			</div>
+		</NcModal>
 	</div>
 </template>
 
@@ -189,20 +229,22 @@ import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Download from 'vue-material-design-icons/Download.vue'
+import History from 'vue-material-design-icons/History.vue'
 import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Delete from 'vue-material-design-icons/TrashCanOutline.vue'
 import Upload from 'vue-material-design-icons/Upload.vue'
-import SkeletonList from '../../components/SkeletonList.vue'
-import api from '../../api.js'
-import { formatDate, toIso } from '../../utils/dates.js'
+import SkeletonList from '../components/SkeletonList.vue'
+import api from '../api.js'
+import { store } from '../store.js'
+import { formatDate, toIso } from '../utils/dates.js'
 
 const EVERYWHERE = '*'
 
 export default {
-	name: 'HrHolidays',
-	components: { NcButton, NcCheckboxRadioSwitch, NcDateTimePickerNative, NcEmptyContent, NcModal, NcSelect, NcTextArea, NcTextField, Delete, Download, PartyPopper, Pencil, Plus, Upload, SkeletonList },
+	name: 'Holidays',
+	components: { NcButton, NcCheckboxRadioSwitch, NcDateTimePickerNative, NcEmptyContent, NcModal, NcSelect, NcTextArea, NcTextField, Delete, Download, History, PartyPopper, Pencil, Plus, Upload, SkeletonList },
 	data() {
 		const y = new Date().getFullYear()
 		const all = { id: '', label: t('absence', 'All regions') }
@@ -219,6 +261,7 @@ export default {
 			json: '',
 			plan: null,
 			importError: '',
+			history: null,
 			example: JSON.stringify([
 				{ date: `${y + 1}-01-01`, region: 'DE', label: t('absence', 'New Year\'s Day') },
 				{ date: `${y + 1}-12-24`, region: EVERYWHERE, label: t('absence', 'Company day off'), recurring: true },
@@ -227,6 +270,14 @@ export default {
 	},
 
 	computed: {
+		session() {
+			return store.session
+		},
+
+		canEdit() {
+			return store.session.canEditHolidays
+		},
+
 		regionOptions() {
 			const codes = [...new Set(this.holidays.map((h) => h.region))].sort()
 			return [this.all, ...codes.map((code) => ({ id: code, label: this.regionName(code) }))]
@@ -291,8 +342,8 @@ export default {
 			try {
 				await api.deleteHoliday(holiday.id)
 				showSuccess(holiday.recurring
-					? t('absence', '{name} deleted from every year', { name: holiday.label })
-					: t('absence', '{name} deleted', { name: holiday.label }))
+					? t('absence', '{name} deleted from every year', { name: holiday.label }, undefined, { escape: false })
+					: t('absence', '{name} deleted', { name: holiday.label }, undefined, { escape: false }))
 				await this.load()
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not delete the holiday'))
@@ -332,6 +383,62 @@ export default {
 			}
 		},
 
+		byline(holiday) {
+			if (holiday.createdByName && holiday.updatedByName) {
+				return t('absence', 'Added by {added} · changed by {changed}', { added: holiday.createdByName, changed: holiday.updatedByName }, undefined, { escape: false })
+			}
+			if (holiday.createdByName) {
+				return t('absence', 'Added by {name}', { name: holiday.createdByName }, undefined, { escape: false })
+			}
+			return holiday.updatedByName ? t('absence', 'Changed by {name}', { name: holiday.updatedByName }, undefined, { escape: false }) : ''
+		},
+
+		async setEveryone(everyone) {
+			this.saving = true
+			try {
+				await api.setHolidayEditing(everyone)
+				await store.refreshSession()
+			} catch (e) {
+				showError(e.response?.data?.message || t('absence', 'Could not change who edits public holidays'))
+			} finally {
+				this.saving = false
+			}
+		},
+
+		async openHistory() {
+			try {
+				this.history = await api.holidayHistory()
+			} catch {
+				showError(t('absence', 'Could not load the history'))
+			}
+		},
+
+		formatWhen(atom) {
+			return new Date(atom).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+		},
+
+		describeChange(change) {
+			const who = change.actorName || t('absence', 'An administrator')
+			const day = (d) => `${d.label} (${formatDate(d.date)}, ${this.regionName(d.region)})`
+			const d = change.detail
+			switch (change.action) {
+				case 'added':
+					return t('absence', '{who} added {day}', { who, day: day(d) }, undefined, { escape: false })
+				case 'deleted':
+					return t('absence', '{who} deleted {day}', { who, day: day(d) }, undefined, { escape: false })
+				case 'changed':
+					return t('absence', '{who} changed {before} to {after}', { who, before: day(d.before), after: day(d.after) }, undefined, { escape: false })
+				case 'imported':
+					return n('absence', '{who} imported {count} holiday', '{who} imported {count} holidays', d.count, { who, count: d.count }, { escape: false })
+				case 'everyone_edits':
+					return t('absence', '{who} let everyone edit public holidays', { who }, undefined, { escape: false })
+				case 'hr_edits':
+					return t('absence', '{who} made public holidays editable by HR only', { who }, undefined, { escape: false })
+				default:
+					return change.action
+			}
+		},
+
 		download() {
 			// The import format, so a year can be edited and imported again
 			const list = this.shown.map(({ date, region, label, recurring }) => ({ date, region, label, recurring }))
@@ -355,6 +462,29 @@ export default {
 	&__region {
 		font-variant-numeric: tabular-nums;
 		font-weight: bold;
+	}
+
+	&__everyone {
+		margin-block-end: calc(2 * var(--default-grid-baseline));
+	}
+
+	&__byline,
+	&__when {
+		color: var(--color-text-maxcontrast);
+		font-size: 0.85em;
+	}
+
+	&__when {
+		margin-inline-end: var(--default-grid-baseline);
+	}
+
+	&__history {
+		display: flex;
+		flex-direction: column;
+		gap: var(--default-grid-baseline);
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
 
 	&__recurring {

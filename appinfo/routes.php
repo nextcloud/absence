@@ -55,6 +55,8 @@ return [
 		['name' => 'holiday#index', 'url' => '/api/holidays', 'verb' => 'GET'],
 		['name' => 'holiday#create', 'url' => '/api/holidays', 'verb' => 'POST'],
 		['name' => 'holiday#import', 'url' => '/api/holidays/import', 'verb' => 'POST'],
+		['name' => 'holiday#editing', 'url' => '/api/holidays/editing', 'verb' => 'PUT'],
+		['name' => 'holiday#history', 'url' => '/api/holidays/history', 'verb' => 'GET'],
 		['name' => 'holiday#update', 'url' => '/api/holidays/{id}', 'verb' => 'PUT'],
 		['name' => 'holiday#destroy', 'url' => '/api/holidays/{id}', 'verb' => 'DELETE'],
 

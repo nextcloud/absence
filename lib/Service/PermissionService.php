@@ -139,6 +139,22 @@ class PermissionService {
 	}
 
 	/**
+	 * Public holidays (§7.2): HR always, everyone else when HR or an admin allows it.
+	 */
+	public function canEditHolidays(string $uid): bool {
+		return $this->isHr($uid) || ($uid !== '' && $this->config->canEveryoneEditHolidays());
+	}
+
+	/**
+	 * @throws \OCA\Absence\Exception\ForbiddenException
+	 */
+	public function assertCanEditHolidays(string $uid): void {
+		if (!$this->canEditHolidays($uid)) {
+			throw new \OCA\Absence\Exception\ForbiddenException($this->l->t('Only HR edits public holidays'));
+		}
+	}
+
+	/**
 	 * The uids of all HR-group members (recipients for escalation, §5.4).
 	 *
 	 * An empty result is a misconfiguration, not a normal state: escalation is the

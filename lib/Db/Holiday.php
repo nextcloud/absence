@@ -22,6 +22,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setLabel(string $label)
  * @method bool getRecurring()
  * @method void setRecurring(bool $recurring)
+ * @method ?string getCreatedBy()
+ * @method void setCreatedBy(?string $createdBy)
+ * @method ?string getUpdatedBy()
+ * @method void setUpdatedBy(?string $updatedBy)
  * @method ?int getYear()
  * @method void setYear(?int $year)
  */
@@ -31,6 +35,8 @@ class Holiday extends Entity implements \JsonSerializable {
 	protected string $label = '';
 	protected bool $recurring = false;
 	protected ?int $year = null;
+	protected ?string $createdBy = null;
+	protected ?string $updatedBy = null;
 
 	public function __construct() {
 		$this->addType('region', 'string');
@@ -38,6 +44,8 @@ class Holiday extends Entity implements \JsonSerializable {
 		$this->addType('label', 'string');
 		$this->addType('recurring', 'boolean');
 		$this->addType('year', 'integer');
+		$this->addType('createdBy', 'string');
+		$this->addType('updatedBy', 'string');
 	}
 
 	#[\Override]
@@ -48,6 +56,8 @@ class Holiday extends Entity implements \JsonSerializable {
 			'date' => $this->date,
 			'label' => $this->label,
 			'recurring' => $this->recurring,
+			'createdBy' => $this->createdBy,
+			'updatedBy' => $this->updatedBy,
 		];
 	}
 }

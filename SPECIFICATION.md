@@ -686,10 +686,10 @@ The prefill stops as soon as the user edits the field, is absent when editing an
 existing request, and is **never used server-side** — the manually confirmed number
 is what counts (§7).
 
-### 7.2 Public holidays (maintained by HR)
+### 7.2 Public holidays (a hand-kept list)
 
-No library decides what a holiday is: HR keeps the list on the *Public holidays* HR
-page, one region code per day. Someone with code `DE-BY` gets the `DE-BY`, `DE` and `*`
+No library decides what a holiday is: the list is kept on the *Public holidays* page,
+one region code per day. Someone with code `DE-BY` gets the `DE-BY`, `DE` and `*`
 days; a country does not get its regions' days.
 
 - **One by one:** add, edit and delete on the page.
@@ -702,8 +702,14 @@ days; a country does not get its regions' days.
 - **Out again:** the page downloads the shown list in the same format, and
   `occ absence:export-holidays [--year] [--region]` prints it.
 
-Everyone can read the list; only HR changes it. Other apps read it through
-`getPublicHolidays()` (§14b).
+Everyone can read the list. HR always edits it, and HR (on the page) or an admin (in
+the admin settings) can let everyone edit it, so HR does not become a bottleneck.
+Each row shows who added and who last changed it, and a *History* view lists every
+change with its author and the values before and after (`absence_holiday_history`).
+Every change also goes to the admin audit log (`CriticalActionPerformedEvent`, when
+the *Auditing / Logging* app is enabled) and to `nextcloud.log` like the other audit
+entries. Nothing is sent to the Activity stream, by notification or by email. Other apps read
+the list through `getPublicHolidays()` (§14b).
 
 ---
 
@@ -893,6 +899,7 @@ new "Absence" settings section or "Personal info"/"Administration"):
 | Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
 | CalDAV: write personal events | true | §10. |
 | CalDAV: write shared team calendar | true | §10. |
+| Everyone edits public holidays | false | §7.2; HR can switch it on the *Public holidays* page too. |
 | Shared calendar type-visibility | neutral | Reveal type vs "Absent" on shared cal. |
 | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. |
 
@@ -1046,7 +1053,9 @@ the SPA). All list endpoints paginate and accept filters.
   (HR only).
 - HR/admin CRUD for leave types.
 - `GET /api/holidays?year&region` (everyone), `POST /api/holidays`,
-  `PUT|DELETE /api/holidays/{id}` and `POST /api/holidays/import {json, dryRun}` (HR):
+  `PUT|DELETE /api/holidays/{id}` and `POST /api/holidays/import {json, dryRun}` (HR,
+  or everyone when allowed), `PUT /api/holidays/editing {everyone}` (HR) and
+  `GET /api/holidays/history` (everyone):
   public holidays (§7.2).
 
 **HR reporting**
@@ -1082,7 +1091,7 @@ not HTTP:
   user removes their requests without an event; core's `UserDeletedEvent` covers that.
 - **`getWorkingDaysSettings($userId)`** returns the working weekdays and holiday country/region
   this app uses for its own estimate (§7.1), so another app need not ask again.
-- **`getPublicHolidays($regionCodes, $from, $to)`** returns the HR-maintained holidays
+- **`getPublicHolidays($regionCodes, $from, $to)`** returns the public holidays
   (§7.2) for those region codes, recurring ones once per year in the range.
 - **Confidentiality holds (§5.7):** for an `hr_only` type the type key and label are
   null and `confidential` is true. A consumer learns the dates and nothing else.
@@ -1562,6 +1571,7 @@ Recorded during the build so the spec matches the code:
   other apps plan around absences without reading the tables. Events are queued while
   `RequestService` runs a transaction and dispatched after the outermost commit.
 - **Public holidays are back as a hand-kept list** (§7.2). The removed feature computed
-  working days from them; this one does not: HR keeps a plain list per region code in
-  the existing `absence_holidays` table, with a JSON import and export (page and
-  `occ`), and other apps read it through `getPublicHolidays()`.
+  working days from them; this one does not: a plain list per region code in the
+  existing `absence_holidays` table (plus `created_by`/`updated_by`), with a JSON import
+  and export (page and `occ`), a change history, and an HR switch that lets everyone
+  edit it. Other apps read it through `getPublicHolidays()`.
