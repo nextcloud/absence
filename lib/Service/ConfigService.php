@@ -141,6 +141,31 @@ class ConfigService {
 	}
 
 	/**
+	 * `DE` and `BY` make `DE-BY`; no country, no code.
+	 */
+	public static function regionCode(string $country, string $region): string {
+		return $country === '' ? '' : ($region === '' ? $country : $country . '-' . $region);
+	}
+
+	/**
+	 * Everybody's region code in two queries, for lists of many people. People
+	 * without one are left out.
+	 *
+	 * @return array<string, string> uid => region code
+	 */
+	public function getRegionCodes(): array {
+		$regions = $this->userConfig->getValuesByUsers(self::APP_ID, ConfigLexicon::KEY_HOLIDAY_REGION);
+		$codes = [];
+		foreach ($this->userConfig->getValuesByUsers(self::APP_ID, ConfigLexicon::KEY_HOLIDAY_COUNTRY) as $uid => $country) {
+			$code = self::regionCode((string)$country, (string)($regions[$uid] ?? ''));
+			if ($code !== '') {
+				$codes[(string)$uid] = $code;
+			}
+		}
+		return $codes;
+	}
+
+	/**
 	 * @throws ValidationException for a holiday country or region that cannot be part of a region code (§7.2)
 	 */
 	public function setPersonalValue(string $uid, string $key, string $value): void {

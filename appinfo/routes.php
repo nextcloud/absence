@@ -27,7 +27,8 @@ return [
 		['name' => 'attachment#download', 'url' => '/api/attachments/{id}', 'verb' => 'GET'],
 		['name' => 'attachment#destroy', 'url' => '/api/attachments/{id}', 'verb' => 'DELETE'],
 
-		// People (autocomplete for the employee / replacement pickers)
+		// People: HR's employees list, and the autocomplete for the employee / replacement pickers
+		['name' => 'employee#index', 'url' => '/api/employees', 'verb' => 'GET'],
 		['name' => 'employee#search', 'url' => '/api/employees/search', 'verb' => 'GET'],
 		['name' => 'employee#groups', 'url' => '/api/groups', 'verb' => 'GET'],
 

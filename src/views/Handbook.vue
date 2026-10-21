@@ -212,8 +212,8 @@
 
 					<section :ref="setRef('hr-balances')" class="handbook__section handbook__section--hr">
 						<h3>⚖️ {{ t('absence', 'Balances & entitlements') }}</h3>
-						<p>{{ t('absence', 'Balances shows entitlement, used, pending, remaining and available per employee, year and type. Set entitlements individually or in bulk for a whole group.') }}</p>
-						<p>{{ t('absence', 'Every entitlement is a base allowance plus an explicit adjustment with a mandatory note — "why does this person have 27 days?" always has a written answer. The pencil on a row opens the editor together with the change history.') }}</p>
+						<p>{{ t('absence', 'Employees lists everyone with their region code, working days, contract, manager, and the days, taken, left and sick days of a year. Filters show who is missing data, who works part-time and who starts or leaves in the year. The menu at the end of a row edits each entitlement.') }}</p>
+						<p>{{ t('absence', 'Every entitlement is a base allowance plus an explicit adjustment with a mandatory note, so "why does this person have 27 days?" always has a written answer. The editor opens together with the change history.') }}</p>
 						<p>{{ t('absence', 'Carry-over into the new year is computed automatically by the rollover job, following the policy, cap and expiry date from the admin settings.') }}</p>
 						<p>{{ t('absence', 'Adjustments are entered as deltas: "+2 for the wedding", later "−2, booked in error" — the two cancel back to the original. The change history under each entitlement records who changed which figure, from what to what, and the note they gave.') }}</p>
 						<figure class="handbook__figure handbook__figure--wide">
