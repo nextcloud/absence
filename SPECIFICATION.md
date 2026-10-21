@@ -1297,6 +1297,10 @@ NcContent(app-name="absence")
   `employeeName` (display name, falling back to the uid for a deleted account),
   and the sidebar names the employee under its title whenever the leave is not
   the viewer's own.
+  An **Import leave** button next to *Record absence* opens the leave import (§6.5):
+  paste or pick the JSON, **Review** shows per person the entries, days and skipped
+  duplicates (or every invalid entry, and that nothing was imported), then
+  **Import N entries** writes them.
   Accepts `?employee=&employeeName=&type=&status=&year=` so other views can deep-link
   into it — the *Sick leave* overview does, from each employee row.
 - **HR** (HR group only): *Balances* (searchable/sortable data table →

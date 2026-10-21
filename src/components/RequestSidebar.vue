@@ -496,6 +496,7 @@ export default {
 		eventMeta(type) {
 			const map = {
 				request_created: { label: t('absence', 'Requested'), icon: '📝' },
+				request_imported: { label: t('absence', 'Imported'), icon: '📥' },
 				request_updated: { label: t('absence', 'Edited'), icon: '✏️' },
 				request_edited_superseding: { label: t('absence', 'Edited (needs re-approval)'), icon: '✏️' },
 				request_hr_edited: { label: t('absence', 'Adjusted by HR'), icon: '🛠️' },

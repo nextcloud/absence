@@ -47,6 +47,8 @@ export default {
 	// Who changed an entitlement, which figure, from what to what, and why.
 	entitlementHistory: (id) => axios.get(url(`/api/entitlements/${id}/history`)).then((r) => r.data),
 	bulkEntitlements: (data) => axios.post(url('/api/entitlements/bulk'), data).then((r) => r.data),
+	// Past leave as approved, HR-recorded leave; with dryRun only the review.
+	importLeave: (json, dryRun) => axios.post(url('/api/import/leave'), { json, dryRun }).then((r) => r.data),
 
 	// Coverage & calendar
 	getCoverage: (from, to, scope) => axios.get(url('/api/coverage'), { params: { from, to, scope } }).then((r) => r.data),
