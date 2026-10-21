@@ -162,69 +162,101 @@ class ConfigService {
 	 * @throws ValidationException on out-of-range or unknown values/keys
 	 */
 	public function setAdminValue(string $key, mixed $value): void {
+		$this->setAdminValues([$key => $value]);
+	}
+
+	/**
+	 * Checks every value first and writes none of them while one is invalid.
+	 *
+	 * @param array<string, mixed> $values
+	 * @throws ValidationException on out-of-range or unknown values/keys
+	 */
+	public function setAdminValues(array $values): void {
+		foreach ($this->normalizeAdminValues($values) as $key => $value) {
+			match (true) {
+				is_bool($value) => $this->appConfig->setValueBool(self::APP_ID, $key, $value),
+				is_int($value) => $this->appConfig->setValueInt(self::APP_ID, $key, $value),
+				is_float($value) => $this->appConfig->setValueFloat(self::APP_ID, $key, $value),
+				default => $this->appConfig->setValueString(self::APP_ID, $key, $value),
+			};
+		}
+	}
+
+	/**
+	 * The values as they would be stored.
+	 *
+	 * @param array<string, mixed> $values
+	 * @return array<string, int|float|bool|string>
+	 * @throws ValidationException on the first out-of-range or unknown value/key
+	 */
+	public function normalizeAdminValues(array $values): array {
+		$normalized = [];
+		foreach ($values as $key => $value) {
+			$normalized[(string)$key] = $this->normalizeAdminValue((string)$key, $value);
+		}
+		return $normalized;
+	}
+
+	/**
+	 * @throws ValidationException
+	 */
+	private function normalizeAdminValue(string $key, mixed $value): int|float|bool|string {
 		switch ($key) {
 			case ConfigLexicon::KEY_ESCALATION_WINDOW:
 			case ConfigLexicon::KEY_REMINDER_LEAD:
 			case ConfigLexicon::KEY_MAX_CONCURRENT:
 			case ConfigLexicon::KEY_NOTICE_PERIOD:
-				$int = (int)$value;
-				if ($int < 0) {
-					throw new ValidationException($this->l->t('This setting must be zero or greater.'));
+				$int = filter_var($value, FILTER_VALIDATE_INT);
+				if ($int === false || is_bool($value) || $int < 0) {
+					throw new ValidationException($this->l->t('This setting must be a whole number, zero or greater.'));
 				}
-				$this->appConfig->setValueInt(self::APP_ID, $key, $int);
-				break;
+				return $int;
 			case ConfigLexicon::KEY_DEFAULT_ENTITLEMENT:
 			case ConfigLexicon::KEY_CARRYOVER_CAP:
-				$float = (float)$value;
-				if ($float < 0.0) {
-					throw new ValidationException($this->l->t('This setting must be zero or greater.'));
+				if (!is_numeric($value) || (float)$value < 0.0) {
+					throw new ValidationException($this->l->t('This setting must be a number, zero or greater.'));
 				}
-				$this->appConfig->setValueFloat(self::APP_ID, $key, $float);
-				break;
+				return (float)$value;
 			case ConfigLexicon::KEY_CALDAV_PERSONAL:
 			case ConfigLexicon::KEY_CALDAV_SHARED:
 			case ConfigLexicon::KEY_HOLIDAYS_EVERYONE:
-				$this->appConfig->setValueBool(self::APP_ID, $key, (bool)$value);
-				break;
+				if (!is_bool($value)) {
+					throw new ValidationException($this->l->t('This setting must be on or off.'));
+				}
+				return $value;
 			case ConfigLexicon::KEY_CARRYOVER_POLICY:
 				if (!in_array($value, [self::CARRYOVER_NONE, self::CARRYOVER_CAPPED, self::CARRYOVER_UNLIMITED], true)) {
 					throw new ValidationException($this->l->t('Invalid carry-over policy.'));
 				}
-				$this->appConfig->setValueString(self::APP_ID, $key, $value);
-				break;
+				return $value;
 			case ConfigLexicon::KEY_SHARED_VISIBILITY:
 				if (!in_array($value, [self::VISIBILITY_NEUTRAL, self::VISIBILITY_REVEAL], true)) {
 					throw new ValidationException($this->l->t('Invalid shared-calendar visibility.'));
 				}
-				$this->appConfig->setValueString(self::APP_ID, $key, $value);
-				break;
+				return $value;
 			case ConfigLexicon::KEY_CARRYOVER_EXPIRY:
-				$expiry = (string)$value;
-				if ($expiry !== '' && !preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/', $expiry)) {
+				if (!is_string($value) || ($value !== '' && !preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/', $value))) {
 					throw new ValidationException($this->l->t('The carry-over expiry must be empty or a day in MM-DD format.'));
 				}
-				$this->appConfig->setValueString(self::APP_ID, $key, $expiry);
-				break;
+				return $value;
 			case ConfigLexicon::KEY_HR_GROUP:
-				$gid = (string)$value;
+				$gid = is_string($value) ? $value : '';
 				// Reject an empty or unknown group: an empty HR group silently disables
 				// the HR role (nobody can act on escalations), and a typo'd group name
 				// would do the same without any feedback.
 				if ($gid === '' || !$this->groupManager->groupExists($gid)) {
 					throw new ValidationException($this->l->t('The chosen HR group does not exist.'));
 				}
-				$this->appConfig->setValueString(self::APP_ID, $key, $gid);
-				break;
+				return $gid;
 			case ConfigLexicon::KEY_EMPLOYEES_GROUP:
-				$gid = (string)$value;
+				$gid = is_string($value) ? $value : null;
 				// Unlike the HR group, empty is a valid choice here: it is the default
 				// "every non-guest account is an employee". A non-empty name still has
 				// to exist, or a typo would silently lock everyone out of booking leave.
-				if ($gid !== '' && !$this->groupManager->groupExists($gid)) {
+				if ($gid === null || ($gid !== '' && !$this->groupManager->groupExists($gid))) {
 					throw new ValidationException($this->l->t('The chosen employees group does not exist.'));
 				}
-				$this->appConfig->setValueString(self::APP_ID, $key, $gid);
-				break;
+				return $gid;
 			default:
 				throw new ValidationException($this->l->t('Unknown setting: %s', [$key]));
 		}

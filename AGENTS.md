@@ -53,7 +53,7 @@ Key services and their responsibilities:
 - `BalanceService` / `EntitlementService` — entitlement, used, pending, remaining, carry-over accounting. Pending-ish statuses reduce `available`; APPROVED reduces `remaining`; rejection/cancellation restores days. Entitlement changes are recorded as `EntitlementEvent` history.
 - `CalendarService` — synchronous CalDAV writes (personal + shared team calendar) on approve/cancel; there is no sync background job.
 - `NotificationService` / `NoticeService` / `ActivityPublisher` — Nextcloud notifications (with approve-from-notification actions), email, and Activity for every step.
-- `ConfigService` + `ConfigLexicon` — typed app config; admin settings are declarative (`Settings/AdminDeclarativeSettings.php`).
+- `ConfigService` + `ConfigLexicon`: typed app config; HR and admins edit it on the in-app Settings page (`SettingsService`, `src/views/hr/HrSettings.vue`).
 - `ClockService` — injectable clock; unit tests mock time via `tests/Unit/ClockMockTrait.php`.
 
 Background jobs (`lib/BackgroundJob/`): `ReminderJob` (nudge managers), `EscalationJob` (auto-escalate stale PENDING requests to HR), `YearRolloverJob` (carry-over; only for employees/types that already had an entitlement). Requests with no resolvable manager are created with `manager_uid = NULL` and treated as immediately escalated to HR.

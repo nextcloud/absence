@@ -118,4 +118,24 @@ class ConfigServiceTest extends TestCase {
 		$this->expectException(ValidationException::class);
 		$this->service->setAdminValue(ConfigLexicon::KEY_HR_GROUP, '');
 	}
+
+	public static function malformedValues(): array {
+		return [
+			'text for a day count' => [ConfigLexicon::KEY_ESCALATION_WINDOW, 'soon'],
+			'fraction for a day count' => [ConfigLexicon::KEY_NOTICE_PERIOD, 2.5],
+			'bool for a day count' => [ConfigLexicon::KEY_MAX_CONCURRENT, true],
+			'text for vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 'many'],
+			'text for a switch' => [ConfigLexicon::KEY_CALDAV_PERSONAL, 'false'],
+			'list for the expiry' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, ['03-31']],
+			'list for the employees group' => [ConfigLexicon::KEY_EMPLOYEES_GROUP, ['staff']],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('malformedValues')]
+	public function testMalformedValuesAreRejectedNotCoerced(string $key, mixed $value): void {
+		$this->groupManager->method('groupExists')->willReturn(true);
+		$this->appConfig->expects($this->never())->method($this->anything());
+		$this->expectException(ValidationException::class);
+		$this->service->setAdminValue($key, $value);
+	}
 }

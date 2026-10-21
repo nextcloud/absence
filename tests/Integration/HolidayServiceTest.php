@@ -142,9 +142,8 @@ class HolidayServiceTest extends TestCase {
 		Server::get(IEventDispatcher::class)->addListener(CriticalActionPerformedEvent::class, static function (CriticalActionPerformedEvent $event) use (&$audited): void {
 			$audited[] = vsprintf($event->getLogMessage(), $event->getParameters());
 		});
-		self::assertSame(403, $this->controller(self::EMPLOYEE)->editing(true)->getStatus());
-
-		self::assertSame(200, $this->controller(self::HR)->editing(true)->getStatus());
+		// Switched on the Settings page, which goes through the service (SettingsServiceTest)
+		$this->service->setEveryoneCanEdit(true, self::HR);
 		$created = $this->controller(self::EMPLOYEE)->create('2027-08-15', 'ZZ', 'itest Assumption');
 		// Importing a whole list stays with HR
 		self::assertSame(403, $this->controller(self::EMPLOYEE)->import('[{"date": "2027-01-01", "region": "ZZ", "label": "itest New Year"}]')->getStatus());
@@ -169,7 +168,7 @@ class HolidayServiceTest extends TestCase {
 			'Public holiday "itest Assumption" for ZZ on 2027-08-15 changed to "itest Assumption Day" for ZZ on 2027-08-15 by ' . self::HR,
 		], $audited);
 
-		$this->controller(self::HR)->editing(false);
+		$this->service->setEveryoneCanEdit(false, self::HR);
 		self::assertSame(403, $this->controller(self::EMPLOYEE)->destroy($created->getData()['id'])->getStatus());
 	}
 

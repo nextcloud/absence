@@ -57,7 +57,6 @@ return [
 		['name' => 'holiday#regions', 'url' => '/api/holidays/regions', 'verb' => 'GET'],
 		['name' => 'holiday#create', 'url' => '/api/holidays', 'verb' => 'POST'],
 		['name' => 'holiday#import', 'url' => '/api/holidays/import', 'verb' => 'POST'],
-		['name' => 'holiday#editing', 'url' => '/api/holidays/editing', 'verb' => 'PUT'],
 		['name' => 'holiday#history', 'url' => '/api/holidays/history', 'verb' => 'GET'],
 		['name' => 'holiday#update', 'url' => '/api/holidays/{id}', 'verb' => 'PUT'],
 		['name' => 'holiday#destroy', 'url' => '/api/holidays/{id}', 'verb' => 'DELETE'],
@@ -78,5 +77,9 @@ return [
 		// Profiles (§6.4): the person, their manager and HR read, HR edits the contract
 		['name' => 'profile#show', 'url' => '/api/profiles/{uid}', 'verb' => 'GET'],
 		['name' => 'profile#updateContract', 'url' => '/api/profiles/{uid}/contract', 'verb' => 'PUT'],
+		// App settings page (§12), HR and admins
+		['name' => 'settings#show', 'url' => '/api/settings', 'verb' => 'GET'],
+		['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],
+		['name' => 'settings#employeesPreview', 'url' => '/api/settings/employees-preview', 'verb' => 'GET'],
 	],
 ];

@@ -53,8 +53,8 @@ There are four effective roles. A single user may hold several simultaneously
 |------|-------------|--------------|
 | **Employee** | Every logged-in user **except guest accounts** (§2.2) | Create/edit/cancel own requests, view own balance, view own history, see team who's-off calendar. |
 | **Line manager** | Derived from the LDAP `manager` attribute (see §2.1) — a user is a manager of everyone whose `manager` attribute points to them | Approve/reject/comment on direct reports' requests, view direct reports' calendars and balances, receive coverage-conflict warnings. |
-| **HR** | Membership of a configurable Nextcloud group (default group id `hr`, set in admin settings) | Company-wide overview, statistics, exports, manage entitlements, manage public-holiday calendar, override any decision, act on escalated requests, edit/adjust any request and balance. |
-| **App admin** | Nextcloud server admins | Configure app settings (§11): HR group, leave types, escalation window, default entitlements, CalDAV target. |
+| **HR** | Membership of a configurable Nextcloud group (default group id `hr`, set by an admin on the in-app Settings page, §12) | Company-wide overview, statistics, exports, manage entitlements, manage public-holiday calendar, override any decision, act on escalated requests, edit/adjust any request and balance. |
+| **App admin** | Nextcloud server admins | Open the in-app Settings page (§12) without being in HR, and the only role that may change the HR group. |
 
 ### 2.1 Determining the line manager (LDAP)
 
@@ -121,7 +121,7 @@ calendar forever, with an empty allowance and nothing to show.
   this one result is not gated on enumeration settings.
 - Existing records for someone who later becomes a guest are left untouched in
   the database — they simply stop being listed.
-- **Optional employees group (§12).** An admin can narrow "everyone who is not a
+- **Optional employees group (§12).** HR or an admin can narrow "everyone who is not a
   guest" down to the members of one Nextcloud group. Left empty — the default —
   the rule stays as above. Configured, only members of that group count as
   employees: everyone else is excluded exactly like a guest (no leave — enforced
@@ -714,9 +714,11 @@ days; a country does not get its regions' days.
 - **Out again:** the page downloads the shown list in the same format, and
   `occ absence:export-holidays [--year] [--region]` prints it.
 
-Everyone can read the list. HR always edits it, and HR (on the page) or an admin (in
-the admin settings) can let everyone add, edit and delete single holidays, so HR does
-not become a bottleneck. Importing a whole list stays with HR.
+Everyone can read the list. HR always edits it, and HR or an admin can let everyone
+add, edit and delete single holidays, so HR does not become a bottleneck. That switch
+lives in the *Public holidays* section of the Settings page (§12); the *Public
+holidays* page only tells HR who may edit and links there. Importing a whole list
+stays with HR. Each switch is written to the history like a change to the list.
 Each row shows who added and who last changed it, and a *History* view lists every
 change with its author and the values before and after (`absence_holiday_history`).
 Every change also goes to the admin audit log (`CriticalActionPerformedEvent`, when
@@ -816,7 +818,7 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
   CalDAV backend for writing events. Prefer the public `OCP\Calendar` interfaces
   where write support is available; otherwise write `VEVENT` objects to the target
   calendar via the DAV backend.
-- **Two targets (both configurable, either can be disabled in admin settings):**
+- **Two targets (both configurable, either can be disabled on the Settings page, §12):**
   1. **Personal:** an all-day `VEVENT` on the employee's own calendar (auto-created
      "Absence" calendar or a configured one) marked as busy/out-of-office
      (`X-NC-... busy` / `TRANSP: OPAQUE`).
@@ -900,28 +902,47 @@ All four channels are required.
 
 ---
 
-## 12. Admin Settings
+## 12. App Settings (in-app page)
 
-App admin settings page (`OCP\Settings\ISettings`, `type: 'admin'`, section under a
-new "Absence" settings section or "Personal info"/"Administration"):
+The settings live on a **Settings** page inside the app (`#/hr/settings`), reached
+from the app navigation footer. There is no Administration settings section. HR
+members and Nextcloud admins can open it: admins need it without being in HR,
+because a fresh install has nobody in HR and someone has to pick the HR group.
+Everyone else gets 403 from its endpoints (`GET`/`PUT /api/settings`,
+`GET /api/settings/employees-preview`).
 
-| Setting | Default | Notes |
-|---------|---------|-------|
-| HR group id | `hr` | Which NC group is HR (§2). |
-| Employees group | empty (= everyone) | Optional: only members count as employees (§2.2). |
-| Default annual entitlement (days) | 28 | Seed for new entitlement rows. |
-| Escalation window | 3 working days | For EscalationJob (§5.4). |
-| Reminder lead time | 1 day before escalation | For ReminderJob. |
-| Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
-| Carry-over cap (days) | 5 | Used when `capped`. |
-| Carry-over expiry | none / date (e.g. Mar 31) | §6.2. |
-| Max concurrent team absences | 2 | Conflict threshold (§8). |
-| Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
-| CalDAV: write personal events | true | §10. |
-| CalDAV: write shared team calendar | true | §10. |
-| Everyone edits public holidays | false | §7.2; HR can switch it on the *Public holidays* page too. |
-| Shared calendar type-visibility | neutral | Reveal type vs "Absent" on shared cal. |
-| Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. |
+HR and admins may change everything **except the HR group, which only admins may
+change** (HR sees it read-only, "Only admins can change this."). The server checks
+both rules and validates every value: day counts are integers ≥ 0, day amounts are
+numbers ≥ 0, switches are booleans, the policy and visibility are enums, the expiry
+is empty or `MM-DD`, and both groups must exist (the employees group may be empty).
+Each change is logged as `admin_config_updated` with the changed keys.
+
+| Section | Setting | Default | Notes |
+|---------|---------|---------|-------|
+| Who is who | HR group id | `hr` | Which NC group is HR (§2). Admins only. |
+| Who is who | Employees group | empty (= everyone) | Optional: only members count as employees (§2.2). The select shows its member count. |
+| Vacation | Default annual entitlement (days) | 28 | Seed for new entitlement rows. |
+| Vacation | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
+| Vacation | Carry-over cap (days) | 5 | Used when `capped`. |
+| Vacation | Carry-over expiry | none / `MM-DD` (e.g. `03-31`) | §6.2. |
+| Approvals | Escalation window | 3 working days | For EscalationJob (§5.4). |
+| Approvals | Reminder lead time | 1 day before escalation | For ReminderJob. |
+| Approvals | Max concurrent team absences | 2 | Conflict threshold (§8). |
+| Approvals | Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
+| Calendar | CalDAV: write personal events | true | §10. |
+| Calendar | CalDAV: write shared team calendar | true | §10. |
+| Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal. |
+| Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
+| Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
+
+**Changing the employees group** asks for confirmation first. The dialog shows, from
+`GET /api/settings/employees-preview?group=` (computed by `EmployeeDirectory`, the
+only component that enumerates employees), who leaves the list and who joins: counts
+plus the first few display names, "and N more". People leaving can no longer request
+leave and drop out of balances, reports and timelines, but their data is kept; people
+joining start with the default vacation days. The user types the group name to
+confirm ("Change group").
 
 There are no personal settings pages: the region code is set on the profile page
 (§15.2) and the working weekdays come from the contract HR keeps (§6.4). Notification
@@ -1073,8 +1094,8 @@ the SPA). All list endpoints paginate and accept filters.
 - HR/admin CRUD for leave types.
 - `GET /api/holidays?year&region` (everyone), `POST /api/holidays`,
   `PUT|DELETE /api/holidays/{id}` (HR, or everyone when allowed),
-  `POST /api/holidays/import {json, dryRun}` (HR), `PUT /api/holidays/editing {everyone}`
-  (HR) and `GET /api/holidays/history` (everyone): public holidays (§7.2).
+  `POST /api/holidays/import {json, dryRun}` (HR) and `GET /api/holidays/history`
+  (everyone): public holidays (§7.2). Who may edit is an app setting (§12).
   `GET /api/holidays/applying?code&from&to` returns the days a region code gets and
   `GET /api/holidays/regions` the codes that have holidays; both are open to everyone.
 
@@ -1088,6 +1109,11 @@ the SPA). All list endpoints paginate and accept filters.
   implying "sickness" is a fixed concept — and can say so plainly when an instance has
   no matching type instead of showing a table of zeroes.
 - `GET  /api/export/requests.csv|.xlsx`, `GET /api/export/balances.csv|.xlsx`.
+
+**Settings (§12, HR and admins)**
+- `GET  /api/settings`: current values, the group list, and the employees-group member count.
+- `PUT  /api/settings`: `{ values: { key: value } }`; the HR group is admin-only.
+- `GET  /api/settings/employees-preview?group=`: who leaves and who joins if the employees group changes.
 
 All write endpoints require CSRF protection (default AppFramework) and validate role
 server-side. Never trust client-computed `working_days` or `manager_uid`.
@@ -1121,8 +1147,8 @@ not HTTP:
 
 ## 15. Frontend (Vue 3 + @nextcloud/vue) — Design System & UX
 
-Single-page app mounted from the app's main navigation entry, plus HR/admin settings
-pages. Build with Vite (the tree already uses Vite — see `build/frontend`). Use
+Single-page app mounted from the app's main navigation entry, including the HR/admin
+Settings page (§12). Build with Vite (the tree already uses Vite, see `build/frontend`). Use
 `@nextcloud/vue`, `@nextcloud/axios`, `@nextcloud/router`, `@nextcloud/l10n`,
 `@nextcloud/dialogs`, and `@mdi/svg` / `vue-material-design-icons` for icons.
 
@@ -1176,7 +1202,8 @@ NcContent(app-name="absence")
 │   ├── NcAppNavigationItem    Statistics
 │   ├── NcAppNavigationItem    Who's off
 │   ├── NcAppNavigationItem    HR handbook      (extended handbook incl. the HR chapters)
-│   └── NcAppNavigationItem    Exports          (no settings entry — §12: no personal settings)
+│   ├── NcAppNavigationItem    Exports
+│   └── #footer: NcAppNavigationItem Settings     (HR and admins, §12)
 ├── NcAppContent                            ← CENTER (the active routed view)
 │   └── router-view
 └── NcAppSidebar                            ← RIGHT detail sidebar (request detail)
@@ -1272,8 +1299,12 @@ NcContent(app-name="absence")
   changes (the person and HR only). The person, their manager and HR may open it
   (`GET /api/profiles/{uid}`), the same rule as balances. Links to the person's card in
   Contacts, where managers and teams are kept, when Contacts is enabled.
-- **Admin settings** — §12 (no personal settings page), via `NcSettingsSection`,
-  `NcCheckboxRadioSwitch`, `NcTextField`, `NcSelect`.
+- **Settings** (`#/hr/settings`, HR and admins, §12): One section per row, title and
+  short description on the left, fields on the right: *Who is who*, *Vacation*,
+  *Approvals*, *Calendar*, *Public holidays*, *Leave types*. Fields save on change (`NcTextField`,
+  `NcSelect`, `NcCheckboxRadioSwitch`); the employees group goes through the
+  confirmation `NcDialog` of §12; *Manage leave types* opens an `NcModal` listing every
+  type with an edit form (key on creation only, emoji, name, colour, flags, enabled).
 
 All list/loading transitions and the illustration animations are suppressed
 under `prefers-reduced-motion`.
@@ -1448,7 +1479,7 @@ apps/absence/
 │   ├── Exception/          # AbsenceException + Validation/Forbidden/NotFound/Conflict
 │   ├── Migration/          # Version1000Date… schema; Version1001/1002/1003 (columns);
 │   │                       # SeedLeaveTypes; EnableAuditLogging / DisableAuditLogging (§11)
-│   ├── Settings/           # AdminDeclarativeSettings (server-rendered form) + AdminSection + Personal
+│   ├── Settings/           # Personal (the app settings are an in-app page, §12)
 │   └── Listener/UserDeletedListener.php   # GDPR purge (§17)
 ├── src/                    # Vue 3 SPA: App.vue, router, store, api,
 │   │                       # utils/ (dates),
@@ -1612,3 +1643,12 @@ Recorded during the build so the spec matches the code:
   ones people set for themselves, which are dropped (`Version1010…`, app 1.2.0). The
   personal section on the Availability page is gone: the region code moved to the
   profile page.
+- **Settings moved into the app** (§12, §15.2): the declarative Administration →
+  Absence form and its section are gone. A Settings page in the app navigation footer
+  (`SettingsService`, `/api/settings`) is open to HR and admins; only admins change
+  the HR group. Changing the employees group previews who leaves and joins before it
+  is confirmed. The setter now rejects malformed values (text or fractions for day
+  counts, non-booleans for switches) instead of casting them. Leave types got their
+  first management UI there. The holiday-editing switch moved there from the *Public
+  holidays* page, and `PUT /api/holidays/editing` is gone; the setting still goes
+  through `HolidayService`, so the holiday history keeps who switched it.

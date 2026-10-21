@@ -67,25 +67,32 @@ class EmployeeDirectory {
 	 * @return string[]
 	 */
 	public function listAll(): array {
-		$group = $this->effectiveEmployeesGroup();
+		return $this->listForEmployeesGroup($this->effectiveEmployeesGroup());
+	}
+
+	/**
+	 * Who the employees would be with this employees group, '' meaning every
+	 * non-guest account. Answers "who joins and who leaves" before the setting
+	 * is changed.
+	 *
+	 * @return string[]
+	 */
+	public function listForEmployeesGroup(string $group): array {
+		$uids = [];
+		$collect = function (IUser $user) use (&$uids): void {
+			if (!$this->isGuestUser($user)) {
+				$uids[] = $user->getUID();
+			}
+		};
 		if ($group !== '') {
 			// The group *is* the directory: enumerate its members instead of the
 			// whole user backend, which is also much cheaper on large instances.
-			$resolved = $this->groupManager->get($group);
-			$uids = [];
-			foreach ($resolved?->getUsers() ?? [] as $user) {
-				if (!$this->isGuestUser($user)) {
-					$uids[] = $user->getUID();
-				}
+			foreach ($this->groupManager->get($group)?->getUsers() ?? [] as $user) {
+				$collect($user);
 			}
 			return $uids;
 		}
-		$uids = [];
-		$this->userManager->callForAllUsers(function (IUser $user) use (&$uids): void {
-			if ($this->isEmployeeUser($user)) {
-				$uids[] = $user->getUID();
-			}
-		});
+		$this->userManager->callForAllUsers($collect);
 		return $uids;
 	}
 
