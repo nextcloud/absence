@@ -111,13 +111,14 @@ class HolidayController extends Controller {
 	}
 
 	/**
-	 * Imports a JSON list, or with $dryRun only says what it would add.
+	 * Imports a JSON list, or with $dryRun only says what it would add. HR only, even
+	 * when everyone may edit single holidays.
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 20, period: 60)]
 	public function import(string $json, bool $dryRun = false): DataResponse {
 		return $this->handle(function () use ($json, $dryRun) {
-			$this->permission->assertCanEditHolidays((string)$this->userId);
+			$this->permission->assertHr((string)$this->userId);
 			$result = $dryRun ? $this->service->plan($json) : $this->service->import($json, $this->userId);
 			if (!$dryRun) {
 				$this->logger->info('Absence action: holidays_imported', ['app' => 'absence', 'action' => 'holidays_imported', 'actor' => $this->userId, 'added' => count($result['new']), 'existing' => $result['existing']]);

@@ -32,7 +32,7 @@
 					</template>
 					{{ t('absence', 'History') }}
 				</NcButton>
-				<NcButton v-if="canEdit" @click="openImport">
+				<NcButton v-if="session.isHr" @click="openImport">
 					<template #icon>
 						<Upload :size="20" />
 					</template>

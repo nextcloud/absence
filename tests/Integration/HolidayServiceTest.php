@@ -145,6 +145,8 @@ class HolidayServiceTest extends TestCase {
 
 		self::assertSame(200, $this->controller(self::HR)->editing(true)->getStatus());
 		$created = $this->controller(self::EMPLOYEE)->create('2027-08-15', 'ZZ', 'itest Assumption');
+		// Importing a whole list stays with HR
+		self::assertSame(403, $this->controller(self::EMPLOYEE)->import('[{"date": "2027-01-01", "region": "ZZ", "label": "itest New Year"}]')->getStatus());
 		self::assertSame(200, $created->getStatus());
 		self::assertSame(200, $this->controller(self::HR)->update($created->getData()['id'], '2027-08-15', 'ZZ', 'itest Assumption Day')->getStatus());
 

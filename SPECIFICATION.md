@@ -703,7 +703,8 @@ days; a country does not get its regions' days.
   `occ absence:export-holidays [--year] [--region]` prints it.
 
 Everyone can read the list. HR always edits it, and HR (on the page) or an admin (in
-the admin settings) can let everyone edit it, so HR does not become a bottleneck.
+the admin settings) can let everyone add, edit and delete single holidays, so HR does
+not become a bottleneck. Importing a whole list stays with HR.
 Each row shows who added and who last changed it, and a *History* view lists every
 change with its author and the values before and after (`absence_holiday_history`).
 Every change also goes to the admin audit log (`CriticalActionPerformedEvent`, when
@@ -1053,8 +1054,8 @@ the SPA). All list endpoints paginate and accept filters.
   (HR only).
 - HR/admin CRUD for leave types.
 - `GET /api/holidays?year&region` (everyone), `POST /api/holidays`,
-  `PUT|DELETE /api/holidays/{id}` and `POST /api/holidays/import {json, dryRun}` (HR,
-  or everyone when allowed), `PUT /api/holidays/editing {everyone}` (HR) and
+  `PUT|DELETE /api/holidays/{id}` (HR, or everyone when allowed),
+  `POST /api/holidays/import {json, dryRun}` (HR), `PUT /api/holidays/editing {everyone}` (HR) and
   `GET /api/holidays/history` (everyone):
   public holidays (§7.2).
 
