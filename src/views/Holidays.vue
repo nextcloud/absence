@@ -79,7 +79,7 @@
 					<tr v-for="holiday in shown" :key="holiday.id + '-' + holiday.date">
 						<td>{{ formatDate(holiday.date) }}</td>
 						<td>
-							<span class="holidays__region">{{ regionName(holiday.region) }}</span>
+							<span class="holidays__region"><span aria-hidden="true">{{ regionFlag(holiday.region) }}</span> {{ regionName(holiday.region) }}</span>
 						</td>
 						<td>
 							{{ holiday.label }}
@@ -124,7 +124,7 @@
 				<NcTextField
 					v-model="form.region"
 					:label="t('absence', 'Region code')"
-					:helperText="t('absence', 'A country like DE, a region like DE-BY, or * for everywhere')"
+					:helperText="t('absence', 'A country like DE, a region like DE-BY (ISO 3166-2), or * for everywhere')"
 					required />
 				<NcTextField v-model="form.label" :label="t('absence', 'Name')" required />
 				<NcCheckboxRadioSwitch v-model="form.recurring">
@@ -239,8 +239,7 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../api.js'
 import { store } from '../store.js'
 import { formatDate, toIso } from '../utils/dates.js'
-
-const EVERYWHERE = '*'
+import { EVERYWHERE, regionFlag } from '../utils/regions.js'
 
 export default {
 	name: 'Holidays',
@@ -280,7 +279,7 @@ export default {
 
 		regionOptions() {
 			const codes = [...new Set(this.holidays.map((h) => h.region))].sort()
-			return [this.all, ...codes.map((code) => ({ id: code, label: this.regionName(code) }))]
+			return [this.all, ...codes.map((code) => ({ id: code, label: `${regionFlag(code)} ${this.regionName(code)}`.trim() }))]
 		},
 
 		shown() {
@@ -302,6 +301,7 @@ export default {
 		t,
 		n,
 		formatDate,
+		regionFlag,
 		regionName(code) {
 			return code === EVERYWHERE ? t('absence', 'Everywhere') : code
 		},

@@ -229,12 +229,12 @@ class HolidayService {
 	}
 
 	/**
-	 * `de-by` becomes `DE-BY`.
+	 * `de-by` and `DE_BY` become `DE-BY`.
 	 *
 	 * @throws ValidationException
 	 */
 	public function normalizeRegion(string $region): string {
-		$region = strtoupper(trim($region));
+		$region = str_replace('_', '-', strtoupper(trim($region)));
 		if ($region !== self::EVERYWHERE && preg_match('/^[A-Z]{2}(-[A-Z0-9]{1,3})?$/', $region) !== 1) {
 			throw new ValidationException($this->l->t('"%s" is not a region code: use a country like DE, a region like DE-BY, or * for everywhere', [$region]));
 		}

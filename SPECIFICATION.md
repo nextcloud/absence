@@ -689,7 +689,8 @@ is what counts (§7).
 ### 7.2 Public holidays (a hand-kept list)
 
 No library decides what a holiday is: the list is kept on the *Public holidays* page,
-one region code per day. Someone with code `DE-BY` gets the `DE-BY`, `DE` and `*`
+one region code per day: a country (`DE`), an ISO 3166-2 subdivision such as a German
+Land (`DE-BY`, `DE_BY` is read the same), or `*`. Someone with code `DE-BY` gets the `DE-BY`, `DE` and `*`
 days; a country does not get its regions' days.
 
 - **One by one:** add, edit and delete on the page.

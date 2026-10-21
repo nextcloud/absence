@@ -71,18 +71,19 @@ class HolidayServiceTest extends TestCase {
 	public function testImportAddsNewDaysAndSkipsKnownOnes(): void {
 		$json = json_encode([
 			['date' => '2027-01-01', 'region' => 'zz', 'label' => 'itest New Year'],
+			['date' => '2027-01-06', 'region' => 'zz_t1', 'label' => 'itest Region day'],
 			['date' => '2027-05-01', 'region' => 'ZZ', 'label' => 'itest Labour Day'],
 			// Twice in the same file
 			['date' => '2027-05-01', 'region' => 'ZZ', 'label' => 'itest Labour Day'],
 		]);
 
 		$first = $this->service->import($json);
-		self::assertSame(['2027-01-01 ZZ', '2027-05-01 ZZ'], array_map(static fn (array $e): string => $e['date'] . ' ' . $e['region'], $first['new']));
+		self::assertSame(['2027-01-01 ZZ', '2027-01-06 ZZ-T1', '2027-05-01 ZZ'], array_map(static fn (array $e): string => $e['date'] . ' ' . $e['region'], $first['new']));
 		self::assertSame(1, $first['existing']);
 
 		$again = $this->service->import($json);
 		self::assertSame([], $again['new']);
-		self::assertSame(3, $again['existing']);
+		self::assertSame(4, $again['existing']);
 	}
 
 	public function testOneInvalidEntryImportsNothing(): void {
