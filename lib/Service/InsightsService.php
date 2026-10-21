@@ -101,6 +101,7 @@ class InsightsService {
 
 		$managers = [];
 		foreach ($byManager as $uid => $m) {
+			$uid = (string)$uid;
 			$managers[] = [
 				'managerUid' => $uid,
 				'name' => $this->displayName($uid),
@@ -168,6 +169,7 @@ class InsightsService {
 
 		$rows = [];
 		foreach ($byEmployee as $uid => $b) {
+			$uid = (string)$uid;
 			$spells = (float)$b['spells'];
 			$rows[] = [
 				'employeeUid' => $uid,
@@ -193,7 +195,7 @@ class InsightsService {
 	 * @return array<string,mixed>
 	 */
 	private function utilization(array $balances, array $teams): array {
-		$company = $this->utilizationFor(array_keys($balances), $balances);
+		$company = $this->utilizationFor(array_map(strval(...), array_keys($balances)), $balances);
 		$perTeam = [];
 		foreach ($teams as $team) {
 			$rate = $this->utilizationFor($team['uids'], $balances);
@@ -206,7 +208,7 @@ class InsightsService {
 		return [
 			'company' => $company,
 			'perTeam' => $perTeam,
-			'neglected' => $this->neglected(array_keys($balances)),
+			'neglected' => $this->neglected(array_map(strval(...), array_keys($balances))),
 		];
 	}
 
@@ -298,7 +300,7 @@ class InsightsService {
 	 * @return array<string,mixed>
 	 */
 	private function liability(array $balances, array $teams, int $year): array {
-		$company = $this->liabilityFor(array_keys($balances), $balances);
+		$company = $this->liabilityFor(array_map(strval(...), array_keys($balances)), $balances);
 		$perTeam = [];
 		foreach ($teams as $team) {
 			$row = $this->liabilityFor($team['uids'], $balances);
