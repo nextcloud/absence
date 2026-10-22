@@ -15,12 +15,20 @@
 			<h2 class="page__title">
 				{{ t('absence', 'Absences') }}
 			</h2>
-			<NcButton variant="primary" @click="openRecord">
-				<template #icon>
-					<ClipboardPlusOutline :size="20" />
-				</template>
-				{{ t('absence', 'Record absence') }}
-			</NcButton>
+			<div class="page__tools">
+				<NcButton v-if="store.session.isHr" @click="importing = true">
+					<template #icon>
+						<Upload :size="20" />
+					</template>
+					{{ t('absence', 'Import leave') }}
+				</NcButton>
+				<NcButton variant="primary" @click="openRecord">
+					<template #icon>
+						<ClipboardPlusOutline :size="20" />
+					</template>
+					{{ t('absence', 'Record absence') }}
+				</NcButton>
+			</div>
 		</header>
 
 		<div class="page__tools filters">
@@ -114,6 +122,8 @@
 				</NcButton>
 			</template>
 		</NcEmptyContent>
+
+		<LeaveImportDialog v-if="importing" @close="importing = false" @imported="onImported" />
 	</div>
 </template>
 
@@ -126,6 +136,8 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import CalendarSearch from 'vue-material-design-icons/CalendarSearch.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
+import Upload from 'vue-material-design-icons/Upload.vue'
+import LeaveImportDialog from '../../components/LeaveImportDialog.vue'
 import RequestListItem from '../../components/RequestListItem.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
@@ -144,8 +156,10 @@ export default {
 		NcSelect,
 		CalendarSearch,
 		ClipboardPlusOutline,
+		LeaveImportDialog,
 		RequestListItem,
 		SkeletonList,
+		Upload,
 	},
 
 	inject: ['absence:openRecord'],
@@ -169,6 +183,7 @@ export default {
 		return {
 			loading: true,
 			loadingMore: false,
+			importing: false,
 			// Bumped on every reload; a fetch whose seq is stale on return is discarded.
 			reloadSeq: 0,
 			// employeeUid|typeId => remaining days, for the selected year.
@@ -271,6 +286,11 @@ export default {
 
 		openRecord() {
 			this['absence:openRecord']()
+		},
+
+		onImported() {
+			this.importing = false
+			this.reload()
 		},
 
 		async onEmployeeSearch(query) {

@@ -56,6 +56,7 @@ class RequestService {
 	use TTransactional {
 		atomic as private transactional;
 	}
+	use WorkingDaysGuardTrait;
 
 	/** Change events of the running transaction, dispatched once it commits */
 	private array $pendingEvents = [];
@@ -1298,47 +1299,12 @@ class RequestService {
 	}
 
 	/**
-	 * The employee enters the working-day count manually (§7). Validate it is a
-	 * positive, sane number (allowing halves for a future half-day feature).
-	 *
-	 * @throws ValidationException
-	 */
-	private function normaliseWorkingDays(mixed $value): float {
-		if ($value === null || $value === '' || !is_numeric($value)) {
-			throw new ValidationException($this->l->t('Please enter the number of working days.'));
-		}
-		$days = round((float)$value, 1);
-		if ($days <= 0) {
-			throw new ValidationException($this->l->t('The number of working days must be greater than zero.'));
-		}
-		if ($days > 366) {
-			throw new ValidationException($this->l->t('That is too many working days for a single request.'));
-		}
-		return $days;
-	}
-
-	/**
 	 * Whether the assigned manager is on approved leave today (§5.4a) — on the
 	 * server's calendar, like every company-wide decision.
 	 */
 	private function managerCurrentlyAway(string $managerUid): bool {
 		$today = $this->clock->serverToday();
 		return $this->requestMapper->hasApprovedAbsenceCovering($managerUid, $today, $today);
-	}
-
-	/**
-	 * A leave of N calendar days cannot contain more than N working days. The
-	 * count is entered by hand (§7), so this catches the typo — 40 for 4 — that
-	 * would otherwise go straight into the balance, while never rejecting a
-	 * legitimate count, which is at most one working day per calendar day.
-	 *
-	 * @throws ValidationException
-	 */
-	private function assertWorkingDaysFitRange(float $workingDays, string $start, string $end): void {
-		$span = ((int)(new \DateTimeImmutable($start))->diff(new \DateTimeImmutable($end))->days) + 1;
-		if ($workingDays > (float)$span) {
-			throw new ValidationException($this->l->t('The number of working days cannot exceed the length of the leave (%s calendar days).', [(string)$span]));
-		}
 	}
 
 	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, string $reason, string $note): void {
