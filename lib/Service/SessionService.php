@@ -53,6 +53,9 @@ class SessionService {
 			'canEditHolidays' => $this->permission->canEditHolidays($uid),
 			'holidaysEveryoneEdits' => $this->config->canEveryoneEditHolidays(),
 			'isAdmin' => $this->permission->isAdmin($uid),
+			'handbookUrl' => $this->config->getHandbookUrl(),
+			// The HR handbook link is not a secret, but only HR is shown it
+			'hrHandbookUrl' => $isHr ? $this->config->getHrHandbookUrl() : '',
 			'isManager' => $isManager,
 			'managerUid' => $managerUid,
 			'managerName' => $managerUid !== null ? $this->displayName($managerUid) : null,

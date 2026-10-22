@@ -198,6 +198,32 @@
 
 			<section class="settings">
 				<div class="settings__intro">
+					<h3 class="settings__title">
+						{{ t('absence', 'Handbooks') }}
+						<SavedCheck :savedAt="savedAt.handbooks" />
+					</h3>
+					<p>{{ t('absence', 'Links in the navigation, for example to Collectives pages. Empty hides the entry.') }}</p>
+				</div>
+				<div class="settings__fields">
+					<NcTextField
+						v-model="form.handbook_url"
+						class="settings__field settings__field--wide"
+						type="url"
+						:label="t('absence', 'Handbook for everyone')"
+						placeholder="https://"
+						@change="saveField('handbook_url')" />
+					<NcTextField
+						v-model="form.hr_handbook_url"
+						class="settings__field settings__field--wide"
+						type="url"
+						:label="t('absence', 'Handbook for HR')"
+						placeholder="https://"
+						@change="saveField('hr_handbook_url')" />
+				</div>
+			</section>
+
+			<section class="settings">
+				<div class="settings__intro">
 					<h3>{{ t('absence', 'Leave types') }}</h3>
 				</div>
 				<div v-if="session.isHr" class="settings__fields settings__fields--chips">
@@ -260,6 +286,8 @@ const SECTION_OF = {
 	caldav_shared: 'calendar',
 	shared_calendar_visibility: 'calendar',
 	holidays_everyone_edits: 'holidays',
+	handbook_url: 'handbooks',
+	hr_handbook_url: 'handbooks',
 }
 
 export default {
@@ -369,8 +397,8 @@ export default {
 				for (const key of Object.keys(patch)) {
 					this.savedAt[SECTION_OF[key]] = Date.now()
 				}
-				if ('hr_group' in patch || 'holidays_everyone_edits' in patch) {
-					// The session carries whether this very user still is HR and may edit holidays.
+				if (['hr_group', 'holidays_everyone_edits', 'handbook_url', 'hr_handbook_url'].some((key) => key in patch)) {
+					// The session carries whether this very user still is HR, may edit holidays, and the handbook links.
 					await store.refreshSession()
 				}
 				return true
