@@ -16,29 +16,17 @@ use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\ImportService;
 use OCP\IDBConnection;
-use OCP\IUser;
-use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class ImportServiceTest extends TestCase {
 	private EntitlementService&MockObject $entitlements;
-	private IUserManager&MockObject $userManager;
 	private IDBConnection&MockObject $db;
 	private ImportService $service;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->entitlements = $this->createMock(EntitlementService::class);
-		$this->userManager = $this->createMock(IUserManager::class);
-		$this->userManager->method('userExists')->willReturnCallback(
-			static fn (string $uid): bool => in_array($uid, ['alice', 'bob'], true),
-		);
-		$mail = $this->createMock(IUser::class);
-		$mail->method('getUID')->willReturn('bob');
-		$this->userManager->method('getByEmail')->willReturnCallback(
-			static fn (string $email): array => $email === 'bob@example.com' ? [$mail] : [],
-		);
 		$leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$annual = new LeaveType();
 		$annual->setId(1);
@@ -53,12 +41,18 @@ class ImportServiceTest extends TestCase {
 		$employees->method('isEmployee')->willReturnCallback(
 			static fn (string $uid): bool => in_array($uid, ['alice', 'bob'], true),
 		);
+		$employees->method('resolveUser')->willReturnCallback(
+			static fn (string $identifier): ?string => match ($identifier) {
+				'alice', 'bob' => $identifier,
+				'bob@example.com' => 'bob',
+				default => null,
+			},
+		);
 		$this->db = $this->createMock(IDBConnection::class);
 		$this->service = new ImportService(
 			$this->entitlements,
 			$leaveTypeMapper,
 			$employees,
-			$this->userManager,
 			$this->db,
 		);
 	}

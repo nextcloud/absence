@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
@@ -21,6 +22,7 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserManager;
 use OCP\Share\IShare;
+use Psr\Log\LoggerInterface;
 
 class EmployeeController extends Controller {
 	use ApiControllerTrait;
@@ -34,7 +36,9 @@ class EmployeeController extends Controller {
 		private ISearch $collaboratorSearch,
 		private EmployeeDirectory $employees,
 		private EmployeeListService $list,
+		private EmployeeJsonService $json,
 		private PermissionService $permission,
+		private LoggerInterface $logger,
 		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
@@ -50,6 +54,42 @@ class EmployeeController extends Controller {
 		return $this->handle(function () use ($year): array {
 			$this->permission->assertHr((string)$this->userId);
 			return $this->list->list($year);
+		});
+	}
+
+	/**
+	 * Everybody's region code, start and end date and contract as the JSON
+	 * HR edits and imports again (§6.5).
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
+	public function exportJson(): DataResponse {
+		return $this->handle(function (): array {
+			$this->permission->assertHr((string)$this->userId);
+			$entries = $this->json->export();
+			return ['json' => EmployeeJsonService::format($entries), 'count' => count($entries)];
+		});
+	}
+
+	/**
+	 * Checks an edited list and shows what would change, or writes it.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
+	public function importJson(string $json, bool $dryRun = true): DataResponse {
+		return $this->handle(function () use ($json, $dryRun): array {
+			$this->permission->assertHr((string)$this->userId);
+			if ($dryRun) {
+				return $this->json->plan($json);
+			}
+			$plan = $this->json->import($json, $this->userId);
+			$this->logger->info('Absence action: employees_imported', [
+				'app' => 'absence',
+				'action' => 'employees_imported',
+				'actor' => $this->userId,
+				'employees' => array_column($plan['changes'], 'user'),
+			]);
+			return $plan;
 		});
 	}
 

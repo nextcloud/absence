@@ -11,7 +11,6 @@ namespace OCA\Absence\Service;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCP\IDBConnection;
-use OCP\IUserManager;
 
 /**
  * CSV import of entitlements (§6.3) — the onboarding path from the spreadsheet
@@ -38,7 +37,6 @@ class ImportService {
 		private EntitlementService $entitlements,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private EmployeeDirectory $employees,
-		private IUserManager $userManager,
 		private IDBConnection $db,
 	) {
 	}
@@ -60,7 +58,7 @@ class ImportService {
 		$errors = [];
 		foreach ($rows as $i => $row) {
 			$line = $i + 2; // 1-based, after the header
-			$uid = $this->resolveUser(trim($row['user'] ?? ''));
+			$uid = $this->employees->resolveUser(trim($row['user'] ?? ''));
 			if ($uid === null) {
 				$errors[] = "line $line: unknown user '" . trim($row['user'] ?? '') . "'";
 				continue;
@@ -167,23 +165,5 @@ class ImportService {
 			$rows[] = $row;
 		}
 		return $rows;
-	}
-
-	/**
-	 * A uid, or the e-mail address spreadsheets usually carry. Addresses are
-	 * looked up first: the server's own user lookup accepts an address too, but
-	 * then reports the address itself as the uid.
-	 */
-	private function resolveUser(string $identifier): ?string {
-		if ($identifier === '') {
-			return null;
-		}
-		if (str_contains($identifier, '@')) {
-			$byEmail = $this->userManager->getByEmail($identifier);
-			if ($byEmail !== []) {
-				return count($byEmail) === 1 ? $byEmail[0]->getUID() : null;
-			}
-		}
-		return $this->userManager->userExists($identifier) ? $identifier : null;
 	}
 }
