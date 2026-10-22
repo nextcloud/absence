@@ -272,8 +272,9 @@ an external HR system.
 
 ![Admin settings](screenshots/admin-settings.png)
 
-Everything is configured from **Administration settings → Absence** — a declarative
-settings form, so there is no bespoke admin UI to learn.
+Everything is configured on the **Settings** page inside the app, at the bottom of
+its navigation. HR and Nextcloud admins can open it. Only admins can change the HR
+group, so on a fresh install an admin picks it first.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -369,7 +370,7 @@ On install the app seeds four leave types — **Annual leave 🌴**, **Sick leav
 Then:
 
 1. Create (or pick) the **HR group** and put your HR people in it.
-2. Set the **default annual entitlement** in Administration settings → Absence.
+2. Set the **default annual entitlement** on the app's Settings page.
 3. Make sure the **`manager` property** is populated on your accounts — from LDAP/AD
    if you have it, or set by hand. Employees with no manager escalate straight to HR,
    so the app still works while you fill this in.
@@ -380,7 +381,7 @@ That is the whole setup. Employees can book leave immediately.
 
 ## Configuration
 
-Admin settings live under **Administration settings → Absence** (see the
+App settings live on the **Settings** page inside the app (see the
 [table above](#for-administrators)).
 
 Personal settings are appended to the built-in **Personal settings → Availability**

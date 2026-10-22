@@ -111,6 +111,15 @@
 					</NcAppNavigationItem>
 				</template>
 			</template>
+			<template v-if="session.isHr || session.isAdmin" #footer>
+				<NcAppNavigationList class="app-navigation-entry__settings">
+					<NcAppNavigationItem :name="t('absence', 'Settings')" :to="{ name: 'hr-settings' }">
+						<template #icon>
+							<CogOutline :size="20" />
+						</template>
+					</NcAppNavigationItem>
+				</NcAppNavigationList>
+			</template>
 		</NcAppNavigation>
 
 		<NcAppContent>
@@ -141,6 +150,7 @@ import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
+import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
@@ -154,6 +164,7 @@ import CalendarSearch from 'vue-material-design-icons/CalendarSearch.vue'
 import ChartBar from 'vue-material-design-icons/ChartBar.vue'
 import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
+import CogOutline from 'vue-material-design-icons/CogOutline.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import LightbulbOnOutline from 'vue-material-design-icons/LightbulbOnOutline.vue'
 import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
@@ -173,6 +184,7 @@ export default {
 		NcAppNavigation,
 		NcAppNavigationNew,
 		NcAppNavigationItem,
+		NcAppNavigationList,
 		NcAppNavigationCaption,
 		BookOpenPageVariant,
 		BookOpenVariant,
@@ -194,6 +206,7 @@ export default {
 		ClipboardPlusOutline,
 		Thermometer,
 		LightbulbOnOutline,
+		CogOutline,
 	},
 
 	setup() {

@@ -214,7 +214,7 @@
 						<h3>⚖️ {{ t('absence', 'Balances & entitlements') }}</h3>
 						<p>{{ t('absence', 'Balances shows entitlement, used, pending, remaining and available per employee, year and type. Set entitlements individually or in bulk for a whole group.') }}</p>
 						<p>{{ t('absence', 'Every entitlement is a base allowance plus an explicit adjustment with a mandatory note — "why does this person have 27 days?" always has a written answer. The pencil on a row opens the editor together with the change history.') }}</p>
-						<p>{{ t('absence', 'Carry-over into the new year is computed automatically by the rollover job, following the policy, cap and expiry date from the admin settings.') }}</p>
+						<p>{{ t('absence', 'Carry-over into the new year is computed automatically by the rollover job, following the policy, cap and expiry date from the Settings page.') }}</p>
 						<p>{{ t('absence', 'Adjustments are entered as deltas: "+2 for the wedding", later "−2, booked in error" — the two cancel back to the original. The change history under each entitlement records who changed which figure, from what to what, and the note they gave.') }}</p>
 						<figure class="handbook__figure handbook__figure--wide">
 							<img :src="img('edit-entitlement.png')" :alt="t('absence', 'The entitlement editor with its change history')">
@@ -268,7 +268,7 @@
 
 					<section :ref="setRef('hr-setup')" class="handbook__section handbook__section--hr">
 						<h3>🔧 {{ t('absence', 'Configuration to know about') }}</h3>
-						<p>{{ t('absence', 'Administration settings → Absence holds the knobs your admin controls: the HR group, the optional employees group (recommended on large instances — it also keeps service accounts out of every report), the default entitlement, escalation and reminder windows, carry-over policy, the coverage threshold, the expected notice period, and the calendar integration including whether the shared calendar reveals leave types. Leave types themselves — including their colours, flags and confidential categories — are managed through the leave-type settings.') }}</p>
+						<p>{{ t('absence', 'The Settings page at the bottom of the navigation holds the app settings, for HR and admins: the HR group (only admins change it), the optional employees group (recommended on large instances, it also keeps service accounts out of every report), the default vacation days, escalation and reminder windows, carry-over policy, the coverage threshold, the expected notice period, the calendar integration including whether the shared calendar reveals leave types, whether everyone may add and edit public holidays, and the leave types with their colours, flags and confidential categories.') }}</p>
 					</section>
 				</template>
 

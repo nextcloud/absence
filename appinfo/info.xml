@@ -45,7 +45,7 @@ Directory already fills in.
 
 **For administrators**
 
-* ⚙️ Declarative admin settings: HR group, entitlements, escalation window, carry-over policy, notice period and coverage threshold
+* ⚙️ Settings inside the app for HR and admins: HR and employees groups, entitlements, escalation window, carry-over policy, notice period, coverage threshold and leave types
 * 📅 Approved leave synced to Nextcloud Calendar (personal and shared team calendar), with configurable type visibility
 * 🔔 Notifications, email and Activity for every step — quoting what people actually wrote, so nobody has to open the app to find out
 * 🔒 Strict server-side permissions, rate limiting and GDPR deletion handling
@@ -103,9 +103,6 @@ properly. Every rule and design decision is documented in the
 		<command>OCA\Absence\Command\ImportHolidays</command>
 		<command>OCA\Absence\Command\ExportHolidays</command>
 	</commands>
-	<settings>
-		<admin-section>OCA\Absence\Settings\AdminSection</admin-section>
-	</settings>
 	<activity>
 		<settings>
 			<setting>OCA\Absence\Activity\Setting</setting>
