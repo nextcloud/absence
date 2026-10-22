@@ -23,7 +23,10 @@
 		<template v-else>
 			<section class="settings">
 				<div class="settings__intro">
-					<h3>{{ t('absence', 'Who is who') }}</h3>
+					<h3 class="settings__title">
+						{{ t('absence', 'Who is who') }}
+						<SavedCheck :savedAt="savedAt.who" />
+					</h3>
 					<p>{{ t('absence', 'Who counts as HR and as an employee.') }}</p>
 				</div>
 				<div class="settings__fields">
@@ -73,7 +76,10 @@
 
 			<section class="settings">
 				<div class="settings__intro">
-					<h3>{{ t('absence', 'Vacation') }}</h3>
+					<h3 class="settings__title">
+						{{ t('absence', 'Vacation') }}
+						<SavedCheck :savedAt="savedAt.vacation" />
+					</h3>
 					<p>{{ t('absence', 'Full-time days. Part-time follows each contract.') }}</p>
 				</div>
 				<div class="settings__fields">
@@ -117,7 +123,10 @@
 
 			<section class="settings">
 				<div class="settings__intro">
-					<h3>{{ t('absence', 'Approvals') }}</h3>
+					<h3 class="settings__title">
+						{{ t('absence', 'Approvals') }}
+						<SavedCheck :savedAt="savedAt.approvals" />
+					</h3>
 					<p>{{ t('absence', 'When a manager doesn\'t answer.') }}</p>
 				</div>
 				<div class="settings__fields">
@@ -137,7 +146,10 @@
 
 			<section class="settings">
 				<div class="settings__intro">
-					<h3>{{ t('absence', 'Calendar') }}</h3>
+					<h3 class="settings__title">
+						{{ t('absence', 'Calendar') }}
+						<SavedCheck :savedAt="savedAt.calendar" />
+					</h3>
 				</div>
 				<div class="settings__fields settings__fields--stacked">
 					<NcCheckboxRadioSwitch
@@ -167,7 +179,10 @@
 
 			<section class="settings">
 				<div class="settings__intro">
-					<h3>{{ t('absence', 'Public holidays') }}</h3>
+					<h3 class="settings__title">
+						{{ t('absence', 'Public holidays') }}
+						<SavedCheck :savedAt="savedAt.holidays" />
+					</h3>
 					<p>{{ t('absence', 'HR always edits the list. Importing a whole list stays with HR.') }}</p>
 				</div>
 				<div class="settings__fields settings__fields--stacked">
@@ -212,7 +227,7 @@
 </template>
 
 <script>
-import { showError, showSuccess } from '@nextcloud/dialogs'
+import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
@@ -224,13 +239,32 @@ import Lock from 'vue-material-design-icons/Lock.vue'
 import EmployeesGroupDialog from '../../components/EmployeesGroupDialog.vue'
 import LeaveTypeChip from '../../components/LeaveTypeChip.vue'
 import LeaveTypesDialog from '../../components/LeaveTypesDialog.vue'
+import SavedCheck from '../../components/SavedCheck.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
 import { store } from '../../store.js'
 
+// The section each setting is shown in, to flash its check once saved
+const SECTION_OF = {
+	hr_group: 'who',
+	employees_group: 'who',
+	default_entitlement: 'vacation',
+	carryover_policy: 'vacation',
+	carryover_cap: 'vacation',
+	carryover_expiry: 'vacation',
+	escalation_window_days: 'approvals',
+	reminder_lead_days: 'approvals',
+	max_concurrent_absences: 'approvals',
+	notice_period_days: 'approvals',
+	caldav_personal: 'calendar',
+	caldav_shared: 'calendar',
+	shared_calendar_visibility: 'calendar',
+	holidays_everyone_edits: 'holidays',
+}
+
 export default {
 	name: 'HrSettings',
-	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SkeletonList },
+	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SavedCheck, SkeletonList },
 	data() {
 		return {
 			loading: true,
@@ -242,6 +276,8 @@ export default {
 			employeesCount: null,
 			pendingEmployeesGroup: null,
 			managingTypes: false,
+			// Section → when it was last saved
+			savedAt: {},
 			everyone: { id: '', displayName: t('absence', 'Everyone') },
 			carryOverOptions: [
 				{ id: 'none', label: t('absence', 'No carry-over') },
@@ -330,7 +366,9 @@ export default {
 			this.saving = true
 			try {
 				this.apply(await api.updateSettings(patch))
-				showSuccess(t('absence', 'Saved'))
+				for (const key of Object.keys(patch)) {
+					this.savedAt[SECTION_OF[key]] = Date.now()
+				}
 				if ('hr_group' in patch || 'holidays_everyone_edits' in patch) {
 					// The session carries whether this very user still is HR and may edit holidays.
 					await store.refreshSession()
@@ -374,6 +412,12 @@ export default {
 	h3 {
 		margin: 0;
 		font-size: 1.1rem;
+	}
+
+	&__title {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 
 	&__intro p {
