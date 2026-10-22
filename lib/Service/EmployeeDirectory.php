@@ -128,6 +128,25 @@ class EmployeeDirectory {
 		return $this->isEmployeeUser($user);
 	}
 
+	/**
+	 * The uid behind a uid or an e-mail address, as files from spreadsheets
+	 * carry either. Addresses are looked up first: the server's own user lookup
+	 * accepts an address too, but then reports the address itself as the uid.
+	 * Null for nobody, and for an address several accounts share.
+	 */
+	public function resolveUser(string $identifier): ?string {
+		if ($identifier === '') {
+			return null;
+		}
+		if (str_contains($identifier, '@')) {
+			$byEmail = $this->userManager->getByEmail($identifier);
+			if ($byEmail !== []) {
+				return count($byEmail) === 1 ? $byEmail[0]->getUID() : null;
+			}
+		}
+		return $this->userManager->userExists($identifier) ? $identifier : null;
+	}
+
 	/** Whether this uid is a guest account specifically (an unknown uid is not). */
 	public function isGuest(string $uid): bool {
 		$user = $this->userManager->get($uid);
