@@ -934,6 +934,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Calendar | CalDAV: write shared team calendar | true | §10. |
 | Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal. |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
+| Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `https://` link or a path on this server; empty hides the entry. |
 | Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
 
 **Changing the employees group** asks for confirmation first. The dialog shows, from
@@ -1021,19 +1022,12 @@ already shows it to whoever may decide. The endpoint is always scoped to the
 
 ---
 
-### 13.1 In-app handbooks
+### 13.1 Handbooks
 
-Two handbook pages, served by the SPA itself (static, translatable content — no
-backend), illustrated with element-level screenshots shipped under
-`img/handbook/` (served via the app's image route; regenerate them alongside
-`screenshots/` when the UI changes): `#/handbook`, linked in the sidebar for everyone, walks employees and
-team leads through booking, editing, deciding, coverage, the Team page and the
-who-sees-what rules; `#/hr/handbook`, linked in the HR section, is the extended
-edition — the same chapters plus recording (incl. confidential categories),
-absence management, entitlements, reports, the audit trail and the admin knobs
-worth knowing. A non-HR visitor deep-linking to the HR edition is redirected to
-the employee one; the HR chapters are documentation, not secrets, but the
-handbook shown should match what its reader can actually see.
+The app ships no handbook of its own. HR links one in the settings (§12): a
+handbook for everyone and one for HR, typically Collectives pages HR keeps up to
+date, or any `https://` link or path on this server. Each becomes a navigation
+entry (the HR one for HR only) that opens in a new tab, and is hidden while empty.
 
 ---
 
@@ -1197,11 +1191,13 @@ NcContent(app-name="absence")
 │   ├── NcAppNavigationItem  My leave           (icon: mdiBeach)
 │   ├── NcAppNavigationItem  Approvals  [badge]  (managers only; badge = pending count)
 │   ├── NcAppNavigationItem  Team               (icon: mdiAccountGroup)
+│   ├── NcAppNavigationItem  Public holidays
+│   ├── NcAppNavigationItem  Handbook           (handbook link, §13.1, when set; new tab)
 │   ├── NcAppNavigationCaption "HR"             (HR only)
 │   ├── NcAppNavigationItem    Balances
 │   ├── NcAppNavigationItem    Statistics
 │   ├── NcAppNavigationItem    Who's off
-│   ├── NcAppNavigationItem    HR handbook      (extended handbook incl. the HR chapters)
+│   ├── NcAppNavigationItem    HR handbook      (HR's handbook link, §13.1, when set)
 │   ├── NcAppNavigationItem    Exports
 │   └── #footer: NcAppNavigationItem Settings     (HR and admins, §12)
 ├── NcAppContent                            ← CENTER (the active routed view)
@@ -1652,3 +1648,5 @@ Recorded during the build so the spec matches the code:
   first management UI there. The holiday-editing switch moved there from the *Public
   holidays* page, and `PUT /api/holidays/editing` is gone; the setting still goes
   through `HolidayService`, so the holiday history keeps who switched it.
+- **Handbooks are links** (§13.1): the built-in handbook pages and their 8.7 MB of
+  screenshots are gone; HR links handbooks kept elsewhere (Collectives) in the settings.

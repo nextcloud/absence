@@ -104,6 +104,16 @@ class ConfigService {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_SHARED_VISIBILITY);
 	}
 
+	/** Where the handbook for everyone lives, '' when there is none. */
+	public function getHandbookUrl(): string {
+		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_HANDBOOK_URL);
+	}
+
+	/** Where the handbook for HR lives, '' when there is none. */
+	public function getHrHandbookUrl(): string {
+		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_HR_HANDBOOK_URL);
+	}
+
 	/**
 	 * The whole admin config as a plain array for the settings UI / SPA bootstrap.
 	 *
@@ -125,6 +135,8 @@ class ConfigService {
 			ConfigLexicon::KEY_CALDAV_SHARED => $this->isCalDavSharedEnabled(),
 			ConfigLexicon::KEY_HOLIDAYS_EVERYONE => $this->canEveryoneEditHolidays(),
 			ConfigLexicon::KEY_SHARED_VISIBILITY => $this->getSharedCalendarVisibility(),
+			ConfigLexicon::KEY_HANDBOOK_URL => $this->getHandbookUrl(),
+			ConfigLexicon::KEY_HR_HANDBOOK_URL => $this->getHrHandbookUrl(),
 		];
 	}
 
@@ -232,6 +244,13 @@ class ConfigService {
 			case ConfigLexicon::KEY_SHARED_VISIBILITY:
 				if (!in_array($value, [self::VISIBILITY_NEUTRAL, self::VISIBILITY_REVEAL], true)) {
 					throw new ValidationException($this->l->t('Invalid shared-calendar visibility.'));
+				}
+				return $value;
+			case ConfigLexicon::KEY_HANDBOOK_URL:
+			case ConfigLexicon::KEY_HR_HANDBOOK_URL:
+				// A web link or a path on this server, never javascript: or data:
+				if (!is_string($value) || ($value !== '' && !preg_match('#^(https?://[^\s]+|/[^/\s][^\s]*)$#i', $value))) {
+					throw new ValidationException($this->l->t('The handbook must be a link starting with https:// or /, or empty.'));
 				}
 				return $value;
 			case ConfigLexicon::KEY_CARRYOVER_EXPIRY:
