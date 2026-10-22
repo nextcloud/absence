@@ -71,9 +71,9 @@
 							<CalendarSearch :size="20" />
 						</template>
 					</NcAppNavigationItem>
-					<NcAppNavigationItem :name="t('absence', 'Balances')" :to="{ name: 'hr-balances' }">
+					<NcAppNavigationItem :name="t('absence', 'Employees')" :to="{ name: 'hr-employees' }">
 						<template #icon>
-							<ScaleBalance :size="20" />
+							<CardAccountDetailsOutline :size="20" />
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'Statistics')" :to="{ name: 'hr-statistics' }">
@@ -151,6 +151,7 @@ import BookOpenVariant from 'vue-material-design-icons/BookOpenVariant.vue'
 import CalendarAccountOutline from 'vue-material-design-icons/CalendarAccountOutline.vue'
 import CalendarMonth from 'vue-material-design-icons/CalendarMonth.vue'
 import CalendarSearch from 'vue-material-design-icons/CalendarSearch.vue'
+import CardAccountDetailsOutline from 'vue-material-design-icons/CardAccountDetailsOutline.vue'
 import ChartBar from 'vue-material-design-icons/ChartBar.vue'
 import ClipboardCheck from 'vue-material-design-icons/ClipboardCheck.vue'
 import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline.vue'
@@ -158,7 +159,6 @@ import Download from 'vue-material-design-icons/Download.vue'
 import LightbulbOnOutline from 'vue-material-design-icons/LightbulbOnOutline.vue'
 import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
-import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import Confetti from './components/Confetti.vue'
 import RequestDialog from './components/RequestDialog.vue'
@@ -183,10 +183,10 @@ export default {
 		Plus,
 		CalendarAccountOutline,
 		CalendarSearch,
+		CardAccountDetailsOutline,
 		ClipboardCheck,
 		AccountGroup,
 		AccountCircleOutline,
-		ScaleBalance,
 		ChartBar,
 		CalendarMonth,
 		Download,

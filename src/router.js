@@ -7,7 +7,7 @@ import Approvals from './views/Approvals.vue'
 import Handbook from './views/Handbook.vue'
 import Holidays from './views/Holidays.vue'
 import HrAbsences from './views/hr/HrAbsences.vue'
-import HrBalances from './views/hr/HrBalances.vue'
+import HrEmployees from './views/hr/HrEmployees.vue'
 import HrExports from './views/hr/HrExports.vue'
 import HrInsights from './views/hr/HrInsights.vue'
 import HrSickLeave from './views/hr/HrSickLeave.vue'
@@ -23,7 +23,8 @@ const routes = [
 	{ path: '/approvals', name: 'approvals', component: Approvals },
 	{ path: '/team', name: 'team', component: Team },
 	{ path: '/hr/absences', name: 'hr-absences', component: HrAbsences },
-	{ path: '/hr/balances', name: 'hr-balances', component: HrBalances },
+	{ path: '/hr/employees', name: 'hr-employees', component: HrEmployees },
+	{ path: '/hr/balances', redirect: '/hr/employees' },
 	{ path: '/hr/statistics', name: 'hr-statistics', component: HrStatistics },
 	{ path: '/hr/insights', name: 'hr-insights', component: HrInsights },
 	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave },

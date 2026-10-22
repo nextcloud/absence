@@ -65,7 +65,7 @@ class ConfigController extends Controller {
 					$this->config->setPersonalValue($uid, $key, (string)$value);
 				}
 			}
-			$code = static fn (array $c): string => trim($c[ConfigLexicon::KEY_HOLIDAY_COUNTRY] . '-' . $c[ConfigLexicon::KEY_HOLIDAY_REGION], '-');
+			$code = static fn (array $c): string => ConfigService::regionCode($c[ConfigLexicon::KEY_HOLIDAY_COUNTRY], $c[ConfigLexicon::KEY_HOLIDAY_REGION]);
 			$this->employees->recordRegionChange($uid, $code($before), $code($this->config->getPersonalConfig($uid)), $uid);
 			return $this->personalDefaults->resolve($uid);
 		});

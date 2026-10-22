@@ -135,8 +135,7 @@ import api from '../api.js'
 import { store } from '../store.js'
 import { formatDate, formatRange, toIso } from '../utils/dates.js'
 import { regionFlag } from '../utils/regions.js'
-
-const DAY_NAMES = () => [t('absence', 'Mon'), t('absence', 'Tue'), t('absence', 'Wed'), t('absence', 'Thu'), t('absence', 'Fri'), t('absence', 'Sat'), t('absence', 'Sun')]
+import { dayNames } from '../utils/weekdays.js'
 
 export default {
 	name: 'Profile',
@@ -203,7 +202,7 @@ export default {
 		},
 
 		weekdayNames(weekdays) {
-			const names = DAY_NAMES()
+			const names = dayNames()
 			return weekdays.map((day) => names[day - 1]).join(', ')
 		},
 

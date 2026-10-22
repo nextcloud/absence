@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -32,10 +33,24 @@ class EmployeeController extends Controller {
 		private IGroupManager $groupManager,
 		private ISearch $collaboratorSearch,
 		private EmployeeDirectory $employees,
+		private EmployeeListService $list,
 		private PermissionService $permission,
 		private IL10N $l,
 	) {
 		parent::__construct($appName, $request);
+	}
+
+	/**
+	 * HR's list of every employee with their region code, contract, manager and
+	 * the days of a year (§13).
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function index(?int $year = null): DataResponse {
+		return $this->handle(function () use ($year): array {
+			$this->permission->assertHr((string)$this->userId);
+			return $this->list->list($year);
+		});
 	}
 
 	/**

@@ -32,6 +32,8 @@ use OCP\Log\Audit\CriticalActionPerformedEvent;
  */
 class EmployeeService {
 	private const DATE = '/^\d{4}-\d{2}-\d{2}$/';
+	/** @var array<string, Contract> */
+	private array $contracts = [];
 
 	public function __construct(
 		private EmploymentMapper $employments,
@@ -49,12 +51,41 @@ class EmployeeService {
 	 * @return Contract
 	 */
 	public function getContract(string $uid): array {
-		$employment = $this->employments->findForEmployee($uid);
-		return [
-			'start' => $employment?->getStartDate(),
-			'end' => $employment?->getEndDate(),
-			'periods' => array_map($this->describePeriod(...), $this->periods->findForEmployee($uid)),
-		];
+		$this->preload([$uid]);
+		return $this->contracts[$uid];
+	}
+
+	/**
+	 * Loads the contracts of many employees in a fixed number of queries, for the
+	 * balances of a whole company.
+	 *
+	 * @param list<string> $uids
+	 */
+	public function preload(array $uids): void {
+		$missing = array_values(array_diff($uids, array_keys($this->contracts)));
+		foreach (array_chunk($missing, 1000) as $chunk) {
+			foreach ($chunk as $uid) {
+				$this->contracts[$uid] = ['start' => null, 'end' => null, 'periods' => []];
+			}
+			foreach ($this->employments->findForEmployees($chunk) as $employment) {
+				$this->contracts[$employment->getEmployeeUid()]['start'] = $employment->getStartDate();
+				$this->contracts[$employment->getEmployeeUid()]['end'] = $employment->getEndDate();
+			}
+			foreach ($this->periods->findForEmployees($chunk) as $period) {
+				$this->contracts[$period->getEmployeeUid()]['periods'][] = $this->describePeriod($period);
+			}
+		}
+	}
+
+	/**
+	 * Removes someone's contract data and its history, when their account goes.
+	 */
+	public function purge(string $uid): void {
+		unset($this->contracts[$uid]);
+		foreach (['absence_employments', 'absence_contract_periods', 'absence_employee_history'] as $table) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete($table)->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))->executeStatement();
+		}
 	}
 
 	/**
@@ -64,13 +95,13 @@ class EmployeeService {
 	 */
 	public function weekdaysOn(string $uid, string $date): ?array {
 		$current = null;
-		foreach ($this->periods->findForEmployee($uid) as $period) {
-			if ($period->getValidFrom() > $date) {
+		foreach ($this->getContract($uid)['periods'] as $period) {
+			if ($period['from'] > $date) {
 				break;
 			}
 			$current = $period;
 		}
-		return $current?->getWeekdayList();
+		return $current['weekdays'] ?? null;
 	}
 
 	/**
@@ -116,6 +147,7 @@ class EmployeeService {
 			$this->db->rollBack();
 			throw $e;
 		}
+		$this->contracts[$uid] = $after;
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
 			'Contract of %s changed by %s', [$uid, $actor ?? 'occ'],
 		));

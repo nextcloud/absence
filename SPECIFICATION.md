@@ -659,6 +659,11 @@ and to the admin audit log; the region code people set themselves (§7.2) goes t
 same history. The weekdays drive the working-days prefill (§7.1); the percentage is
 not used for leave yet.
 
+The annual allowance is **not** derived from the contract: HR sets each person's days
+for the year (`absence_entitlements`, §5.5). The same percentage can mean shorter days
+on all five weekdays, with the full allowance, or fewer weekdays with fewer days, and
+interns, countries and individual agreements differ again.
+
 ## 7. Working Days (manually entered)
 
 There is **no automatic working-day calculation**. Keeping an accurate, always-current
@@ -937,9 +942,23 @@ preferences defer to the global Nextcloud notification settings.
 
 The HR area (visible only to HR-group members) provides:
 
-1. **Per-employee balances table:** entitlement / used / pending / remaining /
-   carry-over, per year and type. Filterable by group/department, searchable,
-   sortable. Drill-down to an employee's request history. The usage sums are
+1. **Employees list** (`#/hr/employees`, `GET /api/employees?year`, HR-only):
+   everyone the directory counts as an employee (§2.2), one row each, with their
+   region code (§7.2), working days and contract percentage of the period in force
+   today (§6.4), start date (the year, or the day when it falls in the selected
+   year) and end date, manager (§2.1), and for the selected year the annual days
+   (§6.4), taken and left, and sick days. Missing data is flagged rather than left
+   blank: *No region code*, *No manager* (their requests go straight to HR) and *No
+   contract data*. Filters: all, missing data (any of the three), part-time (fewer
+   than five weekdays or under 100 %), and starting or leaving in the year; a search
+   by name or user id; rows shown 50 at a time. Each row opens the person's profile,
+   and its menu edits each counting entitlement with its history (§6.1). Managers
+   are not edited here: the header links to the org chart in Contacts when it is
+   enabled. The server answers in a fixed number of queries whatever the headcount
+   (contracts, balances, managers from the stored `settings/manager` preference,
+   region codes and sick days are each read for everyone at once); enumerating the
+   accounts is the user backend's own cost. The balances report below
+   (`GET /api/reports/balances`) stays for the CSV and Excel export. The usage sums are
    aggregated by the database (`SUM(working_days)` grouped by employee, type and
    status for the report year), so the report scales with headcount, not with
    how many years of requests have accumulated; only the netting rule for
@@ -1049,6 +1068,7 @@ the SPA). All list endpoints paginate and accept filters.
 - `GET  /api/balance` — current user's balance (all years/types or filtered).
 - `GET  /api/team/balances` — balances of the caller's own direct reports (§13);
   empty for a non-manager, never someone else's team.
+- `GET  /api/employees?year`: HR only, the employees list (§13).
 - `GET  /api/employees/{uid}/balance` — manager (reports) / HR only.
 - `GET  /api/entitlements` / `PUT /api/entitlements/{id}` — HR manage.
 - `POST /api/entitlements/bulk` — HR bulk set.
@@ -1259,9 +1279,10 @@ NcContent(app-name="absence")
   the viewer's own.
   Accepts `?employee=&employeeName=&type=&status=&year=` so other views can deep-link
   into it — the *Sick leave* overview does, from each employee row.
-- **HR** (HR group only): *Balances* (searchable/sortable data table →
-  entitlement/used/pending/remaining/carry-over, inline entitlement editor, skeleton on
-  load), *Statistics* (stat tiles + a **`LineChart`** area for monthly trend and a
+- **HR** (HR group only): *Employees* (§13: one row per person with region code,
+  working days, contract, start, manager and the year's days, taken, left and sick
+  days; filter chips, search, "Load more", the entitlement editor in each row's menu,
+  skeleton on load; `#/hr/balances` redirects there), *Statistics* (stat tiles + a **`LineChart`** area for monthly trend and a
   **`DonutChart`** with legend for by-type, following the `dataviz` palette & a11y
   rules, themed to Nextcloud vars), *Who's off* (org-wide Gantt timeline), *Exports*
   (filter form + CSV buttons), plus entitlement / leave-type / holiday management.
@@ -1612,3 +1633,9 @@ Recorded during the build so the spec matches the code:
   ones people set for themselves, which are dropped (`Version1010…`, app 1.2.0). The
   personal section on the Availability page is gone: the region code moved to the
   profile page.
+- **HR → Employees** (§13, §15.2): the *Balances* page became a list of every employee
+  with their region code, contract, manager and the year's days, flagging missing data,
+  from one HR-only endpoint (`GET /api/employees`) that costs a fixed number of
+  queries. The per-type balance rows and stat tiles went with the old table; each
+  counting entitlement is still edited from the row's menu, and the balances export
+  is the header's *Export* button.

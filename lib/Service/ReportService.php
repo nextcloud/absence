@@ -154,9 +154,45 @@ class ReportService {
 	 */
 	public function sickLeaveReport(int $year, ?string $group = null, ?int $typeId = null): array {
 		$types = $this->sickLeaveTypes($typeId);
-		$typeIds = array_map(static fn (array $t): int => $t['id'], $types);
-		$uids = $this->employeeUids($group);
+		$rows = array_values($this->sickLeaveRows($this->employeeUids($group), $year, array_map(static fn (array $t): int => $t['id'], $types)));
+		// most days lost first; ties by name so the order is stable between loads
+		usort($rows, static fn (array $a, array $b): int
+			=> [$b['days'], $a['displayName']] <=> [$a['days'], $b['displayName']]);
 
+		$affected = array_values(array_filter($rows, static fn (array $r): bool => $r['days'] > 0));
+
+		return [
+			'year' => $year,
+			'types' => $types,
+			'rows' => $rows,
+			'totals' => [
+				'employees' => count($rows),
+				'affected' => count($affected),
+				// cast: array_sum() of an empty column is int 0, and the client
+				// should not see the type change with the data
+				'days' => (float)array_sum(array_column($rows, 'days')),
+				'episodes' => (int)array_sum(array_column($rows, 'episodes')),
+			],
+		];
+	}
+
+	/**
+	 * Days of approved sick leave per employee in a year, for the employees list.
+	 *
+	 * @param list<string> $uids
+	 * @return array<string, float> uid => days
+	 */
+	public function sickDays(array $uids, int $year): array {
+		$typeIds = array_map(static fn (array $t): int => $t['id'], $this->sickLeaveTypes(null));
+		return array_map(static fn (array $row): float => $row['days'], $this->sickLeaveRows($uids, $year, $typeIds));
+	}
+
+	/**
+	 * @param list<string> $uids
+	 * @param list<int> $typeIds
+	 * @return array<string, array{employeeUid: string, displayName: string, days: float, episodes: int, longestEpisode: float, lastDate: ?string}>
+	 */
+	private function sickLeaveRows(array $uids, int $year, array $typeIds): array {
 		$rows = [];
 		foreach ($uids as $uid) {
 			$rows[$uid] = [
@@ -169,13 +205,17 @@ class ReportService {
 			];
 		}
 
-		if ($types !== [] && $uids !== []) {
-			$requests = $this->requestMapper->findForEmployeesInRange(
-				$uids,
-				sprintf('%04d-01-01', $year),
-				sprintf('%04d-12-31', $year),
-				LeaveRequest::USED_STATUSES,
-			);
+		if ($typeIds !== [] && $uids !== []) {
+			// In chunks: some databases cap an IN list at 1000 values
+			$requests = [];
+			foreach (array_chunk($uids, 1000) as $chunk) {
+				$requests = [...$requests, ...$this->requestMapper->findForEmployeesInRange(
+					$chunk,
+					sprintf('%04d-01-01', $year),
+					sprintf('%04d-12-31', $year),
+					LeaveRequest::USED_STATUSES,
+				)];
+			}
 			foreach ($requests as $request) {
 				if (!in_array($request->getTypeId(), $typeIds, true)) {
 					continue;
@@ -197,26 +237,7 @@ class ReportService {
 			}
 		}
 
-		$rows = array_values($rows);
-		// most days lost first; ties by name so the order is stable between loads
-		usort($rows, static fn (array $a, array $b): int
-			=> [$b['days'], $a['displayName']] <=> [$a['days'], $b['displayName']]);
-
-		$affected = array_values(array_filter($rows, static fn (array $r): bool => $r['days'] > 0));
-
-		return [
-			'year' => $year,
-			'types' => $types,
-			'rows' => $rows,
-			'totals' => [
-				'employees' => count($rows),
-				'affected' => count($affected),
-				// cast: array_sum() of an empty column is int 0, and the client
-				// should not see the type change with the data
-				'days' => (float)array_sum(array_column($rows, 'days')),
-				'episodes' => (int)array_sum(array_column($rows, 'episodes')),
-			],
-		];
+		return $rows;
 	}
 
 	/**

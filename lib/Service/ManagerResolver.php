@@ -69,6 +69,25 @@ class ManagerResolver {
 	}
 
 	/**
+	 * The managers of many employees from the one query on the stored
+	 * preference, for lists of the whole company.
+	 *
+	 * @param list<string> $employeeUids
+	 * @return array<string, ?string> employee uid => manager uid
+	 */
+	public function getManagerUidsOf(array $employeeUids): array {
+		$configured = $this->configuredManagers();
+		$managers = [];
+		foreach ($employeeUids as $uid) {
+			if (!array_key_exists($uid, $this->managerCache)) {
+				$this->managerCache[$uid] = $this->firstValidManager($uid, $configured[$uid] ?? []);
+			}
+			$managers[$uid] = $this->managerCache[$uid];
+		}
+		return $managers;
+	}
+
+	/**
 	 * @return string[] the raw configured manager uids, [] on backend failure
 	 */
 	private function readManagerUids(IUser $user): array {

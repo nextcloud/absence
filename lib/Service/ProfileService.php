@@ -61,9 +61,7 @@ class ProfileService {
 		$isHr = $this->permission->isHr($viewer);
 		$managerUid = $this->managers->getManagerUid($uid);
 		$personal = $this->config->getPersonalConfig($uid);
-		$country = $personal[ConfigLexicon::KEY_HOLIDAY_COUNTRY];
-		$region = $personal[ConfigLexicon::KEY_HOLIDAY_REGION];
-		$code = $country === '' ? '' : ($region === '' ? $country : $country . '-' . $region);
+		$code = ConfigService::regionCode($personal[ConfigLexicon::KEY_HOLIDAY_COUNTRY], $personal[ConfigLexicon::KEY_HOLIDAY_REGION]);
 		$today = $this->clock->userToday();
 		$year = (int)substr($today, 0, 4);
 
