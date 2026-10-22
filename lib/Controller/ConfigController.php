@@ -8,7 +8,9 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\PersonalDefaultsService;
 use OCA\Absence\Service\SessionService;
 use OCP\AppFramework\Controller;
@@ -27,6 +29,7 @@ class ConfigController extends Controller {
 		private ?string $userId,
 		private ConfigService $config,
 		private PersonalDefaultsService $personalDefaults,
+		private EmployeeService $employees,
 		private SessionService $sessionService,
 		private IL10N $l,
 	) {
@@ -39,15 +42,15 @@ class ConfigController extends Controller {
 		return $this->handle(fn () => $this->sessionService->getSessionInfo());
 	}
 
-	/** Read the current user's resolved personal settings (detected + overrides). */
+	/** The current user's working weekdays and region code for the prefill. */
 	#[NoAdminRequired]
 	public function personal(): DataResponse {
 		return $this->handle(fn () => $this->personalDefaults->resolve((string)$this->userId));
 	}
 
 	/**
-	 * Save the current user's personal overrides (working weekdays, holiday
-	 * country/region). Empty values clear an override and fall back to detection.
+	 * Save the current user's holiday region code (country and region). The
+	 * change goes to their history.
 	 *
 	 * @param array<string,mixed> $values
 	 */
@@ -56,12 +59,14 @@ class ConfigController extends Controller {
 	public function updatePersonal(array $values): DataResponse {
 		return $this->handle(function () use ($values) {
 			$uid = (string)$this->userId;
-			$allowed = array_keys($this->config->getPersonalConfig($uid));
+			$before = $this->config->getPersonalConfig($uid);
 			foreach ($values as $key => $value) {
-				if (in_array($key, $allowed, true)) {
+				if (array_key_exists($key, $before)) {
 					$this->config->setPersonalValue($uid, $key, (string)$value);
 				}
 			}
+			$code = static fn (array $c): string => trim($c[ConfigLexicon::KEY_HOLIDAY_COUNTRY] . '-' . $c[ConfigLexicon::KEY_HOLIDAY_REGION], '-');
+			$this->employees->recordRegionChange($uid, $code($before), $code($this->config->getPersonalConfig($uid)), $uid);
 			return $this->personalDefaults->resolve($uid);
 		});
 	}

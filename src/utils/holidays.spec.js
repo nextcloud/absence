@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { compareHolidays, hasHolidays, makeHolidayChecker, parseRegionCode } from './holidays.js'
+import { compareHolidays, groupByYear, hasHolidays, makeHolidayChecker, parseRegionCode } from './holidays.js'
 
 describe('parseRegionCode', () => {
 	it('splits and uppercases a code', () => {
@@ -52,5 +52,18 @@ describe('makeHolidayChecker', () => {
 		const isHoliday = makeHolidayChecker([{ date: '2027-01-01' }])
 		expect(isHoliday('2027-01-01')).toBe(true)
 		expect(isHoliday('2027-01-02')).toBe(false)
+	})
+})
+
+describe('groupByYear', () => {
+	it('splits days by year, in date order', () => {
+		expect(groupByYear([
+			{ date: '2027-01-06', label: 'Epiphany' },
+			{ date: '2026-08-15', label: 'Assumption Day' },
+			{ date: '2026-01-06', label: 'Epiphany' },
+		])).toEqual([
+			{ year: '2026', days: [{ date: '2026-01-06', label: 'Epiphany' }, { date: '2026-08-15', label: 'Assumption Day' }] },
+			{ year: '2027', days: [{ date: '2027-01-06', label: 'Epiphany' }] },
+		])
 	})
 })

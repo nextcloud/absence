@@ -13,6 +13,10 @@ export default {
 	getPersonalConfig: () => axios.get(url('/api/personal/config')).then((r) => r.data),
 	updatePersonalConfig: (values) => axios.put(url('/api/personal/config'), { values }).then((r) => r.data),
 
+	// Profiles (§6.4): the person, their manager and HR read, HR edits the contract
+	getProfile: (uid) => axios.get(url(`/api/profiles/${encodeURIComponent(uid)}`)).then((r) => r.data),
+	updateContract: (uid, contract) => axios.put(url(`/api/profiles/${encodeURIComponent(uid)}/contract`), contract).then((r) => r.data),
+
 	// Requests
 	listRequests: (params) => axios.get(url('/api/requests'), { params }).then((r) => r.data),
 	getRequest: (id) => axios.get(url(`/api/requests/${id}`)).then((r) => r.data),

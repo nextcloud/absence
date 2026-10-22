@@ -12,6 +12,12 @@
 					</template>
 				</NcAppNavigationNew>
 
+				<NcAppNavigationItem :name="t('absence', 'Profile')" :to="{ name: 'profile' }">
+					<template #icon>
+						<AccountCircleOutline :size="20" />
+					</template>
+				</NcAppNavigationItem>
+
 				<NcAppNavigationItem
 					:name="t('absence', 'My leave')"
 					:to="{ name: 'my' }">
@@ -138,6 +144,7 @@ import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
+import AccountCircleOutline from 'vue-material-design-icons/AccountCircleOutline.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import BookOpenPageVariant from 'vue-material-design-icons/BookOpenPageVariant.vue'
 import BookOpenVariant from 'vue-material-design-icons/BookOpenVariant.vue'
@@ -178,6 +185,7 @@ export default {
 		CalendarSearch,
 		ClipboardCheck,
 		AccountGroup,
+		AccountCircleOutline,
 		ScaleBalance,
 		ChartBar,
 		CalendarMonth,

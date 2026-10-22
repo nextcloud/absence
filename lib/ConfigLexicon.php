@@ -42,8 +42,7 @@ class ConfigLexicon implements ILexicon {
 	// Internal state.
 	public const KEY_LAST_ROLLOVER_YEAR = 'last_rollover_year';
 
-	// Per-user settings used to prefill the working-day count (§7).
-	public const KEY_WORK_WEEKDAYS = 'work_weekdays';
+	// The holiday region code each person sets for themselves (§7.2).
 	public const KEY_HOLIDAY_COUNTRY = 'holiday_country';
 	public const KEY_HOLIDAY_REGION = 'holiday_region';
 
@@ -91,8 +90,6 @@ class ConfigLexicon implements ILexicon {
 	#[\Override]
 	public function getUserConfigs(): array {
 		return [
-			new Entry(self::KEY_WORK_WEEKDAYS, ValueType::STRING, '',
-				'ISO weekdays (comma-separated, Mon=1) that count as working days; empty = detect from availability'),
 			new Entry(self::KEY_HOLIDAY_COUNTRY, ValueType::STRING, '',
 				'Country code for public-holiday detection in the working-day prefill'),
 			new Entry(self::KEY_HOLIDAY_REGION, ValueType::STRING, '',

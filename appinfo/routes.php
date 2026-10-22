@@ -74,5 +74,9 @@ return [
 		['name' => 'config#session', 'url' => '/api/session', 'verb' => 'GET'],
 		['name' => 'config#personal', 'url' => '/api/personal/config', 'verb' => 'GET'],
 		['name' => 'config#updatePersonal', 'url' => '/api/personal/config', 'verb' => 'PUT'],
+
+		// Profiles (§6.4): the person, their manager and HR read, HR edits the contract
+		['name' => 'profile#show', 'url' => '/api/profiles/{uid}', 'verb' => 'GET'],
+		['name' => 'profile#updateContract', 'url' => '/api/profiles/{uid}/contract', 'verb' => 'PUT'],
 	],
 ];

@@ -646,6 +646,19 @@ entitlement history records the import like any HR edit.
 
 ---
 
+### 6.4 Contract data (HR)
+
+HR keeps, per employee, the start date, the end date once known, and the working
+pattern: the ISO weekdays someone works and their contract percentage, **from a date
+on** (`absence_employments`, `absence_contract_periods`). A change of pattern is a new
+period with its own date, so the past keeps the pattern it had; someone can work 5 days
+at 70%. Only HR edits it (`PUT /api/profiles/{uid}/contract`, the whole contract at
+once); the person, their manager and HR read it. Every change goes to the person's
+history (`absence_employee_history`, with the values before and after and the author)
+and to the admin audit log; the region code people set themselves (§7.2) goes to the
+same history. The weekdays drive the working-days prefill (§7.1); the percentage is
+not used for leave yet.
+
 ## 7. Working Days (manually entered)
 
 There is **no automatic working-day calculation**. Keeping an accurate, always-current
@@ -677,10 +690,9 @@ count drives the balance, and the server never recomputes it (§7).
 
 To save typing, the request dialog **prefills** the working-days field with a
 client-side estimate: days in the picked range that fall on the user's working
-weekdays (detected from their Availability settings, overridable) minus the public
-public holidays listed for the user's region code (§7.2). The estimate is served by
-`PersonalDefaultsService` + `/api/personal/config`, with a small personal-settings
-section appended to the built-in **Availability** page (`lib/Settings/Personal.php`).
+weekdays (from their contract, §6.4, or while HR has not entered one, from their
+Availability settings) minus the public holidays listed for the user's region code
+(§7.2). The estimate is served by `PersonalDefaultsService` + `/api/personal/config`.
 The prefill stops as soon as the user edits the field, is absent when editing an
 existing request, and is **never used server-side** — the manually confirmed number
 is what counts (§7).
@@ -712,8 +724,7 @@ the *Auditing / Logging* app is enabled) and to `nextcloud.log` like the other a
 entries. Nothing is sent to the Activity stream, by notification or by email. Other apps read
 the list through `getPublicHolidays()` (§14b).
 
-**Each person sets their own region code** in the personal settings (Availability
-page); it is never guessed from the locale, phone number or timezone. Changing it
+**Each person sets their own region code** on their profile page (§15.2); it is never guessed from the locale, phone number or timezone. Changing it
 first shows what changes over this year and next: the days no longer off, the new
 days off, and how many stay the same. A code with no holidays of its own or of its
 country gets a warning (only the `*` days would apply), but can still be saved, since
@@ -912,10 +923,9 @@ new "Absence" settings section or "Personal info"/"Administration"):
 | Shared calendar type-visibility | neutral | Reveal type vs "Absent" on shared cal. |
 | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. |
 
-The only personal settings are the **working-day prefill** preferences (§7.1) — a
-small section appended to the built-in Availability page, not a separate Absence
-settings page. Notification preferences defer to the global Nextcloud notification
-settings.
+There are no personal settings pages: the region code is set on the profile page
+(§15.2) and the working weekdays come from the contract HR keeps (§6.4). Notification
+preferences defer to the global Nextcloud notification settings.
 
 > **Note on out-of-office:** the app does **not** touch the built-in
 > `user_status` out-of-office / auto-responder feature. Calendar busy state (§10) is
@@ -1255,6 +1265,13 @@ NcContent(app-name="absence")
   **`DonutChart`** with legend for by-type, following the `dataviz` palette & a11y
   rules, themed to Nextcloud vars), *Who's off* (org-wide Gantt timeline), *Exports*
   (filter form + CSV buttons), plus entitlement / leave-type / holiday management.
+- **Profile** (`#/profile`, `#/profile/:uid`) — the first entry of the navigation. The person's
+  vacation balance and next leave, their region code (editable by the person, with the
+  change dialog of §7.2), the number of public holidays this year and the next ones, the
+  contract (§6.4: read-only, editable by HR), sick days this year, and the history of
+  changes (the person and HR only). The person, their manager and HR may open it
+  (`GET /api/profiles/{uid}`), the same rule as balances. Links to the person's card in
+  Contacts, where managers and teams are kept, when Contacts is enabled.
 - **Admin settings** — §12 (no personal settings page), via `NcSettingsSection`,
   `NcCheckboxRadioSwitch`, `NcTextField`, `NcSelect`.
 
@@ -1590,3 +1607,8 @@ Recorded during the build so the spec matches the code:
   ask for the region code and show what a change does before saving it. The guess from
   locale and phone number is gone, and so is the `date-holidays` dependency: the
   prefill reads the list.
+- **Contract data and a profile page** (§6.4, §15.2): HR enters start and end dates and
+  the working pattern from a date on; the prefill reads those weekdays instead of the
+  ones people set for themselves, which are dropped (`Version1010…`, app 1.2.0). The
+  personal section on the Availability page is gone: the region code moved to the
+  profile page.
