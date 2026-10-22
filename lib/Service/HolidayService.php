@@ -33,6 +33,9 @@ class HolidayService {
 	private const MAX_LABEL_LENGTH = 128;
 	private const IMPORT_LIMIT = 5000;
 
+	/** @var list<string>|null */
+	private ?array $regions = null;
+
 	public function __construct(
 		private HolidayMapper $mapper,
 		private IDBConnection $db,
@@ -96,7 +99,28 @@ class HolidayService {
 	 * @return list<string> the region codes that have holidays, `*` included
 	 */
 	public function regions(): array {
-		return $this->mapper->findRegions();
+		return $this->regions ??= $this->mapper->findRegions();
+	}
+
+	/**
+	 * A region code is incomplete while it names only a country that has
+	 * regional holidays in the list: `DE` once there are `DE-BY` days. People
+	 * with no code at all count as incomplete too.
+	 */
+	public function needsRegion(string $code): bool {
+		return $code === '' || ($code !== self::EVERYWHERE && !str_contains($code, '-') && $this->exampleRegion($code) !== null);
+	}
+
+	/**
+	 * One of the country's regions that has holidays, to show as an example.
+	 */
+	public function exampleRegion(string $country): ?string {
+		foreach ($this->regions() as $region) {
+			if (str_starts_with($region, $country . '-')) {
+				return $region;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -262,6 +286,7 @@ class HolidayService {
 	 * @param array<string, mixed> $detail
 	 */
 	private function record(string $action, array $detail, ?string $actor): void {
+		$this->regions = null;
 		$change = new HolidayChange();
 		$change->setAction($action);
 		$change->setActorUid($actor);

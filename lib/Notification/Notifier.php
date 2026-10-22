@@ -43,6 +43,17 @@ class Notifier implements INotifier {
 			throw new UnknownNotificationException('Notification not from Absence');
 		}
 		$l = $this->l10nFactory->get(ConfigService::APP_ID, $languageCode);
+		if ($notification->getSubject() === NotificationService::SUBJECT_MISSING_REGION) {
+			$code = (string)($notification->getSubjectParameters()['code'] ?? '');
+			$example = (string)($notification->getSubjectParameters()['example'] ?? '');
+			$incomplete = $code !== '';
+			return $notification->setParsedSubject($incomplete ? $l->t('Please complete your holiday region code') : $l->t('Please set your holiday region code'))
+				->setParsedMessage($incomplete
+					? $l->t('HR asks you to add your region on your profile: %1$s has regional holidays, so a code like %2$s decides which days are off for you.', [$code, $example])
+					: $l->t('HR asks you to set it on your profile: it decides which public holidays are days off for you.'))
+				->setIcon($this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(ConfigService::APP_ID, 'app-dark.svg')))
+				->setLink($this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/profile');
+		}
 		$params = $notification->getSubjectParameters();
 		$employee = $this->displayName((string)($params['employee'] ?? ''));
 		$requestId = (string)($params['requestId'] ?? $notification->getObjectId());

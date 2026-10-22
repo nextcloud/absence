@@ -45,6 +45,7 @@ class ConfigLexicon implements ILexicon {
 	// The holiday region code each person sets for themselves (§7.2).
 	public const KEY_HOLIDAY_COUNTRY = 'holiday_country';
 	public const KEY_HOLIDAY_REGION = 'holiday_region';
+	public const KEY_REGION_REMINDED_AT = 'region_reminded_at';
 
 	#[\Override]
 	public function getStrictness(): Strictness {
@@ -94,6 +95,8 @@ class ConfigLexicon implements ILexicon {
 				'Country code for public-holiday detection in the working-day prefill'),
 			new Entry(self::KEY_HOLIDAY_REGION, ValueType::STRING, '',
 				'Region/state code refining the public-holiday country'),
+			new Entry(self::KEY_REGION_REMINDED_AT, ValueType::INT, 0,
+				'When HR last reminded the person to set their region code (Unix time)', lazy: true),
 		];
 	}
 }
