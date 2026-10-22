@@ -46,16 +46,21 @@
 					</template>
 				</NcAppNavigationItem>
 
-				<NcAppNavigationItem
-					:name="t('absence', 'Handbook')"
-					:to="{ name: 'handbook' }">
-					<template #icon>
-						<BookOpenVariant :size="20" />
-					</template>
-				</NcAppNavigationItem>
 				<NcAppNavigationItem :name="t('absence', 'Public holidays')" :to="{ name: 'holidays' }">
 					<template #icon>
 						<PartyPopper :size="20" />
+					</template>
+				</NcAppNavigationItem>
+				<NcAppNavigationItem
+					v-if="session.handbookUrl"
+					:name="t('absence', 'Handbook')"
+					:href="newTabUrl(session.handbookUrl)"
+					:aria-description="t('absence', 'Opens in a new tab')">
+					<template #icon>
+						<BookOpenVariant :size="20" />
+					</template>
+					<template #counter>
+						<OpenInNew :size="16" />
 					</template>
 				</NcAppNavigationItem>
 
@@ -99,9 +104,16 @@
 							<NcCounterBubble :count="session.escalatedCount" />
 						</template>
 					</NcAppNavigationItem>
-					<NcAppNavigationItem :name="t('absence', 'HR handbook')" :to="{ name: 'hr-handbook' }">
+					<NcAppNavigationItem
+						v-if="session.hrHandbookUrl"
+						:name="t('absence', 'HR handbook')"
+						:href="newTabUrl(session.hrHandbookUrl)"
+						:aria-description="t('absence', 'Opens in a new tab')">
 						<template #icon>
 							<BookOpenPageVariant :size="20" />
+						</template>
+						<template #counter>
+							<OpenInNew :size="16" />
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('absence', 'Exports')" :to="{ name: 'hr-exports' }">
@@ -186,6 +198,7 @@ import ClipboardPlusOutline from 'vue-material-design-icons/ClipboardPlusOutline
 import CogOutline from 'vue-material-design-icons/CogOutline.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import LightbulbOnOutline from 'vue-material-design-icons/LightbulbOnOutline.vue'
+import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
@@ -228,6 +241,7 @@ export default {
 		Thermometer,
 		LightbulbOnOutline,
 		CogOutline,
+		OpenInNew,
 	},
 
 	setup() {
@@ -301,6 +315,16 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * NcAppNavigationItem only opens links with a scheme in a new tab,
+		 * so a path on this server becomes a full URL
+		 *
+		 * @param {string} url a handbook link from the settings
+		 */
+		newTabUrl(url) {
+			return new URL(url, window.location.origin).href
+		},
+
 		openNewRequest() {
 			this.editRequest = null
 			this.recordMode = false

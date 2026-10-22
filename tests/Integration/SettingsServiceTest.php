@@ -298,6 +298,26 @@ class SettingsServiceTest extends TestCase {
 		self::assertContains('Absence setting employees_group set to "' . self::GROUP_A . '" by ' . self::HR, $messages);
 	}
 
+	public function testHandbooksAreLinksAndTheHrOneIsForHr(): void {
+		$controller = $this->controller(self::HR);
+		foreach (['javascript:alert(1)', '//example.com/handbook', 'www.example.com', 'ftp://example.com/handbook'] as $bad) {
+			self::assertSame(422, $controller->update([ConfigLexicon::KEY_HANDBOOK_URL => $bad])->getStatus(), $bad);
+		}
+		self::assertSame(200, $controller->update([
+			ConfigLexicon::KEY_HANDBOOK_URL => '/apps/collectives/Handbook',
+			ConfigLexicon::KEY_HR_HANDBOOK_URL => 'https://example.com/hr-handbook',
+		])->getStatus());
+
+		$userSession = Server::get(IUserSession::class);
+		$users = Server::get(IUserManager::class);
+		$userSession->setUser($users->get(self::HR));
+		$hr = Server::get(SessionService::class)->getSessionInfo();
+		self::assertSame(['/apps/collectives/Handbook', 'https://example.com/hr-handbook'], [$hr['handbookUrl'], $hr['hrHandbookUrl']]);
+		$userSession->setUser($users->get(self::EMPLOYEE));
+		$employee = Server::get(SessionService::class)->getSessionInfo();
+		self::assertSame(['/apps/collectives/Handbook', ''], [$employee['handbookUrl'], $employee['hrHandbookUrl']]);
+	}
+
 	public function testThePreviewNamesWhoLeavesAndWhoJoins(): void {
 		$this->controller(self::HR)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => self::GROUP_A]);
 
