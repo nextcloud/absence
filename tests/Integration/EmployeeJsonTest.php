@@ -13,6 +13,7 @@ use OCA\Absence\Command\ImportEmployees;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\EmployeeController;
 use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EmployeeJsonService;
@@ -86,7 +87,8 @@ class EmployeeJsonTest extends TestCase {
 		$entries = $this->service->export();
 		$robin = $this->entry($entries, self::ROBIN);
 		self::assertSame(['user' => self::ROBIN, 'name' => 'Robin Sample', 'region' => 'DE-BY', 'start' => '2024-03-01', 'end' => null,
-			'contract' => [['from' => '2024-03-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100]]], $robin);
+			'contract' => [['from' => '2024-03-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100]],
+			'vacation' => [$this->year() => Server::get(ConfigService::class)->getDefaultEntitlement()]], $robin);
 		self::assertNull($this->entry($entries, self::SAM)['region']);
 
 		$plan = $this->service->plan(EmployeeJsonService::format($entries));
@@ -123,6 +125,39 @@ class EmployeeJsonTest extends TestCase {
 		$messages = array_map(static fn (CriticalActionPerformedEvent $e): array => [$e->getLogMessage(), $e->getParameters()], $this->audit);
 		self::assertContains(['Contract of %s changed by %s', [self::ROBIN, self::HR]], $messages);
 		self::assertContains(['Region code of %s changed from "%s" to "%s" by %s', [self::ROBIN, 'DE-BY', 'FR', self::HR]], $messages);
+	}
+
+	public function testVacationDaysAreSetForTheYearsListedOnly(): void {
+		$year = $this->year();
+		$default = Server::get(ConfigService::class)->getDefaultEntitlement();
+		$entry = ['user' => self::ROBIN, 'region' => 'DE-BY', 'start' => '2024-03-01', 'end' => null,
+			'contract' => [['from' => '2024-03-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100]]];
+
+		$json = $this->json([[...$entry, 'vacation' => [(string)$year => 24.5, (string)($year + 1) => 20]]]);
+		self::assertSame([
+			['field' => 'vacation', 'year' => $year, 'before' => $default, 'after' => 24.5],
+			['field' => 'vacation', 'year' => $year + 1, 'before' => $default, 'after' => 20.0],
+		], $this->service->plan($json)['changes'][0]['fields']);
+		$this->service->import($json, self::HR);
+
+		// Leaving this year out keeps its days
+		$this->service->import($this->json([[...$entry, 'vacation' => [(string)($year + 1) => 22]]]), self::HR);
+
+		self::assertSame(24.5, $this->annual($year)['baseDays']);
+		self::assertSame(22.0, $this->annual($year + 1)['baseDays']);
+		self::assertSame([$year => 24.5, $year + 1 => 22.0], $this->entry($this->service->export(), self::ROBIN)['vacation']);
+	}
+
+	public function testWrongVacationDaysAreReported(): void {
+		$year = $this->year();
+		$entry = ['user' => self::SAM, 'region' => null, 'start' => null, 'end' => null, 'contract' => []];
+		$errors = static fn (array $vacation): array => array_column(Server::get(EmployeeJsonService::class)->plan(json_encode([[...$entry, 'vacation' => $vacation]]))['errors'], 'message');
+
+		self::assertSame(['Sam Example: vacation days can be set for ' . ($year - 2) . ' to ' . ($year + 1) . ', not ' . ($year - 3)], $errors([(string)($year - 3) => 10]));
+		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a number of days, like 30 or 27.5'], $errors([(string)$year => -1]));
+		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a number of days, like 30 or 27.5'], $errors([(string)$year => 27.25]));
+		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a number of days, like 30 or 27.5'], $errors([(string)$year => '30']));
+		self::assertSame(['Sam Example: "vacation" is the days per year, like {"2026": 30}'], $errors([30]));
 	}
 
 	public function testANumericUserIdImports(): void {
@@ -249,6 +284,22 @@ class EmployeeJsonTest extends TestCase {
 			}
 		}
 		self::fail("$uid is not in the export");
+	}
+
+	private function year(): int {
+		return Server::get(BalanceService::class)->currentYear();
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function annual(int $year): array {
+		foreach (Server::get(BalanceService::class)->getBalance(self::ROBIN, $year)['balances'] as $balance) {
+			if ($balance['typeKey'] === 'annual') {
+				return $balance;
+			}
+		}
+		self::fail('No annual balance');
 	}
 
 	/**
