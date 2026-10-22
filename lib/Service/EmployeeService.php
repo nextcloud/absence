@@ -45,6 +45,8 @@ class EmployeeService {
 		private ClockService $clock,
 		private IDBConnection $db,
 		private IEventDispatcher $dispatcher,
+		private NotificationService $notifications,
+		private HolidayService $holidays,
 		private IL10N $l,
 	) {
 	}
@@ -182,11 +184,15 @@ class EmployeeService {
 	}
 
 	/**
-	 * Keeps a region code change in the person's history.
+	 * Keeps a region code change in the person's history, and takes back HR's
+	 * reminder once the code is complete.
 	 */
 	public function recordRegionChange(string $uid, string $before, string $after, ?string $actor): void {
 		if ($before !== $after) {
 			$this->record($uid, EmployeeChange::REGION, $before, $after, $actor);
+		}
+		if (!$this->holidays->needsRegion($after)) {
+			$this->notifications->dismissMissingRegion($uid);
 		}
 	}
 

@@ -39,6 +39,7 @@ class EmployeeListService {
 		private IUserManager $userManager,
 		private IAppManager $appManager,
 		private ClockService $clock,
+		private HolidayService $holidays,
 	) {
 	}
 
@@ -84,7 +85,7 @@ class EmployeeListService {
 			}
 			$current = self::currentPeriod($contract, $today);
 			$missing = array_keys(array_filter([
-				self::MISSING_REGION => $region === '',
+				self::MISSING_REGION => $this->holidays->needsRegion($region),
 				self::MISSING_MANAGER => $managerUid === null,
 				self::MISSING_CONTRACT => $contract['start'] === null && $contract['end'] === null && $contract['periods'] === [],
 			]));
@@ -92,6 +93,7 @@ class EmployeeListService {
 				'uid' => $uid,
 				'displayName' => $this->displayName($uid),
 				'regionCode' => $region,
+				'regionIncomplete' => $region !== '' && $this->holidays->needsRegion($region),
 				'contract' => $contract,
 				'current' => $current,
 				'manager' => $managerUid === null ? null : ['uid' => $managerUid, 'displayName' => $this->displayName($managerUid)],
