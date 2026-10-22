@@ -38,6 +38,8 @@ class ConfigLexicon implements ILexicon {
 	public const KEY_CALDAV_SHARED = 'caldav_shared';
 	public const KEY_SHARED_VISIBILITY = 'shared_calendar_visibility';
 	public const KEY_HOLIDAYS_EVERYONE = 'holidays_everyone_edits';
+	public const KEY_HANDBOOK_URL = 'handbook_url';
+	public const KEY_HR_HANDBOOK_URL = 'hr_handbook_url';
 
 	// Internal state.
 	public const KEY_LAST_ROLLOVER_YEAR = 'last_rollover_year';
@@ -80,6 +82,10 @@ class ConfigLexicon implements ILexicon {
 				'Write approved leave to the shared team calendar', lazy: true),
 			new Entry(self::KEY_HOLIDAYS_EVERYONE, ValueType::BOOL, false,
 				'Everyone, not only HR, may add, edit and delete public holidays', lazy: true),
+			new Entry(self::KEY_HANDBOOK_URL, ValueType::STRING, '',
+				'Link to the handbook for everyone (for example a Collectives page); empty hides it', lazy: true),
+			new Entry(self::KEY_HR_HANDBOOK_URL, ValueType::STRING, '',
+				'Link to the handbook for HR; empty hides it', lazy: true),
 			new Entry(self::KEY_SHARED_VISIBILITY, ValueType::STRING, ConfigService::VISIBILITY_NEUTRAL,
 				'Shared-calendar event titles: neutral ("Absent") or reveal the leave type', lazy: true),
 			new Entry(self::KEY_LAST_ROLLOVER_YEAR, ValueType::INT, 0,
