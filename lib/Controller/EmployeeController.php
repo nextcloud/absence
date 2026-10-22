@@ -12,6 +12,7 @@ use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\RegionReminderService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -37,6 +38,7 @@ class EmployeeController extends Controller {
 		private EmployeeDirectory $employees,
 		private EmployeeListService $list,
 		private EmployeeJsonService $json,
+		private RegionReminderService $reminders,
 		private PermissionService $permission,
 		private LoggerInterface $logger,
 		private IL10N $l,
@@ -90,6 +92,19 @@ class EmployeeController extends Controller {
 				'employees' => array_column($plan['changes'], 'user'),
 			]);
 			return $plan;
+		});
+	}
+
+	/**
+	 * Reminds the employees without a holiday region code, or with $dryRun only
+	 * says who would be reminded (§7.2).
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
+	public function remind(bool $dryRun = true): DataResponse {
+		return $this->handle(function () use ($dryRun): array {
+			$this->permission->assertHr((string)$this->userId);
+			return $dryRun ? $this->reminders->plan() : $this->reminders->send((string)$this->userId);
 		});
 	}
 
