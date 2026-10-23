@@ -80,7 +80,7 @@
 						{{ t('absence', 'Vacation') }}
 						<SavedCheck :savedAt="savedAt.vacation" />
 					</h3>
-					<p>{{ t('absence', 'Full-time days. Part-time follows each contract.') }}</p>
+					<p>{{ t('absence', 'For everyone HR hasn\'t set days for. Change someone\'s days on their profile or in the Employees list.') }}</p>
 				</div>
 				<div class="settings__fields">
 					<NcTextField
@@ -89,7 +89,7 @@
 						type="number"
 						min="0"
 						step="0.5"
-						:label="t('absence', 'Vacation days per year')"
+						:label="t('absence', 'Default vacation days per year')"
 						@change="saveField('default_entitlement')" />
 					<div class="settings__field">
 						<NcSelect

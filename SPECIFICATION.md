@@ -922,7 +922,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 |---------|---------|---------|-------|
 | Who is who | HR group id | `hr` | Which NC group is HR (§2). Admins only. |
 | Who is who | Employees group | empty (= everyone) | Optional: only members count as employees (§2.2). The select shows its member count. |
-| Vacation | Default annual entitlement (days) | 28 | Seed for new entitlement rows. |
+| Vacation | Default annual entitlement (days) | 28 | The days of everyone HR hasn't set days for (§6.4). |
 | Vacation | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
 | Vacation | Carry-over cap (days) | 5 | Used when `capped`. |
 | Vacation | Carry-over expiry | none / `MM-DD` (e.g. `03-31`) | §6.2. |
