@@ -21,6 +21,7 @@ class SessionService {
 		private IUserSession $userSession,
 		private IUserManager $userManager,
 		private PermissionService $permission,
+		private EmployeeDirectory $directory,
 		private ManagerResolver $managerResolver,
 		private LeaveRequestMapper $requestMapper,
 		private PersonalDefaultsService $personalDefaults,
@@ -50,6 +51,8 @@ class SessionService {
 			'holidayRegion' => $defaults['holidayRegion'],
 			'displayName' => $user->getDisplayName(),
 			'isHr' => $isHr,
+			// Outside the employees group the app only says so (§2.2)
+			'isEmployee' => $this->directory->isEmployee($uid),
 			'canEditHolidays' => $this->permission->canEditHolidays($uid),
 			'holidaysEveryoneEdits' => $this->config->canEveryoneEditHolidays(),
 			'isAdmin' => $this->permission->isAdmin($uid),
