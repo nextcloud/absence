@@ -20,13 +20,21 @@ SPDX-FileCopyrightText: Matt Zabriskie
 SPDX-FileCopyrightText: Nextcloud GmbH and Nextcloud contributors
 SPDX-FileCopyrightText: Nick Frasser (https://nfrasser.com)
 SPDX-FileCopyrightText: Rob Cresswell <robcresswell@pm.me>
+SPDX-FileCopyrightText: Scott Cooper <scttcper@gmail.com>
 SPDX-FileCopyrightText: Varun A P
 SPDX-FileCopyrightText: absence developers
 SPDX-FileCopyrightText: atomiks
+SPDX-FileCopyrightText: chenkai
 SPDX-FileCopyrightText: escape-html developers
 SPDX-FileCopyrightText: ts-md5 developers
 
 This file is generated from multiple sources. Included packages:
+- @ckpack/vue-color
+	- version: 1.6.0
+	- license: MIT
+- @ctrl/tinycolor
+	- version: 3.6.1
+	- license: MIT
 - @floating-ui/core
 	- version: 1.8.0
 	- license: MIT
