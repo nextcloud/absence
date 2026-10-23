@@ -38,6 +38,7 @@ class ConfigLexiconTest extends TestCase {
 		$expected = [
 			ConfigLexicon::KEY_CALDAV_PERSONAL,
 			ConfigLexicon::KEY_CALDAV_SHARED,
+			ConfigLexicon::KEY_CALENDAR_SYNC_CURSOR,
 			ConfigLexicon::KEY_CARRYOVER_CAP,
 			ConfigLexicon::KEY_CARRYOVER_EXPIRY,
 			ConfigLexicon::KEY_CARRYOVER_POLICY,
