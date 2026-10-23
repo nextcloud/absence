@@ -834,8 +834,12 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
   cleaned up.
 - Sick-leave / private types: allow admin to configure whether the event title on
   the shared calendar reveals the type or shows a neutral "Absent".
-- Sync may be synchronous (on decision) or via `CalendarSyncJob`; synchronous is
-  acceptable for phase 1, with the job as a reconciler.
+- Events are written when the request is approved. `CalendarSyncJob` (every 15
+  minutes, time-insensitive) writes them for approved leave that has none: imported
+  leave, leave approved while calendar writing was off, and writes that failed. It
+  takes 200 requests per run in id order and keeps its place
+  (`calendar_sync_cursor`), so a request that keeps failing never holds the others
+  back; it is tried again on the next pass. Nothing runs while both targets are off.
 
 ---
 
