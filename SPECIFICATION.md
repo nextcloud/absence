@@ -90,6 +90,10 @@ leave, so the app does not treat them as employees.**
 Without this rule every guest would sit in the balances report and the who's-off
 calendar forever, with an empty allowance and nothing to show.
 
+- **Outside the group, the app says so.** Someone who is not an employee and not
+  in HR (an admin, a guest) opening the app sees only "You are not in the employees
+  group", with *Open the settings* for admins, and the Settings entry (§12). HR
+  outside the group keeps its pages. The session carries `isEmployee` for this.
 - **One definition, one place.** `EmployeeDirectory` is the only component that
   enumerates users; `ReportService`, `EntitlementService`, `CoverageService` and
   `ManagerResolver` all ask it rather than walking `IUserManager` themselves. A

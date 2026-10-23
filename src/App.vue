@@ -5,7 +5,7 @@
 <template>
 	<NcContent appName="absence">
 		<NcAppNavigation>
-			<template #list>
+			<template v-if="canUseApp" #list>
 				<NcAppNavigationNew :text="t('absence', 'New request')" @click="openNewRequest">
 					<template #icon>
 						<Plus :size="20" />
@@ -123,7 +123,23 @@
 		</NcAppNavigation>
 
 		<NcAppContent>
-			<router-view />
+			<NcEmptyContent
+				v-if="!canUseApp && $route.name !== 'hr-settings'"
+				class="not-employee"
+				:name="t('absence', 'You are not in the employees group')"
+				:description="session.isAdmin
+					? t('absence', 'Absence is for the members of the employees group. You can choose that group in the settings.')
+					: t('absence', 'Absence is for the members of the employees group. Ask HR if you should be in it.')">
+				<template #icon>
+					<AccountOffOutline :size="20" />
+				</template>
+				<template v-if="session.isAdmin" #action>
+					<NcButton :to="{ name: 'hr-settings' }">
+						{{ t('absence', 'Open the settings') }}
+					</NcButton>
+				</template>
+			</NcEmptyContent>
+			<router-view v-else />
 		</NcAppContent>
 
 		<RequestSidebar
@@ -152,10 +168,13 @@ import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCap
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcAppNavigationNew from '@nextcloud/vue/components/NcAppNavigationNew'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import AccountCircleOutline from 'vue-material-design-icons/AccountCircleOutline.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import AccountOffOutline from 'vue-material-design-icons/AccountOffOutline.vue'
 import BookOpenPageVariant from 'vue-material-design-icons/BookOpenPageVariant.vue'
 import BookOpenVariant from 'vue-material-design-icons/BookOpenVariant.vue'
 import CalendarAccountOutline from 'vue-material-design-icons/CalendarAccountOutline.vue'
@@ -188,7 +207,9 @@ export default {
 		NcAppNavigationCaption,
 		BookOpenPageVariant,
 		BookOpenVariant,
+		NcButton,
 		NcCounterBubble,
+		NcEmptyContent,
 		Confetti,
 		RequestDialog,
 		RequestSidebar,
@@ -198,6 +219,7 @@ export default {
 		ClipboardCheck,
 		AccountGroup,
 		AccountCircleOutline,
+		AccountOffOutline,
 		ScaleBalance,
 		ChartBar,
 		CalendarMonth,
@@ -228,6 +250,11 @@ export default {
 	computed: {
 		session() {
 			return store.session
+		},
+
+		/** HR keeps its pages even outside the employees group */
+		canUseApp() {
+			return store.session.isEmployee || store.session.isHr
 		},
 
 		pendingCount() {
@@ -292,7 +319,10 @@ export default {
 </script>
 
 <style scoped lang="scss">
-// Everything else is themed by @nextcloud/vue; nothing custom needed at the shell level.
+// Everything else is themed by @nextcloud/vue
+.not-employee {
+	height: 100%;
+}
 </style>
 
 <style lang="scss">
