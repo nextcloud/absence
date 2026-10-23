@@ -6,12 +6,11 @@
 	<NcModal :name="t('absence', 'Edit entitlement')" @close="$emit('close')">
 		<div class="edit">
 			<h3>{{ displayName }} · {{ row.typeLabel }} · {{ year }}</h3>
-			<label>{{ t('absence', 'Base days') }}</label>
-			<NcTextField v-model="form.baseDays" type="number" />
-			<label>{{ t('absence', 'Adjust by (+/−)') }}</label>
+			<NcTextField v-model="form.baseDays" type="number" :label="t('absence', 'Base days')" />
 			<NcTextField
 				v-model="form.adjustmentDelta"
 				type="number"
+				:label="t('absence', 'Adjust by (+/−)')"
 				:placeholder="t('absence', 'e.g. 2 to add two days, -2 to take them back')" />
 			<!-- The running total, so it is clear the field above adds to this rather
 			     than replacing it: entering −2 to undo an earlier +2 used to set the
@@ -19,8 +18,10 @@
 			<p class="edit__hint">
 				{{ t('absence', 'Adjustments so far: {total} · leaving the field empty changes nothing', { total: signed(currentAdjustment) }) }}
 			</p>
-			<label>{{ t('absence', 'Adjustment note') }}</label>
-			<NcTextField v-model="form.adjustmentNote" :placeholder="t('absence', 'Why is this being adjusted?')" />
+			<NcTextField
+				v-model="form.adjustmentNote"
+				:label="t('absence', 'Adjustment note')"
+				:placeholder="t('absence', 'Why is this being adjusted?')" />
 			<div class="edit__actions">
 				<NcButton variant="tertiary" @click="$emit('close')">
 					{{ t('absence', 'Cancel') }}
@@ -204,11 +205,6 @@ export default {
 	flex-direction: column;
 	gap: 10px;
 	padding: calc(var(--default-grid-baseline, 4px) * 5);
-
-	label {
-		font-weight: 600;
-		font-size: 0.85rem;
-	}
 
 	&__actions {
 		display: flex;
