@@ -36,12 +36,30 @@
 			</p>
 		</header>
 
+		<EntitlementDialog
+			v-if="editingDays"
+			:uid="uid"
+			:displayName="profile.displayName"
+			:row="editingDays"
+			:year="year"
+			@close="editingDays = null"
+			@saved="onDaysSaved" />
+
 		<SkeletonList v-if="!profile" />
 		<NcEmptyContent v-else-if="error" :name="error" />
 		<div v-else class="profile__grid">
 			<section class="profile__card">
 				<h3>{{ t('absence', 'Vacation {year}', { year: profile.holidays.year }) }}</h3>
 				<BalanceCard v-for="row in balances" :key="row.typeId" :row="row" />
+				<NcButton
+					v-if="profile.canEditContract && balances.length"
+					class="profile__edit"
+					@click="editingDays = balances[0]">
+					<template #icon>
+						<Pencil :size="20" />
+					</template>
+					{{ t('absence', 'Edit vacation days') }}
+				</NcButton>
 				<p v-if="profile.nextLeave" class="profile__note">
 					{{ n('absence', 'Next leave: {range}, {count} working day', 'Next leave: {range}, {count} working days', profile.nextLeave.workingDays, { range: formatRange(profile.nextLeave.startDate, profile.nextLeave.endDate), count: profile.nextLeave.workingDays }) }}
 				</p>
@@ -126,9 +144,12 @@
 import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import Pencil from 'vue-material-design-icons/Pencil.vue'
 import BalanceCard from '../components/BalanceCard.vue'
 import ContractEditor from '../components/ContractEditor.vue'
+import EntitlementDialog from '../components/EntitlementDialog.vue'
 import RegionCodeField from '../components/RegionCodeField.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import api from '../api.js'
@@ -139,7 +160,7 @@ import { dayNames } from '../utils/weekdays.js'
 
 export default {
 	name: 'Profile',
-	components: { BalanceCard, ContractEditor, NcAvatar, NcEmptyContent, RegionCodeField, SkeletonList },
+	components: { BalanceCard, ContractEditor, EntitlementDialog, NcAvatar, NcButton, NcEmptyContent, Pencil, RegionCodeField, SkeletonList },
 	props: {
 		/** Someone else's profile; the viewer's own without it */
 		uid: { type: String, default: () => store.session.uid },
@@ -151,6 +172,9 @@ export default {
 			balances: [],
 			error: null,
 			contractKey: 0,
+			// The balance row HR edits the vacation days of
+			editingDays: null,
+			year: new Date().getFullYear(),
 		}
 	},
 
@@ -191,7 +215,7 @@ export default {
 			try {
 				const [profile, balance] = await Promise.all([
 					api.getProfile(this.uid),
-					api.getEmployeeBalance(this.uid, new Date().getFullYear()),
+					api.getEmployeeBalance(this.uid, this.year),
 				])
 				this.balances = balance.balances.filter((row) => row.countsAgainstBalance && row.typeKey === 'annual')
 				this.profile = profile
@@ -224,6 +248,11 @@ export default {
 			this.load()
 			store.session.holidayCountry = code.split('-')[0] ?? ''
 			store.session.holidayRegion = code.split('-')[1] ?? ''
+		},
+
+		onDaysSaved() {
+			this.editingDays = null
+			this.load()
 		},
 
 		onContractSaved() {
@@ -282,6 +311,10 @@ export default {
 	&__figure {
 		font-size: 1.1rem;
 		margin: 12px 0 4px;
+	}
+
+	&__edit {
+		margin-top: 8px;
 	}
 
 	&__note {
