@@ -260,9 +260,8 @@ export default {
 			if (!store.session.configured) {
 				return {
 					name: t('absence', 'Absence isn\'t set up yet'),
-					description: this.canOpenSettings
-						? t('absence', 'Choose the employees group in the settings to open Absence to them.')
-						: t('absence', 'An administrator or HR needs to finish setting it up.'),
+					// Only those who can fix it are told why
+					description: this.canOpenSettings ? t('absence', 'Choose the HR and employees groups in the settings.') : undefined,
 
 					icon: CogOutline,
 				}

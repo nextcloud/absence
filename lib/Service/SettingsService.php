@@ -97,6 +97,35 @@ class SettingsService {
 	}
 
 	/**
+	 * Creates the HR or the employees group under its usual name, or takes the
+	 * one that already has it, and makes it the setting (§12). Admins only:
+	 * creating groups is theirs.
+	 *
+	 * @return array{values: array<string,mixed>, groups: list<array{id: string, displayName: string}>, employeesCount: ?int}
+	 * @throws ForbiddenException
+	 * @throws ValidationException
+	 */
+	public function createGroup(string $actorUid, string $kind): array {
+		if (!$this->permission->isAdmin($actorUid)) {
+			throw new ForbiddenException($this->l->t('Only admins can create groups.'));
+		}
+		[$gid, $displayName, $key] = match ($kind) {
+			'hr' => ['hr', $this->l->t('HR'), ConfigLexicon::KEY_HR_GROUP],
+			'employees' => ['employees', $this->l->t('Employees'), ConfigLexicon::KEY_EMPLOYEES_GROUP],
+			default => throw new ValidationException($this->l->t('Unknown group: %s', [$kind])),
+		};
+		if (!$this->groupManager->groupExists($gid)) {
+			$group = $this->groupManager->createGroup($gid);
+			if ($group === null) {
+				throw new ValidationException($this->l->t('The group could not be created.'));
+			}
+			$group->setDisplayName($displayName);
+			$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence group %s created by %s', [$gid, $actorUid]));
+		}
+		return $this->update($actorUid, [$key => $gid]);
+	}
+
+	/**
 	 * Who would stop and who would start counting as an employee if the
 	 * employees group became $group.
 	 *

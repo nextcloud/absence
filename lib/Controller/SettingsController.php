@@ -47,6 +47,13 @@ class SettingsController extends Controller {
 		return $this->handle(fn () => $this->settings->update((string)$this->userId, $values));
 	}
 
+	/** Creates the HR or employees group ($kind 'hr' or 'employees') and chooses it, admins only. */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
+	public function createGroup(string $kind): DataResponse {
+		return $this->handle(fn () => $this->settings->createGroup((string)$this->userId, $kind));
+	}
+
 	/** Who leaves and who joins the employees if the employees group became $group. */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
