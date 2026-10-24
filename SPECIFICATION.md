@@ -908,6 +908,12 @@ All four channels are required.
 
 ## 12. App Settings (in-app page)
 
+**The app is closed until an employees group is chosen.** Anyone opening it sees
+"Absence isn't set up yet", and admins and HR get *Open the settings*, where a note
+says the same. The first choice opens the app at once; later changes go through the
+confirmation below. The setting can't be emptied again, and the session carries
+`configured`.
+
 The settings live on a **Settings** page inside the app (`#/hr/settings`), reached
 from the app navigation footer. There is no Administration settings section. HR
 members and Nextcloud admins can open it: admins need it without being in HR,
@@ -925,7 +931,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Section | Setting | Default | Notes |
 |---------|---------|---------|-------|
 | Who is who | HR group id | `hr` | Which NC group is HR (§2). Admins only. |
-| Who is who | Employees group | empty (= everyone) | Optional: only members count as employees (§2.2). The select shows its member count. |
+| Who is who | Employees group | none | **Required**: only members count as employees (§2.2). Until one is chosen the app is closed (below). The select shows its member count. |
 | Vacation | Default annual entitlement (days) | 28 | The days of everyone HR hasn't set days for (§6.4). |
 | Vacation | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
 | Vacation | Carry-over cap (days) | 5 | Used when `capped`. |
