@@ -83,6 +83,39 @@ class CalendarService {
 	}
 
 	/**
+	 * Shares the team calendar read-only with the employees group and the HR
+	 * group, and with nobody else (§10), creating the calendar if needed. Safe
+	 * to run again; does nothing while the team calendar is off or the app is
+	 * not set up.
+	 */
+	public function shareTeamCalendar(): void {
+		$backend = $this->backend();
+		if ($backend === null || !$this->config->isCalDavSharedEnabled() || !$this->config->isConfigured()) {
+			return;
+		}
+		try {
+			$calendarId = $this->ensureCalendar($backend, self::SHARED_PRINCIPAL, self::SHARED_CALENDAR_URI, $this->sharedL10n()->t('Team absences'));
+			if ($calendarId === null) {
+				return;
+			}
+			$wanted = array_values(array_unique(array_map(
+				static fn (string $gid): string => 'principal:principals/groups/' . $gid,
+				[$this->config->getEmployeesGroup(), $this->config->getHrGroup()],
+			)));
+			$current = array_column($backend->getShares($calendarId), 'href');
+			$add = array_map(static fn (string $href): array => ['href' => $href, 'readOnly' => true], array_values(array_diff($wanted, $current)));
+			$remove = array_values(array_diff($current, $wanted));
+			if ($add === [] && $remove === []) {
+				return;
+			}
+			$calendar = new \OCA\DAV\CalDAV\Calendar($backend, $backend->getCalendarById($calendarId), $this->sharedL10n(), $this->container->get(\OCP\IConfig::class), $this->logger);
+			$backend->updateShares($calendar, $add, $remove);
+		} catch (\Throwable $e) {
+			$this->logger->warning('Absence: sharing the team calendar failed', ['exception' => $e]);
+		}
+	}
+
+	/**
 	 * Remove any calendar events previously created for a request.
 	 */
 	public function onRemoved(LeaveRequest $request): void {

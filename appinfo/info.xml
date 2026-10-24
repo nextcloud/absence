@@ -88,6 +88,7 @@ properly. Every rule and design decision is documented in the
 			<step>OCA\Absence\Migration\SeedConfidentialLeaveTypes</step>
 			<step>OCA\Absence\Migration\EnableAuditLogging</step>
 			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
+			<step>OCA\Absence\Migration\ShareTeamCalendar</step>
 		</post-migration>
 		<install>
 			<step>OCA\Absence\Migration\SeedLeaveTypes</step>
