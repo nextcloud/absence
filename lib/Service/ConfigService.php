@@ -50,6 +50,19 @@ class ConfigService {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP);
 	}
 
+	/**
+	 * Whether the app is set up: the HR and employees groups are chosen and
+	 * exist (§12). Until then nobody uses the app but admins and HR, in the settings.
+	 */
+	public function isConfigured(): bool {
+		foreach ([$this->getHrGroup(), $this->getEmployeesGroup()] as $group) {
+			if ($group === '' || !$this->groupManager->groupExists($group)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public function getDefaultEntitlement(): float {
 		return $this->appConfig->getValueFloat(self::APP_ID, ConfigLexicon::KEY_DEFAULT_ENTITLEMENT);
 	}
@@ -249,11 +262,12 @@ class ConfigService {
 				}
 				return $gid;
 			case ConfigLexicon::KEY_EMPLOYEES_GROUP:
-				$gid = is_string($value) ? $value : null;
-				// Unlike the HR group, empty is a valid choice here: it is the default
-				// "every non-guest account is an employee". A non-empty name still has
-				// to exist, or a typo would silently lock everyone out of booking leave.
-				if ($gid === null || ($gid !== '' && !$this->groupManager->groupExists($gid))) {
+				$gid = is_string($value) ? $value : '';
+				// Required: the app stays closed until there is one (§12)
+				if ($gid === '') {
+					throw new ValidationException($this->l->t('Choose the employees group.'));
+				}
+				if (!$this->groupManager->groupExists($gid)) {
 					throw new ValidationException($this->l->t('The chosen employees group does not exist.'));
 				}
 				return $gid;

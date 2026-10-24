@@ -20,6 +20,8 @@ export default {
 	getSettings: () => axios.get(url('/api/settings')).then((r) => r.data),
 	updateSettings: (values) => axios.put(url('/api/settings'), { values }).then((r) => r.data),
 	// Who leaves and who joins the employees if the employees group becomes `group` ('' = everyone).
+	// Creates the HR or employees group ('hr' or 'employees') and chooses it, admins only.
+	createSettingsGroup: (kind) => axios.post(url(`/api/settings/groups/${kind}`)).then((r) => r.data),
 	previewEmployeesGroup: (group) => axios.get(url('/api/settings/employees-preview'), { params: { group } }).then((r) => r.data),
 
 	// Requests

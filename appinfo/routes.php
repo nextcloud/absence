@@ -81,5 +81,6 @@ return [
 		['name' => 'settings#show', 'url' => '/api/settings', 'verb' => 'GET'],
 		['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],
 		['name' => 'settings#employeesPreview', 'url' => '/api/settings/employees-preview', 'verb' => 'GET'],
+		['name' => 'settings#createGroup', 'url' => '/api/settings/groups/{kind}', 'verb' => 'POST'],
 	],
 ];

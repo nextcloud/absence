@@ -11,10 +11,14 @@ namespace OCA\Absence\Tests\Integration;
 
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\SettingsController;
+use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\HolidayService;
+use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\PersonalDefaultsService;
+use OCA\Absence\Service\SessionService;
 use OCA\Absence\Service\SettingsService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -23,6 +27,7 @@ use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use OCP\L10N\IFactory;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
 use OCP\Server;
@@ -109,6 +114,52 @@ class SettingsServiceTest extends TestCase {
 		$response = $this->controller(self::ADMIN)->update([ConfigLexicon::KEY_HR_GROUP => self::OTHER_GROUP]);
 		self::assertSame(200, $response->getStatus());
 		self::assertSame(self::OTHER_GROUP, $this->config()->getHrGroup());
+	}
+
+	public function testTheAppIsClosedUntilAnEmployeesGroupIsChosen(): void {
+		self::assertFalse($this->session(self::ADMIN)['configured']);
+		$refused = $this->controller(self::ADMIN)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => '']);
+		self::assertSame([422, 'Choose the employees group.'], [$refused->getStatus(), $refused->getData()['message']]);
+
+		$this->controller(self::ADMIN)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => self::GROUP_A]);
+
+		self::assertTrue($this->session(self::ADMIN)['configured']);
+	}
+
+	public function testAMissingHrGroupKeepsTheAppClosed(): void {
+		$appConfig = Server::get(IAppConfig::class);
+		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP_A);
+		self::assertTrue($this->config()->isConfigured());
+
+		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'itest-settings-ghost');
+
+		self::assertFalse($this->config()->isConfigured());
+	}
+
+	public function testOnlyAnAdminCreatesTheGroups(): void {
+		$groups = Server::get(IGroupManager::class);
+		$existed = $groups->groupExists('employees');
+		try {
+			self::assertSame(403, $this->controller(self::HR)->createGroup('employees')->getStatus());
+
+			$response = $this->controller(self::ADMIN)->createGroup('employees');
+
+			self::assertSame(200, $response->getStatus());
+			self::assertSame('employees', $response->getData()['values'][ConfigLexicon::KEY_EMPLOYEES_GROUP]);
+			self::assertTrue($groups->groupExists('employees'));
+		} finally {
+			if (!$existed) {
+				$groups->get('employees')?->delete();
+			}
+		}
+	}
+
+	public function testTheSessionSaysWhoIsAnEmployee(): void {
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP_A);
+
+		self::assertTrue($this->session('itest-settings-p1')['isEmployee']);
+		self::assertFalse($this->session('itest-settings-p3')['isEmployee']);
+		self::assertFalse($this->session(self::ADMIN)['isEmployee']);
 	}
 
 	public function testAnAdminOutsideHrReachesTheSettings(): void {
@@ -219,11 +270,6 @@ class SettingsServiceTest extends TestCase {
 		// Previewing changes nothing
 		self::assertSame(self::GROUP_A, $this->config()->getEmployeesGroup());
 
-		// Back to everyone: nobody leaves, the rest of the instance joins
-		$everyone = $this->controller(self::HR)->employeesPreview('')->getData();
-		self::assertSame(0, $everyone['leaving']['count']);
-		self::assertGreaterThanOrEqual(4, $everyone['joining']['count']);
-
 		self::assertSame(422, $this->controller(self::HR)->employeesPreview('itest-settings-ghost')->getStatus());
 	}
 
@@ -243,6 +289,18 @@ class SettingsServiceTest extends TestCase {
 
 	private function config(): ConfigService {
 		return Server::get(ConfigService::class);
+	}
+
+	/**
+	 * What the app is told about $uid on page load, with a fresh employee directory.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function session(string $uid): array {
+		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
+		$directory = new EmployeeDirectory(Server::get(IUserManager::class), Server::get(IGroupManager::class), $this->config(), Server::get(LoggerInterface::class));
+		return (new SessionService(Server::get(IUserSession::class), Server::get(IUserManager::class), Server::get(PermissionService::class), $directory,
+			Server::get(ManagerResolver::class), Server::get(LeaveRequestMapper::class), Server::get(PersonalDefaultsService::class), $this->config()))->getSessionInfo();
 	}
 
 	/** A fresh controller per call, as each HTTP request gets its own services. */

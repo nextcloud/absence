@@ -90,6 +90,10 @@ leave, so the app does not treat them as employees.**
 Without this rule every guest would sit in the balances report and the who's-off
 calendar forever, with an empty allowance and nothing to show.
 
+- **Outside the group, the app says so.** Someone who is not an employee and not
+  in HR (an admin, a guest) opening the app sees only "You are not in the employees
+  group", with *Open the settings* for admins, and the Settings entry (§12). HR
+  outside the group keeps its pages. The session carries `isEmployee` for this.
 - **One definition, one place.** `EmployeeDirectory` is the only component that
   enumerates users; `ReportService`, `EntitlementService`, `CoverageService` and
   `ManagerResolver` all ask it rather than walking `IUserManager` themselves. A
@@ -904,6 +908,16 @@ All four channels are required.
 
 ## 12. App Settings (in-app page)
 
+**The app is closed until the HR group and the employees group are chosen and
+exist.** Anyone opening it sees "Absence isn't set up yet"; only admins and HR are
+told why, and get *Open the settings*, where a note says the same. For a group that
+is missing, admins get *Create the HR group* / *Create the employees group*
+(`POST /api/settings/groups/{hr|employees}`): it creates `hr` or `employees` (or takes
+the existing one), chooses it and logs it to the audit log, without adding members.
+The first employees group opens the app at once; later changes go through the
+confirmation below. Neither setting can be emptied, and the session carries
+`configured`.
+
 The settings live on a **Settings** page inside the app (`#/hr/settings`), reached
 from the app navigation footer. There is no Administration settings section. HR
 members and Nextcloud admins can open it: admins need it without being in HR,
@@ -921,7 +935,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Section | Setting | Default | Notes |
 |---------|---------|---------|-------|
 | Who is who | HR group id | `hr` | Which NC group is HR (§2). Admins only. |
-| Who is who | Employees group | empty (= everyone) | Optional: only members count as employees (§2.2). The select shows its member count. |
+| Who is who | Employees group | none | **Required**: only members count as employees (§2.2). Until one is chosen the app is closed (below). The select shows its member count. |
 | Vacation | Default annual entitlement (days) | 28 | The days of everyone HR hasn't set days for (§6.4). |
 | Vacation | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
 | Vacation | Carry-over cap (days) | 5 | Used when `capped`. |
