@@ -32,6 +32,7 @@ class SettingsService {
 		private HolidayService $holidays,
 		private EmployeeDirectory $employees,
 		private IGroupManager $groupManager,
+		private CalendarService $calendar,
 		private IUserManager $userManager,
 		private IL10N $l,
 		private LoggerInterface $logger,
@@ -78,6 +79,10 @@ class SettingsService {
 		$everyoneEditsHolidays = $normalized[ConfigLexicon::KEY_HOLIDAYS_EVERYONE] ?? null;
 		unset($normalized[ConfigLexicon::KEY_HOLIDAYS_EVERYONE]);
 		$this->config->setAdminValues($normalized);
+		// The team calendar follows who it is for (§10)
+		if (array_intersect(array_keys($normalized), [ConfigLexicon::KEY_HR_GROUP, ConfigLexicon::KEY_EMPLOYEES_GROUP, ConfigLexicon::KEY_CALDAV_SHARED]) !== []) {
+			$this->calendar->shareTeamCalendar();
+		}
 		if (is_bool($everyoneEditsHolidays)) {
 			// Through HolidayService, so the holiday history shows who switched it (§7.2).
 			$this->holidays->setEveryoneCanEdit($everyoneEditsHolidays, $actorUid);
