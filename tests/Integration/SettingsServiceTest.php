@@ -126,6 +126,34 @@ class SettingsServiceTest extends TestCase {
 		self::assertTrue($this->session(self::ADMIN)['configured']);
 	}
 
+	public function testAMissingHrGroupKeepsTheAppClosed(): void {
+		$appConfig = Server::get(IAppConfig::class);
+		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP_A);
+		self::assertTrue($this->config()->isConfigured());
+
+		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'itest-settings-ghost');
+
+		self::assertFalse($this->config()->isConfigured());
+	}
+
+	public function testOnlyAnAdminCreatesTheGroups(): void {
+		$groups = Server::get(IGroupManager::class);
+		$existed = $groups->groupExists('employees');
+		try {
+			self::assertSame(403, $this->controller(self::HR)->createGroup('employees')->getStatus());
+
+			$response = $this->controller(self::ADMIN)->createGroup('employees');
+
+			self::assertSame(200, $response->getStatus());
+			self::assertSame('employees', $response->getData()['values'][ConfigLexicon::KEY_EMPLOYEES_GROUP]);
+			self::assertTrue($groups->groupExists('employees'));
+		} finally {
+			if (!$existed) {
+				$groups->get('employees')?->delete();
+			}
+		}
+	}
+
 	public function testTheSessionSaysWhoIsAnEmployee(): void {
 		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP_A);
 

@@ -908,10 +908,14 @@ All four channels are required.
 
 ## 12. App Settings (in-app page)
 
-**The app is closed until an employees group is chosen.** Anyone opening it sees
-"Absence isn't set up yet", and admins and HR get *Open the settings*, where a note
-says the same. The first choice opens the app at once; later changes go through the
-confirmation below. The setting can't be emptied again, and the session carries
+**The app is closed until the HR group and the employees group are chosen and
+exist.** Anyone opening it sees "Absence isn't set up yet"; only admins and HR are
+told why, and get *Open the settings*, where a note says the same. For a group that
+is missing, admins get *Create the HR group* / *Create the employees group*
+(`POST /api/settings/groups/{hr|employees}`): it creates `hr` or `employees` (or takes
+the existing one), chooses it and logs it to the audit log, without adding members.
+The first employees group opens the app at once; later changes go through the
+confirmation below. Neither setting can be emptied, and the session carries
 `configured`.
 
 The settings live on a **Settings** page inside the app (`#/hr/settings`), reached

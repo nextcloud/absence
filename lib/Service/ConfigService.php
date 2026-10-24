@@ -51,12 +51,16 @@ class ConfigService {
 	}
 
 	/**
-	 * Whether the app is set up: an employees group is chosen and exists (§12).
-	 * Until then nobody uses the app but admins and HR, in the settings.
+	 * Whether the app is set up: the HR and employees groups are chosen and
+	 * exist (§12). Until then nobody uses the app but admins and HR, in the settings.
 	 */
 	public function isConfigured(): bool {
-		$group = $this->getEmployeesGroup();
-		return $group !== '' && $this->groupManager->groupExists($group);
+		foreach ([$this->getHrGroup(), $this->getEmployeesGroup()] as $group) {
+			if ($group === '' || !$this->groupManager->groupExists($group)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public function getDefaultEntitlement(): float {
