@@ -116,6 +116,16 @@ class SettingsServiceTest extends TestCase {
 		self::assertSame(self::OTHER_GROUP, $this->config()->getHrGroup());
 	}
 
+	public function testTheAppIsClosedUntilAnEmployeesGroupIsChosen(): void {
+		self::assertFalse($this->session(self::ADMIN)['configured']);
+		$refused = $this->controller(self::ADMIN)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => '']);
+		self::assertSame([422, 'Choose the employees group.'], [$refused->getStatus(), $refused->getData()['message']]);
+
+		$this->controller(self::ADMIN)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => self::GROUP_A]);
+
+		self::assertTrue($this->session(self::ADMIN)['configured']);
+	}
+
 	public function testTheSessionSaysWhoIsAnEmployee(): void {
 		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP_A);
 
@@ -231,11 +241,6 @@ class SettingsServiceTest extends TestCase {
 		], $response->getData());
 		// Previewing changes nothing
 		self::assertSame(self::GROUP_A, $this->config()->getEmployeesGroup());
-
-		// Back to everyone: nobody leaves, the rest of the instance joins
-		$everyone = $this->controller(self::HR)->employeesPreview('')->getData();
-		self::assertSame(0, $everyone['leaving']['count']);
-		self::assertGreaterThanOrEqual(4, $everyone['joining']['count']);
 
 		self::assertSame(422, $this->controller(self::HR)->employeesPreview('itest-settings-ghost')->getStatus());
 	}

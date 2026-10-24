@@ -51,6 +51,8 @@ class SessionService {
 			'holidayRegion' => $defaults['holidayRegion'],
 			'displayName' => $user->getDisplayName(),
 			'isHr' => $isHr,
+			// Until an employees group is chosen the app only says so (§12)
+			'configured' => $this->config->isConfigured(),
 			// Outside the employees group the app only says so (§2.2)
 			'isEmployee' => $this->directory->isEmployee($uid),
 			'canEditHolidays' => $this->permission->canEditHolidays($uid),

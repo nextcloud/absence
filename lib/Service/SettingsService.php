@@ -98,7 +98,7 @@ class SettingsService {
 
 	/**
 	 * Who would stop and who would start counting as an employee if the
-	 * employees group became $group ('' = every non-guest account).
+	 * employees group became $group.
 	 *
 	 * @return array{leaving: array{count: int, names: string[]}, joining: array{count: int, names: string[]}}
 	 * @throws ForbiddenException
@@ -106,7 +106,7 @@ class SettingsService {
 	 */
 	public function previewEmployeesGroup(string $actorUid, string $group): array {
 		$this->permission->assertCanManageSettings($actorUid);
-		if ($group !== '' && !$this->groupManager->groupExists($group)) {
+		if ($group === '' || !$this->groupManager->groupExists($group)) {
 			throw new ValidationException($this->l->t('The chosen employees group does not exist.'));
 		}
 		$current = $this->employees->listAll();

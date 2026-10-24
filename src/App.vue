@@ -5,7 +5,7 @@
 <template>
 	<NcContent appName="absence">
 		<NcAppNavigation>
-			<template v-if="canUseApp" #list>
+			<template v-if="!closed" #list>
 				<NcAppNavigationNew :text="t('absence', 'New request')" @click="openNewRequest">
 					<template #icon>
 						<Plus :size="20" />
@@ -124,16 +124,14 @@
 
 		<NcAppContent>
 			<NcEmptyContent
-				v-if="!canUseApp && $route.name !== 'hr-settings'"
-				class="not-employee"
-				:name="t('absence', 'You are not in the employees group')"
-				:description="session.isAdmin
-					? t('absence', 'Absence is for the members of the employees group. You can choose that group in the settings.')
-					: t('absence', 'Absence is for the members of the employees group. Ask HR if you should be in it.')">
+				v-if="closed && $route.name !== 'hr-settings'"
+				class="closed"
+				:name="closed.name"
+				:description="closed.description">
 				<template #icon>
-					<AccountOffOutline :size="20" />
+					<component :is="closed.icon" :size="20" />
 				</template>
-				<template v-if="session.isAdmin" #action>
+				<template v-if="canOpenSettings" #action>
 					<NcButton :to="{ name: 'hr-settings' }">
 						{{ t('absence', 'Open the settings') }}
 					</NcButton>
@@ -161,6 +159,7 @@
 </template>
 
 <script>
+import { t } from '@nextcloud/l10n'
 import { provide } from 'vue'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
@@ -252,9 +251,33 @@ export default {
 			return store.session
 		},
 
-		/** HR keeps its pages even outside the employees group */
-		canUseApp() {
-			return store.session.isEmployee || store.session.isHr
+		canOpenSettings() {
+			return store.session.isAdmin || store.session.isHr
+		},
+
+		/** Why the app is closed to this user, or null. HR keeps its pages outside the employees group. */
+		closed() {
+			if (!store.session.configured) {
+				return {
+					name: t('absence', 'Absence isn\'t set up yet'),
+					description: this.canOpenSettings
+						? t('absence', 'Choose the employees group in the settings to open Absence to them.')
+						: t('absence', 'An administrator or HR needs to finish setting it up.'),
+
+					icon: CogOutline,
+				}
+			}
+			if (!store.session.isEmployee && !store.session.isHr) {
+				return {
+					name: t('absence', 'You are not in the employees group'),
+					description: this.canOpenSettings
+						? t('absence', 'Absence is for the members of the employees group. You can choose that group in the settings.')
+						: t('absence', 'Absence is for the members of the employees group. Ask HR if you should be in it.'),
+
+					icon: AccountOffOutline,
+				}
+			}
+			return null
 		},
 
 		pendingCount() {
@@ -320,7 +343,7 @@ export default {
 
 <style scoped lang="scss">
 // Everything else is themed by @nextcloud/vue
-.not-employee {
+.closed {
 	height: 100%;
 }
 </style>

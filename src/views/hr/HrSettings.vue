@@ -21,6 +21,9 @@
 		</NcEmptyContent>
 
 		<template v-else>
+			<NcNoteCard v-if="form.employees_group === ''" type="warning">
+				{{ t('absence', 'Absence stays closed until you choose the employees group.') }}
+			</NcNoteCard>
 			<section class="settings">
 				<div class="settings__intro">
 					<h3 class="settings__title">
@@ -54,12 +57,13 @@
 					<div class="settings__field settings__field--wide">
 						<NcSelect
 							:modelValue="employeesGroupOption"
-							:options="employeesGroupOptions"
+							:options="groups"
 							:clearable="false"
 							:disabled="saving"
 							label="displayName"
 							:inputLabel="t('absence', 'Employees group')"
-							@update:modelValue="(group) => group.id !== form.employees_group && (pendingEmployeesGroup = group)">
+							:placeholder="t('absence', 'Choose a group')"
+							@update:modelValue="chooseEmployeesGroup">
 							<template #selected-option="{ displayName }">
 								{{ displayName }}
 								<span v-if="employeesCount !== null" class="settings__muted">
@@ -232,6 +236,7 @@ import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CogOutline from 'vue-material-design-icons/CogOutline.vue'
@@ -264,7 +269,7 @@ const SECTION_OF = {
 
 export default {
 	name: 'HrSettings',
-	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SavedCheck, SkeletonList },
+	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcNoteCard, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SavedCheck, SkeletonList },
 	data() {
 		return {
 			loading: true,
@@ -278,7 +283,6 @@ export default {
 			managingTypes: false,
 			// Section → when it was last saved
 			savedAt: {},
-			everyone: { id: '', displayName: t('absence', 'Everyone') },
 			carryOverOptions: [
 				{ id: 'none', label: t('absence', 'No carry-over') },
 				{ id: 'capped', label: t('absence', 'Up to a limit') },
@@ -303,12 +307,8 @@ export default {
 			return this.groupOption(this.form.hr_group)
 		},
 
-		employeesGroupOptions() {
-			return [this.everyone, ...this.groups]
-		},
-
 		employeesGroupOption() {
-			return this.form.employees_group === '' ? this.everyone : this.groupOption(this.form.employees_group)
+			return this.form.employees_group === '' ? null : this.groupOption(this.form.employees_group)
 		},
 
 		carryOverOption() {
@@ -369,8 +369,8 @@ export default {
 				for (const key of Object.keys(patch)) {
 					this.savedAt[SECTION_OF[key]] = Date.now()
 				}
-				if ('hr_group' in patch || 'holidays_everyone_edits' in patch) {
-					// The session carries whether this very user still is HR and may edit holidays.
+				if (['hr_group', 'employees_group', 'holidays_everyone_edits'].some((key) => key in patch)) {
+					// The session carries whether the app is open, this user still is HR, and may edit holidays.
 					await store.refreshSession()
 				}
 				return true
@@ -380,6 +380,22 @@ export default {
 				return false
 			} finally {
 				this.saving = false
+			}
+		},
+
+		/**
+		 * The first choice opens the app, nothing to confirm; a change says who leaves and joins.
+		 *
+		 * @param {{id: string, displayName: string}} group the chosen group
+		 */
+		chooseEmployeesGroup(group) {
+			if (group.id === this.form.employees_group) {
+				return
+			}
+			if (this.form.employees_group === '') {
+				this.save({ employees_group: group.id })
+			} else {
+				this.pendingEmployeesGroup = group
 			}
 		},
 
