@@ -828,7 +828,11 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
      (`X-NC-... busy` / `TRANSP: OPAQUE`).
   2. **Shared team "Absences" calendar:** a company/team calendar showing everyone's
      approved leave (all-day events titled with employee + leave type, colored by
-     type). Auto-provisioned and shared with the relevant groups.
+     type). Auto-provisioned under `principals/system/absence` and shared read-only
+     with the employees group and the HR group, and nobody else: the share follows
+     when either group or the *Keep a shared team calendar* switch changes in the
+     settings, and the `ShareTeamCalendar` repair step shares calendars created
+     before (`CalendarService::shareTeamCalendar()`).
 - **Lifecycle:** create the event on approval; delete/update it on
   cancellation/withdrawal/edit. Store the created event's URI/UID on the request
   (add nullable `calendar_event_uri` column to `absence_requests`) so it can be
