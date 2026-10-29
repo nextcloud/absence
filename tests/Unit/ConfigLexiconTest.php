@@ -62,6 +62,7 @@ class ConfigLexiconTest extends TestCase {
 		$this->assertSame([
 			ConfigLexicon::KEY_HOLIDAY_COUNTRY,
 			ConfigLexicon::KEY_HOLIDAY_REGION,
+			ConfigLexicon::KEY_REGION_REMINDED_AT,
 		], $keys);
 	}
 

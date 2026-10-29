@@ -22,7 +22,9 @@ use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\EmployeeService;
+use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\RegionReminderService;
 use OCP\AppFramework\Http;
 use OCP\Collaboration\Collaborators\ISearch;
 use OCP\Config\IUserConfig;
@@ -122,6 +124,25 @@ class EmployeeListTest extends TestCase {
 		self::assertTrue($this->row(self::BARE)['partTime'], 'five days at 50%');
 		$this->contract(self::BARE, [1, 2, 3, 4, 5], null);
 		self::assertFalse($this->row(self::BARE)['partTime'], 'five days, no percentage');
+	}
+
+	public function testACountryWithRegionalHolidaysNeedsItsRegion(): void {
+		$holidays = Server::get(HolidayService::class);
+		$holiday = $holidays->create('2027-01-06', 'ZZ-T1', 'itest Region day');
+		try {
+			$config = Server::get(ConfigService::class);
+			$config->setPersonalValue(self::BARE, ConfigLexicon::KEY_HOLIDAY_COUNTRY, 'ZZ');
+			$row = $this->row(self::BARE);
+			self::assertContains(EmployeeListService::MISSING_REGION, $row['missing']);
+			self::assertTrue($row['regionIncomplete']);
+
+			$config->setPersonalValue(self::BARE, ConfigLexicon::KEY_HOLIDAY_REGION, 'T1');
+			$row = $this->row(self::BARE);
+			self::assertNotContains(EmployeeListService::MISSING_REGION, $row['missing']);
+			self::assertFalse($row['regionIncomplete']);
+		} finally {
+			$holidays->delete($holiday->getId());
+		}
 	}
 
 	/**
@@ -233,7 +254,7 @@ class EmployeeListTest extends TestCase {
 		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 		return new EmployeeController('absence', Server::get(IRequest::class), $uid, Server::get(IUserManager::class),
 			Server::get(IGroupManager::class), Server::get(ISearch::class), Server::get(EmployeeDirectory::class),
-			Server::get(EmployeeListService::class), Server::get(EmployeeJsonService::class), Server::get(PermissionService::class),
-			Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(EmployeeListService::class), Server::get(EmployeeJsonService::class), Server::get(RegionReminderService::class),
+			Server::get(PermissionService::class), Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'));
 	}
 }

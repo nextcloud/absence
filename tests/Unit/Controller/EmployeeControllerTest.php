@@ -43,6 +43,7 @@ class EmployeeControllerTest extends TestCase {
 			$this->employees,
 			$this->createMock(EmployeeListService::class),
 			$this->createMock(EmployeeJsonService::class),
+			$this->createMock(\OCA\Absence\Service\RegionReminderService::class),
 			$this->createMock(PermissionService::class),
 			$this->createMock(LoggerInterface::class),
 			$this->createMock(\OCP\IL10N::class),

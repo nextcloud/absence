@@ -25,6 +25,12 @@
 					:options="years"
 					:clearable="false"
 					:aria-label-combobox="t('absence', 'Year')" />
+				<NcButton v-if="withoutRegion" @click="reminding = true">
+					<template #icon>
+						<BellRingOutline :size="20" />
+					</template>
+					{{ n('absence', 'Remind {count} without a complete region code', 'Remind {count} without a complete region code', withoutRegion, { count: withoutRegion }) }}
+				</NcButton>
 				<NcButton :href="exportUrl">
 					<template #icon>
 						<Download :size="20" />
@@ -115,6 +121,11 @@
 							<td>
 								<template v-if="row.regionCode">
 									<span aria-hidden="true">{{ regionFlag(row.regionCode) }}</span> {{ row.regionCode }}
+									<NcChip
+										v-if="row.regionIncomplete"
+										variant="warning"
+										noClose
+										:text="t('absence', 'Region needed')" />
 								</template>
 								<NcChip
 									v-else
@@ -213,12 +224,13 @@
 			v-if="editingJson"
 			@close="editingJson = false"
 			@saved="onSaved" />
+		<RegionReminderDialog v-if="reminding" @close="reminding = false" />
 	</div>
 </template>
 
 <script>
 import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
@@ -229,12 +241,14 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import BellRingOutline from 'vue-material-design-icons/BellRingOutline.vue'
 import CodeBraces from 'vue-material-design-icons/CodeBraces.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import EmployeesJsonDialog from '../../components/EmployeesJsonDialog.vue'
 import EntitlementDialog from '../../components/EntitlementDialog.vue'
+import RegionReminderDialog from '../../components/RegionReminderDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
 import { formatDate } from '../../utils/dates.js'
@@ -249,7 +263,7 @@ const LOW_BALANCE_RATIO = 0.2
 
 export default {
 	name: 'HrEmployees',
-	components: { AccountGroup, CodeBraces, Download, EmployeesJsonDialog, EntitlementDialog, Magnify, NcActionButton, NcActions, NcAvatar, NcButton, NcChip, NcEmptyContent, NcSelect, NcTextField, Pencil, SkeletonList },
+	components: { AccountGroup, BellRingOutline, CodeBraces, Download, EmployeesJsonDialog, EntitlementDialog, Magnify, NcActionButton, NcActions, NcAvatar, NcButton, NcChip, NcEmptyContent, NcSelect, NcTextField, Pencil, RegionReminderDialog, SkeletonList },
 	data() {
 		const y = new Date().getFullYear()
 		return {
@@ -265,10 +279,15 @@ export default {
 			years: [y - 1, y, y + 1],
 			editing: null,
 			editingJson: false,
+			reminding: false,
 		}
 	},
 
 	computed: {
+		withoutRegion() {
+			return this.rows.filter((row) => row.missing.includes('region')).length
+		},
+
 		filters() {
 			const count = (test) => this.rows.filter(test).length
 			return [
@@ -327,6 +346,7 @@ export default {
 
 	methods: {
 		t,
+		n,
 		formatDate,
 		formatWeekdays,
 		regionFlag,

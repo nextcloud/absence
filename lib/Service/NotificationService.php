@@ -33,6 +33,8 @@ class NotificationService {
 	public const SUBJECT_REPLACEMENT_ASSIGNED = 'replacement_assigned';
 	public const SUBJECT_REPLACEMENT_CANCELLED = 'replacement_cancelled';
 	public const SUBJECT_COMMENT = 'comment_added';
+	public const SUBJECT_MISSING_REGION = 'missing_region';
+	private const OBJECT_REGION = 'absence_region';
 
 	/**
 	 * How much of a note survives into a Nextcloud notification. The free text is
@@ -305,6 +307,40 @@ class NotificationService {
 	private function displayName(string $uid): string {
 		$user = $this->userManager->get($uid);
 		return $user !== null ? $user->getDisplayName() : $uid;
+	}
+
+	/**
+	 * Asks someone to set their holiday region code (§7.2), on HR's behalf, or
+	 * to complete it when it only names their country ($code, with $example
+	 * one of its regions).
+	 */
+	public function notifyMissingRegion(string $uid, string $code = '', ?string $example = null): void {
+		try {
+			$notification = $this->notificationManager->createNotification();
+			$notification->setApp(ConfigService::APP_ID)
+				->setUser($uid)
+				->setDateTime(new \DateTime())
+				->setObject(self::OBJECT_REGION, $uid)
+				->setSubject(self::SUBJECT_MISSING_REGION, ['code' => $code, 'example' => (string)$example]);
+			$this->notificationManager->notify($notification);
+		} catch (\Throwable $e) {
+			$this->logger->warning('Absence: notification failed', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Removes the region code reminder once the person has set one.
+	 */
+	public function dismissMissingRegion(string $uid): void {
+		try {
+			$notification = $this->notificationManager->createNotification();
+			$notification->setApp(ConfigService::APP_ID)
+				->setUser($uid)
+				->setObject(self::OBJECT_REGION, $uid);
+			$this->notificationManager->markProcessed($notification);
+		} catch (\Throwable $e) {
+			$this->logger->debug('Absence: could not dismiss notifications', ['exception' => $e]);
+		}
 	}
 
 	public function dismiss(LeaveRequest $request): void {
