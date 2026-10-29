@@ -127,6 +127,8 @@ class ManagerResolver {
 		}
 		$reports = [];
 		foreach ($this->configuredManagers() as $uid => $managerUids) {
+			// PHP turns numeric uids used as keys into integers
+			$uid = (string)$uid;
 			// Cheap containment test first; the first-valid rule and the
 			// employee test only run for actual candidates.
 			if (!in_array($managerUid, array_map(trim(...), $managerUids), true)) {
