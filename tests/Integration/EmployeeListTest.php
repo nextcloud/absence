@@ -19,6 +19,7 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\PermissionService;
@@ -32,6 +33,7 @@ use OCP\IUserSession;
 use OCP\L10N\IFactory;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * HR's employees list (§13), against a real server.
@@ -231,6 +233,7 @@ class EmployeeListTest extends TestCase {
 		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 		return new EmployeeController('absence', Server::get(IRequest::class), $uid, Server::get(IUserManager::class),
 			Server::get(IGroupManager::class), Server::get(ISearch::class), Server::get(EmployeeDirectory::class),
-			Server::get(EmployeeListService::class), Server::get(PermissionService::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(EmployeeListService::class), Server::get(EmployeeJsonService::class), Server::get(PermissionService::class),
+			Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'));
 	}
 }

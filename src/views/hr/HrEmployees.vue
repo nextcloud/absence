@@ -3,8 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
   -
   - HR's list of every employee (§13): region code, working days, contract,
-  - manager, and the days of the selected year. Managers are kept in Contacts and
-  - user management, never here.
+  - manager, and the days of the selected year, which HR can also edit as JSON.
+  - Managers are kept in Contacts and user management, never here.
 -->
 <template>
 	<div class="page">
@@ -30,6 +30,12 @@
 						<Download :size="20" />
 					</template>
 					{{ t('absence', 'Export') }}
+				</NcButton>
+				<NcButton @click="editingJson = true">
+					<template #icon>
+						<CodeBraces :size="20" />
+					</template>
+					{{ t('absence', 'Edit as JSON') }}
 				</NcButton>
 				<a
 					v-if="contacts"
@@ -203,6 +209,10 @@
 			:year="year"
 			@close="editing = null"
 			@saved="onSaved" />
+		<EmployeesJsonDialog
+			v-if="editingJson"
+			@close="editingJson = false"
+			@saved="onSaved" />
 	</div>
 </template>
 
@@ -219,9 +229,11 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import CodeBraces from 'vue-material-design-icons/CodeBraces.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
+import EmployeesJsonDialog from '../../components/EmployeesJsonDialog.vue'
 import EntitlementDialog from '../../components/EntitlementDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
@@ -237,7 +249,7 @@ const LOW_BALANCE_RATIO = 0.2
 
 export default {
 	name: 'HrEmployees',
-	components: { AccountGroup, Download, EntitlementDialog, Magnify, NcActionButton, NcActions, NcAvatar, NcButton, NcChip, NcEmptyContent, NcSelect, NcTextField, Pencil, SkeletonList },
+	components: { AccountGroup, CodeBraces, Download, EmployeesJsonDialog, EntitlementDialog, Magnify, NcActionButton, NcActions, NcAvatar, NcButton, NcChip, NcEmptyContent, NcSelect, NcTextField, Pencil, SkeletonList },
 	data() {
 		const y = new Date().getFullYear()
 		return {
@@ -252,6 +264,7 @@ export default {
 			year: y,
 			years: [y - 1, y, y + 1],
 			editing: null,
+			editingJson: false,
 		}
 	},
 
@@ -367,6 +380,7 @@ export default {
 
 		async onSaved() {
 			this.editing = null
+			this.editingJson = false
 			await this.reload()
 		},
 	},
