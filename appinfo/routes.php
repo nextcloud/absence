@@ -30,6 +30,8 @@ return [
 		// People: HR's employees list, and the autocomplete for the employee / replacement pickers
 		['name' => 'employee#index', 'url' => '/api/employees', 'verb' => 'GET'],
 		['name' => 'employee#search', 'url' => '/api/employees/search', 'verb' => 'GET'],
+		['name' => 'employee#exportJson', 'url' => '/api/employees/json', 'verb' => 'GET'],
+		['name' => 'employee#importJson', 'url' => '/api/employees/json', 'verb' => 'POST'],
 		['name' => 'employee#groups', 'url' => '/api/groups', 'verb' => 'GET'],
 
 		// Balances & entitlements

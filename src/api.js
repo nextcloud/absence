@@ -72,6 +72,9 @@ export default {
 
 	// HR's list of every employee with their contract, manager and days of a year
 	listEmployees: (year) => axios.get(url('/api/employees'), { params: { year } }).then((r) => r.data),
+	// Everybody's region code, dates and contract as JSON, checked (dryRun) or written
+	exportEmployeesJson: () => axios.get(url('/api/employees/json')).then((r) => r.data),
+	importEmployeesJson: (json, dryRun) => axios.post(url('/api/employees/json'), { json, dryRun }).then((r) => r.data),
 
 	// Employee search for the people pickers. Deliberately not core's autocomplete:
 	// only the server can tell a guest account from a colleague, and guests are not

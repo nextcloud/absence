@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\ContractPeriod;
 use OCA\Absence\Db\ContractPeriodMapper;
 use OCA\Absence\Db\EmployeeChange;
@@ -40,6 +41,7 @@ class EmployeeService {
 		private ContractPeriodMapper $periods,
 		private EmployeeChangeMapper $history,
 		private EmployeeDirectory $directory,
+		private ConfigService $config,
 		private ClockService $clock,
 		private IDBConnection $db,
 		private IEventDispatcher $dispatcher,
@@ -155,6 +157,31 @@ class EmployeeService {
 	}
 
 	/**
+	 * Sets someone's region code (§7.2) on their behalf, which their history and
+	 * the admin audit log keep with who did it.
+	 *
+	 * @param string $code a code as `DE-BY`, or '' for none
+	 * @throws NotFoundException|ValidationException
+	 */
+	public function saveRegion(string $uid, string $code, ?string $actor): void {
+		if (!$this->directory->isEmployee($uid)) {
+			throw new NotFoundException($this->l->t('Employee not found'));
+		}
+		$personal = $this->config->getPersonalConfig($uid);
+		$before = ConfigService::regionCode($personal[ConfigLexicon::KEY_HOLIDAY_COUNTRY], $personal[ConfigLexicon::KEY_HOLIDAY_REGION]);
+		if ($before === $code) {
+			return;
+		}
+		[$country, $region] = array_pad(explode('-', $code, 2), 2, '');
+		$this->config->setPersonalValue($uid, ConfigLexicon::KEY_HOLIDAY_COUNTRY, $country);
+		$this->config->setPersonalValue($uid, ConfigLexicon::KEY_HOLIDAY_REGION, $region);
+		$this->recordRegionChange($uid, $before, $code, $actor);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Region code of %s changed from "%s" to "%s" by %s', [$uid, $before, $code, $actor ?? 'occ'],
+		));
+	}
+
+	/**
 	 * Keeps a region code change in the person's history.
 	 */
 	public function recordRegionChange(string $uid, string $before, string $after, ?string $actor): void {
@@ -181,11 +208,14 @@ class EmployeeService {
 	}
 
 	/**
+	 * Checks contract data and puts it in the stored form: periods sorted by
+	 * date, weekdays sorted and unique.
+	 *
 	 * @param list<array{from?: mixed, weekdays?: mixed, percent?: mixed}> $periods
 	 * @return Contract
 	 * @throws ValidationException
 	 */
-	private function validate(?string $start, ?string $end, array $periods): array {
+	public function validate(?string $start, ?string $end, array $periods): array {
 		$start = $start === '' ? null : $start;
 		$end = $end === '' ? null : $end;
 		foreach ([$start, $end] as $date) {

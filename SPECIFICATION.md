@@ -664,6 +664,52 @@ for the year (`absence_entitlements`, §5.5). The same percentage can mean short
 on all five weekdays, with the full allowance, or fewer weekdays with fewer days, and
 interns, countries and individual agreements differ again.
 
+### 6.5 Employees as JSON (HR)
+
+HR keeps everybody's region code (§7.2), start and end date and contract periods
+(§6.4) up to date in one go: *Edit as JSON* on the Employees page (§13) opens the
+current data of every employee, *Download* saves the same text, and
+`occ absence:export-employees` prints it. The list reads
+
+```json
+[
+	{
+		"user": "sexample",
+		"name": "Sam Example",
+		"region": "DE-BY",
+		"start": "2024-03-01",
+		"end": null,
+		"contract": [
+			{ "from": "2024-03-01", "weekdays": [1, 2, 3, 4, 5], "percent": 100 },
+			{ "from": "2026-07-01", "weekdays": [1, 2, 3, 4], "percent": 80 }
+		]
+	}
+]
+```
+
+- `user` is a user id or an e-mail address (resolved as in §6.3); `name` is there to
+  read the list and ignored.
+- An entry replaces that employee's region code, start and end date and contract
+  periods, the whole contract as on the profile page. `region`, `start`, `end` and
+  `contract` must all be there: `null` (or `[]` for the contract) empties them, so a
+  forgotten key never wipes data. Employees not in the list are left alone.
+- Region codes are read as everywhere else (`de_by` is `DE-BY`); `*` is for holidays,
+  not people. Dates are `YYYY-MM-DD`, weekdays 1 (Monday) to 7, percent 1 to 100 or
+  `null`.
+- Refused, with the line of the entry (or its number) and who it is about: unknown
+  users, accounts that are not employees (guests, people outside the employees group,
+  §2.2), the same person twice (also as uid and e-mail), invalid region codes or
+  dates, an end before the start, and two periods starting on the same day.
+- *Review changes* (`POST /api/employees/json` with `dryRun`, or `--dry-run`) shows per
+  employee each field that changes, now and after, plus how many stay the same. *Apply*
+  writes the whole list in one transaction, or nothing while one entry is wrong
+  ("Nothing was saved. Fix these N entries and review again.").
+- Every change goes through `EmployeeService`: the person's history and the admin
+  audit log record it with the HR member who applied it, region codes included (the
+  person's own changes, §7.2, keep going to the history). `occ
+  absence:import-employees <file> [--dry-run]` does the same with no author, like the
+  holiday import.
+
 ## 7. Working Days (manually entered)
 
 There is **no automatic working-day calculation**. Keeping an accurate, always-current
@@ -952,7 +998,8 @@ The HR area (visible only to HR-group members) provides:
    contract data*. Filters: all, missing data (any of the three), part-time (fewer
    than five weekdays or under 100 %), and starting or leaving in the year; a search
    by name or user id; rows shown 50 at a time. Each row opens the person's profile,
-   and its menu edits each counting entitlement with its history (§6.1). Managers
+   and its menu edits each counting entitlement with its history (§6.1). *Edit as
+   JSON* edits everybody's region code, dates and contract at once (§6.5). Managers
    are not edited here: the header links to the org chart in Contacts when it is
    enabled. The server answers in a fixed number of queries whatever the headcount
    (contracts, balances, managers from the stored `settings/manager` preference,
@@ -1069,6 +1116,8 @@ the SPA). All list endpoints paginate and accept filters.
 - `GET  /api/team/balances` — balances of the caller's own direct reports (§13);
   empty for a non-manager, never someone else's team.
 - `GET  /api/employees?year`: HR only, the employees list (§13).
+- `GET  /api/employees/json`, `POST /api/employees/json {json, dryRun}`: HR only,
+  everybody's region code, dates and contract as JSON, checked or written (§6.5).
 - `GET  /api/employees/{uid}/balance` — manager (reports) / HR only.
 - `GET  /api/entitlements` / `PUT /api/entitlements/{id}` — HR manage.
 - `POST /api/entitlements/bulk` — HR bulk set.
@@ -1639,3 +1688,9 @@ Recorded during the build so the spec matches the code:
   queries. The per-type balance rows and stat tiles went with the old table; each
   counting entitlement is still edited from the row's menu, and the balances export
   is the header's *Export* button.
+- **Employees as JSON** (§6.5): HR edits everybody's region code, dates and contract as
+  one JSON list on the Employees page, reviews what changes, and applies all of it or
+  nothing; `occ absence:export-employees` and `absence:import-employees` wrap the same
+  service. Region codes HR sets go to the history and, unlike the person's own changes,
+  to the admin audit log. The uid or e-mail lookup of the entitlement import moved to
+  `EmployeeDirectory` so both imports share it.

@@ -10,6 +10,7 @@ namespace OCA\Absence\Tests\Unit\Controller;
 
 use OCA\Absence\Controller\EmployeeController;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\PermissionService;
 use OCP\Collaboration\Collaborators\ISearch;
@@ -19,6 +20,7 @@ use OCP\IUser;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class EmployeeControllerTest extends TestCase {
 	private ISearch&MockObject $collaboratorSearch;
@@ -40,7 +42,9 @@ class EmployeeControllerTest extends TestCase {
 			$this->collaboratorSearch,
 			$this->employees,
 			$this->createMock(EmployeeListService::class),
+			$this->createMock(EmployeeJsonService::class),
 			$this->createMock(PermissionService::class),
+			$this->createMock(LoggerInterface::class),
 			$this->createMock(\OCP\IL10N::class),
 		);
 	}
