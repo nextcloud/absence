@@ -782,6 +782,17 @@ country gets a warning (only the `*` days would apply), but can still be saved, 
 its days may be added later. The code is stored as `holiday_country` and
 `holiday_region` (`DE-BY` is `DE` + `BY`), uppercase and checked on save.
 
+**Reminders.** On HR → Employees, HR can remind everyone whose region code is missing or
+incomplete: a code is incomplete while it only names a country that has regional holidays
+in the list (`DE` once there are `DE-BY` days; nothing is hard-coded per country). A
+confirm dialog shows the notification people get ("Please set your holiday region code",
+or "Please complete…" with one of their country's regions as an example, linking to the
+profile), who gets it and who is left out because they were reminded in the last 7 days
+(`region_reminded_at`). The notification goes away once the code is complete. The
+Employees list flags incomplete codes too. HR only (`POST /api/employees/remind`, `dryRun` says who without sending), and
+each round goes to the admin audit log. Missing contracts and managers are HR's and the
+admins' to fill, so they remind nobody.
+
 ---
 
 ## 8. Team Coverage & Conflict Warnings
@@ -1694,3 +1705,6 @@ Recorded during the build so the spec matches the code:
   service. Region codes HR sets go to the history and, unlike the person's own changes,
   to the admin audit log. The uid or e-mail lookup of the entitlement import moved to
   `EmployeeDirectory` so both imports share it.
+- **Region code reminders** (§7.2): HR notifies the employees without a complete region
+  code (none, or a country that has regional holidays), at most once a week each;
+  completing the code takes the notification back.

@@ -19,6 +19,7 @@ use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\RegionReminderService;
 use OCP\AppFramework\Http;
 use OCP\Collaboration\Collaborators\ISearch;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -262,7 +263,7 @@ class EmployeeJsonTest extends TestCase {
 		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 		return new EmployeeController('absence', Server::get(IRequest::class), $uid, Server::get(IUserManager::class),
 			Server::get(IGroupManager::class), Server::get(ISearch::class), Server::get(EmployeeDirectory::class),
-			Server::get(EmployeeListService::class), $this->service, Server::get(PermissionService::class),
+			Server::get(EmployeeListService::class), $this->service, Server::get(RegionReminderService::class), Server::get(PermissionService::class),
 			Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'));
 	}
 }
