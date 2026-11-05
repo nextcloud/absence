@@ -1287,7 +1287,8 @@ NcContent(app-name="absence")
   rules, themed to Nextcloud vars), *Who's off* (org-wide Gantt timeline), *Exports*
   (filter form + CSV buttons), plus entitlement / leave-type / holiday management.
 - **Profile** (`#/profile`, `#/profile/:uid`) — the first entry of the navigation. The person's
-  vacation balance and next leave, their region code (editable by the person, with the
+  vacation balance and next leave (HR edits the vacation days there with the entitlement
+  editor of the Employees list, §13), their region code (editable by the person, with the
   change dialog of §7.2), the number of public holidays this year and the next ones, the
   contract (§6.4: read-only, editable by HR), sick days this year, and the history of
   changes (the person and HR only). The person, their manager and HR may open it
