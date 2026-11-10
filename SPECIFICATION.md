@@ -834,8 +834,12 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
   cleaned up.
 - Sick-leave / private types: allow admin to configure whether the event title on
   the shared calendar reveals the type or shows a neutral "Absent".
-- Sync may be synchronous (on decision) or via `CalendarSyncJob`; synchronous is
-  acceptable for phase 1, with the job as a reconciler.
+- Events are written when the request is approved. `CalendarSyncJob` (every 15
+  minutes, time-insensitive) writes them for approved leave that has none: imported
+  leave, leave approved while calendar writing was off, and writes that failed. It
+  takes 200 requests per run in id order and keeps its place
+  (`calendar_sync_cursor`), so a request that keeps failing never holds the others
+  back; it is tried again on the next pass. Nothing runs while both targets are off.
 
 ---
 
@@ -1287,7 +1291,8 @@ NcContent(app-name="absence")
   rules, themed to Nextcloud vars), *Who's off* (org-wide Gantt timeline), *Exports*
   (filter form + CSV buttons), plus entitlement / leave-type / holiday management.
 - **Profile** (`#/profile`, `#/profile/:uid`) — the first entry of the navigation. The person's
-  vacation balance and next leave, their region code (editable by the person, with the
+  vacation balance and next leave (HR edits the vacation days there with the entitlement
+  editor of the Employees list, §13), their region code (editable by the person, with the
   change dialog of §7.2), the number of public holidays this year and the next ones, the
   contract (§6.4: read-only, editable by HR), sick days this year, and the history of
   changes (the person and HR only). The person, their manager and HR may open it
