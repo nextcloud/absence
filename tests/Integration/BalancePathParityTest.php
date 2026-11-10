@@ -8,20 +8,20 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OC\DB\Connection;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\BalanceService;
-use OCP\Diagnostics\IQueryLogger;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
 /**
  * The two balance code paths — the row-based single-employee computation and
  * the SQL-aggregated batch — must produce identical numbers on a real
- * database, netting rule included. The batch path is also held to a fixed
- * query budget (tests/Integration/base-query-count.txt), so the "fixed number
- * of queries regardless of headcount" claim stays true instead of regressing
- * one innocent-looking lookup at a time.
+ * database, netting rule included. The batch path also has to cost the same
+ * for one employee as for several, so the "fixed number of queries regardless
+ * of headcount" claim stays true instead of regressing one innocent-looking
+ * lookup at a time.
  */
 class BalancePathParityTest extends TestCase {
 	private const UIDS = ['itest-parity-a', 'itest-parity-b', 'itest-parity-c'];
@@ -84,24 +84,24 @@ class BalancePathParityTest extends TestCase {
 		self::assertEqualsWithDelta(2.0, $row['pending'], 0.001);
 	}
 
-	public function testBatchPathStaysWithinItsQueryBudget(): void {
-		$budget = (int)trim((string)file_get_contents(__DIR__ . '/base-query-count.txt'));
-		$logger = Server::get(IQueryLogger::class);
-		$logger->activate();
-		$before = count($logger->getQueries());
-
+	public function testTheBatchPathCostsTheSameForOneOrManyEmployees(): void {
 		$this->balances->getBalancesForEmployees(self::UIDS, 2026);
 
-		$used = count($logger->getQueries()) - $before;
-		if ($used === 0) {
-			self::markTestSkipped('Query logger inactive on this instance.');
-		}
-		self::assertLessThanOrEqual(
-			$budget,
-			$used,
-			"getBalancesForEmployees() used $used queries; the budget is $budget. "
-			. 'If the extra query is deliberate, raise tests/Integration/base-query-count.txt in the same change.',
+		self::assertSame(
+			$this->queries([self::UIDS[0]]),
+			$this->queries(self::UIDS),
+			'getBalancesForEmployees() must not run queries per employee: the HR report covers the whole company.',
 		);
+	}
+
+	/**
+	 * @param list<string> $uids
+	 */
+	private function queries(array $uids): int {
+		$connection = Server::get(Connection::class);
+		$before = $connection->getStats()['executed'];
+		$this->balances->getBalancesForEmployees($uids, 2026);
+		return $connection->getStats()['executed'] - $before;
 	}
 
 	/**
