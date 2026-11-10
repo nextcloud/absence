@@ -156,6 +156,10 @@ class NotificationService {
 	 * in whatever language the person who opens it reads.
 	 */
 	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null, ?array $notice = null): void {
+		// A disabled account cannot act on any of this.
+		if ($this->userManager->get($recipientUid)?->isEnabled() === false) {
+			return;
+		}
 		$note = trim((string)$note);
 		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid, $notice);
 		$this->sendEmail($recipientUid, $subject, $request, $note, $noteAuthorUid, $notice);

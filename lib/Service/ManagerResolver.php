@@ -109,7 +109,9 @@ class ManagerResolver {
 			$uid = trim((string)$uid);
 			// A guest cannot be a line manager — they have no standing in the app,
 			// so routing an approval to them would strand the request (§2.2).
-			if ($uid !== '' && $uid !== $employeeUid && $this->employees->isEmployee($uid)) {
+			// Neither can a disabled account: nobody can sign in to decide.
+			if ($uid !== '' && $uid !== $employeeUid && $this->employees->isEmployee($uid)
+				&& $this->userManager->get($uid)?->isEnabled() === true) {
 				return $uid;
 			}
 		}

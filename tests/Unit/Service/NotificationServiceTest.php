@@ -118,7 +118,10 @@ class NotificationServiceTest extends TestCase {
 		);
 	}
 
-	/** Everyone named here exists, has mail configured and has a display name. */
+	/**
+	 * Everyone named here exists, has mail configured and has a display name.
+	 * A uid ending in `-disabled` is a disabled account.
+	 */
 	private function withUsers(string ...$uids): void {
 		$this->userManager->method('get')->willReturnCallback(
 			function (string $uid) use ($uids): ?IUser {
@@ -126,6 +129,7 @@ class NotificationServiceTest extends TestCase {
 					return null;
 				}
 				$user = $this->createMock(IUser::class);
+				$user->method('isEnabled')->willReturn(!str_ends_with($uid, '-disabled'));
 				$user->method('getEMailAddress')->willReturn($uid . '@example.com');
 				$user->method('getDisplayName')->willReturn(ucfirst($uid));
 				return $user;
@@ -188,6 +192,15 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame('Family wedding abroad.', $this->pushed[0]['note']);
 		self::assertSame('emp', $this->pushed[0]['noteAuthor']);
 		self::assertSame([['Family wedding abroad.', 'Emp wrote:']], $this->emailNotes);
+	}
+
+	public function testADisabledAccountIsNeitherNotifiedNorMailed(): void {
+		$this->withUsers('emp', 'boss-disabled');
+		$this->mailer->expects(self::never())->method('send');
+
+		$this->service->notifyNewRequest($this->request(), 'boss-disabled');
+
+		self::assertSame([], $this->pushed);
 	}
 
 	public function testTheDecisionCommentTravelsWithTheOutcome(): void {
