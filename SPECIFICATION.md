@@ -684,9 +684,10 @@ becomes the request's reason.
   entries and working days to add and the entries skipped, plus every invalid
   entry with its 1-based position and user. While one entry is invalid nothing
   is written. An entry is valid when the user is an employee (§2.2, guests
-  excluded), the type exists and is enabled, `from` ≤ `to`, and `workingDays`
-  passes the same checks as a request (> 0, at most one per calendar day, §7).
-  There is no overlap check (§5.1): the old calendar is the record being copied.
+  excluded), the type exists and is enabled, `from` ≤ `to` within 2000 to 2100,
+  and `workingDays` passes the same checks as a request (> 0, at most one per
+  calendar day, §7). An entry that overlaps leave the person already has in
+  force (as in §5.1), or an earlier entry of the list, is invalid.
 - **Duplicates are skipped, not errors.** An entry whose person already has a
   request in force (not rejected or cancelled) with the same type and dates is
   counted as skipped, and so is a second copy within the file. Importing the

@@ -236,6 +236,71 @@ class LeaveImportTest extends TestCase {
 		self::assertSame(1, $this->countFor(self::ROBIN));
 	}
 
+	public function testEntryOverlappingLeaveInForceIsRefused(): void {
+		$this->service->import(self::json(self::sampleEntries()), self::HR);
+		// The March week again, one day longer
+		$corrected = self::json([['user' => self::ROBIN, 'from' => '2025-03-03', 'to' => '2025-03-10', 'workingDays' => 6]]);
+
+		$preview = $this->service->preview($corrected);
+		self::assertSame(0, $preview['entries']);
+		self::assertSame([1], array_column($preview['errors'], 'entry'));
+		self::assertStringContainsString('2025-03-03 to 2025-03-07', $preview['errors'][0]['message']);
+
+		try {
+			$this->service->import($corrected, self::HR);
+			self::fail('An entry overlapping leave in force must be refused');
+		} catch (ValidationException) {
+		}
+		self::assertSame(2, $this->countFor(self::ROBIN));
+	}
+
+	public function testEntryOverlappingCancelledLeaveIsImported(): void {
+		$this->service->import(self::json(self::sampleEntries()), self::HR);
+		foreach ($this->requests->findAllForEmployee(self::ROBIN) as $request) {
+			$request->setStatus(LeaveRequest::STATUS_CANCELLED);
+			$this->requests->update($request);
+		}
+
+		$result = $this->service->import(self::json([['user' => self::ROBIN, 'from' => '2025-03-03', 'to' => '2025-03-10', 'workingDays' => 6]]), self::HR);
+
+		self::assertSame(1, $result['entries']);
+		self::assertSame([], $result['errors']);
+	}
+
+	public function testEntriesOverlappingEachOtherAreRefused(): void {
+		$json = self::json([
+			['user' => self::ROBIN, 'from' => '2025-03-03', 'to' => '2025-03-07', 'workingDays' => 5],
+			['user' => self::SAM, 'from' => '2025-03-05', 'to' => '2025-03-06', 'workingDays' => 2],
+			['user' => self::ROBIN_EMAIL, 'type' => 'sick', 'from' => '2025-03-07', 'to' => '2025-03-07', 'workingDays' => 1],
+		]);
+
+		$preview = $this->service->preview($json);
+		// Sam's days are his own; Robin's sick day falls in the week above
+		self::assertSame([3], array_column($preview['errors'], 'entry'));
+		self::assertStringContainsString('entry 1', $preview['errors'][0]['message']);
+
+		try {
+			$this->service->import($json, self::HR);
+			self::fail('Entries overlapping each other must be refused');
+		} catch (ValidationException) {
+		}
+		self::assertSame(0, $this->countFor(self::ROBIN));
+		self::assertSame(0, $this->countFor(self::SAM));
+	}
+
+	public function testDatesOutsideTheSupportedYearsAreRefused(): void {
+		$preview = $this->service->preview(self::json([
+			['user' => self::ROBIN, 'from' => '1999-12-30', 'to' => '2000-01-03', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2100-12-31', 'to' => '2101-01-01', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '0025-03-03', 'to' => '0025-03-03', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2000-01-01', 'to' => '2000-01-01', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2100-12-31', 'to' => '2100-12-31', 'workingDays' => 1],
+		]));
+
+		self::assertSame([1, 2, 3], array_column($preview['errors'], 'entry'));
+		self::assertSame(2, $preview['entries']);
+	}
+
 	public function testImportedLeaveCountsAsUsed(): void {
 		$this->service->import(self::json(self::sampleEntries()), self::HR);
 
