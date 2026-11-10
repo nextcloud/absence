@@ -177,7 +177,7 @@ export default {
 		const q = this.$route?.query || {}
 		const thisYear = new Date().getFullYear()
 		const employee = q.employee
-			? { uid: q.employee, displayName: q.employeeName || q.employee }
+			? { uid: q.employee, displayName: q.employee }
 			: null
 		const year = q.year ? Number(q.year) : thisYear
 		return {
@@ -319,6 +319,11 @@ export default {
 				}
 				this.rows = rows
 				this.hasMore = rows.length === PAGE_SIZE
+				// A link from the sick leave report carries the uid only: the name
+				// comes with the rows.
+				if (this.employee && this.employee.displayName === this.employee.uid && rows.length) {
+					this.employee = { ...this.employee, displayName: rows[0].employeeName }
+				}
 			} catch {
 				if (seq !== this.reloadSeq) {
 					return
