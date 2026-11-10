@@ -146,6 +146,7 @@ class AccessMatrixTest extends TestCase {
 			'report#insights' => [$hr, []],
 			'export#requests' => [$hr, $from],
 			'export#balances' => [$hr, []],
+			'import#leave' => [$hr, ['json' => '[]', 'dryRun' => true]],
 
 			'profile#show' => [$viewers, ['uid' => '{owner}']],
 			'profile#updateContract' => [$hr, ['uid' => '{owner}', 'start' => '2020-01-01']],
