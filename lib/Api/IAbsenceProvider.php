@@ -19,7 +19,7 @@ namespace OCA\Absence\Api;
  *
  * Changes are announced with {@see \OCA\Absence\Event\LeaveRequestChangedEvent}.
  *
- * @since 1.1.0
+ * @since 1.0.0
  */
 interface IAbsenceProvider {
 	/**
@@ -29,7 +29,7 @@ interface IAbsenceProvider {
 	 * @param list<string> $userIds
 	 * @param bool $includePending also return requests still waiting for a decision
 	 * @return list<Absence>
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function getAbsencesForUsers(array $userIds, string $from, string $to, bool $includePending = false): array;
 
@@ -39,7 +39,7 @@ interface IAbsenceProvider {
 	 *
 	 * @param bool $includePending also return requests still waiting for a decision
 	 * @return list<Absence>
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function getAbsencesForEveryone(string $from, string $to, bool $includePending = false): array;
 
@@ -54,7 +54,7 @@ interface IAbsenceProvider {
 	 * Pass the code to getPublicHolidays() for the days themselves.
 	 *
 	 * @return array{workWeekdays: list<int>, holidayCountry: ?string, holidayRegion: ?string}
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function getWorkingDaysSettings(string $userId): array;
 
@@ -66,7 +66,7 @@ interface IAbsenceProvider {
 	 *
 	 * @param list<string> $regionCodes
 	 * @return list<array{date: string, region: string, label: string}> in date order
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function getPublicHolidays(array $regionCodes, string $from, string $to): array;
 }

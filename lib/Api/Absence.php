@@ -15,7 +15,7 @@ namespace OCA\Absence\Api;
  * leave type `typeKey` and `typeLabel` are null and `confidential` is true, so
  * a consumer can only ever learn that the person is away.
  *
- * @since 1.1.0
+ * @since 1.0.0
  */
 final class Absence implements \JsonSerializable {
 	/** Approved, or approved with a withdrawal pending: the person is off */

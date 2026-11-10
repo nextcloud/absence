@@ -24,7 +24,7 @@ use OCP\EventDispatcher\Event;
  * Comments do not change the absence and are not announced. When a user is deleted
  * their requests are removed without an event: listen to core's UserDeletedEvent.
  *
- * @since 1.1.0
+ * @since 1.0.0
  */
 class LeaveRequestChangedEvent extends Event {
 	/**
@@ -40,12 +40,12 @@ class LeaveRequestChangedEvent extends Event {
 		parent::__construct();
 	}
 
-	/** @since 1.1.0 */
+	/** @since 1.0.0 */
 	public function getAction(): string {
 		return $this->action;
 	}
 
-	/** @since 1.1.0 */
+	/** @since 1.0.0 */
 	public function getAbsence(): Absence {
 		return $this->absence;
 	}
@@ -53,7 +53,7 @@ class LeaveRequestChangedEvent extends Event {
 	/**
 	 * Dates and type before an edit (request_updated, request_hr_edited), null otherwise.
 	 *
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function getPreviousAbsence(): ?Absence {
 		return $this->previous;
