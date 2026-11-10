@@ -22,8 +22,10 @@ use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IGroupManager;
 use OCP\IUserManager;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -37,6 +39,8 @@ class EntitlementServiceTest extends TestCase {
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
 	private BalanceService&MockObject $balanceService;
 	private ConfigService&MockObject $config;
+	private LoggerInterface&MockObject $logger;
+	private IEventDispatcher&MockObject $dispatcher;
 	private EntitlementService $service;
 
 	protected function setUp(): void {
@@ -47,6 +51,8 @@ class EntitlementServiceTest extends TestCase {
 		$this->config = $this->createMock(ConfigService::class);
 		$this->eventMapper = $this->createMock(EntitlementEventMapper::class);
 		$this->eventMapper->method('insert')->willReturnArgument(0);
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->dispatcher = $this->createMock(IEventDispatcher::class);
 		$this->service = new EntitlementService(
 			$this->entitlementMapper,
 			$this->eventMapper,
@@ -62,7 +68,8 @@ class EntitlementServiceTest extends TestCase {
 				$this->createMock(LoggerInterface::class),
 			),
 			$this->l10nMock(),
-			$this->createMock(LoggerInterface::class),
+			$this->logger,
+			$this->dispatcher,
 		);
 	}
 
@@ -173,6 +180,34 @@ class EntitlementServiceTest extends TestCase {
 		self::assertSame('Wedding', $recorded[0]->getNote());
 		self::assertSame('hr', $recorded[0]->getActorUid());
 		self::assertSame('bob', $recorded[0]->getEmployeeUid());
+	}
+
+	public function testAnEntitlementChangeGoesToTheLogsWithIdsOnly(): void {
+		$ent = $this->priorEntitlement(28.0);
+		$ent->setId(1);
+		$ent->setManualAdjustment(0.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+		$this->entitlementMapper->method('update')->willReturnArgument(0);
+		$logged = [];
+		$this->logger->method('info')->willReturnCallback(function (string $message, array $context) use (&$logged): void {
+			$logged[] = $context;
+		});
+		$audited = [];
+		$this->dispatcher->method('dispatchTyped')->willReturnCallback(function (CriticalActionPerformedEvent $event) use (&$audited): void {
+			$audited[] = vsprintf($event->getLogMessage(), $event->getParameters());
+		});
+
+		$this->service->update('hr', 1, ['manualAdjustment' => 2.0, 'adjustmentNote' => 'Wedding']);
+
+		self::assertSame([[
+			'app' => 'absence',
+			'action' => 'entitlement_updated',
+			'actor' => 'hr',
+			'entitlementId' => 1,
+			'employee' => 'bob',
+			'year' => $ent->getYear(),
+		]], $logged);
+		self::assertSame(['Absence entitlement 1 updated by hr'], $audited);
 	}
 
 	/**

@@ -38,6 +38,7 @@ use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\Lock\ILockingProvider;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -503,7 +504,10 @@ class RequestServiceTest extends TestCase {
 		$this->db->method('inTransaction')->willReturnCallback(fn (): bool => $inTransaction);
 
 		$dispatched = [];
-		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (LeaveRequestChangedEvent $event) use (&$dispatched, &$inTransaction): void {
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (object $event) use (&$dispatched, &$inTransaction): void {
+			if (!$event instanceof LeaveRequestChangedEvent) {
+				return;
+			}
 			self::assertFalse($inTransaction, 'dispatched before the commit');
 			$dispatched[] = [$event->getAction(), $event->getAbsence()->status];
 		});
@@ -960,7 +964,10 @@ class RequestServiceTest extends TestCase {
 		$this->permission->method('canModify')->willReturn(true);
 		$this->permission->method('isHr')->with('hr')->willReturn(true);
 		$events = [];
-		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (LeaveRequestChangedEvent $event) use (&$events): void {
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (object $event) use (&$events): void {
+			if (!$event instanceof LeaveRequestChangedEvent) {
+				return;
+			}
 			$events[] = $event;
 		});
 		$this->rebuildService();
@@ -978,10 +985,54 @@ class RequestServiceTest extends TestCase {
 		$this->requestMapper->method('find')->with(5)->willReturn($request);
 		$this->permission->method('canView')->willReturn(true);
 		$this->commentMapper->method('insert')->willReturnArgument(0);
-		$this->eventDispatcher->expects(self::never())->method('dispatchTyped');
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (object $event): void {
+			self::assertNotInstanceOf(LeaveRequestChangedEvent::class, $event);
+		});
 		$this->rebuildService();
 
 		$this->service->addComment($request->getEmployeeUid(), 5, 'See you next week');
+	}
+
+	public function testAnActionGoesToTheAuditLogWithItsActorAndRequest(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+		$audited = [];
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (object $event) use (&$audited): void {
+			if ($event instanceof CriticalActionPerformedEvent) {
+				$audited[] = vsprintf($event->getLogMessage(), $event->getParameters());
+			}
+		});
+		$this->rebuildService();
+
+		$this->service->addComment('emp', 5, 'See you next week');
+
+		self::assertSame(['Absence request 5: comment_added by emp'], $audited);
+	}
+
+	public function testTheServerLogCarriesIdsAndTheActionOnly(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setReason('Knee surgery');
+		$request->setDisability(true);
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+		$logged = [];
+		$this->logger->method('info')->willReturnCallback(function (string $message, array $context) use (&$logged): void {
+			$logged[] = [$message, $context];
+		});
+		$this->rebuildService();
+
+		$this->service->addComment('emp', 5, 'See you next week');
+
+		self::assertSame([['Absence action: comment_added', [
+			'app' => 'absence',
+			'action' => 'comment_added',
+			'actor' => 'emp',
+			'requestId' => 5,
+			'employee' => 'emp',
+		]]], $logged);
 	}
 
 	public function testHrEditingAStillPendingRequestDoesNotTouchTheCalendar(): void {

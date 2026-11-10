@@ -14,7 +14,9 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Http;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IRequest;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -23,12 +25,14 @@ class LeaveTypeControllerTest extends TestCase {
 	use L10nMockTrait;
 	private LeaveTypeMapper&MockObject $mapper;
 	private PermissionService&MockObject $permission;
+	private IEventDispatcher&MockObject $dispatcher;
 	private LeaveTypeController $controller;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->mapper = $this->createMock(LeaveTypeMapper::class);
 		$this->permission = $this->createMock(PermissionService::class);
+		$this->dispatcher = $this->createMock(IEventDispatcher::class);
 		$this->controller = new LeaveTypeController(
 			'absence',
 			$this->createMock(IRequest::class),
@@ -37,6 +41,7 @@ class LeaveTypeControllerTest extends TestCase {
 			$this->permission,
 			$this->l10nMock(),
 			$this->createMock(LoggerInterface::class),
+			$this->dispatcher,
 		);
 	}
 
@@ -66,6 +71,21 @@ class LeaveTypeControllerTest extends TestCase {
 		$response = $this->controller->create('annual', 'Annual leave', '#0082c9', '🌴');
 		self::assertSame(Http::STATUS_OK, $response->getStatus());
 		self::assertSame('annual', $response->getData()['key']);
+	}
+
+	public function testANewLeaveTypeGoesToTheAuditLog(): void {
+		$this->mapper->method('insert')->willReturnCallback(static function (LeaveType $t): LeaveType {
+			$t->setId(4);
+			return $t;
+		});
+		$audited = [];
+		$this->dispatcher->method('dispatchTyped')->willReturnCallback(function (CriticalActionPerformedEvent $event) use (&$audited): void {
+			$audited[] = vsprintf($event->getLogMessage(), $event->getParameters());
+		});
+
+		$this->controller->create('annual', 'Annual leave', '#0082c9', '🌴');
+
+		self::assertSame(['Absence leave type 4 created by hr-user'], $audited);
 	}
 
 	public function testIndexWithholdsConfidentialTypesFromNonHr(): void {

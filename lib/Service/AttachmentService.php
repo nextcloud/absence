@@ -16,10 +16,12 @@ use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\NotFoundException as FilesNotFoundException;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IL10N;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -53,6 +55,7 @@ class AttachmentService {
 		private ClockService $clock,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private IEventDispatcher $dispatcher,
 	) {
 	}
 
@@ -136,9 +139,10 @@ class AttachmentService {
 			'actor' => $actorUid,
 			'requestId' => $requestId,
 			'attachmentId' => $attachment->getId(),
-			'name' => $name,
-			'size' => $size,
 		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence request %s: attachment %s added by %s', [(string)$requestId, (string)$attachment->getId(), $actorUid],
+		));
 		return $attachment;
 	}
 
@@ -184,8 +188,10 @@ class AttachmentService {
 			'actor' => $actorUid,
 			'requestId' => $attachment->getRequestId(),
 			'attachmentId' => $attachment->getId(),
-			'name' => $attachment->getName(),
 		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence request %s: attachment %s removed by %s', [(string)$attachment->getRequestId(), (string)$attachment->getId(), $actorUid],
+		));
 	}
 
 	/**
