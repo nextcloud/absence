@@ -16,29 +16,36 @@ import HrWhosOff from './views/hr/HrWhosOff.vue'
 import MyLeave from './views/MyLeave.vue'
 import Profile from './views/Profile.vue'
 import Team from './views/Team.vue'
+import { store } from './store.js'
+import { canOpenRoute } from './utils/access.js'
 
 const routes = [
 	{ path: '/', redirect: '/my' },
 	{ path: '/my', name: 'my', component: MyLeave },
 	{ path: '/approvals', name: 'approvals', component: Approvals },
 	{ path: '/team', name: 'team', component: Team },
-	{ path: '/hr/absences', name: 'hr-absences', component: HrAbsences },
-	{ path: '/hr/employees', name: 'hr-employees', component: HrEmployees },
+	{ path: '/hr/absences', name: 'hr-absences', component: HrAbsences, meta: { hr: true } },
+	{ path: '/hr/employees', name: 'hr-employees', component: HrEmployees, meta: { hr: true } },
 	{ path: '/hr/balances', redirect: '/hr/employees' },
-	{ path: '/hr/statistics', name: 'hr-statistics', component: HrStatistics },
-	{ path: '/hr/insights', name: 'hr-insights', component: HrInsights },
-	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave },
-	{ path: '/hr/whos-off', name: 'hr-whos-off', component: HrWhosOff },
-	{ path: '/hr/exports', name: 'hr-exports', component: HrExports },
-	{ path: '/hr/settings', name: 'hr-settings', component: HrSettings },
+	{ path: '/hr/statistics', name: 'hr-statistics', component: HrStatistics, meta: { hr: true } },
+	{ path: '/hr/insights', name: 'hr-insights', component: HrInsights, meta: { hr: true } },
+	{ path: '/hr/sick-leave', name: 'hr-sick-leave', component: HrSickLeave, meta: { hr: true } },
+	{ path: '/hr/whos-off', name: 'hr-whos-off', component: HrWhosOff, meta: { hr: true } },
+	{ path: '/hr/exports', name: 'hr-exports', component: HrExports, meta: { hr: true } },
+	{ path: '/hr/settings', name: 'hr-settings', component: HrSettings, meta: { hr: true, admin: true } },
 	{ path: '/holidays', name: 'holidays', component: Holidays },
 	{ path: '/profile', name: 'profile', component: Profile },
 	{ path: '/profile/:uid', name: 'profile-of', component: Profile, props: true },
 	// Deep link from notifications/activity: open My leave with the request selected.
 	{ path: '/requests/:id', name: 'request', component: MyLeave, props: true },
+	{ path: '/:pathMatch(.*)*', redirect: '/my' },
 ]
 
-export default createRouter({
+const router = createRouter({
 	history: createWebHashHistory(),
 	routes,
 })
+
+router.beforeEach((to) => canOpenRoute(to.meta, store.session) || { name: 'my' })
+
+export default router
