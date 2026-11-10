@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ExportService;
 use OCA\Absence\Service\PermissionService;
@@ -41,7 +42,11 @@ class ExportController extends Controller {
 		if (!$this->permission->isHr((string)$this->userId)) {
 			return new DataResponse(['message' => $this->l->t('HR role required')], Http::STATUS_FORBIDDEN);
 		}
-		$export = $this->service->requestsCsv($from, $to, $group);
+		try {
+			$export = $this->service->requestsCsv($from, $to, $group);
+		} catch (AbsenceException $e) {
+			return new DataResponse(['message' => $e->getMessage()], $e->getHttpStatus());
+		}
 		return new DataDownloadResponse($export['content'], $export['filename'], 'text/csv');
 	}
 
