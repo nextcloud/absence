@@ -161,14 +161,20 @@ class AttachmentService {
 	}
 
 	/**
-	 * HR may remove anything; the uploader may remove their own file.
+	 * HR may remove anything; the uploader may remove their own file while they
+	 * can still see the request and it is not closed.
 	 *
 	 * @throws NotFoundException|ForbiddenException
 	 */
 	public function delete(string $actorUid, int $attachmentId): void {
 		$attachment = $this->loadAttachment($attachmentId);
-		if (!$this->permission->isHr($actorUid) && $attachment->getUploaderUid() !== $actorUid) {
-			throw new ForbiddenException($this->l->t('Not allowed to remove this attachment'));
+		if (!$this->permission->isHr($actorUid)) {
+			$request = $this->loadRequest($attachment->getRequestId());
+			if ($attachment->getUploaderUid() !== $actorUid
+				|| !$this->canSee($actorUid, $request)
+				|| in_array($request->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
+				throw new ForbiddenException($this->l->t('Not allowed to remove this attachment'));
+			}
 		}
 		$this->removeStored($attachment);
 		$this->attachmentMapper->delete($attachment);

@@ -335,7 +335,8 @@ only** — the manager reads the request, not the medical documents on it. On
 confidential requests (§5.7) even the employee sees none. Upload: HR always;
 the employee on their own non-terminal, non-confidential request (which
 includes HR-recorded sick leave — exactly where a doctor's note belongs).
-Delete: HR, or the uploader. Limits: 10 MB per file, 10 files per request.
+Delete: HR, or the uploader while they still see the request and it is not
+in a terminal state. Limits: 10 MB per file, 10 files per request.
 Attachments never appear in the request-history timeline (it is
 manager-visible); adds and removals go to the always-on audit log. The GDPR
 purge removes rows and bytes. API: §14; the earlier `attachment_note`

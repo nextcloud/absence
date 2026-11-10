@@ -21,6 +21,7 @@ use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\SimpleFS\ISimpleFolder;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -156,15 +157,65 @@ class AttachmentServiceTest extends TestCase {
 		$this->service->upload('hr', 5, $this->upload());
 	}
 
-	public function testOnlyHrOrTheUploaderMayDelete(): void {
+	private function attachment(string $uploader): Attachment {
 		$attachment = new Attachment();
 		$attachment->setId(9);
 		$attachment->setRequestId(5);
-		$attachment->setUploaderUid('emp');
+		$attachment->setUploaderUid($uploader);
 		$this->attachmentMapper->method('find')->willReturn($attachment);
+		return $attachment;
+	}
+
+	public function testOnlyHrOrTheUploaderMayDelete(): void {
+		$this->request();
+		$this->attachment('emp');
 		$this->permission->method('isHr')->willReturn(false);
 
 		$this->expectException(ForbiddenException::class);
 		$this->service->delete('boss', 9);
+	}
+
+	public function testTheUploaderDeletesTheirFileOnAnOpenRequest(): void {
+		$this->request(LeaveRequest::STATUS_PENDING);
+		$attachment = $this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::once())->method('delete')->with($attachment);
+
+		$this->service->delete('emp', 9);
+	}
+
+	public static function closedStatuses(): array {
+		return [[LeaveRequest::STATUS_REJECTED], [LeaveRequest::STATUS_CANCELLED]];
+	}
+
+	#[DataProvider('closedStatuses')]
+	public function testTheUploaderMayNotDeleteOnceTheRequestIsClosed(string $status): void {
+		$this->request($status);
+		$this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$this->expectException(ForbiddenException::class);
+		$this->service->delete('emp', 9);
+	}
+
+	public function testTheUploaderMayNotDeleteWhatTheyNoLongerSee(): void {
+		// Uploaded while in the HR group, on someone else's request
+		$this->request(LeaveRequest::STATUS_PENDING);
+		$this->attachment('former-hr');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$this->expectException(ForbiddenException::class);
+		$this->service->delete('former-hr', 9);
+	}
+
+	public function testHrDeletesOnAClosedRequest(): void {
+		$this->request(LeaveRequest::STATUS_REJECTED);
+		$attachment = $this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(true);
+		$this->attachmentMapper->expects(self::once())->method('delete')->with($attachment);
+
+		$this->service->delete('hr', 9);
 	}
 }
