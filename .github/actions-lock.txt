@@ -13,6 +13,8 @@ e6351c608939c31ae1e32923aa82aa10 dependabot-approve-merge.yml
 f1909c78987565cb19a471c60dc53950 npm-audit-fix.yml
 6e07ed85ca156b6bf121a50dc1af6712 npm-build.yml
 6848ba5ea359d6ca698e209306e18e39 phpunit-mysql.yml
+552ee7ffcb4be38bb5d6ab95b81d05d1 phpunit-pgsql.yml
+ad9c8d16e90d7b60092d9770ba7646e5 phpunit-sqlite.yml
 b8ec9a083becdc283f007669ae28b85a psalm-matrix.yml
 2dbec18233063b42f4d8e03bbb43671c reuse.yml
 3688c8c5aa6a98dcd3b5019dcecccddd sync-workflow-templates.yml
