@@ -12,6 +12,7 @@ namespace OCA\Absence\Tests\Integration;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\SettingsController;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\HolidayService;
@@ -20,6 +21,7 @@ use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\PersonalDefaultsService;
 use OCA\Absence\Service\SessionService;
 use OCA\Absence\Service\SettingsService;
+use OCA\DAV\CalDAV\CalDavBackend;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IAppConfig;
@@ -152,6 +154,45 @@ class SettingsServiceTest extends TestCase {
 				$groups->get('employees')?->delete();
 			}
 		}
+	}
+
+	public function testTheTeamCalendarIsSharedWithTheEmployeesAndHr(): void {
+		$backend = Server::get(CalDavBackend::class);
+		$existed = $this->teamCalendar() !== null;
+		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, true);
+		try {
+			$this->controller(self::ADMIN)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => self::GROUP_A]);
+			$withA = $this->teamShares();
+			$this->controller(self::ADMIN)->update([ConfigLexicon::KEY_EMPLOYEES_GROUP => self::GROUP_B]);
+
+			self::assertSame(['principal:principals/groups/' . self::GROUP_A, 'principal:principals/groups/' . self::HR_GROUP], $withA);
+			self::assertSame(['principal:principals/groups/' . self::GROUP_B, 'principal:principals/groups/' . self::HR_GROUP], $this->teamShares());
+		} finally {
+			if (!$existed && ($calendar = $this->teamCalendar()) !== null) {
+				$backend->deleteCalendar((int)$calendar['id'], true);
+			}
+		}
+	}
+
+	/**
+	 * @return array<string, mixed>|null
+	 */
+	private function teamCalendar(): ?array {
+		foreach (Server::get(CalDavBackend::class)->getCalendarsForUser('principals/system/absence') as $calendar) {
+			if ($calendar['uri'] === 'absence-team') {
+				return $calendar;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	private function teamShares(): array {
+		$hrefs = array_column(Server::get(CalDavBackend::class)->getShares((int)$this->teamCalendar()['id']), 'href');
+		sort($hrefs);
+		return $hrefs;
 	}
 
 	public function testTheSessionSaysWhoIsAnEmployee(): void {
@@ -307,7 +348,7 @@ class SettingsServiceTest extends TestCase {
 	private function controller(string $uid): SettingsController {
 		$l = Server::get(IFactory::class)->get('absence');
 		$directory = new EmployeeDirectory(Server::get(IUserManager::class), Server::get(IGroupManager::class), $this->config(), Server::get(LoggerInterface::class));
-		$service = new SettingsService($this->config(), Server::get(PermissionService::class), Server::get(HolidayService::class), $directory, Server::get(IGroupManager::class), Server::get(IUserManager::class), $l, Server::get(LoggerInterface::class), Server::get(IEventDispatcher::class));
+		$service = new SettingsService($this->config(), Server::get(PermissionService::class), Server::get(HolidayService::class), $directory, Server::get(IGroupManager::class), Server::get(CalendarService::class), Server::get(IUserManager::class), $l, Server::get(LoggerInterface::class), Server::get(IEventDispatcher::class));
 		return new SettingsController('absence', Server::get(IRequest::class), $uid, $service, $l);
 	}
 }
