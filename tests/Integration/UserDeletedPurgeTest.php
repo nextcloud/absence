@@ -16,6 +16,7 @@ use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\NotificationService;
+use OCA\Absence\Service\RequestService;
 use OCA\Absence\Tests\Integration\Fixtures\RecordingNotifications;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -117,6 +118,7 @@ class UserDeletedPurgeTest extends TestCase {
 			Server::get(AttachmentService::class),
 			Server::get(LoggerInterface::class),
 			$employees,
+			Server::get(RequestService::class),
 			Server::get(NotificationService::class),
 			Server::get(IEventDispatcher::class),
 		);

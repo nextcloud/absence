@@ -12,8 +12,8 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\NotificationService;
-use OCP\AppFramework\Db\TTransactional;
 use OCA\Absence\Service\RequestService;
+use OCP\AppFramework\Db\TTransactional;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -85,16 +85,27 @@ class UserDeletedListener implements IEventListener {
 			}
 		}
 
-		$this->atomic(function () use ($uid, $requestIds): void {
-			$this->purgeRows($uid, $requestIds);
-		}, $this->db);
+		$awaitingDecision = $this->atomic(fn (): array => $this->purgeRows($uid, $requestIds), $this->db);
+		// The requests the user was still to decide go to HR, once the purge is
+		// committed. Best-effort, like the calendar cleanup: the escalation job
+		// picks up what fails here.
+		foreach ($awaitingDecision as $request) {
+			// As the row now reads, so that the audit log does not name the user
+			$request->setManagerUid(null);
+			try {
+				$this->requests->handOverToHr($request);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: could not hand a request of a deleted manager over to HR', ['exception' => $e]);
+			}
+		}
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence data of %s purged', [$uid]));
 	}
 
 	/**
 	 * @param int[] $requestIds the user's own requests
+	 * @return list<\OCA\Absence\Db\LeaveRequest> the requests the user was still to decide
 	 */
-	private function purgeRows(string $uid, array $requestIds): void {
+	private function purgeRows(string $uid, array $requestIds): array {
 		// Remove comments and history events on the user's requests, plus comments
 		// the user authored elsewhere.
 		if ($requestIds !== []) {
@@ -121,17 +132,6 @@ class UserDeletedListener implements IEventListener {
 				->where($qb->expr()->eq($column, $qb->createNamedParameter($uid)));
 			$qb->executeStatement();
 		}
-		// The requests the user was still to decide go to HR. Best-effort, like
-		// the calendar cleanup: the escalation job picks up what fails here.
-		foreach ($awaitingDecision as $request) {
-			// As the row now reads, so that the audit log does not name the user
-			$request->setManagerUid(null);
-			try {
-				$this->requests->handOverToHr($request);
-			} catch (\Throwable $e) {
-				$this->logger->warning('Absence: could not hand a request of a deleted manager over to HR', ['exception' => $e]);
-			}
-		}
 
 		// The rows above removed everything *about* the user. What remains is where
 		// the user acted on *someone else's* record — approved/rejected/commented on
@@ -148,6 +148,7 @@ class UserDeletedListener implements IEventListener {
 		$this->anonymizeActor('absence_holidays', 'created_by', $uid, null);
 		$this->anonymizeActor('absence_holidays', 'updated_by', $uid, null);
 		$this->anonymizeActor('absence_holiday_history', 'actor_uid', $uid, null);
+		return $awaitingDecision;
 	}
 
 	/** Replace a deleted user's uid, where they are the actor on a surviving row. */
