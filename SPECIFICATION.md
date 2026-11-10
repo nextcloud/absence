@@ -715,7 +715,8 @@ becomes the request's reason.
   type only) + computed `carry_over_days`. A carry-over somebody already set by hand
   for the new year is left alone.
 - Rollover and expiry are recorded in the entitlement history (§3.7b) with the actor
-  `system`. A rollover with failed rows is tried again the next day.
+  `system`. A rollover with failed rows is tried again the next day, and
+  `occ absence:rollover <year>` recomputes it by hand.
 
 ---
 

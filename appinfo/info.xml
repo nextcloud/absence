@@ -102,6 +102,7 @@ properly. Every rule and design decision is documented in the
 		<command>OCA\Absence\Command\ImportEmployees</command>
 		<command>OCA\Absence\Command\ExportEmployees</command>
 		<command>OCA\Absence\Command\ImportLeave</command>
+		<command>OCA\Absence\Command\Rollover</command>
 	</commands>
 	<activity>
 		<settings>
