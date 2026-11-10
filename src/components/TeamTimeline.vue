@@ -26,6 +26,20 @@
 
 		<SkeletonList v-if="loading" :rows="4" class="gantt__loading" />
 
+		<NcEmptyContent
+			v-else-if="loadError"
+			:name="t('absence', 'Could not load the absences')"
+			:description="t('absence', 'Something went wrong while fetching the absences of this month.')">
+			<template #icon>
+				<AlertCircleOutline :size="20" />
+			</template>
+			<template #action>
+				<NcButton @click="load">
+					{{ t('absence', 'Try again') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
+
 		<div v-else class="gantt__scroll">
 			<div class="gantt__grid" :style="{ '--day-w': dayWidth + 'px', '--days': days.length }">
 				<!-- header -->
@@ -108,6 +122,7 @@ import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
@@ -115,12 +130,13 @@ import SkeletonList from './SkeletonList.vue'
 import api from '../api.js'
 import { store } from '../store.js'
 import { formatRange, toIso } from '../utils/dates.js'
+import { latestOnly } from '../utils/latest.js'
 
 const DAY_MS = 86400000
 
 export default {
 	name: 'TeamTimeline',
-	components: { NcAvatar, NcButton, NcEmptyContent, ChevronLeft, ChevronRight, CalendarBlank, SkeletonList },
+	components: { NcAvatar, NcButton, NcEmptyContent, AlertCircleOutline, ChevronLeft, ChevronRight, CalendarBlank, SkeletonList },
 	props: {
 		scope: { type: String, default: 'team' },
 		// Turn the pills into buttons that open the request. Only set it where the
@@ -143,6 +159,7 @@ export default {
 			events: [],
 			dayWidth: 30,
 			loading: true,
+			loadError: false,
 		}
 	},
 
@@ -216,6 +233,11 @@ export default {
 		},
 	},
 
+	created() {
+		// Fast month navigation: only the month asked for last may land.
+		this.startLoad = latestOnly()
+	},
+
 	mounted() {
 		this.load()
 		// A cancellation made through the sidebar must drop off the timeline.
@@ -229,13 +251,23 @@ export default {
 	methods: {
 		t,
 		async load() {
+			const isLatest = this.startLoad()
 			this.loading = true
+			this.loadError = false
 			try {
-				this.events = (await api.getCalendar(toIso(this.firstDay), toIso(this.lastDay), this.scope)).events
+				const { events } = await api.getCalendar(toIso(this.firstDay), toIso(this.lastDay), this.scope)
+				if (isLatest()) {
+					this.events = events
+				}
 			} catch {
-				this.events = []
+				if (isLatest()) {
+					this.events = []
+					this.loadError = true
+				}
 			} finally {
-				this.loading = false
+				if (isLatest()) {
+					this.loading = false
+				}
 			}
 		},
 
