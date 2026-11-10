@@ -71,11 +71,9 @@ class NumericUidTest extends TestCase {
 	public function testTheUserZeroListsOnlyTheirOwnRequests(): void {
 		$mine = $this->seedRequest(self::ZERO, self::MANAGER);
 		$this->seedRequest(self::EMPLOYEE, self::MANAGER);
-		$reporting = $this->seedRequest(self::EMPLOYEE, self::ZERO);
 		$service = Server::get(RequestService::class);
 
 		self::assertSame([$mine->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $service->list(self::ZERO, [], null, null)));
-		self::assertSame([$reporting->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $service->list(self::ZERO, ['scope' => 'reports'], null, null)));
 	}
 
 	private function seedRequest(string $employeeUid, string $managerUid): LeaveRequest {

@@ -170,9 +170,12 @@ class ManagerChangeTest extends TestCase {
 		$request = $this->seed(LeaveRequest::STATUS_PENDING, created: $this->subtractWorkingDays($today, $threshold)->modify('-12 hours'));
 		Server::get(IUserManager::class)->get(self::EMPLOYEE)->setManagerUids([self::CURRENT]);
 
+		$appConfig = Server::get(IAppConfig::class);
+		$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF);
 		$job = new ReminderJob(Server::get(ITimeFactory::class), $clock, $this->mapper, Server::get(NotificationService::class),
-			$config, Server::get(LoggerInterface::class), $this->resolver());
+			$config, $appConfig, Server::get(LoggerInterface::class), $this->resolver());
 		(new \ReflectionMethod($job, 'run'))->invoke($job, null);
+		$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF);
 
 		self::assertSame([self::CURRENT], $this->recipients(NotificationService::SUBJECT_REMINDER, $request));
 	}
