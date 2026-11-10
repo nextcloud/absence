@@ -12,6 +12,7 @@ use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
+use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
@@ -28,6 +29,7 @@ class EntitlementService {
 	public function __construct(
 		private EntitlementMapper $entitlementMapper,
 		private EntitlementEventMapper $eventMapper,
+		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private BalanceService $balanceService,
 		private ConfigService $config,
@@ -261,28 +263,43 @@ class EntitlementService {
 	}
 
 	/**
-	 * Zero out carry-over that has passed its configured expiry date (§6.2).
+	 * Expire the carry-over that was not used by the configured expiry date (§6.2):
+	 * what remains is the part covered by leave starting on or before that date.
+	 * A later run finds nothing left to expire.
 	 *
-	 * @return int rows zeroed
+	 * @return int rows reduced
 	 */
 	public function expireCarryOver(int $year): int {
 		$expiry = $this->config->getCarryOverExpiry(); // 'MM-DD' or ''
 		if ($expiry === '') {
 			return 0;
 		}
+		$expiryDate = sprintf('%04d-%s', $year, $expiry);
 		// company policy, run from a background job: the server's today
-		$today = $this->clock->serverToday();
-		if ($today < sprintf('%04d-%s', $year, $expiry)) {
+		if ($this->clock->serverToday() < $expiryDate) {
 			return 0;
 		}
+		$used = null;
 		$affected = 0;
 		foreach ($this->entitlementMapper->findForYear($year) as $ent) {
-			if ($ent->getCarryOverDays() > 0.0) {
-				$ent->setCarryOverDays(0.0);
-				$ent->setUpdatedAt($this->clock->now());
-				$this->entitlementMapper->update($ent);
-				$affected++;
+			$carry = $ent->getCarryOverDays();
+			if ($carry <= 0.0) {
+				continue;
 			}
+			$used ??= $this->requestMapper->sumUsedDaysStartingBetween(sprintf('%04d-01-01', $year), $expiryDate);
+			$kept = round(min($carry, $used[$ent->getEmployeeUid()][$ent->getTypeId()] ?? 0.0), 1);
+			if ($carry - $kept < 0.001) {
+				continue;
+			}
+			$ent->setCarryOverDays($kept);
+			$ent->setUpdatedAt($this->clock->now());
+			$ent = $this->entitlementMapper->update($ent);
+			$this->recordChanges(EntitlementEvent::ACTOR_SYSTEM, $ent, [
+				EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
+				EntitlementEvent::FIELD_CARRY_OVER_DAYS => $carry,
+				EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $ent->getManualAdjustment(),
+			], 'Carry-over expired');
+			$affected++;
 		}
 		if ($affected > 0) {
 			$this->logger->info('Absence action: carryover_expired', [

@@ -36,6 +36,9 @@ class EntitlementEvent extends Entity implements \JsonSerializable {
 	public const FIELD_CARRY_OVER_DAYS = 'carry_over_days';
 	public const FIELD_MANUAL_ADJUSTMENT = 'manual_adjustment';
 
+	/** Actor of the changes no person made: the year rollover and the carry-over expiry. */
+	public const ACTOR_SYSTEM = 'system';
+
 	protected int $entitlementId = 0;
 	protected string $employeeUid = '';
 	protected ?string $actorUid = null;

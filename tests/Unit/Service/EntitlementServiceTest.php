@@ -12,6 +12,7 @@ use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
+use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
@@ -56,6 +57,7 @@ class EntitlementServiceTest extends TestCase {
 		$this->service = new EntitlementService(
 			$this->entitlementMapper,
 			$this->eventMapper,
+			$this->createMock(LeaveRequestMapper::class),
 			$this->leaveTypeMapper,
 			$this->balanceService,
 			$this->config,

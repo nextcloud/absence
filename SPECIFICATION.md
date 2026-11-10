@@ -708,7 +708,9 @@ becomes the request's reason.
   the new year's entitlement row.
 - Carry-over policy is configurable (admin setting): `none`, `unlimited`, or
   `capped` at N days, with an optional **expiry date** (e.g. carried days expire
-  end of Q1). Expired carry-over is zeroed by the rollover/expiry job.
+  end of Q1). On that date the job removes the carry-over that was not used: what
+  stays is the part covered by taken leave starting on or before the date. The
+  change is recorded in the entitlement history (§3.7b) with the actor `system`.
 - The rollover creates the next year's `absence_entitlements` rows using the default
   `base_days` + computed `carry_over_days`.
 
@@ -942,7 +944,7 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    cut-off it last processed, so a second run on the same day sends nothing and a
    missed day is caught up on the next run (at most 7 days back).
 3. **YearRolloverJob** (daily, acts once per year / idempotent): computes carry-over
-   and seeds next-year entitlements (§6.2); zeroes expired carry-over.
+   and seeds next-year entitlements (§6.2); expires unused carry-over.
 4. **CalendarSyncJob** (optional, if async sync chosen): reconciles approved leave
    with the CalDAV target calendar (§10).
 

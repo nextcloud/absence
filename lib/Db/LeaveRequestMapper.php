@@ -460,6 +460,32 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Working days of leave already taken (§4.2) that starts within the given
+	 * dates, per employee and type. Like the balances, the whole request counts
+	 * for the day it starts on.
+	 *
+	 * @return array<string,array<int,float>> [employeeUid][typeId] => days
+	 */
+	public function sumUsedDaysStartingBetween(string $from, string $to): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('employee_uid', 'type_id')
+			->selectAlias($qb->func()->sum('working_days'), 'days')
+			->from($this->getTableName())
+			->where($qb->expr()->in('status', $qb->createNamedParameter(
+				LeaveRequest::USED_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter($from)))
+			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter($to)))
+			->groupBy('employee_uid', 'type_id');
+		$result = $qb->executeQuery();
+		$days = [];
+		while ($row = $result->fetch()) {
+			$days[(string)$row['employee_uid']][(int)$row['type_id']] = (float)$row['days'];
+		}
+		$result->closeCursor();
+		return $days;
+	}
+
+	/**
 	 * Pending edits of approved leave (§5.3) starting in the given year — the
 	 * few rows the SQL aggregation cannot net out on its own, fetched separately
 	 * so the netting rule of {@see \OCA\Absence\Service\BalanceService} can
