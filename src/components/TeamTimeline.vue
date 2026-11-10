@@ -131,6 +131,7 @@ import api from '../api.js'
 import { store } from '../store.js'
 import { formatRange, toIso } from '../utils/dates.js'
 import { latestOnly } from '../utils/latest.js'
+import { locale } from '../utils/locale.js'
 
 const DAY_MS = 86400000
 
@@ -173,7 +174,7 @@ export default {
 		},
 
 		monthLabel() {
-			return this.firstDay.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+			return this.firstDay.toLocaleDateString(locale(), { month: 'long', year: 'numeric' })
 		},
 
 		days() {

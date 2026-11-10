@@ -44,6 +44,7 @@
 <script>
 import { t } from '@nextcloud/l10n'
 import BalanceRing from './BalanceRing.vue'
+import { formatNumber } from '../utils/locale.js'
 
 export default {
 	name: 'BalanceCard',
@@ -55,7 +56,7 @@ export default {
 	methods: {
 		t,
 		format(v) {
-			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v)
 		},
 
 		signed(v) {

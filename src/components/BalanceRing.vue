@@ -41,6 +41,8 @@
 </template>
 
 <script>
+import { formatNumber } from '../utils/locale.js'
+
 export default {
 	name: 'BalanceRing',
 	props: {
@@ -120,7 +122,7 @@ export default {
 		},
 
 		format(v) {
-			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v)
 		},
 	},
 }

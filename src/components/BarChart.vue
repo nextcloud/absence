@@ -40,6 +40,8 @@
 </template>
 
 <script>
+import { formatNumber } from '../utils/locale.js'
+
 export default {
 	name: 'BarChart',
 	props: {
@@ -85,7 +87,7 @@ export default {
 	},
 
 	methods: {
-		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
+		fmt(v) { return formatNumber(v) },
 	},
 }
 </script>

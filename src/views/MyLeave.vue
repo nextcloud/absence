@@ -93,6 +93,7 @@ import SkeletonList from '../components/SkeletonList.vue'
 import YearInReview from '../components/YearInReview.vue'
 import { store } from '../store.js'
 import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.js'
+import { locale } from '../utils/locale.js'
 
 // Inside this window the hero counts down in seconds rather than whole days.
 // Two days is roughly where "2 days to go" stops being the more useful sentence.
@@ -258,7 +259,7 @@ export default {
 				addWorkingDaysByMonth(buckets, r.startDate, r.endDate, r.workingDays, this.year)
 			}
 			return buckets.map((value, month) => ({
-				label: new Date(this.year, month, 1).toLocaleDateString(undefined, { month: 'short' }),
+				label: new Date(this.year, month, 1).toLocaleDateString(locale(), { month: 'short' }),
 				value: Math.round(value * 10) / 10,
 				...(color ? { color } : {}),
 			}))

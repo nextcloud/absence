@@ -253,6 +253,7 @@ import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
 import { formatDate } from '../../utils/dates.js'
 import { latestOnly } from '../../utils/latest.js'
+import { formatNumber } from '../../utils/locale.js'
 import { regionFlag } from '../../utils/regions.js'
 import { formatWeekdays } from '../../utils/weekdays.js'
 
@@ -358,7 +359,7 @@ export default {
 		regionFlag,
 
 		fmt(v) {
-			return v === null || v === undefined ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return v === null || v === undefined ? '' : formatNumber(v)
 		},
 
 		/**

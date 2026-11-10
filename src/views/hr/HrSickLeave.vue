@@ -200,6 +200,7 @@ import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
 import { store } from '../../store.js'
+import { formatNumber, locale } from '../../utils/locale.js'
 
 export default {
 	name: 'HrSickLeave',
@@ -299,11 +300,11 @@ export default {
 		fmt(value) {
 			return value === null || value === undefined
 				? '—'
-				: Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })
+				: formatNumber(value)
 		},
 
 		formatDate(iso) {
-			return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })
+			return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { dateStyle: 'medium' })
 		},
 
 		/**

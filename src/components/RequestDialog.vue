@@ -223,6 +223,7 @@ import { weekdaysOn } from '../utils/contract.js'
 import { parseWeekdays, toIso } from '../utils/dates.js'
 import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.js'
 import { latestOnly } from '../utils/latest.js'
+import { formatNumber } from '../utils/locale.js'
 import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.js'
 
 export default {
@@ -685,7 +686,7 @@ export default {
 			if (v === null || v === undefined) {
 				return '—'
 			}
-			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v)
 		},
 
 		async initFromProps() {

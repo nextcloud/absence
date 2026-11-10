@@ -39,6 +39,7 @@
 import { n, t } from '@nextcloud/l10n'
 import { store } from '../store.js'
 import { addWorkingDaysByMonth } from '../utils/dates.js'
+import { formatNumber, locale } from '../utils/locale.js'
 
 export default {
 	name: 'YearInReview',
@@ -85,7 +86,7 @@ export default {
 			const peak = Math.max(...months)
 			if (peak > 0) {
 				favouriteMonth = new Date(this.year, months.indexOf(peak), 1)
-					.toLocaleDateString(undefined, { month: 'long' })
+					.toLocaleDateString(locale(), { month: 'long' })
 			}
 			return {
 				days: Math.round(days * 10) / 10,
@@ -100,7 +101,7 @@ export default {
 		t,
 		n,
 		format(v) {
-			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v)
 		},
 	},
 }

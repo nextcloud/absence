@@ -71,6 +71,7 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import api from '../api.js'
 import { entitlementPayload } from '../utils/entitlement.js'
+import { formatNumber, locale } from '../utils/locale.js'
 
 /**
  * HR's editor for one entitlement of one employee and year, with its change
@@ -120,7 +121,7 @@ export default {
 	methods: {
 		t,
 		fmt(v) {
-			return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return v === null || v === undefined ? '—' : formatNumber(v)
 		},
 
 		/**
@@ -164,7 +165,7 @@ export default {
 		},
 
 		formatDateTime(iso) {
-			return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
+			return iso ? new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : ''
 		},
 
 		async save() {

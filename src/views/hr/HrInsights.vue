@@ -218,6 +218,7 @@ import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
+import { formatNumber, locale } from '../../utils/locale.js'
 
 export default {
 	name: 'HrInsights',
@@ -248,7 +249,7 @@ export default {
 			if (!d) {
 				return ''
 			}
-			const date = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+			const date = new Date(d + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
 			return t('absence', 'carry-over expires {date}', { date })
 		},
 	},
@@ -303,7 +304,7 @@ export default {
 		},
 
 		fmtDays(v) {
-			return Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v || 0)
 		},
 
 		neglectedLabel(p) {

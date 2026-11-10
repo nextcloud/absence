@@ -76,6 +76,7 @@ import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import TeamTimeline from '../components/TeamTimeline.vue'
 import api from '../api.js'
+import { formatNumber } from '../utils/locale.js'
 
 export default {
 	name: 'Team',
@@ -101,7 +102,7 @@ export default {
 	methods: {
 		t,
 		fmt(v) {
-			return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return v === null || v === undefined ? '—' : formatNumber(v)
 		},
 
 		availableClass(row) {

@@ -49,6 +49,7 @@
 
 <script>
 import { t } from '@nextcloud/l10n'
+import { formatNumber } from '../utils/locale.js'
 
 export default {
 	name: 'DonutChart',
@@ -95,7 +96,7 @@ export default {
 
 	methods: {
 		t,
-		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
+		fmt(v) { return formatNumber(v) },
 	},
 }
 </script>

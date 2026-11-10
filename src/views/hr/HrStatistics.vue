@@ -109,6 +109,7 @@ import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
 import { formatDate, toIso } from '../../utils/dates.js'
+import { formatNumber, locale } from '../../utils/locale.js'
 
 // Enough for a decade of monthly points; past this a line chart is unreadable
 // anyway and the range is almost certainly a typo.
@@ -249,7 +250,7 @@ export default {
 	methods: {
 		t,
 		n,
-		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
+		fmt(v) { return formatNumber(v) },
 
 		/**
 		 * Localised name for a 'YYYY-MM' key.
@@ -259,7 +260,7 @@ export default {
 		 * @return {string}
 		 */
 		monthLabel(month, options) {
-			return new Date(month + '-01T00:00:00').toLocaleDateString(undefined, options)
+			return new Date(month + '-01T00:00:00').toLocaleDateString(locale(), options)
 		},
 
 		async reload() {
