@@ -52,6 +52,7 @@ class ConfigLexiconTest extends TestCase {
 			ConfigLexicon::KEY_LAST_ROLLOVER_YEAR,
 			ConfigLexicon::KEY_MAX_CONCURRENT,
 			ConfigLexicon::KEY_NOTICE_PERIOD,
+			ConfigLexicon::KEY_REMINDER_CUTOFF,
 			ConfigLexicon::KEY_REMINDER_LEAD,
 			ConfigLexicon::KEY_SHARED_VISIBILITY,
 		];

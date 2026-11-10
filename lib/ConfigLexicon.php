@@ -44,6 +44,7 @@ class ConfigLexicon implements ILexicon {
 	// Internal state.
 	public const KEY_LAST_ROLLOVER_YEAR = 'last_rollover_year';
 	public const KEY_CALENDAR_SYNC_CURSOR = 'calendar_sync_cursor';
+	public const KEY_REMINDER_CUTOFF = 'reminder_cutoff';
 
 	// The holiday region code each person sets for themselves (§7.2).
 	public const KEY_HOLIDAY_COUNTRY = 'holiday_country';
@@ -94,6 +95,8 @@ class ConfigLexicon implements ILexicon {
 				'Internal marker: last year already processed by the rollover job', lazy: true),
 			new Entry(self::KEY_CALENDAR_SYNC_CURSOR, ValueType::INT, 0,
 				'Internal marker: last request the calendar sync job looked at', lazy: true),
+			new Entry(self::KEY_REMINDER_CUTOFF, ValueType::INT, 0,
+				'Internal marker: creation time (Unix time) up to which the reminder job has reminded pending requests', lazy: true),
 		];
 	}
 
