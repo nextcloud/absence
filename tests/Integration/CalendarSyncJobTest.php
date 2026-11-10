@@ -13,12 +13,19 @@ use OCA\Absence\BackgroundJob\CalendarSyncJob;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Tests\Integration\Fixtures\FailingOnceCalDavBackend;
 use OCA\DAV\CalDAV\CalDavBackend;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
 use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * The job writes the calendar events approved leave has none of (§10).
@@ -57,6 +64,11 @@ class CalendarSyncJobTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		// The team calendar outlives the test user
+		foreach (array_filter(explode(';', (string)$this->mapper->find($this->request->getId())->getCalendarEventUri())) as $ref) {
+			[$calendarId, $objectUri] = explode(':', $ref);
+			Server::get(CalDavBackend::class)->deleteCalendarObject((int)$calendarId, $objectUri, CalDavBackend::CALENDAR_TYPE_CALENDAR, true);
+		}
 		$this->mapper->delete($this->request);
 		foreach ($this->calDav as $key => $value) {
 			$this->appConfig->setValueBool(ConfigService::APP_ID, $key, $value);
@@ -80,13 +92,83 @@ class CalendarSyncJobTest extends TestCase {
 		self::assertCount(1, Server::get(CalDavBackend::class)->getCalendarObjects((int)$calendarId));
 	}
 
+	public function testFailedTeamCalendarWriteIsRetriedWithoutSecondPersonalEvent(): void {
+		$this->bothCalendars();
+		$backend = new FailingOnceCalDavBackend(Server::get(CalDavBackend::class), failOnWrite: 2);
+
+		$this->runJob($this->calendarServiceOn($backend));
+		self::assertNull($this->mapper->find($this->request->getId())->getCalendarEventUri());
+
+		$this->rewind();
+		$this->runJob($this->calendarServiceOn($backend));
+
+		$uri = $this->mapper->find($this->request->getId())->getCalendarEventUri();
+		self::assertNotNull($uri);
+		$refs = explode(';', $uri);
+		self::assertCount(2, $refs);
+		foreach ($refs as $ref) {
+			[$calendarId, $objectUri] = explode(':', $ref);
+			self::assertNotNull(Server::get(CalDavBackend::class)->getCalendarObject((int)$calendarId, $objectUri));
+		}
+		[$personalCalendarId] = explode(':', $refs[0]);
+		self::assertCount(1, Server::get(CalDavBackend::class)->getCalendarObjects((int)$personalCalendarId));
+	}
+
+	public function testRequestCancelledDuringTheRunKeepsNoEvent(): void {
+		$this->personalCalendarOnly();
+		$backend = new FailingOnceCalDavBackend(Server::get(CalDavBackend::class), onWrite: function (): void {
+			$request = $this->mapper->find($this->request->getId());
+			$request->setStatus(LeaveRequest::STATUS_CANCELLED);
+			$this->mapper->update($request);
+		});
+
+		$this->runJob($this->calendarServiceOn($backend));
+
+		self::assertNull($this->mapper->find($this->request->getId())->getCalendarEventUri());
+		$calendars = array_filter(
+			Server::get(CalDavBackend::class)->getCalendarsForUser('principals/users/' . self::EMPLOYEE),
+			static fn (array $calendar): bool => $calendar['uri'] === 'absence',
+		);
+		self::assertCount(1, $calendars);
+		self::assertSame([], Server::get(CalDavBackend::class)->getCalendarObjects((int)reset($calendars)['id']));
+	}
+
+	private function bothCalendars(): void {
+		$this->appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_PERSONAL, true);
+		$this->appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, true);
+	}
+
+	private function rewind(): void {
+		$this->appConfig->setValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_CALENDAR_SYNC_CURSOR, $this->request->getId() - 1);
+	}
+
+	/** The real service, on a calendar backend the test can interfere with */
+	private function calendarServiceOn(FailingOnceCalDavBackend $backend): CalendarService {
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturn($backend);
+		return new CalendarService(
+			$container,
+			Server::get(ConfigService::class),
+			Server::get(LeaveTypeMapper::class),
+			Server::get(IUserManager::class),
+			Server::get(IFactory::class),
+			Server::get(LoggerInterface::class),
+		);
+	}
+
 	private function personalCalendarOnly(): void {
 		$this->appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_PERSONAL, true);
 		$this->appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, false);
 	}
 
-	private function runJob(): void {
-		$job = Server::get(CalendarSyncJob::class);
+	private function runJob(?CalendarService $calendar = null): void {
+		$job = $calendar === null ? Server::get(CalendarSyncJob::class) : new CalendarSyncJob(
+			Server::get(ITimeFactory::class),
+			$this->mapper,
+			$calendar,
+			Server::get(ConfigService::class),
+			$this->appConfig,
+		);
 		(new \ReflectionMethod($job, 'run'))->invoke($job, null);
 	}
 }

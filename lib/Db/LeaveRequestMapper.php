@@ -310,6 +310,23 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Store the calendar reference of a request if it is still approved. Returns
+	 * whether it was stored.
+	 *
+	 * The calendar sync job writes events for a list read moments earlier; a
+	 * request cancelled in between must not keep a reference to an event its
+	 * cancellation never saw. See {@see markEscalated()}.
+	 */
+	public function setCalendarEventUriIfApproved(int $id, string $uri): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('calendar_event_uri', $qb->createNamedParameter($uri))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_APPROVED)));
+		return $qb->executeStatement() === 1;
+	}
+
+	/**
 	 * All requests for an employee (any status), used for balance computation.
 	 * With $year, only requests *starting* in that year — the year balances
 	 * attribute them to — so one person's balance never loads their whole

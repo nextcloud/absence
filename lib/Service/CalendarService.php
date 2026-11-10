@@ -42,6 +42,8 @@ class CalendarService {
 	/**
 	 * Create calendar events for an approved request and return the stored reference
 	 * ("calendarId:objectUri;calendarId:objectUri"), or null when disabled/unavailable.
+	 * All enabled calendars or none: the reference marks a request as done, so when
+	 * one write fails the other event is taken back and the caller tries again later.
 	 */
 	public function onApproved(LeaveRequest $request): ?string {
 		$backend = $this->backend();
@@ -49,8 +51,10 @@ class CalendarService {
 			return null;
 		}
 		$refs = [];
+		$wanted = 0;
 		try {
 			if ($this->config->isCalDavPersonalEnabled()) {
+				$wanted++;
 				$ref = $this->writeEvent(
 					$backend,
 					'principals/users/' . $request->getEmployeeUid(),
@@ -64,6 +68,7 @@ class CalendarService {
 				}
 			}
 			if ($this->config->isCalDavSharedEnabled()) {
+				$wanted++;
 				$ref = $this->writeEvent(
 					$backend,
 					self::SHARED_PRINCIPAL,
@@ -78,6 +83,11 @@ class CalendarService {
 			}
 		} catch (\Throwable $e) {
 			$this->logger->warning('Absence: calendar write failed', ['exception' => $e]);
+		}
+		if (count($refs) < $wanted) {
+			// For good, not into the calendar's trash bin: the event comes back
+			$this->deleteEvents($backend, implode(';', $refs), true);
+			return null;
 		}
 		return $refs === [] ? null : implode(';', $refs);
 	}
@@ -124,13 +134,17 @@ class CalendarService {
 		if ($backend === null || $ref === null || $ref === '') {
 			return;
 		}
+		$this->deleteEvents($backend, $ref);
+	}
+
+	private function deleteEvents($backend, string $ref, bool $permanently = false): void {
 		foreach (explode(';', $ref) as $entry) {
 			[$calendarId, $objectUri] = array_pad(explode(':', $entry, 2), 2, null);
 			if ($calendarId === null || $objectUri === null) {
 				continue;
 			}
 			try {
-				$backend->deleteCalendarObject((int)$calendarId, $objectUri);
+				$backend->deleteCalendarObject((int)$calendarId, $objectUri, \OCA\DAV\CalDAV\CalDavBackend::CALENDAR_TYPE_CALENDAR, $permanently);
 			} catch (\Throwable $e) {
 				$this->logger->debug('Absence: calendar delete failed', ['exception' => $e]);
 			}
