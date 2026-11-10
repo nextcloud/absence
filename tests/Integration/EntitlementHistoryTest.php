@@ -35,7 +35,7 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Entitlement edits on a real database (§6.1): what the history records for a
- * bulk change.
+ * bulk change, and what happens when two writes meet.
  */
 class EntitlementHistoryTest extends TestCase {
 	private const GROUP = 'itest-enthist-team';
@@ -175,5 +175,34 @@ class EntitlementHistoryTest extends TestCase {
 
 		self::assertSame([20.0, 20.0], [$this->stored(self::ANA)->getBaseDays(), $this->stored(self::BEN)->getBaseDays()]);
 		self::assertSame([], [...$this->history(self::ANA), ...$this->history(self::BEN)]);
+	}
+
+	public function testTwoCorrectionsAtTheSameMomentBothCount(): void {
+		$id = (int)$this->entitlement(self::ANA, 20.0)->getId();
+		// A second correction is saved right after this one read the row.
+		$other = fn () => $this->service()->update(self::HR, $id, ['adjustmentDelta' => 3.0, 'adjustmentNote' => 'itest overtime']);
+		$interleaved = new class(Server::get(IDBConnection::class), $other) extends EntitlementMapper {
+			public function __construct(
+				IDBConnection $db,
+				private ?\Closure $afterRead,
+			) {
+				parent::__construct($db);
+			}
+
+			#[\Override]
+			public function find(int $id): Entitlement {
+				$ent = parent::find($id);
+				$afterRead = $this->afterRead;
+				$this->afterRead = null;
+				if ($afterRead !== null) {
+					$afterRead();
+				}
+				return $ent;
+			}
+		};
+
+		$this->service($interleaved)->update(self::HR, $id, ['adjustmentDelta' => 2.0, 'adjustmentNote' => 'itest wedding']);
+
+		self::assertSame(5.0, $this->stored(self::ANA)->getManualAdjustment());
 	}
 }

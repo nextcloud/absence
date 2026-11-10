@@ -68,55 +68,64 @@ class EntitlementService {
 	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentDelta?:float,adjustmentNote?:string} $data
 	 */
 	public function update(?string $actorUid, int $id, array $data): Entitlement {
-		try {
-			$ent = $this->entitlementMapper->find($id);
-		} catch (DoesNotExistException) {
-			throw new NotFoundException($this->l->t('Entitlement not found'));
-		}
 		if (array_key_exists('adjustmentDelta', $data) && array_key_exists('manualAdjustment', $data)) {
 			throw new ValidationException($this->l->t('Send either an adjustment to apply or an absolute adjustment, not both.'));
 		}
 		$this->validator->assertFigures($data);
-		// Read before any setter runs: these are what the history reports moving from.
-		$before = [
-			EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
-			EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),
-			EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $ent->getManualAdjustment(),
-		];
 		$note = trim((string)($data['adjustmentNote'] ?? ''));
+		$delta = (float)($data['adjustmentDelta'] ?? 0.0);
+		if (abs($delta) <= 0.001) {
+			$delta = 0.0;
+		} elseif ($note === '') {
+			throw new ValidationException($this->l->t('A note is required when adjusting an entitlement.'));
+		}
 
-		if (array_key_exists('baseDays', $data)) {
-			$ent->setBaseDays((float)$data['baseDays']);
-		}
-		if (array_key_exists('carryOverDays', $data)) {
-			$ent->setCarryOverDays((float)$data['carryOverDays']);
-		}
-		if (array_key_exists('adjustmentDelta', $data)) {
-			// A correction on top of whatever corrections came before, so "+2" and a
-			// later "−2" cancel and the allowance returns to where it started.
-			// Assigning here instead — which is what the absolute branch below does —
-			// made the second correction *replace* the first: 25 → +2 → 27, then a
-			// −2 correction landed on 23 rather than back on 25.
-			$delta = (float)$data['adjustmentDelta'];
-			if (abs($delta) > 0.001) {
-				if ($note === '') {
+		// One transaction: the figures and their history are saved together or not at all.
+		$this->db->beginTransaction();
+		try {
+			if ($delta !== 0.0) {
+				// A correction on top of whatever corrections came before, so "+2" and a
+				// later "-2" cancel. Added by the database, not to a value read earlier:
+				// a correction somebody else saves at the same moment is kept too.
+				$this->entitlementMapper->addToManualAdjustment($id, $delta);
+			}
+			try {
+				$ent = $this->entitlementMapper->find($id);
+			} catch (DoesNotExistException) {
+				throw new NotFoundException($this->l->t('Entitlement not found'));
+			}
+			// Read before any setter runs: these are what the history reports moving from.
+			$before = [
+				EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
+				EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),
+				EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => round($ent->getManualAdjustment() - $delta, 1),
+			];
+
+			if (array_key_exists('baseDays', $data)) {
+				$ent->setBaseDays((float)$data['baseDays']);
+			}
+			if (array_key_exists('carryOverDays', $data)) {
+				$ent->setCarryOverDays((float)$data['carryOverDays']);
+			}
+			if ($delta !== 0.0) {
+				$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
+			} elseif (array_key_exists('manualAdjustment', $data)) {
+				$adjustment = (float)$data['manualAdjustment'];
+				if ($adjustment !== $ent->getManualAdjustment() && $note === '') {
 					throw new ValidationException($this->l->t('A note is required when adjusting an entitlement.'));
 				}
-				$ent->setManualAdjustment($ent->getManualAdjustment() + $delta);
+				$ent->setManualAdjustment($adjustment);
 				$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
 			}
-		} elseif (array_key_exists('manualAdjustment', $data)) {
-			$adjustment = (float)$data['manualAdjustment'];
-			if ($adjustment !== $ent->getManualAdjustment() && $note === '') {
-				throw new ValidationException($this->l->t('A note is required when adjusting an entitlement.'));
-			}
-			$ent->setManualAdjustment($adjustment);
-			$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
-		}
-		$ent->setUpdatedAt($this->clock->now());
-		$ent = $this->entitlementMapper->update($ent);
+			$ent->setUpdatedAt($this->clock->now());
+			$ent = $this->entitlementMapper->update($ent);
 
-		$changes = $this->recordChanges($actorUid, $ent, $before, $note);
+			$changes = $this->recordChanges($actorUid, $ent, $before, $note);
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
 
 		$this->activity->publish(ActivityPublisher::SUBJECT_BALANCE_ADJUSTED, [
 			'employee' => $ent->getEmployeeUid(),

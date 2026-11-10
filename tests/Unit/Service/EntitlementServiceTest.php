@@ -226,6 +226,10 @@ class EntitlementServiceTest extends TestCase {
 		$ent->setManualAdjustment(0.0);
 		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
 		$this->entitlementMapper->method('update')->willReturnArgument(0);
+		// the database adds the correction to the stored value
+		$this->entitlementMapper->method('addToManualAdjustment')->willReturnCallback(
+			static fn (int $id, float $delta) => $ent->setManualAdjustment($ent->getManualAdjustment() + $delta),
+		);
 
 		$after = $this->service->update('hr', 1, ['adjustmentDelta' => 2.0, 'adjustmentNote' => 'Wedding']);
 		self::assertSame(2.0, $after->getManualAdjustment());
