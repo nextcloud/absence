@@ -335,6 +335,18 @@ class LeaveImportTest extends TestCase {
 		self::assertSame(0, $this->countFor(self::ROBIN));
 	}
 
+	public function testOccImportBooksTheLeaveWithoutAnActor(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-leave');
+		file_put_contents($file, self::json([['user' => self::ROBIN, 'from' => '2025-04-14', 'to' => '2025-04-16', 'workingDays' => 3]]));
+		$tester = new CommandTester(Server::get(ImportLeave::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file]));
+		unlink($file);
+		$request = $this->requests->findAllForEmployee(self::ROBIN)[0];
+		self::assertNull($request->getDecidedBy());
+		self::assertNull(Server::get(RequestEventMapper::class)->findForRequest((int)$request->getId())[0]->getActorUid());
+	}
+
 	public function testImportHasNoSideEffects(): void {
 		Server::get(INotificationManager::class)->registerApp(SpyNotificationApp::class);
 		$activity = Server::get(IActivityManager::class);

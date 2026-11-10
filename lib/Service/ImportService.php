@@ -131,9 +131,10 @@ class ImportService {
 	 * Apply a plan produced by {@see plan()}.
 	 *
 	 * @param list<array{uid:string,name:string,typeId:int,year:int,data:array<string,mixed>,line:int}> $plan
+	 * @param ?string $actorUid null from occ
 	 * @return int rows applied
 	 */
-	public function apply(array $plan, string $actorUid): int {
+	public function apply(array $plan, ?string $actorUid): int {
 		// All-or-nothing (see the class docstring): if any row fails part-way through
 		// — a transient DB error, or a type deleted between plan() and apply() — the
 		// whole batch rolls back rather than leaving "half the company imported".

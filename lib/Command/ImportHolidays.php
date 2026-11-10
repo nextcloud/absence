@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Command;
 
-use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\HolidayService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -48,7 +48,7 @@ class ImportHolidays extends Command {
 		$dryRun = (bool)$input->getOption('dry-run');
 		try {
 			$result = $dryRun ? $this->service->plan($json) : $this->service->import($json);
-		} catch (ValidationException $e) {
+		} catch (AbsenceException $e) {
 			$output->writeln('<error>' . $e->getMessage() . '</error>');
 			return 1;
 		}

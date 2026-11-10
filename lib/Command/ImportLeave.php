@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Command;
 
-use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\LeaveImportService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -46,7 +46,7 @@ class ImportLeave extends Command {
 
 		try {
 			$preview = $this->service->preview($json);
-		} catch (ValidationException $e) {
+		} catch (AbsenceException $e) {
 			$output->writeln('<error>' . $e->getMessage() . '</error>');
 			return 1;
 		}
@@ -67,7 +67,12 @@ class ImportLeave extends Command {
 			return 0;
 		}
 
-		$result = $this->service->import($json, 'system');
+		try {
+			$result = $this->service->import($json, null);
+		} catch (AbsenceException $e) {
+			$output->writeln('<error>' . $e->getMessage() . '</error>');
+			return 1;
+		}
 		$output->writeln(sprintf('<info>Imported %d entries, skipped %d already there.</info>', $result['entries'], $result['skipped']));
 		return 0;
 	}

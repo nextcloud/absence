@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Tests\Integration;
 
 use OCA\Absence\Command\ImportEntitlements;
+use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ImportService;
 use OCP\IUserManager;
@@ -65,6 +66,19 @@ class ImportServiceTest extends TestCase {
 		self::assertSame(0, $tester->execute(['file' => $file, '--dry-run' => true]));
 		unlink($file);
 		self::assertStringContainsString('Robin Import (' . self::UID . ')', $tester->getDisplay());
+	}
+
+	public function testOccImportRecordsTheChangeWithoutAnActor(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-entitlements');
+		file_put_contents($file, "user,base_days,year\n" . self::UID . ',25,2025');
+		$tester = new CommandTester(Server::get(ImportEntitlements::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file]));
+		unlink($file);
+		$history = Server::get(EntitlementEventMapper::class)->findForEmployee(self::UID);
+		self::assertCount(1, $history);
+		self::assertSame(25.0, $history[0]->getNewValue());
+		self::assertNull($history[0]->getActorUid());
 	}
 
 	public function testARowWithMoreFieldsThanTheHeaderIsRefused(): void {

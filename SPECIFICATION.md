@@ -286,7 +286,7 @@ happened and when. One row is written for every meaningful transition.
 |--------|------|-------|
 | `id` | bigint, PK | |
 | `request_id` | bigint FK, indexed | The request this event belongs to. |
-| `actor_uid` | string(64) | Who performed the action; the literal `system` for automated events (e.g. escalation). |
+| `actor_uid` | string(64), nullable | Who performed the action; the literal `system` for automated events (e.g. escalation), null for an import from occ. |
 | `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`, `request_imported` (§6.5). |
 | `detail` | text, nullable | Human-readable extra. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`. Recording only the resulting state cannot answer what anybody opens the history to ask — what changed and by how much — and a day count means nothing without the number it replaced. On creation it carries the type, dates, day count and the employee's reason, since the request itself only ever shows its *current* state. |
 | `created_at` | datetime | |
@@ -309,7 +309,7 @@ by the next adjustment.
 | `id` | bigint, PK | |
 | `entitlement_id` | bigint, indexed | The entitlement this change belongs to. |
 | `employee_uid` | string(64), indexed | Denormalised from the entitlement so the GDPR purge (§17) and per-person views need no join to a row that is about to be deleted. |
-| `actor_uid` | string(64) | Who made the change. |
+| `actor_uid` | string(64), nullable | Who made the change; null from occ. |
 | `field` | string(32) | `base_days`, `carry_over_days` or `manual_adjustment`. |
 | `old_value` / `new_value` | float | The figure before and after; the delta is derived. |
 | `note` | text, nullable | The reason given, attached to every figure that save touched. |
@@ -693,7 +693,7 @@ becomes the request's reason.
   counted as skipped, and so is a second copy within the file. Importing the
   same file twice adds nothing the second time.
 - **Booked like HR-recorded leave (§5.6)**: `APPROVED`, `decided_by` the HR
-  member (`system` from occ), the manager denormalized as at submission (§2.1),
+  member (nobody from occ), the manager denormalized as at submission (§2.1),
   one transaction for the whole file.
 - **No side effects.** The leave already sits in the old calendar and the
   people know about it: no notification, e-mail, activity, CalDAV event or

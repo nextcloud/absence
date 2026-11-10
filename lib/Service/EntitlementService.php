@@ -62,7 +62,7 @@ class EntitlementService {
 	 *
 	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentDelta?:float,adjustmentNote?:string} $data
 	 */
-	public function update(string $actorUid, int $id, array $data): Entitlement {
+	public function update(?string $actorUid, int $id, array $data): Entitlement {
 		try {
 			$ent = $this->entitlementMapper->find($id);
 		} catch (DoesNotExistException) {
@@ -119,7 +119,7 @@ class EntitlementService {
 			// that something did. Empty when a save changed no figure.
 			'summary' => $this->summarise($changes),
 			'note' => $note,
-		], [$ent->getEmployeeUid(), $actorUid]);
+		], $actorUid === null ? [$ent->getEmployeeUid()] : [$ent->getEmployeeUid(), $actorUid]);
 		$this->logger->info('Absence action: entitlement_updated', [
 			'app' => 'absence',
 			'action' => 'entitlement_updated',
@@ -140,7 +140,7 @@ class EntitlementService {
 	 *
 	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentNote?:string} $data
 	 */
-	public function setForEmployee(string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
+	public function setForEmployee(?string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
 		// Also rejects guests: they have no entitlement to set (§2.2).
 		if (!$this->employees->isEmployee($employeeUid)) {
 			throw new ValidationException($this->l->t('Unknown employee.'));
@@ -321,7 +321,7 @@ class EntitlementService {
 	 * @param array<string,float> $before figure => value before the save
 	 * @return EntitlementEvent[] the events actually written
 	 */
-	private function recordChanges(string $actorUid, Entitlement $ent, array $before, string $note): array {
+	private function recordChanges(?string $actorUid, Entitlement $ent, array $before, string $note): array {
 		$after = [
 			EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
 			EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),

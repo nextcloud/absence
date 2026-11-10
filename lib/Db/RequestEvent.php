@@ -15,8 +15,8 @@ use OCP\AppFramework\Db\Entity;
  *
  * @method int getRequestId()
  * @method void setRequestId(int $requestId)
- * @method string getActorUid()
- * @method void setActorUid(string $actorUid)
+ * @method ?string getActorUid()
+ * @method void setActorUid(?string $actorUid)
  * @method string getEventType()
  * @method void setEventType(string $eventType)
  * @method string|null getDetail()
@@ -26,7 +26,7 @@ use OCP\AppFramework\Db\Entity;
  */
 class RequestEvent extends Entity implements \JsonSerializable {
 	protected int $requestId = 0;
-	protected string $actorUid = '';
+	protected ?string $actorUid = null;
 	protected string $eventType = '';
 	protected ?string $detail = null;
 	protected ?\DateTime $createdAt = null;

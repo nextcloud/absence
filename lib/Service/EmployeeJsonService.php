@@ -152,7 +152,7 @@ class EmployeeJsonService {
 					$this->employees->saveRegion($uid, $write['region'], $actor);
 				}
 				foreach ($write['vacation'] as $year => $days) {
-					$this->entitlements->setForEmployee($actor ?? 'import:cli', $uid, $year, $this->annualTypeId(), ['baseDays' => $days]);
+					$this->entitlements->setForEmployee($actor, $uid, $year, $this->annualTypeId(), ['baseDays' => $days]);
 				}
 			}
 			$this->db->commit();

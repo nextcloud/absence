@@ -150,11 +150,11 @@ class LeaveImportService {
 	/**
 	 * Book every valid entry as approved leave, in one transaction.
 	 *
-	 * @param string $actorUid the HR member importing, or `system` from occ
+	 * @param ?string $actorUid the HR member importing, null from occ
 	 * @return array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>} what was imported, as {@see preview()} reports it
 	 * @throws ValidationException if any entry is invalid; nothing is written then
 	 */
-	public function import(string $json, string $actorUid): array {
+	public function import(string $json, ?string $actorUid): array {
 		[$preview, $plan] = $this->analyse($json);
 		if ($preview['errors'] !== []) {
 			throw new ValidationException($this->l->n(
