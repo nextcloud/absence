@@ -652,9 +652,11 @@ current entitlements over from the spreadsheet every company migrates away
 from. Columns (header required, order free): `user` (uid or e-mail),
 `base_days`, `carry_over_days`, `adjustment` (absolute), `note`, `type`
 (key, default `annual`), `year` (default: `--year`). Comma or semicolon
-separated (German Excel), BOM tolerated. **All-or-nothing:** every broken
-row is reported and nothing is written — half an imported company is the
-worst outcome of a typo. Writes go through `EntitlementService`, so the
+separated (German Excel), BOM tolerated, quoted fields may span lines.
+**All-or-nothing:** every broken row is reported and nothing is written — half
+an imported company is the worst outcome of a typo. A row with more or fewer
+fields than the header is broken, and so is a second row for the same user,
+type and year. Writes go through `EntitlementService`, so the
 entitlement history records the import like any HR edit.
 
 ### 6.5 Leave import (onboarding)

@@ -16,7 +16,9 @@ use OCP\IDBConnection;
  * CSV import of entitlements (§6.3) — the onboarding path from the spreadsheet
  * every company migrates away from.
  *
- * Expected columns (header row required, order free, extras ignored):
+ * Expected columns (header row required, order free, other columns ignored;
+ * every row has as many fields as the header, and a user, type and year only
+ * once per file):
  *
  *   user            uid or e-mail address
  *   base_days       base allowance (optional — leave empty to keep)
@@ -48,7 +50,7 @@ class ImportService {
 	 * @throws ValidationException listing every broken line
 	 */
 	public function plan(string $csv, int $defaultYear): array {
-		$rows = $this->parseCsv($csv);
+		[$header, $records] = $this->parseCsv($csv);
 		$typesByKey = [];
 		foreach ($this->leaveTypeMapper->findAll() as $type) {
 			$typesByKey[$type->getKey()] = $type;
@@ -56,8 +58,14 @@ class ImportService {
 
 		$plan = [];
 		$errors = [];
-		foreach ($rows as $i => $row) {
-			$line = $i + 2; // 1-based, after the header
+		/** @var array<string, int> $seen user/type/year => the line that set it */
+		$seen = [];
+		foreach ($records as $line => $values) {
+			if (count($values) !== count($header)) {
+				$errors[] = "line $line: " . count($values) . ' fields, the header has ' . count($header);
+				continue;
+			}
+			$row = array_combine($header, $values);
 			$uid = $this->employees->resolveUser(trim($row['user'] ?? ''));
 			if ($uid === null) {
 				$errors[] = "line $line: unknown user '" . trim($row['user'] ?? '') . "'";
@@ -78,6 +86,12 @@ class ImportService {
 				$errors[] = "line $line: implausible year '$year'";
 				continue;
 			}
+			$key = $uid . '/' . $type->getId() . '/' . $year;
+			if (isset($seen[$key])) {
+				$errors[] = "line $line: same user, type and year as line {$seen[$key]}";
+				continue;
+			}
+			$seen[$key] = $line;
 
 			$data = [];
 			foreach (['base_days' => 'baseDays', 'carry_over_days' => 'carryOverDays', 'adjustment' => 'manualAdjustment'] as $col => $key) {
@@ -136,34 +150,48 @@ class ImportService {
 	}
 
 	/**
-	 * @return list<array<string,string>> data rows keyed by lower-cased header
+	 * @return array{0: list<string>, 1: array<int, list<string>>} the lower-cased header, and the data rows by the line they start on
 	 * @throws ValidationException
 	 */
 	private function parseCsv(string $csv): array {
 		// Tolerate a UTF-8 BOM — the file usually comes straight out of Excel.
 		$csv = preg_replace('/^\xEF\xBB\xBF/', '', $csv) ?? $csv;
-		$lines = preg_split('/\r\n|\r|\n/', trim($csv)) ?: [];
-		if (count($lines) < 2) {
+		// One kind of line ending, so that counting them gives the line of a row
+		$csv = trim(str_replace(["\r\n", "\r"], "\n", $csv));
+		$firstLine = strstr($csv, "\n", true);
+		if ($firstLine === false) {
 			throw new ValidationException('Expected a header row and at least one data row.');
 		}
 		// Semicolon support: German Excel exports ';'-separated CSV.
-		$delimiter = substr_count($lines[0], ';') > substr_count($lines[0], ',') ? ';' : ',';
-		$header = array_map(static fn (string $h): string => strtolower(trim($h)), str_getcsv($lines[0], $delimiter, '"', ''));
-		if (!in_array('user', $header, true)) {
-			throw new ValidationException("The header row must contain a 'user' column.");
-		}
-		$rows = [];
-		foreach (array_slice($lines, 1) as $line) {
-			if (trim($line) === '') {
+		$delimiter = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
+
+		$file = new \SplTempFileObject();
+		$file->fwrite($csv);
+		$file->rewind();
+		$header = null;
+		$records = [];
+		$line = 1;
+		$position = 0;
+		while (!$file->eof()) {
+			$startLine = $line;
+			// A quoted field may span lines
+			$values = $file->fgetcsv($delimiter, '"', '');
+			$end = (int)$file->ftell();
+			$line += substr_count($csv, "\n", $position, $end - $position);
+			$position = $end;
+			if (!is_array($values) || (count($values) === 1 && trim((string)$values[0]) === '')) {
 				continue;
 			}
-			$values = str_getcsv($line, $delimiter, '"', '');
-			$row = [];
-			foreach ($header as $i => $column) {
-				$row[$column] = (string)($values[$i] ?? '');
+			$values = array_map(strval(...), array_values($values));
+			if ($header === null) {
+				$header = array_map(static fn (string $h): string => strtolower(trim($h)), $values);
+				continue;
 			}
-			$rows[] = $row;
+			$records[$startLine] = $values;
 		}
-		return $rows;
+		if ($header === null || !in_array('user', $header, true)) {
+			throw new ValidationException("The header row must contain a 'user' column.");
+		}
+		return [$header, $records];
 	}
 }
