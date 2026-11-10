@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PersonalDefaultsService;
 
@@ -22,6 +23,7 @@ class AbsenceProvider implements IAbsenceProvider {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private PersonalDefaultsService $personalDefaults,
 		private HolidayService $holidays,
+		private EmployeeService $employees,
 	) {
 	}
 
@@ -68,6 +70,17 @@ class AbsenceProvider implements IAbsenceProvider {
 			'region' => $h->getRegion(),
 			'label' => $h->getLabel(),
 		], $this->holidays->forRegions($regionCodes, $from, $to));
+	}
+
+	#[\Override]
+	public function getPartTime(array $userIds): array {
+		$userIds = array_values(array_unique($userIds));
+		$this->employees->preload($userIds);
+		$periods = [];
+		foreach ($userIds as $userId) {
+			$periods[$userId] = $this->employees->getContract($userId)['periods'];
+		}
+		return $periods;
 	}
 
 	/**

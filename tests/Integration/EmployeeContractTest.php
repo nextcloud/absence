@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\Api\IAbsenceProvider;
 use OCA\Absence\Controller\ConfigController;
 use OCA\Absence\Controller\ProfileController;
 use OCA\Absence\Db\ContractPeriodMapper;
@@ -75,6 +76,21 @@ class EmployeeContractTest extends TestCase {
 		self::assertSame([1, 2, 3, 4, 5], $this->service->weekdaysOn(self::EMPLOYEE, '2026-06-30'));
 		self::assertSame([1, 2, 3, 4], $this->service->weekdaysOn(self::EMPLOYEE, '2026-07-01'));
 		self::assertSame(['2024-03-01', '2026-07-01'], array_column($this->service->getContract(self::EMPLOYEE)['periods'], 'from'));
+	}
+
+	public function testOtherAppsGetThePartTimeButNotTheContractDates(): void {
+		$this->service->saveContract(self::EMPLOYEE, '2024-03-01', '2027-06-30', [
+			['from' => '2026-07-01', 'weekdays' => [1, 2, 3, 4], 'percent' => 80],
+			['from' => '2024-03-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100],
+		], self::HR);
+
+		self::assertSame([
+			self::EMPLOYEE => [
+				['from' => '2024-03-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100],
+				['from' => '2026-07-01', 'weekdays' => [1, 2, 3, 4], 'percent' => 80],
+			],
+			self::OTHER => [],
+		], Server::get(IAbsenceProvider::class)->getPartTime([self::EMPLOYEE, self::OTHER, self::EMPLOYEE]));
 	}
 
 	public function testThePrefillUsesTheContractOverMondayToFriday(): void {
