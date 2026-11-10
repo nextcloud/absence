@@ -12,6 +12,7 @@ use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
@@ -36,6 +37,7 @@ class ReminderJob extends TimedJob {
 		private ConfigService $config,
 		private IAppConfig $appConfig,
 		private LoggerInterface $logger,
+		private ManagerResolver $managerResolver,
 	) {
 		parent::__construct($time);
 		$this->setInterval(24 * 3600);
@@ -77,14 +79,16 @@ class ReminderJob extends TimedJob {
 		// first half again.
 		$this->appConfig->setValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF, $before->getTimestamp());
 		foreach ($requests as $request) {
-			if ($request->getManagerUid() === null) {
+			// The employee's manager today, not the one the request was made under
+			$managerUid = $this->managerResolver->getManagerUid($request->getEmployeeUid());
+			if ($managerUid === null) {
 				continue;
 			}
 			// One failed reminder must not abort the run: this cohort is reminded
 			// exactly once (the next run starts after it), so a throw here would
 			// silently skip every later request in the band for good.
 			try {
-				$this->notifications->notifyReminder($request, $request->getManagerUid());
+				$this->notifications->notifyReminder($request, $managerUid);
 			} catch (\Throwable $e) {
 				$this->logger->error('Absence: failed to send reminder', ['app' => 'absence', 'request' => $request->getId(), 'exception' => $e]);
 			}

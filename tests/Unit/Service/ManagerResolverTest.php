@@ -54,12 +54,14 @@ class ManagerResolverTest extends TestCase {
 	 * reverse lookup reads (as JSON, the way the server stores it).
 	 *
 	 * @param array<string,string[]> $directory
+	 * @param string[] $disabled uids of the accounts that are disabled
 	 */
-	private function directory(array $directory): void {
+	private function directory(array $directory, array $disabled = []): void {
 		$users = [];
 		foreach ($directory as $uid => $managerUids) {
 			$user = $this->createMock(IUser::class);
 			$user->method('getUID')->willReturn($uid);
+			$user->method('isEnabled')->willReturn(!in_array($uid, $disabled, true));
 			$user->method('getManagerUids')->willReturn($managerUids);
 			$users[$uid] = $user;
 		}
@@ -111,6 +113,18 @@ class ManagerResolverTest extends TestCase {
 	public function testFirstValidManagerWins(): void {
 		$this->directory(['alice' => ['departed', 'bob'], 'bob' => []]);
 		$this->assertSame('bob', $this->service->getManagerUid('alice'));
+	}
+
+	public function testADisabledManagerIsIgnored(): void {
+		// Nobody can sign in to decide: the next configured manager takes over,
+		// and with none the request goes to HR like any other without a manager.
+		$this->directory(['alice' => ['bob', 'carol'], 'dave' => ['bob'], 'bob' => [], 'carol' => []], ['bob']);
+
+		$this->assertSame('carol', $this->service->getManagerUid('alice'));
+		$this->assertNull($this->service->getManagerUid('dave'));
+		$this->assertSame([], $this->service->getDirectReports('bob'));
+		$this->assertSame(['alice'], $this->service->getDirectReports('carol'));
+		$this->assertFalse($this->service->isManagerOf('bob', 'dave'));
 	}
 
 	public function testBlankManagerUidIsIgnored(): void {

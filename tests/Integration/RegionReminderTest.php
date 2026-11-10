@@ -32,7 +32,6 @@ use OCP\IRequest;
 use OCP\IUserManager;
 use OCP\IUserSession;
 use OCP\L10N\IFactory;
-use OCP\Notification\IManager;
 use OCP\Notification\INotification;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -48,16 +47,10 @@ class RegionReminderTest extends TestCase {
 	private const COUNTRY_ONLY = 'itest-remind-country';
 	/** @var list<int> */
 	private array $holidays = [];
-	private static bool $registered = false;
 
 	protected function setUp(): void {
 		parent::setUp();
-		if (!self::$registered) {
-			Server::get(IManager::class)->registerApp(RecordingNotifications::class);
-			self::$registered = true;
-		}
-		RecordingNotifications::$sent = [];
-		RecordingNotifications::$processed = [];
+		RecordingNotifications::register();
 		$users = Server::get(IUserManager::class);
 		foreach ([self::HR, self::WITH_CODE, self::WITHOUT_CODE, self::COUNTRY_ONLY] as $uid) {
 			$users->createUser($uid, 'Itest-Password-remind-' . $uid);

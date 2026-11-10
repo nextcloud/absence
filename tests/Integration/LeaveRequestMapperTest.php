@@ -104,13 +104,23 @@ class LeaveRequestMapperTest extends TestCase {
 		self::assertFalse($this->mapper->hasApprovedAbsenceCovering(self::MANAGER, '2026-09-01', '2026-09-01'));
 	}
 
-	public function testCountPendingForManagerCountsPendingAndWithdrawals(): void {
-		$before = $this->mapper->countPendingForManager(self::MANAGER);
+	public function testCountPendingForEmployeesCountsPendingAndWithdrawals(): void {
 		$this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-11-02', '2026-11-06', 5.0);
 		$this->seed(self::UID, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2026-11-16', '2026-11-20', 5.0);
 		$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-11-23', '2026-11-27', 5.0);
 
-		self::assertSame($before + 2, $this->mapper->countPendingForManager(self::MANAGER));
+		self::assertSame(2, $this->mapper->countPendingForEmployees([self::UID]));
+		self::assertSame(0, $this->mapper->countPendingForEmployees([]));
+	}
+
+	public function testALongListOfEmployeesIsSearchedWhole(): void {
+		$pending = $this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-11-02', '2026-11-06', 5.0);
+		// More than one IN() list holds, with the one who has a request last
+		$uids = [...array_map(static fn (int $i): string => 'itest-mapper-nobody-' . $i, range(1, 2500)), self::UID];
+
+		self::assertSame(1, $this->mapper->countPendingForEmployees($uids));
+		self::assertSame([$pending->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $this->mapper->findPendingForEmployees($uids)));
+		self::assertSame([$pending->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $this->mapper->findFiltered(['employeeUids' => $uids])));
 	}
 
 	/**

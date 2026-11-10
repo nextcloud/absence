@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
@@ -63,6 +64,9 @@ class ReminderJobTest extends TestCase {
 			return true;
 		});
 
+		$managers = $this->createMock(ManagerResolver::class);
+		$managers->method('getManagerUid')->willReturn('itest-manager');
+
 		$this->job = new ReminderJob(
 			$this->createMock(ITimeFactory::class),
 			$clock,
@@ -71,6 +75,7 @@ class ReminderJobTest extends TestCase {
 			$config,
 			$appConfig,
 			$this->createMock(LoggerInterface::class),
+			$managers,
 		);
 	}
 

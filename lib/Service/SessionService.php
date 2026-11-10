@@ -66,7 +66,7 @@ class SessionService {
 			'managerName' => $managerUid !== null ? $this->displayName($managerUid) : null,
 			// Bare COUNT(*) queries: this payload is fetched on every page load and
 			// after every action, so it must not hydrate rows it only counts.
-			'pendingApprovals' => $isManager ? $this->requestMapper->countPendingForManager($uid) : 0,
+			'pendingApprovals' => $this->requestMapper->countPendingForEmployees($reports),
 			'escalatedCount' => $isHr ? $this->requestMapper->countEscalated() : 0,
 		];
 	}

@@ -62,6 +62,14 @@ class NotificationService {
 	/** @param string[] $hrUids */
 	public function notifyEscalation(LeaveRequest $request, array $hrUids): void {
 		$notice = $this->notice->warningFor($request);
+		// Nobody decides their own request, so an HR member is not asked about theirs.
+		$hrUids = array_diff($hrUids, [$request->getEmployeeUid()]);
+		if ($hrUids === []) {
+			$this->logger->warning('Absence: an escalated leave request has nobody in HR to decide it', [
+				'app' => 'absence',
+				'requestId' => $request->getId(),
+			]);
+		}
 		foreach ($hrUids as $uid) {
 			$this->send($uid, self::SUBJECT_ESCALATION, $request, true, $request->getReason(), $request->getEmployeeUid(), $notice);
 		}
@@ -148,6 +156,10 @@ class NotificationService {
 	 * in whatever language the person who opens it reads.
 	 */
 	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null, ?array $notice = null): void {
+		// A disabled account cannot act on any of this.
+		if ($this->userManager->get($recipientUid)?->isEnabled() === false) {
+			return;
+		}
 		$note = trim((string)$note);
 		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid, $notice);
 		$this->sendEmail($recipientUid, $subject, $request, $note, $noteAuthorUid, $notice);

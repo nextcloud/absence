@@ -11,6 +11,7 @@ namespace OCA\Absence\Listener;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\EmployeeService;
+use OCA\Absence\Service\RequestService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -34,6 +35,7 @@ class UserDeletedListener implements IEventListener {
 		private \OCA\Absence\Service\AttachmentService $attachments,
 		private LoggerInterface $logger,
 		private EmployeeService $employees,
+		private RequestService $requests,
 	) {
 	}
 
@@ -87,12 +89,24 @@ class UserDeletedListener implements IEventListener {
 		$this->employees->purge($uid);
 
 		// Detach the user as a manager or replacement from any remaining requests.
+		$awaitingDecision = $this->requestMapper->findPendingAssignedTo($uid);
 		foreach (['manager_uid', 'replacement_uid'] as $column) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('absence_requests')
 				->set($column, $qb->createNamedParameter(null))
 				->where($qb->expr()->eq($column, $qb->createNamedParameter($uid)));
 			$qb->executeStatement();
+		}
+		// The requests the user was still to decide go to HR. Best-effort, like
+		// the calendar cleanup: the escalation job picks up what fails here.
+		foreach ($awaitingDecision as $request) {
+			// As the row now reads, so that the audit log does not name the user
+			$request->setManagerUid(null);
+			try {
+				$this->requests->handOverToHr($request);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: could not hand a request of a deleted manager over to HR', ['exception' => $e]);
+			}
 		}
 
 		// The rows above removed everything *about* the user. What remains is where
