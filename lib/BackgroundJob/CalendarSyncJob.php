@@ -46,9 +46,11 @@ class CalendarSyncJob extends TimedJob {
 		$requests = $this->requestMapper->findApprovedWithoutCalendarEvent($cursor, self::BATCH_SIZE);
 		foreach ($requests as $request) {
 			$uri = $this->calendar->onApproved($request);
-			if ($uri !== null) {
+			// The request may have been cancelled since the batch was read: then
+			// nothing else would ever remove the events just written.
+			if ($uri !== null && !$this->requestMapper->setCalendarEventUriIfApproved($request->getId(), $uri)) {
 				$request->setCalendarEventUri($uri);
-				$this->requestMapper->update($request);
+				$this->calendar->onRemoved($request);
 			}
 			$cursor = $request->getId();
 		}
