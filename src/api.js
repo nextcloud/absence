@@ -16,6 +16,11 @@ export default {
 	// Profiles (§6.4): the person, their manager and HR read, HR edits the contract
 	getProfile: (uid) => axios.get(url(`/api/profiles/${encodeURIComponent(uid)}`)).then((r) => r.data),
 	updateContract: (uid, contract) => axios.put(url(`/api/profiles/${encodeURIComponent(uid)}/contract`), contract).then((r) => r.data),
+	// App settings page (HR and admins)
+	getSettings: () => axios.get(url('/api/settings')).then((r) => r.data),
+	updateSettings: (values) => axios.put(url('/api/settings'), { values }).then((r) => r.data),
+	// Who leaves and who joins the employees if the employees group becomes `group` ('' = everyone).
+	previewEmployeesGroup: (group) => axios.get(url('/api/settings/employees-preview'), { params: { group } }).then((r) => r.data),
 
 	// Requests
 	listRequests: (params) => axios.get(url('/api/requests'), { params }).then((r) => r.data),
@@ -63,7 +68,6 @@ export default {
 	createHoliday: (data) => axios.post(url('/api/holidays'), data).then((r) => r.data),
 	updateHoliday: (id, data) => axios.put(url(`/api/holidays/${id}`), data).then((r) => r.data),
 	deleteHoliday: (id) => axios.delete(url(`/api/holidays/${id}`)).then((r) => r.data),
-	setHolidayEditing: (everyone) => axios.put(url('/api/holidays/editing'), { everyone }).then((r) => r.data),
 	holidayHistory: () => axios.get(url('/api/holidays/history')).then((r) => r.data),
 	// The days a region code gets: its own, its country's and the everywhere ones
 	listApplyingHolidays: (code, from, to) => axios.get(url('/api/holidays/applying'), { params: { code, from, to } }).then((r) => r.data),
