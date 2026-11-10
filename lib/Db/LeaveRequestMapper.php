@@ -42,10 +42,10 @@ class LeaveRequestMapper extends QBMapper {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->getTableName());
 
-		if (!empty($filters['employeeUid'])) {
+		if (isset($filters['employeeUid']) && $filters['employeeUid'] !== '') {
 			$qb->andWhere($qb->expr()->eq('employee_uid', $qb->createNamedParameter($filters['employeeUid'])));
 		}
-		if (!empty($filters['managerUid'])) {
+		if (isset($filters['managerUid']) && $filters['managerUid'] !== '') {
 			$qb->andWhere($qb->expr()->eq('manager_uid', $qb->createNamedParameter($filters['managerUid'])));
 		}
 		if (!empty($filters['status'])) {
