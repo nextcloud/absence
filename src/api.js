@@ -10,7 +10,6 @@ const url = (path) => generateUrl('/apps/absence' + path)
 export default {
 	// Session & config
 	getSession: () => axios.get(url('/api/session')).then((r) => r.data),
-	getPersonalConfig: () => axios.get(url('/api/personal/config')).then((r) => r.data),
 	updatePersonalConfig: (values) => axios.put(url('/api/personal/config'), { values }).then((r) => r.data),
 
 	// Profiles (§6.4): the person, their manager and HR read, HR edits the contract
@@ -54,7 +53,6 @@ export default {
 	updateEntitlement: (id, data) => axios.put(url(`/api/entitlements/${id}`), data).then((r) => r.data),
 	// Who changed an entitlement, which figure, from what to what, and why.
 	entitlementHistory: (id) => axios.get(url(`/api/entitlements/${id}/history`)).then((r) => r.data),
-	bulkEntitlements: (data) => axios.post(url('/api/entitlements/bulk'), data).then((r) => r.data),
 	// Past leave as approved, HR-recorded leave; with dryRun only the review.
 	importLeave: (json, dryRun) => axios.post(url('/api/import/leave'), { json, dryRun }).then((r) => r.data),
 
@@ -66,7 +64,6 @@ export default {
 	listLeaveTypes: (onlyEnabled) => axios.get(url('/api/leave-types'), { params: { onlyEnabled } }).then((r) => r.data),
 	createLeaveType: (data) => axios.post(url('/api/leave-types'), data).then((r) => r.data),
 	updateLeaveType: (id, data) => axios.put(url(`/api/leave-types/${id}`), data).then((r) => r.data),
-	deleteLeaveType: (id) => axios.delete(url(`/api/leave-types/${id}`)).then((r) => r.data),
 
 	// Public holidays (§7.2): everyone reads, HR maintains
 	listHolidays: (year, region) => axios.get(url('/api/holidays'), { params: { year, region } }).then((r) => r.data),
