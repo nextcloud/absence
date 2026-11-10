@@ -252,6 +252,7 @@ import RegionReminderDialog from '../../components/RegionReminderDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
 import { formatDate } from '../../utils/dates.js'
+import { latestOnly } from '../../utils/latest.js'
 import { regionFlag } from '../../utils/regions.js'
 import { formatWeekdays } from '../../utils/weekdays.js'
 
@@ -340,6 +341,11 @@ export default {
 		},
 	},
 
+	created() {
+		// Changing the year twice quickly: only the year picked last may land.
+		this.startReload = latestOnly()
+	},
+
 	mounted() {
 		this.reload()
 	},
@@ -385,16 +391,24 @@ export default {
 		},
 
 		async reload() {
+			const isLatest = this.startReload()
 			this.loading = true
 			try {
 				const list = await api.listEmployees(this.year)
+				if (!isLatest()) {
+					return
+				}
 				this.rows = list.rows
 				this.employeesGroup = list.employeesGroup
 				this.contacts = list.contacts
 			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not load the employees'))
+				if (isLatest()) {
+					showError(e.response?.data?.message || t('absence', 'Could not load the employees'))
+				}
 			} finally {
-				this.loading = false
+				if (isLatest()) {
+					this.loading = false
+				}
 			}
 		},
 

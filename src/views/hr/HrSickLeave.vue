@@ -44,6 +44,20 @@
 		<SkeletonList v-if="loading" :rows="6" />
 
 		<NcEmptyContent
+			v-else-if="loadError"
+			:name="t('absence', 'Could not load the sick leave overview')"
+			:description="t('absence', 'Something went wrong while fetching the figures.')">
+			<template #icon>
+				<AlertCircleOutline :size="20" />
+			</template>
+			<template #action>
+				<NcButton @click="reload">
+					{{ t('absence', 'Try again') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
+
+		<NcEmptyContent
 			v-else-if="!types.length"
 			:name="t('absence', 'No sick leave type configured')"
 			:description="t('absence', 'This overview counts the leave type with the key “sick” unless you pick another one above. Add or enable it in the admin settings to see figures here.')">
@@ -173,10 +187,12 @@
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import MeterBar from '../../components/MeterBar.vue'
@@ -187,12 +203,13 @@ import { store } from '../../store.js'
 
 export default {
 	name: 'HrSickLeave',
-	components: { NcAvatar, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, Magnify, Thermometer, SkeletonList, StatTile, MeterBar },
+	components: { NcAvatar, NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, AlertCircleOutline, Magnify, Thermometer, SkeletonList, StatTile, MeterBar },
 
 	data() {
 		const y = new Date().getFullYear()
 		return {
 			loading: true,
+			loadError: false,
 			// Bumped on every reload; a response whose seq is stale on return is discarded.
 			reloadSeq: 0,
 			rows: [],
@@ -317,6 +334,7 @@ export default {
 			// response must not overwrite the rows of a newer one already on screen.
 			const seq = ++this.reloadSeq
 			this.loading = true
+			this.loadError = false
 			try {
 				const report = await api.reportSickLeave(this.year, null, this.type?.id ?? null)
 				if (seq !== this.reloadSeq) {
@@ -327,6 +345,7 @@ export default {
 				this.totals = report.totals ?? { employees: 0, affected: 0, days: 0, episodes: 0 }
 			} catch {
 				if (seq === this.reloadSeq) {
+					this.loadError = true
 					showError(t('absence', 'Could not load the sick leave overview'))
 				}
 			} finally {

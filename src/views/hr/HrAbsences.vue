@@ -352,8 +352,12 @@ export default {
 			if (this.year.value === null) {
 				return
 			}
+			const seq = this.reloadSeq
 			try {
 				const report = await api.reportBalances(this.year.value)
+				if (seq !== this.reloadSeq) {
+					return
+				}
 				const index = {}
 				for (const row of report) {
 					if (row.remaining !== null) {
@@ -362,7 +366,9 @@ export default {
 				}
 				this.balances = index
 			} catch {
-				this.balances = {}
+				if (seq === this.reloadSeq) {
+					this.balances = {}
+				}
 			}
 		},
 
@@ -373,9 +379,14 @@ export default {
 		},
 
 		async loadMore() {
+			// A page asked for before the filters changed belongs to the old list.
+			const seq = this.reloadSeq
 			this.loadingMore = true
 			try {
 				const next = await this.fetch(this.rows.length)
+				if (seq !== this.reloadSeq) {
+					return
+				}
 				this.rows = [...this.rows, ...next]
 				this.hasMore = next.length === PAGE_SIZE
 			} catch {
