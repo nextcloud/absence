@@ -7,6 +7,8 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router.js'
 
+import '@nextcloud/dialogs/style.css'
+
 const app = createApp(App)
 app.config.globalProperties.t = t
 app.config.globalProperties.n = n
