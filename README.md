@@ -119,9 +119,8 @@ it.** Pick a type and a date range, and the app:
   it, and the app does not pretend otherwise;
 - remembers the **replacement colleague** you nominated last time.
 
-A built-in **handbook** sits in the sidebar for every employee and team lead —
-and HR gets an extended edition covering their whole toolset — so "how does this
-work?" never needs to leave the app.
+HR can link a **handbook** for everyone and one for HR (for example Collectives
+pages they keep up to date); both show up in the navigation.
 
 **My leave** is the home screen: a *next break* hero that counts the days down — and
 ticks second by second over the final 48 hours — above one animated **balance ring**
