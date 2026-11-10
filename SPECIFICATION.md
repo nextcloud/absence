@@ -666,8 +666,8 @@ interns, countries and individual agreements differ again.
 
 ### 6.5 Employees as JSON (HR)
 
-HR keeps everybody's region code (§7.2), start and end date and contract periods
-(§6.4) up to date in one go: *Edit as JSON* on the Employees page (§13) opens the
+HR keeps everybody's region code (§7.2), start and end date, contract periods
+(§6.4) and vacation days up to date in one go: *Edit as JSON* on the Employees page (§13) opens the
 current data of every employee, *Download* saves the same text, and
 `occ absence:export-employees` prints it. The list reads
 
@@ -682,7 +682,8 @@ current data of every employee, *Download* saves the same text, and
 		"contract": [
 			{ "from": "2024-03-01", "weekdays": [1, 2, 3, 4, 5], "percent": 100 },
 			{ "from": "2026-07-01", "weekdays": [1, 2, 3, 4], "percent": 80 }
-		]
+		],
+		"vacation": { "2026": 30, "2027": 24 }
 	}
 ]
 ```
@@ -693,6 +694,11 @@ current data of every employee, *Download* saves the same text, and
   periods, the whole contract as on the profile page. `region`, `start`, `end` and
   `contract` must all be there: `null` (or `[]` for the contract) empties them, so a
   forgotten key never wipes data. Employees not in the list are left alone.
+- `vacation` is optional: the annual leave base days (§6.4) of each year it lists, from
+  two years back to next year, in days or half days. Years it leaves out keep their
+  days. The export lists the current year (the default while HR set nothing) and next
+  year once set. Each change goes through `EntitlementService`, so the entitlement
+  history and the activity stream name the HR member.
 - Region codes are read as everywhere else (`de_by` is `DE-BY`); `*` is for holidays,
   not people. Dates are `YYYY-MM-DD`, weekdays 1 (Monday) to 7, percent 1 to 100 or
   `null`.

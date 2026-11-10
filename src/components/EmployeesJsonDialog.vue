@@ -30,7 +30,7 @@
 					</ul>
 				</NcNoteCard>
 				<p v-else class="json__hint">
-					{{ n('absence', 'The current data of the {count} employee. Edit it or paste a whole list, then review. "name" is ignored, it is there to read the list.', 'The current data of the {count} employees. Edit it or paste a whole list, then review. "name" is ignored, it is there to read the list.', count, { count }) }}
+					{{ n('absence', 'The current data of the {count} employee. Edit it or paste a whole list, then review. "name" is ignored, it is there to read the list. "vacation" sets the vacation days of the years it lists.', 'The current data of the {count} employees. Edit it or paste a whole list, then review. "name" is ignored, it is there to read the list. "vacation" sets the vacation days of the years it lists.', count, { count }) }}
 				</p>
 				<SkeletonList v-if="loading" :rows="6" />
 				<div v-else class="json__editor">
@@ -79,7 +79,7 @@
 							<template v-for="change in plan.changes" :key="change.user">
 								<tr v-for="(field, index) in change.fields" :key="change.user + field.field">
 									<td>{{ index === 0 ? change.name : '' }}</td>
-									<td>{{ fieldLabel(field.field) }}</td>
+									<td>{{ fieldLabel(field) }}</td>
 									<td class="json__now">
 										<span v-for="(line, i) in describe(field).now" :key="i" class="json__line">{{ line }}</span>
 									</td>
@@ -166,23 +166,30 @@ export default {
 			return error.entry !== null ? t('absence', 'Entry {entry}: ', { entry: error.entry }) : ''
 		},
 
-		fieldLabel(field) {
+		/**
+		 * @param {{field: string, year?: number}} change a changed field
+		 */
+		fieldLabel(change) {
 			return {
 				region: t('absence', 'Region'),
 				start: t('absence', 'Start'),
 				end: t('absence', 'End'),
 				contract: t('absence', 'Contract'),
-			}[field] ?? field
+				vacation: t('absence', 'Vacation days {year}', { year: change.year }),
+			}[change.field] ?? change.field
 		},
 
 		/**
 		 * The two sides of a changed field, as lines of text.
 		 *
-		 * @param {{field: string, before: (string|object[]|null), after: (string|object[]|null)}} change a changed field
+		 * @param {{field: string, before: (string|number|object[]|null), after: (string|number|object[]|null)}} change a changed field
 		 * @return {{now: string[], after: string[]}}
 		 */
 		describe(change) {
 			const none = t('absence', 'none')
+			if (change.field === 'vacation') {
+				return { now: [String(change.before)], after: [String(change.after)] }
+			}
 			if (change.field === 'region') {
 				const code = (value) => value ? `${regionFlag(value)} ${value}` : none
 				return { now: [code(change.before)], after: [code(change.after)] }
