@@ -39,4 +39,10 @@ class ImportServiceTest extends TestCase {
 
 		self::assertSame([self::UID, self::UID], array_column($plan, 'uid'));
 	}
+
+	public function testAnotherCasingResolvesToTheAccountsUid(): void {
+		$plan = Server::get(ImportService::class)->plan("user,base_days\nITEST-Import-Robin,25", 2025);
+
+		self::assertSame([self::UID], array_column($plan, 'uid'));
+	}
 }

@@ -139,7 +139,8 @@ class EmployeeDirectory {
 	 * The uid behind a uid or an e-mail address, as files from spreadsheets
 	 * carry either. Addresses are looked up first: the server's own user lookup
 	 * accepts an address too, but then reports the address itself as the uid.
-	 * Null for nobody, and for an address several accounts share.
+	 * Null for nobody, and for an address several accounts share. The uid is the
+	 * account's own spelling, whatever casing the file used.
 	 */
 	public function resolveUser(string $identifier): ?string {
 		if ($identifier === '') {
@@ -151,7 +152,7 @@ class EmployeeDirectory {
 				return count($byEmail) === 1 ? $byEmail[0]->getUID() : null;
 			}
 		}
-		return $this->userManager->userExists($identifier) ? $identifier : null;
+		return $this->userManager->get($identifier)?->getUID();
 	}
 
 	/** Whether this uid is a guest account specifically (an unknown uid is not). */
