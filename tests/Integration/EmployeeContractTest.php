@@ -179,6 +179,20 @@ class EmployeeContractTest extends TestCase {
 		self::assertNull($profiles->get(self::MANAGER, self::EMPLOYEE)['history']);
 	}
 
+	public function testAnInvalidRegionStoresNoCountryEither(): void {
+		$response = $this->configController(self::EMPLOYEE)->updatePersonal(['holiday_country' => 'zz', 'holiday_region' => 'toolong']);
+		self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+
+		try {
+			$this->service->saveRegion(self::EMPLOYEE, 'ZY-TOOLONG', self::HR);
+			self::fail('The region code was accepted');
+		} catch (ValidationException) {
+		}
+
+		self::assertSame(['holiday_country' => '', 'holiday_region' => ''], Server::get(ConfigService::class)->getPersonalConfig(self::EMPLOYEE));
+		self::assertSame([], $this->service->history(self::EMPLOYEE));
+	}
+
 	public function testPeopleNoLongerSetTheirOwnWeekdays(): void {
 		$this->configController(self::EMPLOYEE)->updatePersonal(['work_weekdays' => '1']);
 

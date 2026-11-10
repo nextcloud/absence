@@ -62,11 +62,7 @@ class ConfigController extends Controller {
 		return $this->handle(function () use ($values) {
 			$uid = (string)$this->userId;
 			$before = $this->config->getPersonalConfig($uid);
-			foreach ($values as $key => $value) {
-				if (array_key_exists($key, $before)) {
-					$this->config->setPersonalValue($uid, $key, (string)$value);
-				}
-			}
+			$this->config->setPersonalValues($uid, array_map(strval(...), array_intersect_key($values, $before)));
 			$code = static fn (array $c): string => ConfigService::regionCode($c[ConfigLexicon::KEY_HOLIDAY_COUNTRY], $c[ConfigLexicon::KEY_HOLIDAY_REGION]);
 			$this->employees->recordRegionChange($uid, $code($before), $code($this->config->getPersonalConfig($uid)), $uid);
 			return $this->personalDefaults->resolve($uid);

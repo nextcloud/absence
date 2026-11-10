@@ -194,18 +194,32 @@ class ConfigService {
 	 * @throws ValidationException for a holiday country or region that cannot be part of a region code (§7.2)
 	 */
 	public function setPersonalValue(string $uid, string $key, string $value): void {
-		$pattern = match ($key) {
-			ConfigLexicon::KEY_HOLIDAY_COUNTRY => '/^([A-Z]{2})?$/',
-			ConfigLexicon::KEY_HOLIDAY_REGION => '/^([A-Z0-9]{1,3})?$/',
-			default => null,
-		};
-		if ($pattern !== null) {
-			$value = strtoupper(trim($value));
-			if (preg_match($pattern, $value) !== 1) {
-				throw new ValidationException($this->l->t('"%s" is not a region code: use a country like DE or a region like DE-BY', [$value]));
+		$this->setPersonalValues($uid, [$key => $value]);
+	}
+
+	/**
+	 * Checks every value first and writes none of them while one is invalid.
+	 *
+	 * @param array<string, string> $values
+	 * @throws ValidationException for a holiday country or region that cannot be part of a region code (§7.2)
+	 */
+	public function setPersonalValues(string $uid, array $values): void {
+		foreach ($values as $key => $value) {
+			$pattern = match ($key) {
+				ConfigLexicon::KEY_HOLIDAY_COUNTRY => '/^([A-Z]{2})?$/',
+				ConfigLexicon::KEY_HOLIDAY_REGION => '/^([A-Z0-9]{1,3})?$/',
+				default => null,
+			};
+			if ($pattern !== null) {
+				$values[$key] = strtoupper(trim($value));
+				if (preg_match($pattern, $values[$key]) !== 1) {
+					throw new ValidationException($this->l->t('"%s" is not a region code: use a country like DE or a region like DE-BY', [$values[$key]]));
+				}
 			}
 		}
-		$this->userConfig->setValueString($uid, self::APP_ID, $key, $value);
+		foreach ($values as $key => $value) {
+			$this->userConfig->setValueString($uid, self::APP_ID, $key, $value);
+		}
 	}
 
 	/**
