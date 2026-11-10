@@ -50,8 +50,8 @@ class InsightsServiceTest extends TestCase {
 		$userManager->method('get')->willReturn(null);
 
 		$this->employees->method('listInGroup')->willReturn(['alice', 'bob', 'carol']);
-		$this->managerResolver->method('getManagerUid')->willReturnCallback(
-			static fn (string $uid): ?string => $uid === 'carol' ? null : 'mgr1',
+		$this->managerResolver->method('getManagerUidsOf')->willReturnCallback(
+			static fn (array $uids): array => array_combine($uids, array_map(static fn (string $uid): ?string => $uid === 'carol' ? null : 'mgr1', $uids)),
 		);
 		$this->clock->method('userToday')->willReturn('2026-06-15');
 		$this->leaveTypeMapper->method('findAll')->willReturn([

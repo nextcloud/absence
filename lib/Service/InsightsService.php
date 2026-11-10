@@ -368,9 +368,8 @@ class InsightsService {
 	private function buildTeams(array $uids): array {
 		/** @var array<string,string[]> $byManager */
 		$byManager = [];
-		foreach ($uids as $uid) {
-			$manager = $this->managerResolver->getManagerUid($uid) ?? '';
-			$byManager[$manager][] = $uid;
+		foreach ($this->managerResolver->getManagerUidsOf(array_values($uids)) as $uid => $manager) {
+			$byManager[$manager ?? ''][] = (string)$uid;
 		}
 		$teams = [];
 		foreach ($byManager as $manager => $members) {
