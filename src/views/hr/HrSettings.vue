@@ -21,6 +21,9 @@
 		</NcEmptyContent>
 
 		<template v-else>
+			<NcNoteCard v-if="missing(form.hr_group) || missing(form.employees_group)" type="warning">
+				{{ t('absence', 'Absence stays closed until the HR group and the employees group are chosen.') }}
+			</NcNoteCard>
 			<section class="settings">
 				<div class="settings__intro">
 					<h3 class="settings__title">
@@ -40,6 +43,12 @@
 							label="displayName"
 							:inputLabel="t('absence', 'HR group')"
 							@update:modelValue="(group) => save({ hr_group: group.id })" />
+						<div v-if="session.isAdmin && missing(form.hr_group)" class="settings__missing">
+							<span>{{ missingText(form.hr_group) }}</span>
+							<NcButton :disabled="saving" @click="createGroup('hr')">
+								{{ t('absence', 'Create the HR group') }}
+							</NcButton>
+						</div>
 						<NcTextField
 							v-else
 							:modelValue="hrGroupOption.displayName"
@@ -54,12 +63,13 @@
 					<div class="settings__field settings__field--wide">
 						<NcSelect
 							:modelValue="employeesGroupOption"
-							:options="employeesGroupOptions"
+							:options="groups"
 							:clearable="false"
 							:disabled="saving"
 							label="displayName"
 							:inputLabel="t('absence', 'Employees group')"
-							@update:modelValue="(group) => group.id !== form.employees_group && (pendingEmployeesGroup = group)">
+							:placeholder="t('absence', 'Choose a group')"
+							@update:modelValue="chooseEmployeesGroup">
 							<template #selected-option="{ displayName }">
 								{{ displayName }}
 								<span v-if="employeesCount !== null" class="settings__muted">
@@ -67,6 +77,12 @@
 								</span>
 							</template>
 						</NcSelect>
+						<div v-if="session.isAdmin && missing(form.employees_group)" class="settings__missing">
+							<span>{{ missingText(form.employees_group) }}</span>
+							<NcButton :disabled="saving" @click="createGroup('employees')">
+								{{ t('absence', 'Create the employees group') }}
+							</NcButton>
+						</div>
 						<p class="settings__hint">
 							{{ t('absence', 'Everyone else can\'t request leave and isn\'t listed.') }}
 						</p>
@@ -232,6 +248,7 @@ import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CogOutline from 'vue-material-design-icons/CogOutline.vue'
@@ -264,7 +281,7 @@ const SECTION_OF = {
 
 export default {
 	name: 'HrSettings',
-	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SavedCheck, SkeletonList },
+	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcNoteCard, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SavedCheck, SkeletonList },
 	data() {
 		return {
 			loading: true,
@@ -278,7 +295,6 @@ export default {
 			managingTypes: false,
 			// Section → when it was last saved
 			savedAt: {},
-			everyone: { id: '', displayName: t('absence', 'Everyone') },
 			carryOverOptions: [
 				{ id: 'none', label: t('absence', 'No carry-over') },
 				{ id: 'capped', label: t('absence', 'Up to a limit') },
@@ -303,12 +319,8 @@ export default {
 			return this.groupOption(this.form.hr_group)
 		},
 
-		employeesGroupOptions() {
-			return [this.everyone, ...this.groups]
-		},
-
 		employeesGroupOption() {
-			return this.form.employees_group === '' ? this.everyone : this.groupOption(this.form.employees_group)
+			return this.form.employees_group === '' ? null : this.groupOption(this.form.employees_group)
 		},
 
 		carryOverOption() {
@@ -347,6 +359,43 @@ export default {
 		},
 
 		/**
+		 * Whether a group setting points at no group, or one that is gone.
+		 *
+		 * @param {string} id group id
+		 */
+		missing(id) {
+			return !this.groups.some((group) => group.id === id)
+		},
+
+		/**
+		 * Why a group setting needs a group.
+		 *
+		 * @param {string} id group id, '' while none is chosen
+		 */
+		missingText(id) {
+			return id === '' ? t('absence', 'No group chosen yet.') : t('absence', 'This group doesn\'t exist.')
+		},
+
+		/**
+		 * Creates the HR or employees group and chooses it (admins).
+		 *
+		 * @param {'hr'|'employees'} kind which group
+		 */
+		async createGroup(kind) {
+			this.saving = true
+			try {
+				this.apply(await api.createSettingsGroup(kind))
+				this.savedAt.who = Date.now()
+				// The session carries whether the app is open and this user is HR
+				await store.refreshSession()
+			} catch (e) {
+				showError(e.response?.data?.message || t('absence', 'Could not create the group'))
+			} finally {
+				this.saving = false
+			}
+		},
+
+		/**
 		 * A group as a select option, also when it no longer exists.
 		 *
 		 * @param {string} id group id
@@ -369,8 +418,8 @@ export default {
 				for (const key of Object.keys(patch)) {
 					this.savedAt[SECTION_OF[key]] = Date.now()
 				}
-				if ('hr_group' in patch || 'holidays_everyone_edits' in patch) {
-					// The session carries whether this very user still is HR and may edit holidays.
+				if (['hr_group', 'employees_group', 'holidays_everyone_edits'].some((key) => key in patch)) {
+					// The session carries whether the app is open, this user still is HR, and may edit holidays.
 					await store.refreshSession()
 				}
 				return true
@@ -380,6 +429,22 @@ export default {
 				return false
 			} finally {
 				this.saving = false
+			}
+		},
+
+		/**
+		 * The first choice opens the app, nothing to confirm; a change says who leaves and joins.
+		 *
+		 * @param {{id: string, displayName: string}} group the chosen group
+		 */
+		chooseEmployeesGroup(group) {
+			if (group.id === this.form.employees_group) {
+				return
+			}
+			if (this.form.employees_group === '') {
+				this.save({ employees_group: group.id })
+			} else {
+				this.pendingEmployeesGroup = group
 			}
 		},
 
@@ -451,6 +516,14 @@ export default {
 		@media (max-width: 800px) {
 			grid-column: auto;
 		}
+	}
+
+	&__missing {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 8px;
+		color: var(--color-text-maxcontrast);
 	}
 
 	&__hint {

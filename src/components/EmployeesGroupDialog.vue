@@ -68,7 +68,7 @@ export default {
 	name: 'EmployeesGroupDialog',
 	components: { NcButton, NcDialog, NcNoteCard, NcTextField, SkeletonList },
 	props: {
-		/** The group to switch to: { id, displayName }, id '' for everyone */
+		/** The group to switch to: { id, displayName } */
 		group: { type: Object, required: true },
 		saving: { type: Boolean, default: false },
 	},
