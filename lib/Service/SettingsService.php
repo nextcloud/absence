@@ -75,28 +75,36 @@ class SettingsService {
 			&& !$this->permission->isAdmin($actorUid)) {
 			throw new ForbiddenException($this->l->t('Only admins can change the HR group.'));
 		}
-		$normalized = $this->config->normalizeAdminValues($values);
-		$everyoneEditsHolidays = $normalized[ConfigLexicon::KEY_HOLIDAYS_EVERYONE] ?? null;
-		unset($normalized[ConfigLexicon::KEY_HOLIDAYS_EVERYONE]);
-		$this->config->setAdminValues($normalized);
+		$current = $this->config->getAdminConfig();
+		// Only what really changes is written, audited and kept in the history.
+		$changed = array_filter(
+			$this->config->normalizeAdminValues($values),
+			static fn (int|float|bool|string $value, string $key): bool => ($current[$key] ?? null) !== $value,
+			ARRAY_FILTER_USE_BOTH,
+		);
+		if ($changed === []) {
+			return $this->get($actorUid);
+		}
+		$everyoneEditsHolidays = $changed[ConfigLexicon::KEY_HOLIDAYS_EVERYONE] ?? null;
+		$this->config->setAdminValues(array_diff_key($changed, [ConfigLexicon::KEY_HOLIDAYS_EVERYONE => true]));
 		// The team calendar follows who it is for (§10)
-		if (array_intersect(array_keys($normalized), [ConfigLexicon::KEY_HR_GROUP, ConfigLexicon::KEY_EMPLOYEES_GROUP, ConfigLexicon::KEY_CALDAV_SHARED]) !== []) {
+		if (array_intersect(array_keys($changed), [ConfigLexicon::KEY_HR_GROUP, ConfigLexicon::KEY_EMPLOYEES_GROUP, ConfigLexicon::KEY_CALDAV_SHARED]) !== []) {
 			$this->calendar->shareTeamCalendar();
 		}
 		if (is_bool($everyoneEditsHolidays)) {
 			// Through HolidayService, so the holiday history shows who switched it (§7.2).
 			$this->holidays->setEveryoneCanEdit($everyoneEditsHolidays, $actorUid);
 		}
-		foreach ($values as $key => $value) {
+		foreach ($changed as $key => $value) {
 			$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
-				'Absence setting %s set to %s by %s', [(string)$key, json_encode($value), $actorUid],
+				'Absence setting %s set to %s by %s', [$key, json_encode($value), $actorUid],
 			));
 		}
 		$this->logger->info('Absence action: admin_config_updated', [
 			'app' => ConfigService::APP_ID,
 			'action' => 'admin_config_updated',
 			'actor' => $actorUid,
-			'changedKeys' => array_keys($values),
+			'changedKeys' => array_keys($changed),
 		]);
 		return $this->get($actorUid);
 	}

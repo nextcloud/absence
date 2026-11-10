@@ -298,6 +298,25 @@ class SettingsServiceTest extends TestCase {
 		self::assertContains('Absence setting employees_group set to "' . self::GROUP_A . '" by ' . self::HR, $messages);
 	}
 
+	public function testSavingUnchangedValuesLeavesNoTrace(): void {
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP_A);
+		$messages = [];
+		Server::get(IEventDispatcher::class)->addListener(CriticalActionPerformedEvent::class, static function (CriticalActionPerformedEvent $event) use (&$messages): void {
+			$messages[] = vsprintf($event->getLogMessage(), $event->getParameters());
+		});
+		$values = $this->config()->getAdminConfig();
+
+		// The settings page sends every value back, changed or not
+		self::assertSame(200, $this->controller(self::ADMIN)->update($values)->getStatus());
+		self::assertSame([], $messages);
+		self::assertSame([], $this->holidayHistory());
+
+		$values[ConfigLexicon::KEY_NOTICE_PERIOD]++;
+		self::assertSame(200, $this->controller(self::ADMIN)->update($values)->getStatus());
+		self::assertSame(['Absence setting notice_period_days set to ' . $values[ConfigLexicon::KEY_NOTICE_PERIOD] . ' by ' . self::ADMIN], $messages);
+		self::assertSame([], $this->holidayHistory());
+	}
+
 	public function testHandbooksAreLinksAndTheHrOneIsForHr(): void {
 		$controller = $this->controller(self::HR);
 		foreach (['javascript:alert(1)', '//example.com/handbook', 'www.example.com', 'ftp://example.com/handbook'] as $bad) {
