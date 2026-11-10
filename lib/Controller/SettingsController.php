@@ -15,6 +15,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 /**
  * The in-app settings page (§12), for HR and admins. Role checks live in
@@ -29,6 +30,7 @@ class SettingsController extends Controller {
 		private ?string $userId,
 		private SettingsService $settings,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}

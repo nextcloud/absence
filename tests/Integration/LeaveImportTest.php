@@ -35,6 +35,7 @@ use OCP\Notification\INotification;
 use OCP\Server;
 use OCP\User\Backend\ABackend;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * The leave import (§6.5) against a real database and the real services:
@@ -304,6 +305,7 @@ class LeaveImportTest extends TestCase {
 			$this->service,
 			Server::get(PermissionService::class),
 			Server::get(IFactory::class)->get('absence'),
+			Server::get(LoggerInterface::class),
 		);
 	}
 }

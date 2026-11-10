@@ -20,6 +20,7 @@ use OCP\AppFramework\Http;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * The controller is a thin shell around RequestService; what it owns is the
@@ -42,6 +43,7 @@ class RequestControllerTest extends TestCase {
 			'emp',
 			$this->service,
 			$this->l10nMock(),
+			$this->createMock(LoggerInterface::class),
 		);
 	}
 

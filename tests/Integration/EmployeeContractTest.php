@@ -213,6 +213,6 @@ class EmployeeContractTest extends TestCase {
 	private function configController(string $uid): ConfigController {
 		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 		return new ConfigController('absence', Server::get(IRequest::class), $uid, Server::get(ConfigService::class),
-			Server::get(PersonalDefaultsService::class), $this->service, Server::get(SessionService::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(PersonalDefaultsService::class), $this->service, Server::get(SessionService::class), Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class));
 	}
 }

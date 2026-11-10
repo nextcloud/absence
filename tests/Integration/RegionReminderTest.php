@@ -179,6 +179,6 @@ class RegionReminderTest extends TestCase {
 		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 		return new ConfigController('absence', Server::get(IRequest::class), $uid, Server::get(ConfigService::class),
 			Server::get(PersonalDefaultsService::class), Server::get(EmployeeService::class),
-			Server::get(SessionService::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(SessionService::class), Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class));
 	}
 }
