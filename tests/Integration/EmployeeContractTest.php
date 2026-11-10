@@ -179,6 +179,20 @@ class EmployeeContractTest extends TestCase {
 		self::assertNull($profiles->get(self::MANAGER, self::EMPLOYEE)['history']);
 	}
 
+	public function testAnInvalidRegionStoresNoCountryEither(): void {
+		$response = $this->configController(self::EMPLOYEE)->updatePersonal(['holiday_country' => 'zz', 'holiday_region' => 'toolong']);
+		self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+
+		try {
+			$this->service->saveRegion(self::EMPLOYEE, 'ZY-TOOLONG', self::HR);
+			self::fail('The region code was accepted');
+		} catch (ValidationException) {
+		}
+
+		self::assertSame(['holiday_country' => '', 'holiday_region' => ''], Server::get(ConfigService::class)->getPersonalConfig(self::EMPLOYEE));
+		self::assertSame([], $this->service->history(self::EMPLOYEE));
+	}
+
 	public function testPeopleNoLongerSetTheirOwnWeekdays(): void {
 		$this->configController(self::EMPLOYEE)->updatePersonal(['work_weekdays' => '1']);
 
@@ -213,6 +227,6 @@ class EmployeeContractTest extends TestCase {
 	private function configController(string $uid): ConfigController {
 		Server::get(IUserSession::class)->setUser(Server::get(IUserManager::class)->get($uid));
 		return new ConfigController('absence', Server::get(IRequest::class), $uid, Server::get(ConfigService::class),
-			Server::get(PersonalDefaultsService::class), $this->service, Server::get(SessionService::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(PersonalDefaultsService::class), $this->service, Server::get(SessionService::class), Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class));
 	}
 }

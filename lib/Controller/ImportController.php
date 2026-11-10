@@ -16,6 +16,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 /**
  * Import of past leave (§6.5). HR only.
@@ -30,6 +31,7 @@ class ImportController extends Controller {
 		private LeaveImportService $service,
 		private PermissionService $permission,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}

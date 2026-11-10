@@ -16,6 +16,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 class EntitlementController extends Controller {
 	use ApiControllerTrait;
@@ -27,11 +28,13 @@ class EntitlementController extends Controller {
 		private EntitlementService $service,
 		private PermissionService $permission,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(string $employeeUid, ?int $year = null): DataResponse {
 		return $this->handle(function () use ($employeeUid, $year) {
 			$this->permission->assertHr((string)$this->userId);

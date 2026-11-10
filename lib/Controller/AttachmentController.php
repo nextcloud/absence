@@ -17,6 +17,7 @@ use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 class AttachmentController extends Controller {
 	use ApiControllerTrait;
@@ -27,11 +28,13 @@ class AttachmentController extends Controller {
 		private ?string $userId,
 		private AttachmentService $service,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(int $id): DataResponse {
 		return $this->handle(fn () => array_map(
 			static fn ($a) => $a->jsonSerialize(),

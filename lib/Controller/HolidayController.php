@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Db\Holiday;
+use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Service\DateRangeTrait;
 use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
@@ -27,6 +29,12 @@ use Psr\Log\LoggerInterface;
  */
 class HolidayController extends Controller {
 	use ApiControllerTrait;
+	use DateRangeTrait;
+
+	// The request dialog asks for last year to next year in one call.
+	private const MAX_RANGE_DAYS = 1096;
+	private const MIN_YEAR = 2000;
+	private const MAX_YEAR = 2100;
 
 	public function __construct(
 		string $appName,
@@ -42,21 +50,28 @@ class HolidayController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(int $year, ?string $region = null): DataResponse {
-		return $this->handle(fn () => array_map(
-			fn (Holiday $h): array => [
-				...$h->jsonSerialize(),
-				'createdByName' => $this->name($h->getCreatedBy()),
-				'updatedByName' => $this->name($h->getUpdatedBy()),
-			],
-			$this->service->listForYear($year, $region === '' ? null : $region),
-		));
+		return $this->handle(function () use ($year, $region) {
+			if ($year < self::MIN_YEAR || $year > self::MAX_YEAR) {
+				throw new ValidationException($this->l->t('The year must be between %1$d and %2$d.', [self::MIN_YEAR, self::MAX_YEAR]));
+			}
+			return array_map(
+				fn (Holiday $h): array => [
+					...$h->jsonSerialize(),
+					'createdByName' => $this->name($h->getCreatedBy()),
+					'updatedByName' => $this->name($h->getUpdatedBy()),
+				],
+				$this->service->listForYear($year, $region === '' ? null : $region),
+			);
+		});
 	}
 
 	/**
 	 * The recent changes to the list, with who made them.
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function history(): DataResponse {
 		return $this->handle(fn () => array_map(
 			fn (array $change): array => [...$change, 'actorName' => $this->name($change['actorUid'])],
@@ -69,14 +84,19 @@ class HolidayController extends Controller {
 	 * working-days prefill.
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function applying(string $code, string $from, string $to): DataResponse {
-		return $this->handle(fn () => array_map(
-			static fn (Holiday $h): array => $h->jsonSerialize(),
-			$this->service->forRegions($code === '' ? [] : [$code], $from, $to),
-		));
+		return $this->handle(function () use ($code, $from, $to) {
+			[$from, $to] = $this->assertValidRange($from, $to, self::MAX_RANGE_DAYS);
+			return array_map(
+				static fn (Holiday $h): array => $h->jsonSerialize(),
+				$this->service->forRegions($code === '' ? [] : [$code], $from, $to),
+			);
+		});
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function regions(): DataResponse {
 		return $this->handle(fn () => $this->service->regions());
 	}

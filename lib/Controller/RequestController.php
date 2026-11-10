@@ -15,6 +15,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 class RequestController extends Controller {
 	use ApiControllerTrait;
@@ -25,11 +26,13 @@ class RequestController extends Controller {
 		private ?string $userId,
 		private RequestService $service,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(
 		string $scope = 'mine',
 		?string $status = null,
@@ -51,6 +54,7 @@ class RequestController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function show(int $id): DataResponse {
 		return $this->handle(fn () => $this->service->getDetail((string)$this->userId, $id));
 	}

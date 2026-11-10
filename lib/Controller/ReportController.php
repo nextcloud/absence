@@ -18,6 +18,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 class ReportController extends Controller {
 	use ApiControllerTrait;
@@ -31,6 +32,7 @@ class ReportController extends Controller {
 		private PermissionService $permission,
 		private ClockService $clock,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}

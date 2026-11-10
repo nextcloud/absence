@@ -28,11 +28,12 @@ trait ApiControllerTrait {
 		} catch (\Throwable $e) {
 			// Never leak internal exception text (DB errors, paths, class names) to the
 			// client. Log the detail for operators and return a generic message.
-			\OCP\Server::get(\Psr\Log\LoggerInterface::class)->error(
+			$this->logger->error(
 				'Absence: unhandled error in API request',
 				['exception' => $e, 'app' => 'absence'],
 			);
-			// $this->l is the IL10N every controller using this trait injects.
+			// $this->l and $this->logger are the IL10N and the LoggerInterface every
+			// controller using this trait injects.
 			return new DataResponse(['message' => $this->l->t('An unexpected error occurred.')], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}

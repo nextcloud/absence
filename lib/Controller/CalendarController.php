@@ -11,9 +11,11 @@ namespace OCA\Absence\Controller;
 use OCA\Absence\Service\CoverageService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 /**
  * Events for the in-app who's-off calendar / timeline (§8, §15.2).
@@ -27,11 +29,13 @@ class CalendarController extends Controller {
 		private ?string $userId,
 		private CoverageService $service,
 		private IL10N $l,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(string $from, string $to, string $scope = 'team'): DataResponse {
 		return $this->handle(function () use ($from, $to, $scope) {
 			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope);

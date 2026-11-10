@@ -175,8 +175,10 @@ class EmployeeService {
 			return;
 		}
 		[$country, $region] = array_pad(explode('-', $code, 2), 2, '');
-		$this->config->setPersonalValue($uid, ConfigLexicon::KEY_HOLIDAY_COUNTRY, $country);
-		$this->config->setPersonalValue($uid, ConfigLexicon::KEY_HOLIDAY_REGION, $region);
+		$this->config->setPersonalValues($uid, [
+			ConfigLexicon::KEY_HOLIDAY_COUNTRY => $country,
+			ConfigLexicon::KEY_HOLIDAY_REGION => $region,
+		]);
 		$this->recordRegionChange($uid, $before, $code, $actor);
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
 			'Region code of %s changed from "%s" to "%s" by %s', [$uid, $before, $code, $actor ?? 'occ'],

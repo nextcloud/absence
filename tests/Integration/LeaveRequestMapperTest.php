@@ -8,6 +8,8 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\Db\Attachment;
+use OCA\Absence\Db\AttachmentMapper;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCP\Server;
@@ -109,5 +111,72 @@ class LeaveRequestMapperTest extends TestCase {
 		$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-11-23', '2026-11-27', 5.0);
 
 		self::assertSame($before + 2, $this->mapper->countPendingForManager(self::MANAGER));
+	}
+
+	/**
+	 * More values than any supported database takes in one statement (SQLite
+	 * is the most generous with 250000), with the wanted ones at both ends of
+	 * the list.
+	 *
+	 * @template T of int|string
+	 * @param T $first
+	 * @param T $last
+	 * @param \Closure(int):T $filler
+	 * @return list<T>
+	 */
+	private static function longList(int|string $first, int|string $last, \Closure $filler): array {
+		return [$first, ...array_map($filler, range(1, 250000)), $last];
+	}
+
+	public function testTheYearQueriesTakeMoreEmployeesThanOneStatementHolds(): void {
+		$approved = $this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-02-02', '2026-02-06', 5.0);
+		$edit = $this->seed(self::MANAGER, LeaveRequest::STATUS_PENDING, '2026-02-03', '2026-02-06', 4.0, 1, (int)$approved->getId());
+		$uids = self::longList(self::UID, self::MANAGER, static fn (int $i): string => 'itest-mapper-nobody-' . $i);
+
+		$days = [];
+		foreach ($this->mapper->aggregateWorkingDaysForYear($uids, 2026) as $row) {
+			$days[$row['employee_uid']] = $row['days'];
+		}
+		self::assertEqualsWithDelta(5.0, $days[self::UID], 0.001);
+		self::assertEqualsWithDelta(4.0, $days[self::MANAGER], 0.001);
+		self::assertCount(2, $days);
+
+		$pendingEdits = $this->mapper->findPendingSupersedingForYear($uids, 2026);
+		self::assertSame([$edit->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $pendingEdits));
+	}
+
+	public function testFindByIdsTakesMoreIdsThanOneStatementHolds(): void {
+		$first = (int)$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-02-02', '2026-02-06', 5.0)->getId();
+		$last = (int)$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-03-02', '2026-03-06', 5.0)->getId();
+
+		// Negative ids never exist
+		$found = $this->mapper->findByIds(self::longList($first, $last, static fn (int $i): int => -$i));
+
+		self::assertSame([$first, $last], array_keys($found));
+	}
+
+	public function testAttachmentsOfMoreRequestsThanOneStatementHolds(): void {
+		$attachments = Server::get(AttachmentMapper::class);
+		$stored = [];
+		foreach ([-1, -2] as $requestId) {
+			$attachment = new Attachment();
+			$attachment->setRequestId($requestId);
+			$attachment->setUploaderUid(self::UID);
+			$attachment->setName('itest-note.pdf');
+			$attachment->setCreatedAt(new \DateTime('2026-01-01 09:00:00'));
+			$stored[] = $attachments->insert($attachment);
+		}
+
+		try {
+			$found = $attachments->findForRequests(self::longList(-1, -2, static fn (int $i): int => -2 - $i));
+			self::assertSame(
+				array_map(static fn (Attachment $a): int => $a->getId(), $stored),
+				array_map(static fn (Attachment $a): int => $a->getId(), $found),
+			);
+		} finally {
+			foreach ($stored as $attachment) {
+				$attachments->delete($attachment);
+			}
+		}
 	}
 }

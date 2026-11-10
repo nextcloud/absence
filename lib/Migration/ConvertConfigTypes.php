@@ -12,6 +12,7 @@ use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Service\ConfigService;
 use OCP\Exceptions\AppConfigUnknownKeyException;
 use OCP\IAppConfig;
+use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 
@@ -39,6 +40,7 @@ class ConvertConfigTypes implements IRepairStep {
 
 	public function __construct(
 		private IAppConfig $appConfig,
+		private IDBConnection $db,
 	) {
 	}
 
@@ -49,6 +51,10 @@ class ConvertConfigTypes implements IRepairStep {
 
 	#[\Override]
 	public function run(IOutput $output): void {
+		$lazy = [];
+		foreach ((new ConfigLexicon())->getAppConfigs() as $entry) {
+			$lazy[$entry->getKey()] = $entry->isLazy();
+		}
 		$converted = 0;
 		foreach (self::TYPES as $key => $type) {
 			try {
@@ -57,14 +63,35 @@ class ConvertConfigTypes implements IRepairStep {
 			} catch (AppConfigUnknownKeyException) {
 				continue; // never set: the lexicon default applies, nothing to convert
 			}
-			$value = (string)($details['value'] ?? '');
-			$this->appConfig->deleteKey(ConfigService::APP_ID, $key);
-			match ($type) {
-				'int' => $this->appConfig->setValueInt(ConfigService::APP_ID, $key, (int)$value),
-				'float' => $this->appConfig->setValueFloat(ConfigService::APP_ID, $key, (float)$value),
-				'bool' => $this->appConfig->setValueBool(ConfigService::APP_ID, $key, in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true)),
-				default => $this->appConfig->setValueString(ConfigService::APP_ID, $key, $value),
+			$storedType = match ($type) {
+				'int' => IAppConfig::VALUE_INT,
+				'float' => IAppConfig::VALUE_FLOAT,
+				'bool' => IAppConfig::VALUE_BOOL,
+				default => IAppConfig::VALUE_STRING,
 			};
+			if ($details['type'] === $storedType && $details['lazy'] === $lazy[$key]) {
+				continue;
+			}
+			$value = (string)($details['value'] ?? '');
+			// A typed setter only takes over a value of another type once the old row
+			// is gone. In one transaction, so a failed write keeps the stored value.
+			$this->db->beginTransaction();
+			try {
+				$this->appConfig->deleteKey(ConfigService::APP_ID, $key);
+				match ($type) {
+					'int' => $this->appConfig->setValueInt(ConfigService::APP_ID, $key, (int)$value),
+					'float' => $this->appConfig->setValueFloat(ConfigService::APP_ID, $key, (float)$value),
+					'bool' => $this->appConfig->setValueBool(ConfigService::APP_ID, $key, in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true)),
+					default => $this->appConfig->setValueString(ConfigService::APP_ID, $key, $value),
+				};
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				// The cache still has the key as deleted.
+				$this->appConfig->clearCache();
+				$output->warning('Could not re-type the absence config value ' . $key . ', it stays as it was: ' . $e->getMessage());
+				continue;
+			}
 			$converted++;
 		}
 		if ($converted > 0) {

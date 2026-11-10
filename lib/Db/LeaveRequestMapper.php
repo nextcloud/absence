@@ -17,6 +17,9 @@ use OCP\IDBConnection;
  * @extends QBMapper<LeaveRequest>
  */
 class LeaveRequestMapper extends QBMapper {
+	// Oracle accepts at most 1000 values in one IN() list.
+	private const IN_CHUNK = 1000;
+
 	public function __construct(IDBConnection $db) {
 		parent::__construct($db, 'absence_requests', LeaveRequest::class);
 	}
@@ -42,10 +45,10 @@ class LeaveRequestMapper extends QBMapper {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->getTableName());
 
-		if (!empty($filters['employeeUid'])) {
+		if (isset($filters['employeeUid']) && $filters['employeeUid'] !== '') {
 			$qb->andWhere($qb->expr()->eq('employee_uid', $qb->createNamedParameter($filters['employeeUid'])));
 		}
-		if (!empty($filters['managerUid'])) {
+		if (isset($filters['managerUid']) && $filters['managerUid'] !== '') {
 			$qb->andWhere($qb->expr()->eq('manager_uid', $qb->createNamedParameter($filters['managerUid'])));
 		}
 		if (!empty($filters['status'])) {
@@ -361,30 +364,29 @@ class LeaveRequestMapper extends QBMapper {
 	 * @return list<array{employee_uid:string,type_id:int,status:string,days:float}>
 	 */
 	public function aggregateWorkingDaysForYear(array $employeeUids, int $year): array {
-		if ($employeeUids === []) {
-			return [];
-		}
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('employee_uid', 'type_id', 'status')
-			->selectAlias($qb->func()->sum('working_days'), 'days')
-			->from($this->getTableName())
-			->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($employeeUids, IQueryBuilder::PARAM_STR_ARRAY)))
-			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
-				LeaveRequest::ACTIVE_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
-			->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
-			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))))
-			->groupBy('employee_uid', 'type_id', 'status');
-		$result = $qb->executeQuery();
 		$rows = [];
-		while ($row = $result->fetch()) {
-			$rows[] = [
-				'employee_uid' => (string)$row['employee_uid'],
-				'type_id' => (int)$row['type_id'],
-				'status' => (string)$row['status'],
-				'days' => (float)$row['days'],
-			];
+		foreach (array_chunk($employeeUids, self::IN_CHUNK) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('employee_uid', 'type_id', 'status')
+				->selectAlias($qb->func()->sum('working_days'), 'days')
+				->from($this->getTableName())
+				->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)))
+				->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
+					LeaveRequest::ACTIVE_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+				->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
+				->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))))
+				->groupBy('employee_uid', 'type_id', 'status');
+			$result = $qb->executeQuery();
+			while ($row = $result->fetch()) {
+				$rows[] = [
+					'employee_uid' => (string)$row['employee_uid'],
+					'type_id' => (int)$row['type_id'],
+					'status' => (string)$row['status'],
+					'days' => (float)$row['days'],
+				];
+			}
+			$result->closeCursor();
 		}
-		$result->closeCursor();
 		return $rows;
 	}
 
@@ -398,19 +400,20 @@ class LeaveRequestMapper extends QBMapper {
 	 * @return LeaveRequest[]
 	 */
 	public function findPendingSupersedingForYear(array $employeeUids, int $year): array {
-		if ($employeeUids === []) {
-			return [];
+		$requests = [];
+		foreach (array_chunk($employeeUids, self::IN_CHUNK) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')
+				->from($this->getTableName())
+				->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)))
+				->andWhere($qb->expr()->isNotNull('supersedes_id'))
+				->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
+					LeaveRequest::PENDING_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+				->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
+				->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))));
+			array_push($requests, ...$this->findEntities($qb));
 		}
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')
-			->from($this->getTableName())
-			->where($qb->expr()->in('employee_uid', $qb->createNamedParameter($employeeUids, IQueryBuilder::PARAM_STR_ARRAY)))
-			->andWhere($qb->expr()->isNotNull('supersedes_id'))
-			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
-				LeaveRequest::PENDING_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
-			->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter(sprintf('%04d-01-01', $year))))
-			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter(sprintf('%04d-12-31', $year))));
-		return $this->findEntities($qb);
+		return $requests;
 	}
 
 	/**
@@ -418,16 +421,15 @@ class LeaveRequestMapper extends QBMapper {
 	 * @return array<int,LeaveRequest> keyed by id
 	 */
 	public function findByIds(array $ids): array {
-		if ($ids === []) {
-			return [];
-		}
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')
-			->from($this->getTableName())
-			->where($qb->expr()->in('id', $qb->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)));
 		$byId = [];
-		foreach ($this->findEntities($qb) as $request) {
-			$byId[(int)$request->getId()] = $request;
+		foreach (array_chunk($ids, self::IN_CHUNK) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')
+				->from($this->getTableName())
+				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			foreach ($this->findEntities($qb) as $request) {
+				$byId[(int)$request->getId()] = $request;
+			}
 		}
 		return $byId;
 	}

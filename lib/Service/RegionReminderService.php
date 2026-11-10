@@ -11,6 +11,7 @@ namespace OCA\Absence\Service;
 
 use OCA\Absence\ConfigLexicon;
 use OCP\Config\IUserConfig;
+use OCP\Config\ValueType;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IUserManager;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
@@ -46,6 +47,7 @@ class RegionReminderService {
 	public function plan(): array {
 		$codes = $this->config->getRegionCodes();
 		$since = $this->clock->now()->getTimestamp() - self::QUIET_SECONDS;
+		$remindedAt = $this->userConfig->getValuesByUsers(ConfigService::APP_ID, ConfigLexicon::KEY_REGION_REMINDED_AT, ValueType::INT);
 		$plan = ['send' => [], 'recent' => []];
 		foreach ($this->employees->listAll() as $uid) {
 			$uid = (string)$uid;
@@ -53,7 +55,7 @@ class RegionReminderService {
 			if (!$this->holidays->needsRegion($code)) {
 				continue;
 			}
-			$reminded = $this->userConfig->getValueInt($uid, ConfigService::APP_ID, ConfigLexicon::KEY_REGION_REMINDED_AT);
+			$reminded = (int)($remindedAt[$uid] ?? 0);
 			$plan[$reminded > $since ? 'recent' : 'send'][] = [
 				'uid' => $uid,
 				'name' => $this->userManager->getDisplayName($uid) ?? $uid,

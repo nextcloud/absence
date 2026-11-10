@@ -63,13 +63,15 @@ class AttachmentMapper extends QBMapper {
 	 * @return Attachment[]
 	 */
 	public function findForRequests(array $requestIds): array {
-		if ($requestIds === []) {
-			return [];
+		$attachments = [];
+		// Oracle accepts at most 1000 values in one IN() list.
+		foreach (array_chunk($requestIds, 1000) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')
+				->from($this->getTableName())
+				->where($qb->expr()->in('request_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			array_push($attachments, ...$this->findEntities($qb));
 		}
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')
-			->from($this->getTableName())
-			->where($qb->expr()->in('request_id', $qb->createNamedParameter($requestIds, IQueryBuilder::PARAM_INT_ARRAY)));
-		return $this->findEntities($qb);
+		return $attachments;
 	}
 }

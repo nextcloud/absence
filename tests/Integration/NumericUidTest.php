@@ -9,10 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\Db\LeaveRequest;
+use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\InsightsService;
 use OCA\Absence\Service\ManagerResolver;
+use OCA\Absence\Service\RequestService;
 use OCP\Config\IUserConfig;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -27,6 +30,10 @@ use Psr\Log\LoggerInterface;
 class NumericUidTest extends TestCase {
 	private const EMPLOYEE = '90418';
 	private const MANAGER = 'itest-numeric-mgr';
+	private const ZERO = '0';
+
+	/** @var LeaveRequest[] */
+	private array $requests = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -36,6 +43,9 @@ class NumericUidTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		foreach ($this->requests as $request) {
+			Server::get(LeaveRequestMapper::class)->delete($request);
+		}
 		foreach ([self::EMPLOYEE, self::MANAGER] as $uid) {
 			Server::get(IUserManager::class)->get($uid)?->delete();
 		}
@@ -56,5 +66,29 @@ class NumericUidTest extends TestCase {
 		$insights = Server::get(InsightsService::class)->getInsights((int)date('Y'));
 
 		self::assertContains(self::EMPLOYEE, array_column($insights['utilization']['neglected'], 'employeeUid'));
+	}
+
+	public function testTheUserZeroListsOnlyTheirOwnRequests(): void {
+		$mine = $this->seedRequest(self::ZERO, self::MANAGER);
+		$this->seedRequest(self::EMPLOYEE, self::MANAGER);
+		$reporting = $this->seedRequest(self::EMPLOYEE, self::ZERO);
+		$service = Server::get(RequestService::class);
+
+		self::assertSame([$mine->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $service->list(self::ZERO, [], null, null)));
+		self::assertSame([$reporting->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $service->list(self::ZERO, ['scope' => 'reports'], null, null)));
+	}
+
+	private function seedRequest(string $employeeUid, string $managerUid): LeaveRequest {
+		$request = new LeaveRequest();
+		$request->setEmployeeUid($employeeUid);
+		$request->setManagerUid($managerUid);
+		$request->setTypeId(1);
+		$request->setStartDate('2027-03-01');
+		$request->setEndDate('2027-03-02');
+		$request->setWorkingDays(2.0);
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		$request->setCreatedAt(new \DateTime('2027-01-04 09:00:00'));
+		$request->setUpdatedAt(new \DateTime('2027-01-04 09:00:00'));
+		return $this->requests[] = Server::get(LeaveRequestMapper::class)->insert($request);
 	}
 }
