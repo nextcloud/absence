@@ -1103,6 +1103,19 @@ class RequestService {
 		$this->audit('request_escalated', $request, ['actor' => 'system']);
 	}
 
+	/**
+	 * Hand a request whose manager is gone over to HR: a pending one is escalated,
+	 * and for a withdrawal awaiting its decision HR is asked again, as it stays
+	 * in that state until somebody decides.
+	 */
+	public function handOverToHr(LeaveRequest $request): void {
+		if ($request->getStatus() === LeaveRequest::STATUS_WITHDRAWAL_PENDING) {
+			$this->notifications->notifyWithdrawal($request, $this->permission->getHrUids());
+			return;
+		}
+		$this->escalate($request);
+	}
+
 	// ------------------------------------------------------------- comments ----
 
 	public function addComment(string $actorUid, int $id, string $body): RequestComment {

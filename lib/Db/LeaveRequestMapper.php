@@ -212,7 +212,26 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Pending requests created before the given cut-off (for escalation/reminders).
+	 * Requests awaiting a decision that were assigned to this manager when they
+	 * were made, for handing them over when the account goes away.
+	 *
+	 * @return LeaveRequest[]
+	 */
+	public function findPendingAssignedTo(string $managerUid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('manager_uid', $qb->createNamedParameter($managerUid)))
+			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
+				[LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_WITHDRAWAL_PENDING],
+				IQueryBuilder::PARAM_STR_ARRAY)))
+			->orderBy('created_at', 'ASC');
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * Pending requests created before the given cut-off (for escalation), with
+	 * or without a manager on record.
 	 *
 	 * @return LeaveRequest[]
 	 */
@@ -221,7 +240,6 @@ class LeaveRequestMapper extends QBMapper {
 		$qb->select('*')
 			->from($this->getTableName())
 			->where($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_PENDING)))
-			->andWhere($qb->expr()->isNotNull('manager_uid'))
 			->andWhere($qb->expr()->lt('created_at', $qb->createNamedParameter(
 				$this->asStoredTimestamp($cutoff), IQueryBuilder::PARAM_STR)));
 		return $this->findEntities($qb);

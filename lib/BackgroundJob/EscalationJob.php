@@ -11,6 +11,7 @@ namespace OCA\Absence\BackgroundJob;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\RequestService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
@@ -30,6 +31,7 @@ class EscalationJob extends TimedJob {
 		private RequestService $requestService,
 		private ConfigService $config,
 		private LoggerInterface $logger,
+		private ManagerResolver $managerResolver,
 	) {
 		parent::__construct($time);
 		$this->setInterval(3600);
@@ -66,18 +68,25 @@ class EscalationJob extends TimedJob {
 		$todayIso = $today->format('Y-m-d');
 		/** @var array<string,array<string,bool>> manager => deadline => away-through-deadline */
 		$awayCache = [];
-		foreach ($this->requestMapper->findPendingOlderThan($this->clock->serverNow()) as $request) {
-			$managerUid = $request->getManagerUid();
-			if ($managerUid === null) {
-				continue;
-			}
+		// The manager is the employee's manager today (§2.1). A request left with
+		// none, because the manager's account was removed, disabled or unassigned
+		// after it was made, has nobody to wait for and goes to HR on this run.
+		$pending = $this->requestMapper->findPendingOlderThan($this->clock->serverNow());
+		$managers = $this->managerResolver->getManagerUidsOf(array_values(array_unique(array_map(
+			static fn ($request): string => $request->getEmployeeUid(),
+			$pending,
+		))));
+		foreach ($pending as $request) {
+			$managerUid = $managers[$request->getEmployeeUid()];
 			$createdDay = \DateTimeImmutable::createFromInterface($request->getCreatedAt())
 				->setTimezone($today->getTimezone())
 				->setTime(0, 0);
 			$deadline = $this->addWorkingDays($createdDay, $window)->format('Y-m-d');
-			$awayCache[$managerUid][$deadline] ??= $this->requestMapper
-				->hasApprovedAbsenceCovering($managerUid, $todayIso, $deadline);
-			if ($awayCache[$managerUid][$deadline]) {
+			if ($managerUid !== null) {
+				$awayCache[$managerUid][$deadline] ??= $this->requestMapper
+					->hasApprovedAbsenceCovering($managerUid, $todayIso, $deadline);
+			}
+			if ($managerUid === null || $awayCache[$managerUid][$deadline]) {
 				try {
 					$this->requestService->escalate($request);
 				} catch (\Throwable $e) {

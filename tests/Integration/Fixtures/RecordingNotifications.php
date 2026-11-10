@@ -10,7 +10,9 @@ declare(strict_types=1);
 namespace OCA\Absence\Tests\Integration\Fixtures;
 
 use OCP\Notification\IApp;
+use OCP\Notification\IManager;
 use OCP\Notification\INotification;
+use OCP\Server;
 
 /**
  * Stands in for the notifications app, which test servers do not have, and
@@ -21,6 +23,17 @@ class RecordingNotifications implements IApp {
 	public static array $sent = [];
 	/** @var list<INotification> */
 	public static array $processed = [];
+	private static bool $registered = false;
+
+	/** Start recording, from an empty record. */
+	public static function register(): void {
+		if (!self::$registered) {
+			Server::get(IManager::class)->registerApp(self::class);
+			self::$registered = true;
+		}
+		self::$sent = [];
+		self::$processed = [];
+	}
 
 	#[\Override]
 	public function notify(INotification $notification): void {
