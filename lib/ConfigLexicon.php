@@ -41,6 +41,7 @@ class ConfigLexicon implements ILexicon {
 
 	// Internal state.
 	public const KEY_LAST_ROLLOVER_YEAR = 'last_rollover_year';
+	public const KEY_CALENDAR_SYNC_CURSOR = 'calendar_sync_cursor';
 
 	// The holiday region code each person sets for themselves (§7.2).
 	public const KEY_HOLIDAY_COUNTRY = 'holiday_country';
@@ -84,6 +85,8 @@ class ConfigLexicon implements ILexicon {
 				'Shared-calendar event titles: neutral ("Absent") or reveal the leave type', lazy: true),
 			new Entry(self::KEY_LAST_ROLLOVER_YEAR, ValueType::INT, 0,
 				'Internal marker: last year already processed by the rollover job', lazy: true),
+			new Entry(self::KEY_CALENDAR_SYNC_CURSOR, ValueType::INT, 0,
+				'Internal marker: last request the calendar sync job looked at', lazy: true),
 		];
 	}
 
