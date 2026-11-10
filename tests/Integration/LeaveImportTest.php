@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\Command\ImportLeave;
 use OCA\Absence\Controller\ImportController;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
@@ -36,6 +37,7 @@ use OCP\Server;
 use OCP\User\Backend\ABackend;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Console\Tester\CommandTester;
 
 /**
  * The leave import (§6.5) against a real database and the real services:
@@ -255,6 +257,17 @@ class LeaveImportTest extends TestCase {
 		self::assertSame([2, 1], array_column($preview['people'], 'entries'));
 		self::assertSame(0, $this->countFor(self::ROBIN));
 		self::assertSame(0, $this->countFor(self::SAM));
+	}
+
+	public function testOccDryRunNamesTheAccountBehindAnAddress(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-leave');
+		file_put_contents($file, self::json([['user' => self::ROBIN_EMAIL, 'from' => '2025-04-14', 'to' => '2025-04-16', 'workingDays' => 3]]));
+		$tester = new CommandTester(Server::get(ImportLeave::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file, '--dry-run' => true]));
+		unlink($file);
+		self::assertStringContainsString('Robin Sample (' . self::ROBIN . ')', $tester->getDisplay());
+		self::assertSame(0, $this->countFor(self::ROBIN));
 	}
 
 	public function testImportHasNoSideEffects(): void {

@@ -8,11 +8,13 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\Command\ImportEntitlements;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ImportService;
 use OCP\IUserManager;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Tester\CommandTester;
 
 /**
  * User resolution of the imports against the real user manager, whose lookup
@@ -28,6 +30,7 @@ class ImportServiceTest extends TestCase {
 		$user = $users->get(self::UID) ?? $users->createUser(self::UID, 'itest-' . bin2hex(random_bytes(8)));
 		self::assertNotFalse($user);
 		$user->setSystemEMailAddress(self::EMAIL);
+		$user->setDisplayName('Robin Import');
 	}
 
 	protected function tearDown(): void {
@@ -45,6 +48,23 @@ class ImportServiceTest extends TestCase {
 		$plan = Server::get(ImportService::class)->plan("user,base_days\nITEST-Import-Robin,25", 2025);
 
 		self::assertSame([self::UID], array_column($plan, 'uid'));
+	}
+
+	public function testEachRowNamesTheAccountItResolvedTo(): void {
+		$plan = Server::get(ImportService::class)->plan("user,base_days\n" . self::EMAIL . ',25', 2025);
+
+		self::assertSame(self::UID, $plan[0]['uid']);
+		self::assertSame('Robin Import', $plan[0]['name']);
+	}
+
+	public function testOccDryRunNamesTheAccountBehindAnAddress(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-entitlements');
+		file_put_contents($file, "user,base_days\n" . self::EMAIL . ',25');
+		$tester = new CommandTester(Server::get(ImportEntitlements::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file, '--dry-run' => true]));
+		unlink($file);
+		self::assertStringContainsString('Robin Import (' . self::UID . ')', $tester->getDisplay());
 	}
 
 	public function testARowWithMoreFieldsThanTheHeaderIsRefused(): void {

@@ -16,6 +16,7 @@ use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\ImportService;
 use OCP\IDBConnection;
+use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -54,6 +55,7 @@ class ImportServiceTest extends TestCase {
 			$leaveTypeMapper,
 			$employees,
 			$this->db,
+			$this->createMock(IUserManager::class),
 		);
 	}
 

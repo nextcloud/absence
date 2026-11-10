@@ -61,7 +61,7 @@ class ImportEntitlements extends Command {
 					$parts[] = $label . ' ' . $row['data'][$key];
 				}
 			}
-			$output->writeln(sprintf('  %-24s %d/type %d: %s', $row['uid'], $row['year'], $row['typeId'], implode(', ', $parts)));
+			$output->writeln(sprintf('  %s (%s) %d/type %d: %s', $row['name'], $row['uid'], $row['year'], $row['typeId'], implode(', ', $parts)));
 		}
 
 		if ($input->getOption('dry-run')) {

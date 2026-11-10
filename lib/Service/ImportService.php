@@ -11,6 +11,7 @@ namespace OCA\Absence\Service;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCP\IDBConnection;
+use OCP\IUserManager;
 
 /**
  * CSV import of entitlements (§6.3) — the onboarding path from the spreadsheet
@@ -40,13 +41,15 @@ class ImportService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private EmployeeDirectory $employees,
 		private IDBConnection $db,
+		private IUserManager $userManager,
 	) {
 	}
 
 	/**
-	 * Parse and validate the whole file, resolving users and types.
+	 * Parse and validate the whole file, resolving users and types. Each row names
+	 * the account it resolved to, so an e-mail address can be checked before applying.
 	 *
-	 * @return list<array{uid:string,typeId:int,year:int,data:array<string,mixed>,line:int}>
+	 * @return list<array{uid:string,name:string,typeId:int,year:int,data:array<string,mixed>,line:int}>
 	 * @throws ValidationException listing every broken line
 	 */
 	public function plan(string $csv, int $defaultYear): array {
@@ -112,7 +115,7 @@ class ImportService {
 			$note = trim($row['note'] ?? '');
 			$data['adjustmentNote'] = $note !== '' ? $note : 'Imported from CSV';
 
-			$plan[] = ['uid' => $uid, 'typeId' => (int)$type->getId(), 'year' => $year, 'data' => $data, 'line' => $line];
+			$plan[] = ['uid' => $uid, 'name' => $this->userManager->get($uid)?->getDisplayName() ?? $uid, 'typeId' => (int)$type->getId(), 'year' => $year, 'data' => $data, 'line' => $line];
 		}
 
 		if ($errors !== []) {
@@ -127,7 +130,7 @@ class ImportService {
 	/**
 	 * Apply a plan produced by {@see plan()}.
 	 *
-	 * @param list<array{uid:string,typeId:int,year:int,data:array<string,mixed>,line:int}> $plan
+	 * @param list<array{uid:string,name:string,typeId:int,year:int,data:array<string,mixed>,line:int}> $plan
 	 * @return int rows applied
 	 */
 	public function apply(array $plan, string $actorUid): int {

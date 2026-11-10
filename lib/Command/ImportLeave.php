@@ -52,7 +52,7 @@ class ImportLeave extends Command {
 		}
 
 		foreach ($preview['people'] as $person) {
-			$output->writeln(sprintf('  %-24s %4d entries %6s days %4d skipped', $person['uid'], $person['entries'], $person['days'], $person['skipped']));
+			$output->writeln(sprintf('  %s (%s) %4d entries %6s days %4d skipped', $person['name'], $person['uid'], $person['entries'], $person['days'], $person['skipped']));
 		}
 		if ($preview['errors'] !== []) {
 			foreach ($preview['errors'] as $error) {

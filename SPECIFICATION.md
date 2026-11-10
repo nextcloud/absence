@@ -652,12 +652,14 @@ current entitlements over from the spreadsheet every company migrates away
 from. Columns (header required, order free): `user` (uid or e-mail),
 `base_days`, `carry_over_days`, `adjustment` (absolute), `note`, `type`
 (key, default `annual`), `year` (default: `--year`). Comma or semicolon
-separated (German Excel), BOM tolerated, quoted fields may span lines.
-**All-or-nothing:** every broken row is reported and nothing is written — half
-an imported company is the worst outcome of a typo. A row with more or fewer
-fields than the header is broken, and so is a second row for the same user,
-type and year. Writes go through `EntitlementService`, so the
-entitlement history records the import like any HR edit.
+separated (German Excel), BOM tolerated. **All-or-nothing:** every broken
+row is reported and nothing is written — half an imported company is the
+worst outcome of a typo. Quoted fields may span lines. A row with more or
+fewer fields than the header is broken, and so is a second row for the same
+user, type and year. The rows are listed with the name and uid of the account
+each resolved to, so HR sees who an e-mail address matched. Writes go through
+`EntitlementService`, so the entitlement history records the import like any
+HR edit.
 
 ### 6.5 Leave import (onboarding)
 
@@ -677,7 +679,8 @@ The file is a JSON list of entries:
 `type` is a leave-type key and defaults to `annual`; `note` is optional and
 becomes the request's reason.
 
-- **Review first, all-or-nothing.** The dry run returns, per person, the
+- **Review first, all-or-nothing.** The dry run returns, per person (name and
+  uid of the account the entries resolved to), the
   entries and working days to add and the entries skipped, plus every invalid
   entry with its 1-based position and user. While one entry is invalid nothing
   is written. An entry is valid when the user is an employee (§2.2, guests
