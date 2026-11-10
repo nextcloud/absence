@@ -181,6 +181,8 @@ class NotificationService {
 					'noteAuthor' => (string)$noteAuthorUid,
 					'noticeDays' => $notice['days'] ?? null,
 					'noticePeriod' => $notice['noticePeriod'] ?? null,
+					// What the Approve button of this notification answers, see Notifier.
+					'updatedAt' => $request->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
 				]);
 			$this->notificationManager->notify($notification);
 		} catch (\Throwable $e) {

@@ -118,11 +118,23 @@ class RequestControllerTest extends TestCase {
 
 	public function testRejectRequiresACommentBySignature(): void {
 		$this->service->expects(self::once())->method('reject')
-			->with('emp', 5, 'too thin that week')
+			->with('emp', 5, 'too thin that week', null)
 			->willReturn($this->request());
 
 		$response = $this->controller->reject(5, 'too thin that week');
 
 		self::assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	public function testADecisionCarriesTheVersionItWasMadeOn(): void {
+		$this->service->expects(self::once())->method('approve')
+			->with('emp', 5, null, '2026-02-01T09:00:00+00:00')
+			->willReturn($this->request());
+		$this->service->expects(self::once())->method('reject')
+			->with('emp', 5, 'too thin that week', '2026-02-01T09:00:00+00:00')
+			->willReturn($this->request());
+
+		$this->controller->approve(5, null, '2026-02-01T09:00:00+00:00');
+		$this->controller->reject(5, 'too thin that week', '2026-02-01T09:00:00+00:00');
 	}
 }

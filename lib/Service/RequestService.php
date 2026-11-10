@@ -152,7 +152,7 @@ class RequestService {
 	 * here is the status the write replaces, with or without {@see withEmployeeLock()}.
 	 *
 	 * @param string[] $from statuses the transition may start from
-	 * @param ?\DateTimeInterface $seen when given, the `updatedAt` of the request the caller validated against
+	 * @param ?\DateTimeInterface $seen when given, the `updatedAt` the decision is based on
 	 * @throws ConflictException when the request has moved on since
 	 * @throws NotFoundException
 	 */
@@ -167,6 +167,22 @@ class RequestService {
 			throw new ConflictException($this->l->t('This request was changed in the meantime. Please reload it and try again.'));
 		}
 		return $request;
+	}
+
+	/**
+	 * The `updatedAt` a client last saw, as the API serialised it.
+	 *
+	 * @throws ValidationException
+	 */
+	private function seenUpdatedAt(?string $updatedAt): ?\DateTimeImmutable {
+		if ($updatedAt === null) {
+			return null;
+		}
+		$seen = \DateTimeImmutable::createFromFormat(\DateTimeInterface::ATOM, $updatedAt);
+		if ($seen === false) {
+			throw new ValidationException($this->l->t('Invalid date: %s', [$updatedAt]));
+		}
+		return $seen;
 	}
 
 	/**
@@ -760,7 +776,9 @@ class RequestService {
 			return $this->requestMapper->update($request);
 		}, $this->db));
 
-		// Re-notify the decider that the request changed.
+		// Re-notify the decider that the request changed. The earlier notification
+		// goes first: its Approve button answers the request as it was.
+		$this->notifications->dismiss($request);
 		if ($request->getStatus() === LeaveRequest::STATUS_ESCALATED) {
 			$hrUids = $this->permission->getHrUids();
 			$this->notifications->notifyEscalation($request, $hrUids);
@@ -961,10 +979,11 @@ class RequestService {
 
 	/**
 	 * @param string[] $from statuses the cancellation may start from
+	 * @param ?\DateTimeInterface $seen see {@see freshForTransition()}
 	 */
-	private function transitionToCancelled(string $actorUid, LeaveRequest $request, array $from, string $action = 'request_cancelled'): LeaveRequest {
-		[$request, $wasApproved] = $this->withEmployeeLock($request->getEmployeeUid(), fn (): array => $this->atomic(function () use ($actorUid, $request, $from): array {
-			$request = $this->freshForTransition((int)$request->getId(), $from);
+	private function transitionToCancelled(string $actorUid, LeaveRequest $request, array $from, string $action = 'request_cancelled', ?\DateTimeInterface $seen = null): LeaveRequest {
+		[$request, $wasApproved] = $this->withEmployeeLock($request->getEmployeeUid(), fn (): array => $this->atomic(function () use ($actorUid, $request, $from, $seen): array {
+			$request = $this->freshForTransition((int)$request->getId(), $from, $seen);
 			// If an already-approved leave is being cancelled, the replacement no longer
 			// covers. WITHDRAWAL_PENDING counts too: it is approved leave awaiting a
 			// withdrawal decision, so the replacement was told they cover (§5.1).
@@ -990,10 +1009,15 @@ class RequestService {
 
 	// ------------------------------------------------------------- decisions ----
 
-	public function approve(string $actorUid, int $id, ?string $comment): LeaveRequest {
+	/**
+	 * @param ?string $updatedAt the request's `updatedAt` as the decider last saw it;
+	 *                           when given, a request changed since is not decided (409)
+	 */
+	public function approve(string $actorUid, int $id, ?string $comment, ?string $updatedAt = null): LeaveRequest {
 		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
 			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
+		$seen = $this->seenUpdatedAt($updatedAt);
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canDecide($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to decide this request'));
@@ -1008,8 +1032,8 @@ class RequestService {
 			// cannot slip a new sibling in between.
 			[$request, $retired] = $this->withEmployeeLock(
 				$request->getEmployeeUid(),
-				fn (): array => $this->atomic(function () use ($actorUid, $id, $comment): array {
-					$request = $this->freshForTransition($id, LeaveRequest::PENDING_STATUSES);
+				fn (): array => $this->atomic(function () use ($actorUid, $id, $comment, $seen): array {
+					$request = $this->freshForTransition($id, LeaveRequest::PENDING_STATUSES, $seen);
 					$now = $this->clock->now();
 					$request->setStatus(LeaveRequest::STATUS_APPROVED);
 					$request->setDecidedBy($actorUid);
@@ -1054,18 +1078,22 @@ class RequestService {
 
 		if ($status === LeaveRequest::STATUS_WITHDRAWAL_PENDING) {
 			// Approving a withdrawal cancels the leave.
-			return $this->transitionToCancelled($actorUid, $request, [LeaveRequest::STATUS_WITHDRAWAL_PENDING], 'withdrawal_approved');
+			return $this->transitionToCancelled($actorUid, $request, [LeaveRequest::STATUS_WITHDRAWAL_PENDING], 'withdrawal_approved', $seen);
 		}
 		throw new ConflictException($this->l->t('This request cannot be approved in its current state.'));
 	}
 
-	public function reject(string $actorUid, int $id, string $comment): LeaveRequest {
+	/**
+	 * @param ?string $updatedAt see {@see approve()}
+	 */
+	public function reject(string $actorUid, int $id, string $comment, ?string $updatedAt = null): LeaveRequest {
 		if (trim($comment) === '') {
 			throw new ValidationException($this->l->t('A comment is required when rejecting.'));
 		}
 		if (mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
 			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
+		$seen = $this->seenUpdatedAt($updatedAt);
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canDecide($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to decide this request'));
@@ -1073,8 +1101,8 @@ class RequestService {
 		$status = $request->getStatus();
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
-			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($actorUid, $id, $comment): LeaveRequest {
-				$request = $this->freshForTransition($id, LeaveRequest::PENDING_STATUSES);
+			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($actorUid, $id, $comment, $seen): LeaveRequest {
+				$request = $this->freshForTransition($id, LeaveRequest::PENDING_STATUSES, $seen);
 				$now = $this->clock->now();
 				$request->setStatus(LeaveRequest::STATUS_REJECTED);
 				$request->setDecidedBy($actorUid);
@@ -1095,8 +1123,8 @@ class RequestService {
 			// approval comment intact and record the refusal as a comment instead —
 			// the status change and that comment are one unit, or the employee could
 			// see their leave reinstated with no stated reason.
-			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($actorUid, $id, $comment): LeaveRequest {
-				$request = $this->freshForTransition($id, [LeaveRequest::STATUS_WITHDRAWAL_PENDING]);
+			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($actorUid, $id, $comment, $seen): LeaveRequest {
+				$request = $this->freshForTransition($id, [LeaveRequest::STATUS_WITHDRAWAL_PENDING], $seen);
 				$request->setStatus(LeaveRequest::STATUS_APPROVED);
 				$request->setUpdatedAt($this->clock->now());
 				$request = $this->requestMapper->update($request);

@@ -64,7 +64,8 @@ class NotifierTest extends TestCase {
 		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
 			static fn (string $route, array $args = []): string => match ($route) {
 				'absence.page.index' => 'https://cloud.example/apps/absence/',
-				'absence.request.approve' => 'https://cloud.example/apps/absence/api/requests/' . $args['id'] . '/approve',
+				'absence.request.approve' => 'https://cloud.example/apps/absence/api/requests/' . $args['id'] . '/approve'
+					. (count($args) > 1 ? '?' . http_build_query(array_diff_key($args, ['id' => 0])) : ''),
 				default => 'https://cloud.example/' . $route,
 			},
 		);
@@ -194,6 +195,17 @@ class NotifierTest extends TestCase {
 		]);
 		self::assertSame('Short notice: Emp is still waiting for a decision', $this->parsedSubject);
 		self::assertSame('The leave starts today, with none of the 14 days of notice expected.', $this->parsedMessage);
+	}
+
+	public function testTheApproveButtonAnswersTheVersionTheNotificationWasSentFor(): void {
+		// An edit after this notification makes the click a 409 instead of a yes to
+		// dates the manager never saw.
+		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7', 'updatedAt' => '2026-02-01T09:00:00+00:00']);
+
+		self::assertSame(
+			'https://cloud.example/apps/absence/api/requests/7/approve?updatedAt=2026-02-01T09%3A00%3A00%2B00%3A00',
+			$this->actions[0]['link'],
+		);
 	}
 
 	public function testApprovingIsOneClickAndDoesNotOpenTheApp(): void {

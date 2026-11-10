@@ -1266,4 +1266,76 @@ class RequestServiceTest extends TestCase {
 
 		self::assertCount(2, array_unique($keys));
 	}
+
+	// ------------------------------------------- the version a decision saw ----
+
+	public function testApprovingARequestEditedSinceItWasShownIsAConflict(): void {
+		// The manager looks at one week; the employee makes it three; the click
+		// must not approve three.
+		$request = $this->pendingOwnRequest();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T10:05:00+00:00'));
+		$this->decidable($request);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->calendar->expects(self::never())->method('onApproved');
+
+		$this->expectException(ConflictException::class);
+		$this->service->approve('mgr', 5, null, '2026-02-01T09:00:00+00:00');
+	}
+
+	public function testRejectingARequestEditedSinceItWasShownIsAConflict(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T10:05:00+00:00'));
+		$this->decidable($request);
+
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ConflictException::class);
+		$this->service->reject('mgr', 5, 'Too thin that week', '2026-02-01T09:00:00+00:00');
+	}
+
+	public function testApprovingTheVersionThatWasShownGoesThrough(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T10:05:00+00:00'));
+		$this->decidable($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		// The same instant, serialised by a server in another timezone.
+		$result = $this->service->approve('mgr', 5, null, '2026-02-01T11:05:00+01:00');
+
+		self::assertSame(LeaveRequest::STATUS_APPROVED, $result->getStatus());
+	}
+
+	public function testAnUnreadableUpdatedAtIsRefusedRatherThanIgnored(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->approve('mgr', 5, null, 'yesterday');
+	}
+
+	public function testAnEditReplacesTheDecisionNotificationOfTheOldVersion(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('mgr');
+		$this->managerResolver->method('getManagerUid')->willReturn('mgr');
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$order = [];
+		$this->notifications->method('dismiss')->willReturnCallback(function () use (&$order): void {
+			$order[] = 'dismiss';
+		});
+		$this->notifications->method('notifyNewRequest')->willReturnCallback(function () use (&$order): void {
+			$order[] = 'notify';
+		});
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+
+		self::assertSame(['dismiss', 'notify'], $order);
+	}
 }

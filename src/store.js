@@ -139,14 +139,14 @@ export const store = reactive({
 		return res
 	},
 
-	async approveRequest(id, comment) {
-		const res = await api.approveRequest(id, comment)
+	async approveRequest(id, comment, updatedAt) {
+		const res = await api.approveRequest(id, comment, updatedAt)
 		await this.refreshSession()
 		return res
 	},
 
-	async rejectRequest(id, comment) {
-		const res = await api.rejectRequest(id, comment)
+	async rejectRequest(id, comment, updatedAt) {
+		const res = await api.rejectRequest(id, comment, updatedAt)
 		showSuccess(t('absence', 'Request declined'))
 		await this.refreshSession()
 		return res

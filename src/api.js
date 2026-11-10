@@ -30,8 +30,9 @@ export default {
 	createRequest: (data) => axios.post(url('/api/requests'), data).then((r) => r.data),
 	updateRequest: (id, data) => axios.put(url(`/api/requests/${id}`), data).then((r) => r.data),
 	cancelRequest: (id) => axios.post(url(`/api/requests/${id}/cancel`)).then((r) => r.data),
-	approveRequest: (id, comment) => axios.post(url(`/api/requests/${id}/approve`), { comment }).then((r) => r.data),
-	rejectRequest: (id, comment) => axios.post(url(`/api/requests/${id}/reject`), { comment }).then((r) => r.data),
+	// `updatedAt` is the request as the decider saw it: the server answers 409 if it changed since
+	approveRequest: (id, comment, updatedAt) => axios.post(url(`/api/requests/${id}/approve`), { comment, updatedAt }).then((r) => r.data),
+	rejectRequest: (id, comment, updatedAt) => axios.post(url(`/api/requests/${id}/reject`), { comment, updatedAt }).then((r) => r.data),
 	addComment: (id, body) => axios.post(url(`/api/requests/${id}/comments`), { body }).then((r) => r.data),
 
 	// Attachments (doctor's notes etc.) — HR and the employee only

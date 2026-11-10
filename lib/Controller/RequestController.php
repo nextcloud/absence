@@ -108,14 +108,14 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function approve(int $id, ?string $comment = null): DataResponse {
-		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->approve((string)$this->userId, $id, $comment)));
+	public function approve(int $id, ?string $comment = null, ?string $updatedAt = null): DataResponse {
+		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->approve((string)$this->userId, $id, $comment, $updatedAt)));
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function reject(int $id, string $comment): DataResponse {
-		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->reject((string)$this->userId, $id, $comment)));
+	public function reject(int $id, string $comment, ?string $updatedAt = null): DataResponse {
+		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->reject((string)$this->userId, $id, $comment, $updatedAt)));
 	}
 
 	#[NoAdminRequired]
