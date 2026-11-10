@@ -415,7 +415,9 @@ class RequestService {
 		}
 
 		if ($scope === 'reports' || $scope === 'approvals') {
-			$query['managerUid'] = $actorUid;
+			// The people who report to the actor today, as canView() has it: the
+			// manager stored on a request is the one it was made under (§2.1).
+			$query['employeeUids'] = $this->managerResolver->getDirectReports($actorUid);
 			return $this->requestMapper->findFiltered($query, $limit, $offset);
 		}
 		if ($scope === 'hr') {
@@ -737,9 +739,9 @@ class RequestService {
 			$hrUids = $this->permission->getHrUids();
 			$this->notifications->notifyEscalation($request, $hrUids);
 			$affected = [$request->getEmployeeUid(), ...$hrUids];
-		} elseif ($request->getManagerUid() !== null) {
-			$this->notifications->notifyNewRequest($request, $request->getManagerUid());
-			$affected = [$request->getEmployeeUid(), (string)$request->getManagerUid()];
+		} elseif (($managerUid = $this->managerResolver->getManagerUid($request->getEmployeeUid())) !== null) {
+			$this->notifications->notifyNewRequest($request, $managerUid);
+			$affected = [$request->getEmployeeUid(), $managerUid];
 		} else {
 			$affected = [$request->getEmployeeUid()];
 		}
@@ -913,7 +915,7 @@ class RequestService {
 				$request->setUpdatedAt($this->clock->now());
 				return $this->requestMapper->update($request);
 			}, $this->db);
-			$recipients = array_filter([$request->getManagerUid(), ...$this->permission->getHrUids()]);
+			$recipients = array_filter([$this->managerResolver->getManagerUid($request->getEmployeeUid()), ...$this->permission->getHrUids()]);
 			$this->notifications->notifyWithdrawal($request, array_values($recipients));
 			$this->activity->publish(ActivityPublisher::SUBJECT_WITHDRAWAL, $this->activityParams($request), [$request->getEmployeeUid(), ...$recipients], $request);
 			$this->audit('withdrawal_requested', $request, ['actor' => $actorUid]);
@@ -1141,7 +1143,7 @@ class RequestService {
 		if ($this->permission->isHrOnlyRequest($request)) {
 			return array_values(array_unique(array_filter($this->permission->getHrUids())));
 		}
-		$recipients = [$request->getEmployeeUid(), (string)$request->getManagerUid()];
+		$recipients = [$request->getEmployeeUid(), (string)$this->managerResolver->getManagerUid($request->getEmployeeUid())];
 		if ($request->getEscalated()) {
 			$recipients = [...$recipients, ...$this->permission->getHrUids()];
 		}

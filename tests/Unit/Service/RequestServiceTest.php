@@ -652,7 +652,9 @@ class RequestServiceTest extends TestCase {
 		// A comment is otherwise only visible to whoever thinks to open the Comments
 		// tab, so a manager's question could sit unread until the request expired.
 		$request = $this->pendingOwnRequest();
-		$request->setManagerUid('boss');
+		// The manager today, not the one the request was made under
+		$request->setManagerUid('former-boss');
+		$this->managerResolver->method('getManagerUid')->with('emp')->willReturn('boss');
 		$this->requestMapper->method('find')->with(5)->willReturn($request);
 		$this->permission->method('canView')->willReturn(true);
 		$this->commentMapper->method('insert')->willReturnArgument(0);
@@ -671,6 +673,7 @@ class RequestServiceTest extends TestCase {
 		$request = $this->pendingOwnRequest();
 		$request->setManagerUid('boss');
 		$request->setEscalated(true);
+		$this->managerResolver->method('getManagerUid')->with('emp')->willReturn('boss');
 		$this->requestMapper->method('find')->with(5)->willReturn($request);
 		$this->permission->method('canView')->willReturn(true);
 		$this->permission->method('getHrUids')->willReturn(['hr1', 'hr2']);

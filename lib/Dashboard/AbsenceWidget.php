@@ -106,7 +106,8 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		$appIcon = $this->getIconUrl();
 		$base = $this->urlGenerator->linkToRouteAbsolute('absence.page.index');
 		$isHr = $this->permission->isHr($userId);
-		$isManager = $this->managerResolver->getDirectReports($userId) !== [];
+		$reports = $this->managerResolver->getDirectReports($userId);
+		$isManager = $reports !== [];
 		$types = $this->typeLabels();
 		// Confidential categories (§5.7): even the employee's own widget shows a
 		// neutral label, matching every other non-HR surface.
@@ -146,7 +147,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 
 		// 3. Manager: team requests awaiting their decision.
 		if ($isManager) {
-			foreach ($this->requestMapper->findPendingForManager($userId) as $r) {
+			foreach ($this->requestMapper->findPendingForEmployees($reports) as $r) {
 				if (!$this->permission->canDecide($userId, $r)) {
 					continue;
 				}

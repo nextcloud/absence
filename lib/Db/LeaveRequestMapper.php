@@ -10,6 +10,7 @@ namespace OCA\Absence\Db;
 
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\QBMapper;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
@@ -36,9 +37,10 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Generic filtered query used by the API list endpoint.
+	 * Generic filtered query used by the API list endpoint. An `employeeUids`
+	 * filter that is set but empty matches nothing.
 	 *
-	 * @param array{status?:string,typeId?:int,from?:string,to?:string,employeeUid?:string,managerUid?:string} $filters
+	 * @param array{status?:string,typeId?:int,from?:string,to?:string,employeeUid?:string,employeeUids?:string[]} $filters
 	 * @return LeaveRequest[]
 	 */
 	public function findFiltered(array $filters, ?int $limit = null, ?int $offset = null): array {
@@ -48,8 +50,11 @@ class LeaveRequestMapper extends QBMapper {
 		if (isset($filters['employeeUid']) && $filters['employeeUid'] !== '') {
 			$qb->andWhere($qb->expr()->eq('employee_uid', $qb->createNamedParameter($filters['employeeUid'])));
 		}
-		if (isset($filters['managerUid']) && $filters['managerUid'] !== '') {
-			$qb->andWhere($qb->expr()->eq('manager_uid', $qb->createNamedParameter($filters['managerUid'])));
+		if (isset($filters['employeeUids'])) {
+			if ($filters['employeeUids'] === []) {
+				return [];
+			}
+			$qb->andWhere($this->employeeIn($qb, $filters['employeeUids']));
 		}
 		if (!empty($filters['status'])) {
 			$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($filters['status'])));
@@ -78,15 +83,34 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Requests awaiting a decision from a given manager.
+	 * `employee_uid IN (...)`, split so that no single list exceeds the 1000
+	 * entries Oracle accepts.
 	 *
+	 * @param string[] $employeeUids
+	 */
+	private function employeeIn(IQueryBuilder $qb, array $employeeUids): ICompositeExpression {
+		return $qb->expr()->orX(...array_map(
+			static fn (array $chunk) => $qb->expr()->in('employee_uid', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)),
+			array_chunk($employeeUids, 1000),
+		));
+	}
+
+	/**
+	 * Requests of these employees awaiting a manager's decision. The caller
+	 * passes a manager's current direct reports: the `manager_uid` column only
+	 * says who the manager was when the request was made (§2.1).
+	 *
+	 * @param string[] $employeeUids
 	 * @return LeaveRequest[]
 	 */
-	public function findPendingForManager(string $managerUid): array {
+	public function findPendingForEmployees(array $employeeUids): array {
+		if ($employeeUids === []) {
+			return [];
+		}
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from($this->getTableName())
-			->where($qb->expr()->eq('manager_uid', $qb->createNamedParameter($managerUid)))
+			->where($this->employeeIn($qb, $employeeUids))
 			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
 				[LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_WITHDRAWAL_PENDING],
 				IQueryBuilder::PARAM_STR_ARRAY)))
@@ -116,17 +140,22 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Requests awaiting a decision from a given manager, as a bare count.
+	 * {@see findPendingForEmployees()} as a bare count.
 	 *
 	 * The session bootstrap and the navigation badge only need the number, and
 	 * they run on every page load (and after every action) — hydrating full
 	 * entities there just to count them was measurable waste.
+	 *
+	 * @param string[] $employeeUids
 	 */
-	public function countPendingForManager(string $managerUid): int {
+	public function countPendingForEmployees(array $employeeUids): int {
+		if ($employeeUids === []) {
+			return 0;
+		}
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'cnt'))
 			->from($this->getTableName())
-			->where($qb->expr()->eq('manager_uid', $qb->createNamedParameter($managerUid)))
+			->where($this->employeeIn($qb, $employeeUids))
 			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(
 				[LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_WITHDRAWAL_PENDING],
 				IQueryBuilder::PARAM_STR_ARRAY)));
@@ -136,7 +165,7 @@ class LeaveRequestMapper extends QBMapper {
 		return $count;
 	}
 
-	/** Escalated requests as a bare count — see {@see countPendingForManager()}. */
+	/** Escalated requests as a bare count, see {@see countPendingForEmployees()}. */
 	public function countEscalated(): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'cnt'))
