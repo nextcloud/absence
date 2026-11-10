@@ -32,6 +32,7 @@ class EntitlementController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(string $employeeUid, ?int $year = null): DataResponse {
 		return $this->handle(function () use ($employeeUid, $year) {
 			$this->permission->assertHr((string)$this->userId);

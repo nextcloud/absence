@@ -32,6 +32,7 @@ class AttachmentController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(int $id): DataResponse {
 		return $this->handle(fn () => array_map(
 			static fn ($a) => $a->jsonSerialize(),

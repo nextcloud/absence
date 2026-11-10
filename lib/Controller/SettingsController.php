@@ -34,6 +34,7 @@ class SettingsController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function show(): DataResponse {
 		return $this->handle(fn () => $this->settings->get((string)$this->userId));
 	}

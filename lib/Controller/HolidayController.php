@@ -71,6 +71,7 @@ class HolidayController extends Controller {
 	 * The recent changes to the list, with who made them.
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function history(): DataResponse {
 		return $this->handle(fn () => array_map(
 			fn (array $change): array => [...$change, 'actorName' => $this->name($change['actorUid'])],
@@ -95,6 +96,7 @@ class HolidayController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function regions(): DataResponse {
 		return $this->handle(fn () => $this->service->regions());
 	}

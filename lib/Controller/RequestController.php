@@ -30,6 +30,7 @@ class RequestController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(
 		string $scope = 'mine',
 		?string $status = null,
@@ -51,6 +52,7 @@ class RequestController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function show(int $id): DataResponse {
 		return $this->handle(fn () => $this->service->getDetail((string)$this->userId, $id));
 	}
