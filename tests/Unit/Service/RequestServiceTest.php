@@ -1404,4 +1404,42 @@ class RequestServiceTest extends TestCase {
 		$this->expectException(ValidationException::class);
 		$this->service->update('hr', 5, ['endDate' => '2036-03-01']);
 	}
+
+	// ----------------------------------------- editing approved leave ----
+
+	public function testEditingApprovedLeaveKeepsTheReasonAndNoteThatWereNotResent(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setReason('Family wedding abroad.');
+		$original->setAttachmentNote('Invitation attached.');
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$edit = $this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+
+		self::assertSame('Family wedding abroad.', $edit->getReason());
+		self::assertSame('Invitation attached.', $edit->getAttachmentNote());
+	}
+
+	public function testEditingApprovedLeaveCanStillClearTheReason(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setReason('Family wedding abroad.');
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$edit = $this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0, 'reason' => '']);
+
+		self::assertSame('', $edit->getReason());
+	}
 }

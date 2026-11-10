@@ -813,7 +813,10 @@ class RequestService {
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $original->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $original->getEndDate()));
-		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
+		// Like an edit in place, what the caller did not send stays as it was.
+		$reason = array_key_exists('reason', $data) ? $data['reason'] : $original->getReason();
+		$note = array_key_exists('attachmentNote', $data) ? $data['attachmentNote'] : $original->getAttachmentNote();
+		$this->validateRange($actorUid, $start, $end, $type, (string)$reason, (string)$note);
 		$replacementUid = $this->resolveReplacement($actorUid, $type, $data['replacementUid'] ?? $original->getReplacementUid());
 		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays());
 		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
@@ -822,7 +825,7 @@ class RequestService {
 		$managerUid = $this->managerResolver->getManagerUid($actorUid);
 
 		$new = $this->withEmployeeLock($actorUid, fn (): LeaveRequest => $this->atomic(function () use (
-			$actorUid, $original, $type, $start, $end, $replacementUid, $workingDays, $managerUid, $now, $data,
+			$actorUid, $original, $type, $start, $end, $replacementUid, $workingDays, $managerUid, $now, $reason, $note,
 		): LeaveRequest {
 			$original = $this->freshForTransition((int)$original->getId(), [LeaveRequest::STATUS_APPROVED], $original->getUpdatedAt());
 			// Re-checked under the lock: two concurrent edits would otherwise both
@@ -838,9 +841,9 @@ class RequestService {
 			$new->setStartDate($start);
 			$new->setEndDate($end);
 			$new->setWorkingDays($workingDays);
-			$new->setReason($data['reason'] ?? null);
+			$new->setReason($reason);
 			$new->setReplacementUid($replacementUid);
-			$new->setAttachmentNote($data['attachmentNote'] ?? null);
+			$new->setAttachmentNote($note);
 			$new->setSupersedesId($original->getId());
 			$new->setStatus($managerUid === null ? LeaveRequest::STATUS_ESCALATED : LeaveRequest::STATUS_PENDING);
 			$new->setEscalated($managerUid === null);
