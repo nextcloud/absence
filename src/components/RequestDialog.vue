@@ -127,7 +127,10 @@
 					@update:modelValue="onWorkingDaysInput" />
 				<p class="dialog__hint dialog__hint--estimate">
 					<span aria-hidden="true">⚠️</span>
-					<template v-if="prefillActive">
+					<template v-if="prefillActive && !isOwnLeave">
+						{{ t('absence', 'Prefilled from the working days and public holidays of {name}. This is only an estimate: always check the number and adjust it manually if it is off.', { name: subjectName }, undefined, { escape: false }) }}
+					</template>
+					<template v-else-if="prefillActive">
 						{{ t('absence', 'Prefilled from your') }}
 						<a
 							:href="settingsUrl"
@@ -216,8 +219,11 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Send from 'vue-material-design-icons/Send.vue'
 import api from '../api.js'
 import { store } from '../store.js'
-import { countWorkingDays, parseWeekdays, toIso } from '../utils/dates.js'
+import { weekdaysOn } from '../utils/contract.js'
+import { parseWeekdays, toIso } from '../utils/dates.js'
 import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.js'
+import { latestOnly } from '../utils/latest.js'
+import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.js'
 
 export default {
 	name: 'RequestDialog',
@@ -242,6 +248,8 @@ export default {
 			// overwriting their number (§7: prefilled but manually changeable).
 			workingDaysTouched: false,
 			holidayChecker: null,
+			// The contract periods of somebody else whose absence this is, once loaded.
+			subjectPeriods: null,
 			reason: '',
 			submitting: false,
 			selectedEmployee: null,
@@ -415,10 +423,23 @@ export default {
 			return Number.isFinite(v) ? v : 0
 		},
 
-		// The prefill note (with a link to the settings) only shows while the value
-		// is still auto-filled; once edited or when editing, use the plain text.
+		/**
+		 * The weekdays the absent person works: mine from the session, somebody
+		 * else's from their contract on the first day of the absence. Null when
+		 * nothing is known, and then nothing is prefilled.
+		 */
+		subjectWeekdays() {
+			return this.isOwnLeave
+				? parseWeekdays(store.session.workWeekdays || '1,2,3,4,5')
+				: weekdaysOn(this.subjectPeriods, this.startIso)
+		},
+
+		// The prefill note only shows while the value is a count made here: not
+		// once edited, and not for the stored count of a saved request.
 		prefillActive() {
-			return !this.isEdit && !this.workingDaysTouched
+			return !this.workingDaysTouched
+				&& this.subjectWeekdays !== null
+				&& !isStoredRange(this.request, this.startIso, this.endIso)
 		},
 
 		settingsUrl() {
@@ -545,6 +566,15 @@ export default {
 			this.recomputePrefill()
 			this.scheduleCoverage()
 		},
+
+		subjectUid() {
+			this.loadSubject()
+		},
+	},
+
+	created() {
+		// HR picking one employee after another: only the last one's data may land.
+		this.startSubjectLoad = latestOnly()
 	},
 
 	beforeUnmount() {
@@ -553,18 +583,9 @@ export default {
 
 	async mounted() {
 		await this.initFromProps()
+		this.loadSubject()
 		if (!this.hrMode && !store.balance.balances.length) {
 			await store.loadMyBalance()
-		}
-		// The holidays load in the background; prefill refreshes once they are
-		// there. Weekday counting works immediately without them.
-		try {
-			const year = new Date().getFullYear()
-			const code = formatRegionCode(store.session.holidayCountry, store.session.holidayRegion)
-			this.holidayChecker = makeHolidayChecker(await api.listApplyingHolidays(code, `${year - 1}-01-01`, `${year + 1}-12-31`))
-			this.recomputePrefill()
-		} catch {
-			// Load failed: prefill stays weekday-only
 		}
 	},
 
@@ -602,13 +623,62 @@ export default {
 			this.workingDaysTouched = true
 		},
 
-		/** Prefill the working-day count from the picked range, unless edited/editing. */
+		/** Prefill the working-day count from the picked range (see prefilledWorkingDays). */
 		recomputePrefill() {
-			if (this.isEdit || this.workingDaysTouched || !this.startIso || !this.endIso) {
+			const value = prefilledWorkingDays({
+				request: this.request,
+				touched: this.workingDaysTouched,
+				startIso: this.startIso,
+				endIso: this.endIso,
+				weekdays: this.subjectWeekdays,
+				isHoliday: this.holidayChecker,
+			})
+			if (value !== null) {
+				this.workingDays = value
+			}
+		},
+
+		/**
+		 * The working days and public holidays of the person whose absence this is.
+		 * Mine are in the session; somebody else's come from their profile. The
+		 * holidays load in the background and the prefill refreshes once they are
+		 * there: weekday counting works without them.
+		 */
+		async loadSubject() {
+			const isLatest = this.startSubjectLoad()
+			this.subjectPeriods = null
+			this.holidayChecker = null
+			this.recomputePrefill()
+			if (!this.subjectUid) {
 				return
 			}
-			const weekdays = parseWeekdays(store.session.workWeekdays || '1,2,3,4,5')
-			this.workingDays = String(countWorkingDays(this.startIso, this.endIso, weekdays, this.holidayChecker))
+			let code = formatRegionCode(store.session.holidayCountry, store.session.holidayRegion)
+			if (!this.isOwnLeave) {
+				try {
+					const profile = await api.getProfile(this.subjectUid)
+					if (!isLatest()) {
+						return
+					}
+					this.subjectPeriods = profile.contract.periods
+					code = profile.regionCode
+					this.recomputePrefill()
+				} catch {
+					if (isLatest()) {
+						showError(t('absence', 'Could not load the working days of {name}', { name: this.subjectName }, undefined, { escape: false }))
+					}
+					return
+				}
+			}
+			try {
+				const year = new Date().getFullYear()
+				const holidays = await api.listApplyingHolidays(code, `${year - 1}-01-01`, `${year + 1}-12-31`)
+				if (isLatest()) {
+					this.holidayChecker = makeHolidayChecker(holidays)
+					this.recomputePrefill()
+				}
+			} catch {
+				// Load failed: prefill stays weekday-only
+			}
 		},
 
 		formatDays(v) {

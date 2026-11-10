@@ -818,8 +818,11 @@ client-side estimate: days in the picked range that fall on the user's working
 weekdays (from their contract, §6.4, or while HR has not entered one, from their
 Availability settings) minus the public holidays listed for the user's region code
 (§7.2). The estimate is served by `PersonalDefaultsService` + `/api/personal/config`.
-The prefill stops as soon as the user edits the field, is absent when editing an
-existing request, and is **never used server-side** — the manually confirmed number
+The prefill stops as soon as the user edits the field. An existing request opens
+with its stored count and is counted again only once its dates change. For somebody
+else's absence (HR recording or editing) the estimate uses that person's contract
+weekdays and region code, and the field stays empty when they have no contract
+weekdays. It is **never used server-side**: the manually confirmed number
 is what counts (§7).
 
 ### 7.2 Public holidays (a hand-kept list)
