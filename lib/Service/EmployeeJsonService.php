@@ -31,6 +31,8 @@ use OCP\IUserManager;
 class EmployeeJsonService {
 	public const FIELDS = ['region', 'start', 'end', 'contract'];
 	private const IMPORT_LIMIT = 5000;
+	// A full list of IMPORT_LIMIT employees is far below this; refused before decoding
+	private const SIZE_LIMIT = 5 * 1024 * 1024;
 
 	public function __construct(
 		private EmployeeDirectory $directory,
@@ -189,6 +191,9 @@ class EmployeeJsonService {
 	 * @return array{plan: Plan, writes: array<string, array{contract: ?Contract, region: ?string}>}
 	 */
 	private function check(string $json): array {
+		if (strlen($json) > self::SIZE_LIMIT) {
+			return $this->failed([$this->problem(null, null, $this->l->t('The list is too large: at most %d MB', [self::SIZE_LIMIT / 1024 / 1024]))]);
+		}
 		try {
 			$entries = json_decode($json, true, 8, JSON_THROW_ON_ERROR);
 		} catch (\JsonException $e) {

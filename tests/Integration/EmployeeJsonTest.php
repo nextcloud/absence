@@ -125,6 +125,12 @@ class EmployeeJsonTest extends TestCase {
 		self::assertContains(['Region code of %s changed from "%s" to "%s" by %s', [self::ROBIN, 'DE-BY', 'FR', self::HR]], $messages);
 	}
 
+	public function testAnOversizedListIsRefusedBeforeReading(): void {
+		$plan = $this->service->plan('[' . str_repeat(' ', 5 * 1024 * 1024) . ']');
+
+		self::assertSame(['The list is too large: at most 5 MB'], array_column($plan['errors'], 'message'));
+	}
+
 	public function testANumericUserIdImports(): void {
 		$users = Server::get(IUserManager::class);
 		$users->createUser('90417', 'Itest-Password-numeric-json');
@@ -212,6 +218,8 @@ class EmployeeJsonTest extends TestCase {
 		$json = $this->json([['user' => self::SAM, 'region' => 'FR', 'start' => null, 'end' => null, 'contract' => []]]);
 		foreach ([self::SAM, self::MANAGER] as $uid) {
 			self::assertSame(Http::STATUS_FORBIDDEN, $this->controller($uid)->exportJson()->getStatus(), $uid);
+			// The preview shows everyone's data before and after, so it is HR's alone too
+			self::assertSame(Http::STATUS_FORBIDDEN, $this->controller($uid)->importJson($json, true)->getStatus(), $uid);
 			self::assertSame(Http::STATUS_FORBIDDEN, $this->controller($uid)->importJson($json, false)->getStatus(), $uid);
 		}
 		self::assertSame('', Server::get(ConfigService::class)->getPersonalConfig(self::SAM)['holiday_country']);
