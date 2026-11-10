@@ -574,6 +574,12 @@ Rules, enforced server-side at every surface:
   types), in balance rows, in the dashboard widget, and in both CalDAV event
   titles (a personal calendar can be shared, so even the employee's own event
   says only "Absence").
+- **Nothing else tells the category either**: for non-HR the `typeId` list
+  filter ignores confidential types (filtering on one returns nothing), only
+  HR comments on a confidential absence, the manager's dashboard section lists
+  only requests they can decide, and the history text (§3.7) records a
+  confidential type as "Absent", so it stays neutral if the request or the
+  type is reclassified later.
 - **Presentation:** in the Record absence dialog the confidential categories do
   not appear as top-level leave types. HR picks **Sick leave** and a *Category*
   sub-select appears — *General sick leave* (default), *Child sick leave*,

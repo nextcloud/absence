@@ -129,9 +129,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		// 2. Own upcoming / pending leave (all employees).
 		$today = $this->clock->userToday();
 		foreach ($this->ownUpcoming($userId) as $r) {
-			$label = in_array($r->getTypeId(), $hrOnlyIds, true)
-				? $this->l->t('Absent')
-				: ($types[$r->getTypeId()] ?? $this->l->t('Leave'));
+			$label = $this->typeLabel($r, $types, $hrOnlyIds);
 			// For approved leave the countdown ("In 12 days") is the fun, useful line;
 			// anything still undecided keeps its status, which is what matters there.
 			$subtitle = $r->getStatus() === LeaveRequest::STATUS_APPROVED
@@ -149,8 +147,11 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		// 3. Manager: team requests awaiting their decision.
 		if ($isManager) {
 			foreach ($this->requestMapper->findPendingForManager($userId) as $r) {
+				if (!$this->permission->canDecide($userId, $r)) {
+					continue;
+				}
 				$items[] = new WidgetItem(
-					$this->displayName($r->getEmployeeUid()) . ' · ' . ($types[$r->getTypeId()] ?? $this->l->t('Leave')),
+					$this->displayName($r->getEmployeeUid()) . ' · ' . $this->typeLabel($r, $types, $hrOnlyIds),
 					$this->l->t('Awaiting your approval · %s', [$this->range($r)]),
 					$base . '#/requests/' . $r->getId(),
 					$appIcon,
@@ -163,7 +164,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		if ($isHr) {
 			foreach ($this->requestMapper->findEscalated() as $r) {
 				$items[] = new WidgetItem(
-					$this->displayName($r->getEmployeeUid()) . ' · ' . ($types[$r->getTypeId()] ?? $this->l->t('Leave')),
+					$this->displayName($r->getEmployeeUid()) . ' · ' . $this->typeLabel($r, $types, $hrOnlyIds),
 					$this->l->t('Escalated — needs HR · %s', [$this->range($r)]),
 					$base . '#/requests/' . $r->getId(),
 					$appIcon,
@@ -256,6 +257,16 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 			$labels[$type->getId()] = $type->getIcon() . ' ' . $type->getLabel();
 		}
 		return $labels;
+	}
+
+	/**
+	 * @param array<int,string> $types from {@see typeLabels()}
+	 * @param int[] $hrOnlyIds the types this viewer sees under the neutral label
+	 */
+	private function typeLabel(LeaveRequest $r, array $types, array $hrOnlyIds): string {
+		return in_array($r->getTypeId(), $hrOnlyIds, true)
+			? $this->l->t('Absent')
+			: ($types[$r->getTypeId()] ?? $this->l->t('Leave'));
 	}
 
 	private function displayName(string $uid): string {
