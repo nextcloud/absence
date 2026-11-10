@@ -314,4 +314,14 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame('', $this->pushed[0]['note']);
 		self::assertSame([], $this->emailNotes);
 	}
+
+	public function testAnEscalationIsNotSentToThePersonItIsAbout(): void {
+		// An HR member cannot decide their own request, so they are not asked to.
+		$this->withUsers('emp', 'hr1');
+		$this->mailer->expects(self::once())->method('send');
+
+		$this->service->notifyEscalation($this->request(), ['emp', 'hr1']);
+
+		self::assertCount(1, $this->pushed);
+	}
 }
