@@ -70,6 +70,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import api from '../api.js'
+import { entitlementPayload } from '../utils/entitlement.js'
 
 /**
  * HR's editor for one entitlement of one employee and year, with its change
@@ -92,6 +93,7 @@ export default {
 		return {
 			saving: false,
 			form: { baseDays: this.row.baseDays, adjustmentDelta: '', adjustmentNote: '', entitlementId: this.row.entitlementId },
+			storedBaseDays: this.row.baseDays,
 			currentAdjustment: this.row.manualAdjustment || 0,
 			history: [],
 			historyLoading: false,
@@ -106,6 +108,7 @@ export default {
 			if (ent) {
 				this.currentAdjustment = ent.manualAdjustment
 				this.form.baseDays = ent.baseDays
+				this.storedBaseDays = ent.baseDays
 				this.form.entitlementId = ent.id
 			}
 		} catch {
@@ -165,18 +168,13 @@ export default {
 		},
 
 		async save() {
+			const data = entitlementPayload(this.form, this.storedBaseDays)
+			if (data === null) {
+				showError(t('absence', 'Enter the base days as a number.'))
+				return
+			}
 			this.saving = true
 			try {
-				const delta = Number(this.form.adjustmentDelta)
-				const data = {
-					baseDays: Number(this.form.baseDays),
-					adjustmentNote: this.form.adjustmentNote,
-				}
-				// Omitted entirely when blank, so saving a base-days change on its own
-				// never touches the accumulated adjustment.
-				if (this.form.adjustmentDelta !== '' && !Number.isNaN(delta)) {
-					data.adjustmentDelta = delta
-				}
 				if (this.form.entitlementId) {
 					await api.updateEntitlement(this.form.entitlementId, data)
 				} else {
