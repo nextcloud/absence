@@ -909,7 +909,9 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
 
 1. **EscalationJob** (hourly): finds overdue `PENDING` requests and escalates (§5.4).
 2. **ReminderJob** (daily): sends reminder notifications to managers with pending
-   requests approaching the escalation window.
+   requests approaching the escalation window. Each request once: the job stores the
+   cut-off it last processed, so a second run on the same day sends nothing and a
+   missed day is caught up on the next run (at most 7 days back).
 3. **YearRolloverJob** (daily, acts once per year / idempotent): computes carry-over
    and seeds next-year entitlements (§6.2); zeroes expired carry-over.
 4. **CalendarSyncJob** (optional, if async sync chosen): reconciles approved leave
