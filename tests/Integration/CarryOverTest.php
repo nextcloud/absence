@@ -33,7 +33,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 /**
- * The carry-over expiry (§6.2) on a real database: it expires on 2032-03-31.
+ * The year rollover and the carry-over expiry (§6.2) on a real database:
+ * 2031 rolls over into 2032, and carry-over expires on 2032-03-31.
  */
 class CarryOverTest extends TestCase {
 	private const GROUP = 'itest-carry-employees';
@@ -181,5 +182,44 @@ class CarryOverTest extends TestCase {
 			[[EntitlementEvent::ACTOR_SYSTEM, EntitlementEvent::FIELD_CARRY_OVER_DAYS, 5.0, 2.0, 'Carry-over expired']],
 			$this->history($ent),
 		);
+	}
+
+	public function testRolloverCoversEmployeesOnTheDefaultEntitlement(): void {
+		// no row in 2031: 28 days by default, 25 taken
+		$this->leave(self::ON_DEFAULT, LeaveRequest::STATUS_APPROVED, '2031-06-02', 25.0);
+		// a row in 2031: 20 days, none taken, capped at 5
+		$this->entitlement(self::WITH_ROW, 2031, 20.0);
+
+		self::assertSame(['affected' => 2, 'skipped' => 0, 'failed' => 0], $this->service()->rollover(2031));
+
+		$onDefault = $this->stored(self::ON_DEFAULT, 2032);
+		self::assertSame([28.0, 3.0], [$onDefault->getBaseDays(), $onDefault->getCarryOverDays()]);
+		self::assertSame(
+			[[EntitlementEvent::ACTOR_SYSTEM, EntitlementEvent::FIELD_CARRY_OVER_DAYS, 0.0, 3.0, 'Year rollover']],
+			$this->history($onDefault),
+		);
+		$withRow = $this->stored(self::WITH_ROW, 2032);
+		self::assertSame([20.0, 5.0], [$withRow->getBaseDays(), $withRow->getCarryOverDays()]);
+	}
+
+	public function testRunningTheRolloverAgainRecomputesWhatItWrote(): void {
+		$this->entitlement(self::WITH_ROW, 2031, 20.0);
+		$this->service()->rollover(2031);
+		// December leave approved after the first run
+		$this->leave(self::WITH_ROW, LeaveRequest::STATUS_APPROVED, '2031-12-15', 18.0);
+
+		$this->service()->rollover(2031);
+
+		self::assertSame(2.0, $this->stored(self::WITH_ROW, 2032)->getCarryOverDays());
+	}
+
+	public function testRolloverLeavesACarryOverSetByHrAlone(): void {
+		$this->entitlement(self::WITH_ROW, 2031, 20.0);
+		$this->service()->setForEmployee(self::HR, self::WITH_ROW, 2032, $this->annual, ['carryOverDays' => 1.0]);
+
+		$result = $this->service()->rollover(2031);
+
+		self::assertSame(1, $result['skipped']);
+		self::assertSame(1.0, $this->stored(self::WITH_ROW, 2032)->getCarryOverDays());
 	}
 }

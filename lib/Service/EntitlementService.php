@@ -184,52 +184,87 @@ class EntitlementService {
 	}
 
 	/**
-	 * Carry-over rollover from $fromYear into $fromYear + 1 (§6.2). Idempotent.
+	 * Carry-over rollover from $fromYear into $fromYear + 1 (§6.2). Recomputed from
+	 * $fromYear on every run, so running it again is safe.
 	 *
-	 * @return int rows created/updated
+	 * @return array{affected:int,skipped:int,failed:int} rows created or updated, rows
+	 *                                                    left alone because their carry-over was set by hand, rows that failed
 	 */
-	public function rollover(int $fromYear): int {
+	public function rollover(int $fromYear): array {
 		$policy = $this->config->getCarryOverPolicy();
 		$toYear = $fromYear + 1;
-		$affected = 0;
 
-		// Only roll over employees who actually had an entitlement last year, so we
-		// never fabricate balances for users/types HR never granted (§6.1/§6.2).
+		// [uid][typeId] => the base the new year continues: the prior year's, never
+		// the global default, which would override entitlements HR customised.
+		$targets = [];
 		foreach ($this->entitlementMapper->findForYear($fromYear) as $prior) {
-			// One employee whose rollover throws must not abort the whole job: that
-			// would leave everyone after them with no carry-over and stop the caller
-			// (YearRolloverJob) from recording the year as done or running the expiry
-			// pass. Log the offending row and carry on.
-			try {
-				$carry = $this->computeCarryOver($prior->getEmployeeUid(), $fromYear, $prior->getTypeId(), $policy);
+			$targets[$prior->getEmployeeUid()][$prior->getTypeId()] = $prior->getBaseDays();
+		}
+		// Employees without a row live on the configured default, for the annual
+		// type only (§6.1): they carry over like everyone else.
+		$annualTypeId = $this->annualTypeId();
+		if ($annualTypeId !== null) {
+			$default = $this->config->getDefaultEntitlement();
+			foreach ($this->employees->listAll() as $uid) {
+				$targets[$uid][$annualTypeId] ??= $default;
+			}
+		}
+
+		$balances = $this->balanceService->getBalancesForEmployees(array_map('strval', array_keys($targets)), $fromYear);
+		$existing = [];
+		foreach ($this->entitlementMapper->findForYear($toYear) as $next) {
+			$existing[$next->getEmployeeUid()][$next->getTypeId()] = $next;
+		}
+		$setByHand = $this->eventMapper->findIdsWithCarryOverNotSetBy($toYear, EntitlementEvent::ACTOR_SYSTEM);
+
+		$result = ['affected' => 0, 'skipped' => 0, 'failed' => 0];
+		foreach ($targets as $uid => $perType) {
+			$uid = (string)$uid;
+			foreach ($perType as $typeId => $baseDays) {
+				// One employee whose rollover throws must not abort the others: log
+				// the row, carry on, and report it so the caller can retry the year.
 				try {
-					$next = $this->entitlementMapper->findFor($prior->getEmployeeUid(), $toYear, $prior->getTypeId());
-				} catch (DoesNotExistException) {
-					// The new year continues the prior year's base — never the global
-					// default, which would silently override HR-set custom entitlements.
+					$next = $existing[$uid][$typeId] ?? null;
+					if ($next !== null && isset($setByHand[(int)$next->getId()])) {
+						$result['skipped']++;
+						continue;
+					}
+					$carry = $this->carryOverFrom($balances[$uid] ?? [], $typeId, $policy);
 					$now = $this->clock->now();
-					$next = new Entitlement();
-					$next->setEmployeeUid($prior->getEmployeeUid());
-					$next->setYear($toYear);
-					$next->setTypeId($prior->getTypeId());
-					$next->setBaseDays($prior->getBaseDays());
-					$next->setCarryOverDays(0.0);
-					$next->setManualAdjustment(0.0);
-					$next->setCreatedAt($now);
-					$next = $this->entitlementMapper->insert($next);
+					if ($next === null) {
+						$before = 0.0;
+						$next = new Entitlement();
+						$next->setEmployeeUid($uid);
+						$next->setYear($toYear);
+						$next->setTypeId($typeId);
+						$next->setBaseDays($baseDays);
+						$next->setCarryOverDays($carry);
+						$next->setManualAdjustment(0.0);
+						$next->setCreatedAt($now);
+						$next->setUpdatedAt($now);
+						$next = $this->entitlementMapper->insert($next);
+					} else {
+						$before = $next->getCarryOverDays();
+						$next->setCarryOverDays($carry);
+						$next->setUpdatedAt($now);
+						$next = $this->entitlementMapper->update($next);
+					}
+					$this->recordChanges(EntitlementEvent::ACTOR_SYSTEM, $next, [
+						EntitlementEvent::FIELD_BASE_DAYS => $next->getBaseDays(),
+						EntitlementEvent::FIELD_CARRY_OVER_DAYS => $before,
+						EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $next->getManualAdjustment(),
+					], 'Year rollover');
+					$result['affected']++;
+				} catch (\Throwable $e) {
+					$result['failed']++;
+					$this->logger->error('Absence: failed to roll over entitlement', [
+						'app' => 'absence',
+						'employee' => $uid,
+						'typeId' => $typeId,
+						'fromYear' => $fromYear,
+						'exception' => $e,
+					]);
 				}
-				$next->setCarryOverDays($carry);
-				$next->setUpdatedAt($this->clock->now());
-				$this->entitlementMapper->update($next);
-				$affected++;
-			} catch (\Throwable $e) {
-				$this->logger->error('Absence: failed to roll over entitlement', [
-					'app' => 'absence',
-					'employee' => $prior->getEmployeeUid(),
-					'typeId' => $prior->getTypeId(),
-					'fromYear' => $fromYear,
-					'exception' => $e,
-				]);
 			}
 		}
 		$this->logger->info('Absence action: carryover_rollover', [
@@ -238,20 +273,22 @@ class EntitlementService {
 			'fromYear' => $fromYear,
 			'toYear' => $toYear,
 			'policy' => $policy,
-			'affected' => $affected,
-		]);
+		] + $result);
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
-			'Absence carry-over from %s to %s applied to %s entitlements', [(string)$fromYear, (string)$toYear, (string)$affected],
+			'Absence carry-over from %s to %s applied to %s entitlements', [(string)$fromYear, (string)$toYear, (string)$result['affected']],
 		));
-		return $affected;
+		return $result;
 	}
 
-	private function computeCarryOver(string $uid, int $year, int $typeId, string $policy): float {
+	/**
+	 * @param list<array<string,mixed>> $balanceRows one employee's balance rows for the year
+	 */
+	private function carryOverFrom(array $balanceRows, int $typeId, string $policy): float {
 		if ($policy === ConfigService::CARRYOVER_NONE) {
 			return 0.0;
 		}
 		$remaining = 0.0;
-		foreach ($this->balanceService->getBalance($uid, $year)['balances'] as $row) {
+		foreach ($balanceRows as $row) {
 			if ($row['typeId'] === $typeId && $row['remaining'] !== null) {
 				$remaining = max(0.0, (float)$row['remaining']);
 			}
@@ -260,6 +297,15 @@ class EntitlementService {
 			return min($remaining, $this->config->getCarryOverCap());
 		}
 		return $remaining; // unlimited
+	}
+
+	private function annualTypeId(): ?int {
+		foreach ($this->leaveTypeMapper->findAll() as $type) {
+			if ($type->getKey() === 'annual' && $type->getCountsAgainstBalance()) {
+				return (int)$type->getId();
+			}
+		}
+		return null;
 	}
 
 	/**
