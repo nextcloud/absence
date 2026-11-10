@@ -8,6 +8,8 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\Db\LeaveRequest;
+use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\RequestService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -19,6 +21,8 @@ use Psr\Log\LoggerInterface;
 
 class RequestController extends Controller {
 	use ApiControllerTrait;
+
+	private const MAX_LIMIT = 500;
 
 	public function __construct(
 		string $appName,
@@ -43,14 +47,22 @@ class RequestController extends Controller {
 		int $limit = 200,
 		int $offset = 0,
 	): DataResponse {
-		return $this->handle(fn () => $this->service->listSerialized((string)$this->userId, [
-			'scope' => $scope,
-			'status' => $status,
-			'typeId' => $typeId,
-			'from' => $from,
-			'to' => $to,
-			'employeeUid' => $employeeUid,
-		], $limit, $offset));
+		return $this->handle(function () use ($scope, $status, $typeId, $from, $to, $employeeUid, $limit, $offset) {
+			// One status, or several separated by commas
+			foreach (array_filter(array_map('trim', explode(',', (string)$status))) as $one) {
+				if (!in_array($one, [...LeaveRequest::ACTIVE_STATUSES, ...LeaveRequest::TERMINAL_STATUSES], true)) {
+					throw new AbsenceException($this->l->t('Unknown status: %s', [$one]));
+				}
+			}
+			return $this->service->listSerialized((string)$this->userId, [
+				'scope' => $scope,
+				'status' => $status,
+				'typeId' => $typeId,
+				'from' => $from,
+				'to' => $to,
+				'employeeUid' => $employeeUid,
+			], max(1, min(self::MAX_LIMIT, $limit)), max(0, $offset));
+		});
 	}
 
 	#[NoAdminRequired]

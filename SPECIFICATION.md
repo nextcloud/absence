@@ -1211,6 +1211,7 @@ the SPA). All list endpoints paginate and accept filters.
 
 **Requests**
 - `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status, type, date range, employee, group).
+  `limit` is kept within 1 to 500 and `offset` at 0 or more; an unknown `status` is a 400.
 - `POST /api/requests` — create (§5.1).
 - `GET  /api/requests/{id}` — detail (with comments, coverage summary, and the
   employee's **balance** for that leave type in the year the leave starts — gated on
