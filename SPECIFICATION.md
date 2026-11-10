@@ -67,8 +67,12 @@ There are four effective roles. A single user may hold several simultaneously
   (Note: there is no `IAccountManager::PROPERTY_MANAGER` constant in NC 34 — the
   manager relationship lives on `IUser`, not in the account-properties list.)
 - Resolution is cached per-request. The resolved manager user id is denormalized
-  onto each leave request at submission time (`manager_uid`) so historical
-  requests remain stable even if the org chart changes later.
+  onto each leave request at submission time (`manager_uid`) as a record of who
+  the manager was then. Who lists, decides and is notified about a request is
+  always the employee's manager today: after a change of manager the open
+  requests move to the new one.
+- A disabled account is not a valid manager, like a guest: the next configured
+  manager is used, or none. Disabled accounts get no notification or email.
 - **The inverse direction never enumerates the user backend.** `isManagerOf()`
   is answered from the *employee's* own manager property (one user lookup — it
   runs inside `canView`/`canDecide` on nearly every request), and
@@ -79,6 +83,11 @@ There are four effective roles. A single user may hold several simultaneously
   made each click O(headcount) on large LDAP instances.
 - **No manager found:** the request is created with `manager_uid = NULL` and is
   routed directly to HR (treated as immediately escalated — see §5.4).
+- **Manager lost later:** a pending request whose employee no longer has a valid
+  manager (account deleted, disabled or unassigned) is escalated to HR: at once
+  when the manager's account is deleted, otherwise on the next run of the
+  escalation job (§5.4). For a withdrawal the deleted manager was to decide, HR
+  is notified again.
 
 ### 2.2 Who counts as an employee (guest accounts)
 
@@ -485,7 +494,8 @@ HR can change it via the HR edit path.
   **escalation window** (admin setting, default 3 working days since creation with
   no decision).
 - Such requests are marked `ESCALATED` (`escalated = true`), and HR is notified
-  (notification + email + activity). HR can then approve/reject on the manager's behalf.
+  (notification + email + activity), except the HR member the request is about.
+  HR can then approve/reject on the manager's behalf.
 - **Race-safe:** the job picks its candidates from a list read moments earlier, and a
   manager may decide one of them in between. The flip is therefore a single conditional
   `UPDATE … WHERE status = 'PENDING'` (`LeaveRequestMapper::markEscalated()`), never an
