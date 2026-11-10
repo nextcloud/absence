@@ -1338,4 +1338,70 @@ class RequestServiceTest extends TestCase {
 
 		self::assertSame(['dismiss', 'notify'], $order);
 	}
+
+	// ------------------------------------------------------ dates and span ----
+
+	/** @return array<string,array{0:string,1:string}> */
+	public static function implausibleDates(): array {
+		return [
+			'a day that does not exist' => ['2026-02-31', '2026-03-04'],
+			'an end that does not exist' => ['2026-04-01', '2026-04-31'],
+			'not zero-padded' => ['2026-4-1', '2026-04-02'],
+			'a year far ahead' => ['2026-04-01', '9999-12-31'],
+			'a year long gone' => ['1999-12-31', '2026-04-01'],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('implausibleDates')]
+	public function testImplausibleDatesAreRejected(string $start, string $end): void {
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		// HR, so "entirely in the past" is not what refuses these.
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$this->expectException(ValidationException::class);
+		$this->service->create('hr', ['typeId' => 1, 'startDate' => $start, 'endDate' => $end, 'workingDays' => 1.0, 'employeeUid' => 'emp']);
+	}
+
+	/** @return array<string,array{0:string,1:int,2:bool}> */
+	public static function spans(): array {
+		return [
+			'own leave of 366 days' => ['emp', 366, true],
+			'own leave of 367 days' => ['emp', 367, false],
+			'HR recording two years' => ['hr', 730, true],
+			'HR recording 3660 days' => ['hr', 3660, true],
+			'HR recording 3661 days' => ['hr', 3661, false],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('spans')]
+	public function testTheLengthOfALeaveIsCapped(string $actor, int $days, bool $accepted): void {
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => $uid === 'hr');
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->expects($accepted ? self::once() : self::never())->method('insert')->willReturnArgument(0);
+
+		if (!$accepted) {
+			$this->expectException(ValidationException::class);
+		}
+		$start = new \DateTimeImmutable('+30 days');
+		$this->service->create($actor, [
+			'typeId' => 1,
+			'startDate' => $start->format('Y-m-d'),
+			'endDate' => $start->modify('+' . $days . ' days')->format('Y-m-d'),
+			'workingDays' => 200.0,
+			'employeeUid' => 'emp',
+		]);
+	}
+
+	public function testHrCannotStretchRecordedLeaveBeyondTheCap(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->update('hr', 5, ['endDate' => '2036-03-01']);
+	}
 }

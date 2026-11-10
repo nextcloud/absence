@@ -440,7 +440,8 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
    - Validates dates (`start ≤ end`, not entirely in the past — in the *employee's*
      timezone, §3.9 — unless HR, not
      overlapping an existing non-terminal request for the same user — reject overlap
-     with a clear error).
+     with a clear error). Dates are real `YYYY-MM-DD` dates between 2000 and 2100,
+     at most 366 days from start to end, 3660 when HR records the leave.
    - Enforces `requires_note`, **`requires_replacement`** (the `replacement_uid` must be
      present, a valid user, and not the employee), and that **`working_days` is a positive
      number** — all 422 otherwise. `working_days` is stored as entered, not recomputed.

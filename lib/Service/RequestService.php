@@ -57,6 +57,7 @@ class RequestService {
 		atomic as private transactional;
 	}
 	use WorkingDaysGuardTrait;
+	use DateRangeTrait;
 
 	/** Change events of the running transaction, dispatched once it commits */
 	private array $pendingEvents = [];
@@ -64,6 +65,14 @@ class RequestService {
 	/** Cap on free-text fields to keep rows bounded and prevent storage abuse. */
 	private const MAX_REASON_LENGTH = 2000;
 	private const MAX_COMMENT_LENGTH = 4000;
+
+	/** Leave starts and ends within these years; anything else is a typo. */
+	private const MIN_YEAR = 2000;
+	private const MAX_YEAR = 2100;
+	/** Longest leave somebody may apply for themselves, in days from start to end. */
+	private const MAX_SPAN_DAYS = 366;
+	/** HR records long leave too (parental leave); the coverage view reads this much. */
+	private const MAX_HR_SPAN_DAYS = 3660;
 
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
@@ -897,9 +906,7 @@ class RequestService {
 		if (array_key_exists('disability', $data) && $data['disability'] !== null) {
 			$request->setDisability((bool)$data['disability']);
 		}
-		if ($request->getEndDate() < $request->getStartDate()) {
-			throw new ValidationException($this->l->t('The end date must be on or after the start date.'));
-		}
+		$this->assertValidRange($request->getStartDate(), $request->getEndDate(), self::MAX_HR_SPAN_DAYS);
 		$this->assertWorkingDaysFitRange($request->getWorkingDays(), $request->getStartDate(), $request->getEndDate());
 		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($request): LeaveRequest {
 			$this->assertNoOverlap($request->getEmployeeUid(), $request->getStartDate(), $request->getEndDate(), $this->chainExcludeIds($request));
@@ -1389,10 +1396,12 @@ class RequestService {
 
 	private function normaliseDate(string $date): string {
 		$dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-		if ($dt === false) {
+		// The round trip refuses what the parser would roll over, like 31 February.
+		if ($dt === false || $dt->format('Y-m-d') !== $date
+			|| (int)$dt->format('Y') < self::MIN_YEAR || (int)$dt->format('Y') > self::MAX_YEAR) {
 			throw new ValidationException($this->l->t('Invalid date: %s', [$date]));
 		}
-		return $dt->format('Y-m-d');
+		return $date;
 	}
 
 	/**
@@ -1405,12 +1414,11 @@ class RequestService {
 	}
 
 	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, string $reason, string $note): void {
-		if ($end < $start) {
-			throw new ValidationException($this->l->t('The end date must be on or after the start date.'));
-		}
+		$isHr = $this->permission->isHr($actorUid);
+		$this->assertValidRange($start, $end, $isHr ? self::MAX_HR_SPAN_DAYS : self::MAX_SPAN_DAYS);
 		// the employee's own today, not UTC's — see ClockService
 		$today = $this->clock->userToday();
-		if ($end < $today && !$this->permission->isHr($actorUid)) {
+		if ($end < $today && !$isHr) {
 			throw new ValidationException($this->l->t('You cannot request leave entirely in the past.'));
 		}
 		if ($type->getRequiresNote() && trim($reason) === '' && trim($note) === '') {
