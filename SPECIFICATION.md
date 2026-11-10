@@ -697,7 +697,8 @@ becomes the request's reason.
   one transaction for the whole file.
 - **No side effects.** The leave already sits in the old calendar and the
   people know about it: no notification, e-mail, activity, CalDAV event or
-  `LeaveRequestChangedEvent` (§14b). Each request gets one
+  `LeaveRequestChangedEvent` (§14b). Only imported leave that has not ended
+  yet gets calendar events, later, from `CalendarSyncJob` (§10). Each request gets one
   `request_imported` history event (§3.7) and the import as a whole one
   `leave_imported` server-log entry (§11) with the actor and the counts.
 
@@ -973,8 +974,10 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
 - Sick-leave / private types: allow admin to configure whether the event title on
   the shared calendar reveals the type or shows a neutral "Absent".
 - Events are written when the request is approved. `CalendarSyncJob` (every 15
-  minutes, time-insensitive) writes them for approved leave that has none: imported
-  leave, leave approved while calendar writing was off, and writes that failed. It
+  minutes, time-insensitive) writes them for approved leave that has none and
+  has not ended yet (end date today or later): imported leave, leave approved
+  while calendar writing was off, and writes that failed. Leave that is over
+  never gets events from the job. It
   takes 200 requests per run in id order and keeps its place
   (`calendar_sync_cursor`), so a request that keeps failing never holds the others
   back; it is tried again on the next pass. Nothing runs while both targets are off.

@@ -17,8 +17,9 @@ use OCP\BackgroundJob\TimedJob;
 use OCP\IAppConfig;
 
 /**
- * Writes the calendar events of approved leave that has none (§10): imported
- * leave, leave approved while calendar writing was off, and writes that failed.
+ * Writes the calendar events of approved leave that has none and has not ended
+ * yet (§10): imported leave, leave approved while calendar writing was off, and
+ * writes that failed.
  * A batch per run, in id order, so a request that keeps failing never holds
  * the others back; it is tried again on the next pass.
  */
@@ -43,7 +44,7 @@ class CalendarSyncJob extends TimedJob {
 			return;
 		}
 		$cursor = $this->appConfig->getValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_CALENDAR_SYNC_CURSOR);
-		$requests = $this->requestMapper->findApprovedWithoutCalendarEvent($cursor, self::BATCH_SIZE);
+		$requests = $this->requestMapper->findApprovedWithoutCalendarEvent($cursor, self::BATCH_SIZE, $this->time->now()->format('Y-m-d'));
 		foreach ($requests as $request) {
 			$uri = $this->calendar->onApproved($request);
 			// The request may have been cancelled since the batch was read: then

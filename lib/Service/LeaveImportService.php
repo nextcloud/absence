@@ -39,7 +39,8 @@ use Psr\Log\LoggerInterface;
  * the import has no side effects: no notification, e-mail, activity, CalDAV
  * write or {@see \OCA\Absence\Event\LeaveRequestChangedEvent}. Each request
  * gets a `request_imported` history event and the whole import one entry in
- * the server log.
+ * the server log. Imported leave that has not ended yet gets its calendar
+ * events later, from {@see \OCA\Absence\BackgroundJob\CalendarSyncJob}.
  */
 class LeaveImportService {
 	use DateRangeTrait;

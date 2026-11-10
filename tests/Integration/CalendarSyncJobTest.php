@@ -52,8 +52,8 @@ class CalendarSyncJobTest extends TestCase {
 		$request = new LeaveRequest();
 		$request->setEmployeeUid(self::EMPLOYEE);
 		$request->setTypeId(1);
-		$request->setStartDate('2026-03-02');
-		$request->setEndDate('2026-03-06');
+		$request->setStartDate($this->day('+7 days'));
+		$request->setEndDate($this->day('+11 days'));
 		$request->setWorkingDays(5.0);
 		$request->setStatus(LeaveRequest::STATUS_APPROVED);
 		$request->setCreatedAt(new \DateTime('2026-01-01 09:00:00'));
@@ -154,6 +154,32 @@ class CalendarSyncJobTest extends TestCase {
 			Server::get(IFactory::class),
 			Server::get(LoggerInterface::class),
 		);
+	}
+
+	public function testLeaveThatHasEndedGetsNoEvents(): void {
+		$this->personalCalendarOnly();
+		$this->request->setStartDate($this->day('-5 days'));
+		$this->request->setEndDate($this->day('-1 day'));
+		$this->mapper->update($this->request);
+
+		$this->runJob();
+
+		self::assertNull($this->mapper->find($this->request->getId())->getCalendarEventUri());
+	}
+
+	public function testLeaveEndingTodayStillGetsEvents(): void {
+		$this->personalCalendarOnly();
+		$this->request->setStartDate($this->day('-4 days'));
+		$this->request->setEndDate($this->day('today'));
+		$this->mapper->update($this->request);
+
+		$this->runJob();
+
+		self::assertNotNull($this->mapper->find($this->request->getId())->getCalendarEventUri());
+	}
+
+	private function day(string $offset): string {
+		return (new \DateTimeImmutable($offset, new \DateTimeZone('UTC')))->format('Y-m-d');
 	}
 
 	private function personalCalendarOnly(): void {
