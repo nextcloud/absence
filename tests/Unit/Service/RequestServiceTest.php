@@ -916,6 +916,7 @@ class RequestServiceTest extends TestCase {
 		$request->setManagerUid('boss');
 		$this->requestMapper->method('find')->with(5)->willReturn($request);
 		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('isHr')->willReturn(true);
 		$this->permission->method('isHrOnlyRequest')->willReturn(true);
 		$this->permission->method('getHrUids')->willReturn(['hr1', 'hr2']);
 		$this->commentMapper->method('insert')->willReturnArgument(0);

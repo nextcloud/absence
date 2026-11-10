@@ -406,6 +406,13 @@ class RequestService {
 		if (isset($filters['to'])) {
 			$query['to'] = (string)$filters['to'];
 		}
+		// The type filter ignores confidential types (§5.7) for anyone but HR, like
+		// every other surface where they see no category.
+		if (isset($query['typeId']) && $scope !== 'hr'
+			&& in_array($query['typeId'], $this->leaveTypeMapper->hrOnlyTypeIds(), true)
+			&& !$this->permission->isHr($actorUid)) {
+			return [];
+		}
 
 		if ($scope === 'reports' || $scope === 'approvals') {
 			$query['managerUid'] = $actorUid;
@@ -542,7 +549,7 @@ class RequestService {
 		// original ask survives: the request itself only ever shows its *current*
 		// state, so once HR corrects the dates or the reason, nothing else can say
 		// what the leave was booked for in the first place.
-		$parts = [$type->getLabel() . ', ' . $this->describeRange($request) . ' (' . $this->days($request->getWorkingDays()) . ')'];
+		$parts = [$this->historyLabel($type) . ', ' . $this->describeRange($request) . ' (' . $this->days($request->getWorkingDays()) . ')'];
 		$reason = trim((string)$request->getReason());
 		if ($reason !== '') {
 			$parts[] = 'Reason: ' . $this->quote($reason);
@@ -645,10 +652,19 @@ class RequestService {
 
 	private function typeLabel(int $typeId): string {
 		try {
-			return $this->leaveTypeMapper->find($typeId)->getLabel();
+			return $this->historyLabel($this->leaveTypeMapper->find($typeId));
 		} catch (DoesNotExistException) {
 			return 'type #' . $typeId;
 		}
+	}
+
+	/**
+	 * The name of a type as the history records it. The text stays as written
+	 * whatever happens to the type or the request later, so a confidential
+	 * type (§5.7) is recorded under the neutral wording.
+	 */
+	private function historyLabel(LeaveType $type): string {
+		return $type->getHrOnly() ? 'Absent' : $type->getLabel();
 	}
 
 	// ---------------------------------------------------------------- edit ----
@@ -1089,6 +1105,11 @@ class RequestService {
 
 	public function addComment(string $actorUid, int $id, string $body): RequestComment {
 		$request = $this->get($actorUid, $id);
+		// The thread of a confidential absence (§5.7) is read by HR alone, so only
+		// HR writes to it.
+		if ($this->permission->isHrOnlyRequest($request) && !$this->permission->isHr($actorUid)) {
+			throw new ForbiddenException($this->l->t('Only HR can comment on this absence.'));
+		}
 		if (trim($body) === '') {
 			throw new ValidationException($this->l->t('Comment cannot be empty.'));
 		}
