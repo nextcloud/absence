@@ -293,10 +293,10 @@ export default {
 		filters() {
 			const count = (test) => this.rows.filter(test).length
 			return [
-				{ id: 'all', label: t('absence', 'All {count}', { count: this.rows.length }) },
-				{ id: 'missing', label: `⚠️ ${t('absence', 'Missing data {count}', { count: count(this.matches.missing) })}` },
-				{ id: 'partTime', label: t('absence', 'Part-time {count}', { count: count(this.matches.partTime) }) },
-				{ id: 'startsOrLeaves', label: t('absence', 'Starts or leaves in {year} {count}', { year: this.year, count: count(this.matches.startsOrLeaves) }) },
+				{ id: 'all', label: n('absence', 'All {count}', 'All {count}', this.rows.length, { count: this.rows.length }) },
+				{ id: 'missing', label: `⚠️ ${n('absence', 'Missing data {count}', 'Missing data {count}', count(this.matches.missing), { count: count(this.matches.missing) })}` },
+				{ id: 'partTime', label: n('absence', 'Part-time {count}', 'Part-time {count}', count(this.matches.partTime), { count: count(this.matches.partTime) }) },
+				{ id: 'startsOrLeaves', label: n('absence', 'Starts or leaves in {year} {count}', 'Starts or leaves in {year} {count}', count(this.matches.startsOrLeaves), { year: this.year, count: count(this.matches.startsOrLeaves) }) },
 			]
 		},
 

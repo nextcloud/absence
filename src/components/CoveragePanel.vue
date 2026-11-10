@@ -5,10 +5,10 @@
 <template>
 	<div class="section">
 		<NcNoteCard v-if="coverage.conflict" type="warning">
-			{{ t('absence', 'Approving this would put {peak} team members off at once (limit {threshold}).', { peak: coverage.projectedPeak, threshold: coverage.threshold }) }}
+			{{ n('absence', 'Approving this would put %n team member off at once (limit {threshold}).', 'Approving this would put %n team members off at once (limit {threshold}).', coverage.projectedPeak, { threshold: coverage.threshold }) }}
 		</NcNoteCard>
 		<NcNoteCard v-else type="success">
-			{{ t('absence', 'Coverage looks fine — at most {peak} away at once.', { peak: coverage.projectedPeak ?? coverage.maxConcurrent }) }}
+			{{ n('absence', 'Coverage looks fine: at most %n person away at once.', 'Coverage looks fine: at most %n people away at once.', coverage.projectedPeak ?? coverage.maxConcurrent) }}
 		</NcNoteCard>
 
 		<h4 class="section__title">
@@ -34,7 +34,7 @@
 </template>
 
 <script>
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
@@ -48,7 +48,7 @@ export default {
 		coverage: { type: Object, required: true },
 	},
 
-	methods: { t },
+	methods: { n, t },
 }
 </script>
 

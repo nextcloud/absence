@@ -169,13 +169,13 @@ export default {
 				// leave is not something to enjoy, either.
 				const headline = type.key === 'sick'
 					? t('absence', 'Get well soon.')
-					: t('absence', 'Enjoy your {type}!', { type: type.label.toLowerCase() })
+					: t('absence', 'Enjoy your time off!')
 				return {
 					icon: type.icon,
 					color: type.color,
 					eyebrow: t('absence', 'You are off right now'),
 					headline,
-					sub: range,
+					sub: `${type.label} · ${range}`,
 					live: false,
 				}
 			}
@@ -324,7 +324,7 @@ export default {
 			}
 			window.dispatchEvent(new CustomEvent('absence:celebrate'))
 			const type = store.leaveType(fresh[0].typeId)
-			showSuccess(t('absence', 'Your {type} is approved — enjoy! ✈️', { type: type.label.toLowerCase() }))
+			showSuccess(t('absence', 'Approved: {type}. Enjoy! ✈️', { type: type.label }))
 		},
 	},
 }

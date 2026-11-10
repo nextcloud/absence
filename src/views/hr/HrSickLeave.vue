@@ -18,7 +18,7 @@
 					</template>
 				</NcTextField>
 				<NcCheckboxRadioSwitch v-model="onlyAffected" type="switch">
-					{{ t('absence', 'Only employees with {type}', { type: countedLabel }) }}
+					{{ t('absence', 'Only employees with recorded days') }}
 				</NcCheckboxRadioSwitch>
 				<NcSelect
 					v-model="type"
@@ -71,8 +71,8 @@
 				<StatTile
 					icon="🤒"
 					:value="fmt(totals.days)"
-					:label="t('absence', 'days of {type}', { type: countedLabel })"
-					:caption="t('absence', 'in {year}', { year })"
+					:label="t('absence', 'days in {year}', { year })"
+					:caption="countedLabel"
 					accent="var(--color-warning)" />
 				<StatTile
 					icon="👥"
@@ -174,7 +174,7 @@
 				:name="search ? t('absence', 'No matches') : t('absence', 'Nothing recorded')"
 				:description="search
 					? t('absence', 'No employee matches “{query}”.', { query: search })
-					: t('absence', 'Nobody has recorded {type} in {year}.', { type: countedLabel, year })">
+					: t('absence', 'No days recorded in {year} ({type}).', { type: countedLabel, year })">
 				<template #icon>
 					<Thermometer :size="20" />
 				</template>
@@ -236,14 +236,13 @@ export default {
 		 * What the page is actually counting, in the report's own words. Taken from
 		 * the server's answer rather than from the picker so the labels stay true in
 		 * the default case too — where nothing is picked and the server resolved the
-		 * "sick" key on its own. Lowercased because every use sits mid-sentence
-		 * ("days of sick leave").
+		 * "sick" key on its own.
 		 */
 		countedLabel() {
 			if (!this.types.length) {
-				return t('absence', 'sick leave')
+				return t('absence', 'Sick leave')
 			}
-			return this.types.map((type) => type.label).join(' / ').toLowerCase()
+			return this.types.map((type) => type.label).join(' / ')
 		},
 
 		filtered() {
