@@ -58,7 +58,6 @@ class UserDeletedListener implements IEventListener {
 			'action' => 'user_data_purged',
 			'employee' => $uid,
 		]);
-		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence data of %s purged', [$uid]));
 
 		// Remove the calendar events of the user's leave *before* the request rows go:
 		// they hold the calendar_event_uri references, and the shared team calendar
@@ -89,6 +88,7 @@ class UserDeletedListener implements IEventListener {
 		$this->atomic(function () use ($uid, $requestIds): void {
 			$this->purgeRows($uid, $requestIds);
 		}, $this->db);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence data of %s purged', [$uid]));
 	}
 
 	/**

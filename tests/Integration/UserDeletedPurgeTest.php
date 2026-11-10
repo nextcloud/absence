@@ -22,6 +22,7 @@ use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use OCP\Notification\IManager;
 use OCP\Notification\INotification;
 use OCP\Server;
@@ -97,7 +98,16 @@ class UserDeletedPurgeTest extends TestCase {
 		self::assertNotContains(['absence', '', 'absence_request', (string)$this->decided->getId()], $taken);
 	}
 
+	public function testThePurgeGoesToTheAuditLogOnceItIsDone(): void {
+		$messages = $this->auditMessages();
+
+		Server::get(IUserManager::class)->get(self::GONE)->delete();
+
+		self::assertContains('Absence data of ' . self::GONE . ' purged', $messages->getArrayCopy());
+	}
+
 	public function testAFailureLeavesNothingHalfRemoved(): void {
+		$messages = $this->auditMessages();
 		$employees = $this->createMock(EmployeeService::class);
 		$employees->method('purge')->willThrowException(new \RuntimeException('itest'));
 		$listener = new UserDeletedListener(
@@ -121,6 +131,18 @@ class UserDeletedPurgeTest extends TestCase {
 
 		self::assertSame([self::OTHER], $this->column('absence_comments', 'author_uid', 'request_id', $this->own->getId()));
 		self::assertSame([self::GONE], $this->column('absence_requests', 'employee_uid', 'id', $this->own->getId()));
+		self::assertNotContains('Absence data of ' . self::GONE . ' purged', $messages->getArrayCopy());
+	}
+
+	/**
+	 * @return \ArrayObject<int, string> filled as audit events are dispatched
+	 */
+	private function auditMessages(): \ArrayObject {
+		$messages = new \ArrayObject();
+		Server::get(IEventDispatcher::class)->addListener(CriticalActionPerformedEvent::class, static function (CriticalActionPerformedEvent $event) use ($messages): void {
+			$messages->append(vsprintf($event->getLogMessage(), $event->getParameters()));
+		});
+		return $messages;
 	}
 
 	private function request(string $employee, ?string $decidedBy): LeaveRequest {
