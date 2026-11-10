@@ -106,6 +106,7 @@ properly. Every rule and design decision is documented in the
 		<command>OCA\Absence\Command\ExportHolidays</command>
 		<command>OCA\Absence\Command\ImportEmployees</command>
 		<command>OCA\Absence\Command\ExportEmployees</command>
+		<command>OCA\Absence\Command\ImportLeave</command>
 	</commands>
 	<activity>
 		<settings>
