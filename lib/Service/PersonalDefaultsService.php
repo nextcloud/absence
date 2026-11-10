@@ -11,6 +11,7 @@ namespace OCA\Absence\Service;
 use OCA\Absence\ConfigLexicon;
 use OCA\DAV\CalDAV\Schedule\Plugin;
 use OCA\DAV\Db\PropertyMapper;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Sabre\VObject\Reader;
 
@@ -23,6 +24,10 @@ use Sabre\VObject\Reader;
  *
  * The weekdays are only a suggestion: the request field stays editable. The
  * holiday region code is never guessed: people set it themselves (§7.2).
+ *
+ * The dav app's PropertyMapper is not public API, so it is fetched from the
+ * container when needed: this service still builds, and answers with the other
+ * defaults, when that class is missing or changed.
  */
 class PersonalDefaultsService {
 	/** Availability RRULE BYDAY tokens → ISO weekday (Mon=1..Sun=7). */
@@ -32,7 +37,7 @@ class PersonalDefaultsService {
 		private ConfigService $appConfig,
 		private EmployeeService $employees,
 		private ClockService $clock,
-		private PropertyMapper $propertyMapper,
+		private ContainerInterface $container,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -105,14 +110,27 @@ class PersonalDefaultsService {
 
 	/** Raw VAVAILABILITY string from the user's CalDAV inbox, or null if unset. */
 	private function readAvailability(string $uid): ?string {
+		$propertyMapper = $this->propertyMapper();
+		if ($propertyMapper === null) {
+			return null;
+		}
 		try {
 			$path = 'calendars/' . $uid . '/inbox';
 			$name = '{' . Plugin::NS_CALDAV . '}calendar-availability';
-			$props = $this->propertyMapper->findPropertyByPathAndName($uid, $path, $name);
+			$props = $propertyMapper->findPropertyByPathAndName($uid, $path, $name);
 			$value = $props[0] ?? null;
 			return $value !== null ? $value->getPropertyvalue() : null;
 		} catch (\Throwable $e) {
 			$this->logger->debug('Absence: could not read availability for ' . $uid, ['exception' => $e]);
+			return null;
+		}
+	}
+
+	private function propertyMapper(): mixed {
+		try {
+			return $this->container->get(PropertyMapper::class);
+		} catch (\Throwable $e) {
+			$this->logger->warning('Absence: PropertyMapper unavailable, availability is not read', ['exception' => $e]);
 			return null;
 		}
 	}
