@@ -1,6 +1,6 @@
 {
 	"name": "nextcloud/absence",
-	"description": "Vacation approval workflow for Nextcloud",
+	"description": "Vacation and sick-leave management for your whole company",
 	"type": "project",
 	"license": "AGPL-3.0-or-later",
 	"authors": [

@@ -39,6 +39,7 @@ PHP (via composer scripts):
 - Conventional-commit style: `feat(scope): …`, `fix(scope): …`, `chore(assets): recompile`.
 - REUSE/SPDX compliance is CI-enforced: every file needs `SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors` and `SPDX-License-Identifier: AGPL-3.0-or-later` headers (or a `.license` sidecar / `REUSE.toml` entry).
 - Tabs for indentation in both PHP and JS (Nextcloud style).
+- Migration class prefixes are a running counter (`Version1000Date…` to `Version1010Date…`), and the server sorts on it before the date part. The next migration must be `Version1011Date<YYYYMMDDHHMMSS>` or higher: a lower prefix would run before the existing ones on a fresh install.
 
 ## Architecture
 

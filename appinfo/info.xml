@@ -57,7 +57,7 @@ properly. Every rule and design decision is documented in the
 [specification](https://github.com/nextcloud/absence/blob/main/SPECIFICATION.md).
 	]]></description>
 	<version>1.0.0-beta.1</version>
-	<licence>agpl</licence>
+	<licence>AGPL-3.0-or-later</licence>
 	<author mail="frank@nextcloud.com">Frank Karlitschek</author>
 	<namespace>Absence</namespace>
 	<category>organization</category>
@@ -73,7 +73,6 @@ properly. Every rule and design decision is documented in the
 	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/hr-statistics.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/hr-balances.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/hr-whos-off.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/absence/main/screenshots/admin-settings.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="34" max-version="36"/>
 	</dependencies>
