@@ -642,7 +642,8 @@ statutory entitlement for employees with a recognised disability. Rules:
 
 - HR sets `base_days` per employee per year per counting type via the HR area.
 - Bulk actions: set a default entitlement for a whole group/all employees for a
-  given year (admin default in settings, §11, used to seed).
+  given year (admin default in settings, §11, used to seed). All or nothing, and
+  recorded in each employee's entitlement history (§3.7b) with the HR user as actor.
 - Manual adjustments (+/−) require an `adjustment_note`.
 - The API and the CSV import (§6.3) accept the same figures: a year from 2000 to
   2100, day counts from -9999.9 to 9999.9 with one decimal at most (a finer value

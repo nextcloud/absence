@@ -25,6 +25,7 @@ use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUserManager;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
@@ -71,6 +72,7 @@ class EntitlementServiceTest extends TestCase {
 				$this->createMock(LoggerInterface::class),
 			),
 			new EntitlementValidator($this->l10nMock()),
+			$this->createMock(IDBConnection::class),
 			$this->l10nMock(),
 			$this->logger,
 			$this->dispatcher,
@@ -289,6 +291,6 @@ class EntitlementServiceTest extends TestCase {
 		$this->entitlementMapper->expects(self::never())->method('update');
 
 		$this->expectException(ValidationException::class);
-		$this->service->bulkSet(2026, 99, 28.0, null);
+		$this->service->bulkSet('hr', 2026, 99, 28.0, null);
 	}
 }

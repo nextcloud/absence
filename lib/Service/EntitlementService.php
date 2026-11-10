@@ -18,6 +18,7 @@ use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
 use Psr\Log\LoggerInterface;
@@ -37,6 +38,7 @@ class EntitlementService {
 		private ActivityPublisher $activity,
 		private EmployeeDirectory $employees,
 		private EntitlementValidator $validator,
+		private IDBConnection $db,
 		private IL10N $l,
 		private LoggerInterface $logger,
 		private IEventDispatcher $dispatcher,
@@ -158,25 +160,40 @@ class EntitlementService {
 
 	/**
 	 * Bulk-set the base entitlement for a whole group (or everyone) for a year,
-	 * for a given counting leave type (§6.1).
+	 * for a given counting leave type (§6.1). All or nothing, and recorded in each
+	 * employee's entitlement history like a single edit.
 	 *
 	 * @return int number of employees affected
 	 */
-	public function bulkSet(int $year, int $typeId, float $baseDays, ?string $group): int {
+	public function bulkSet(string $actorUid, int $year, int $typeId, float $baseDays, ?string $group): int {
 		$this->validator->assertYear($year);
 		$this->validator->assertFigures(['baseDays' => $baseDays]);
 		$this->assertCountingType($typeId);
 		$count = 0;
-		foreach ($this->targetUids($group) as $uid) {
-			$ent = $this->balanceService->ensureEntitlement($uid, $year, $typeId);
-			$ent->setBaseDays($baseDays);
-			$ent->setUpdatedAt($this->clock->now());
-			$this->entitlementMapper->update($ent);
-			$count++;
+		$this->db->beginTransaction();
+		try {
+			foreach ($this->targetUids($group) as $uid) {
+				$ent = $this->balanceService->ensureEntitlement($uid, $year, $typeId);
+				$before = [
+					EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
+					EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),
+					EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $ent->getManualAdjustment(),
+				];
+				$ent->setBaseDays($baseDays);
+				$ent->setUpdatedAt($this->clock->now());
+				$ent = $this->entitlementMapper->update($ent);
+				$this->recordChanges($actorUid, $ent, $before, '');
+				$count++;
+			}
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
 		}
 		$this->logger->info('Absence action: entitlement_bulk_set', [
 			'app' => 'absence',
 			'action' => 'entitlement_bulk_set',
+			'actor' => $actorUid,
 			'year' => $year,
 			'typeId' => $typeId,
 			'baseDays' => $baseDays,

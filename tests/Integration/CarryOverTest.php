@@ -99,6 +99,7 @@ class CarryOverTest extends TestCase {
 		$clock->method('serverToday')->willReturn($today);
 		$clock->method('now')->willReturnCallback(static fn (): \DateTime => new \DateTime('now', new \DateTimeZone('UTC')));
 		$config = Server::get(ConfigService::class);
+		$l = Server::get(IFactory::class)->get(ConfigService::APP_ID);
 		return new EntitlementService(
 			Server::get(EntitlementMapper::class),
 			Server::get(EntitlementEventMapper::class),
@@ -110,8 +111,9 @@ class CarryOverTest extends TestCase {
 			Server::get(ActivityPublisher::class),
 			// a fresh one: the shared instance remembers the employees group
 			new EmployeeDirectory(Server::get(IUserManager::class), Server::get(IGroupManager::class), $config, Server::get(LoggerInterface::class)),
-			new EntitlementValidator(Server::get(IFactory::class)->get(ConfigService::APP_ID)),
-			Server::get(IFactory::class)->get(ConfigService::APP_ID),
+			new EntitlementValidator($l),
+			Server::get(IDBConnection::class),
+			$l,
 			Server::get(LoggerInterface::class),
 			Server::get(IEventDispatcher::class),
 		);
