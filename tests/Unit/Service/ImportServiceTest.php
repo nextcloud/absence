@@ -14,13 +14,17 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\ImportService;
+use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class ImportServiceTest extends TestCase {
+	use L10nMockTrait;
+
 	private EntitlementService&MockObject $entitlements;
 	private IDBConnection&MockObject $db;
 	private ImportService $service;
@@ -52,6 +56,7 @@ class ImportServiceTest extends TestCase {
 		$this->db = $this->createMock(IDBConnection::class);
 		$this->service = new ImportService(
 			$this->entitlements,
+			new EntitlementValidator($this->l10nMock()),
 			$leaveTypeMapper,
 			$employees,
 			$this->db,
@@ -94,6 +99,21 @@ class ImportServiceTest extends TestCase {
 		} catch (ValidationException $e) {
 			self::assertStringContainsString("line 3: unknown user 'ghost'", $e->getMessage());
 			self::assertStringContainsString("line 4: 'base_days' is not a number", $e->getMessage());
+		}
+	}
+
+	public function testFiguresTheApiWouldRefuseAbortTheImportToo(): void {
+		$csv = "user,base_days,adjustment,year\nalice,28.25,,\nbob,-1,,\nalice,28,10000,2027\nbob,28,,1999\nalice,27.5,-3,2028\n";
+
+		try {
+			$this->service->plan($csv, 2026);
+			self::fail('expected a ValidationException');
+		} catch (ValidationException $e) {
+			self::assertStringContainsString('line 2: Day counts must be between', $e->getMessage());
+			self::assertStringContainsString('line 3: The base entitlement cannot be negative.', $e->getMessage());
+			self::assertStringContainsString('line 4: Day counts must be between', $e->getMessage());
+			self::assertStringContainsString('line 5: The year must be between 2000 and 2100.', $e->getMessage());
+			self::assertStringNotContainsString('line 6', $e->getMessage());
 		}
 	}
 

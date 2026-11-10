@@ -36,6 +36,7 @@ class EntitlementService {
 		private ClockService $clock,
 		private ActivityPublisher $activity,
 		private EmployeeDirectory $employees,
+		private EntitlementValidator $validator,
 		private IL10N $l,
 		private LoggerInterface $logger,
 		private IEventDispatcher $dispatcher,
@@ -73,6 +74,7 @@ class EntitlementService {
 		if (array_key_exists('adjustmentDelta', $data) && array_key_exists('manualAdjustment', $data)) {
 			throw new ValidationException($this->l->t('Send either an adjustment to apply or an absolute adjustment, not both.'));
 		}
+		$this->validator->assertFigures($data);
 		// Read before any setter runs: these are what the history reports moving from.
 		$before = [
 			EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
@@ -148,6 +150,8 @@ class EntitlementService {
 			throw new ValidationException($this->l->t('Unknown employee.'));
 		}
 		$this->assertCountingType($typeId);
+		$this->validator->assertYear($year);
+		$this->validator->assertFigures($data);
 		$ent = $this->balanceService->ensureEntitlement($employeeUid, $year, $typeId);
 		return $this->update($actorUid, $ent->getId(), $data);
 	}
@@ -159,6 +163,8 @@ class EntitlementService {
 	 * @return int number of employees affected
 	 */
 	public function bulkSet(int $year, int $typeId, float $baseDays, ?string $group): int {
+		$this->validator->assertYear($year);
+		$this->validator->assertFigures(['baseDays' => $baseDays]);
 		$this->assertCountingType($typeId);
 		$count = 0;
 		foreach ($this->targetUids($group) as $uid) {

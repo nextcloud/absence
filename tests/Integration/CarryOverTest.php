@@ -22,6 +22,7 @@ use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IAppConfig;
 use OCP\IDBConnection;
@@ -109,6 +110,7 @@ class CarryOverTest extends TestCase {
 			Server::get(ActivityPublisher::class),
 			// a fresh one: the shared instance remembers the employees group
 			new EmployeeDirectory(Server::get(IUserManager::class), Server::get(IGroupManager::class), $config, Server::get(LoggerInterface::class)),
+			new EntitlementValidator(Server::get(IFactory::class)->get(ConfigService::APP_ID)),
 			Server::get(IFactory::class)->get(ConfigService::APP_ID),
 			Server::get(LoggerInterface::class),
 			Server::get(IEventDispatcher::class),

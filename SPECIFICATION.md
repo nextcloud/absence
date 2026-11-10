@@ -644,6 +644,9 @@ statutory entitlement for employees with a recognised disability. Rules:
 - Bulk actions: set a default entitlement for a whole group/all employees for a
   given year (admin default in settings, §11, used to seed).
 - Manual adjustments (+/−) require an `adjustment_note`.
+- The API and the CSV import (§6.3) accept the same figures: a year from 2000 to
+  2100, day counts from -9999.9 to 9999.9 with one decimal at most (a finer value
+  is refused, not rounded), and a base that is not negative.
 
 ### 6.3 CSV import (onboarding)
 

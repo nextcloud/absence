@@ -20,6 +20,7 @@ use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -69,6 +70,7 @@ class EntitlementServiceTest extends TestCase {
 				$this->createMock(ConfigService::class),
 				$this->createMock(LoggerInterface::class),
 			),
+			new EntitlementValidator($this->l10nMock()),
 			$this->l10nMock(),
 			$this->logger,
 			$this->dispatcher,
@@ -264,6 +266,14 @@ class EntitlementServiceTest extends TestCase {
 		$this->eventMapper->expects(self::never())->method('insert');
 
 		$this->service->update('hr', 1, ['baseDays' => 28.0]);
+	}
+
+	public function testAFigureWithTwoDecimalsIsRefusedNotRounded(): void {
+		$this->entitlementMapper->method('find')->with(1)->willReturn($this->priorEntitlement(28.0));
+		$this->entitlementMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->update('hr', 1, ['baseDays' => 28.25]);
 	}
 
 	/**
