@@ -22,6 +22,7 @@ use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\EntitlementValidator;
+use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\Entity;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IAppConfig;
@@ -204,5 +205,26 @@ class EntitlementHistoryTest extends TestCase {
 		$this->service($interleaved)->update(self::HR, $id, ['adjustmentDelta' => 2.0, 'adjustmentNote' => 'itest wedding']);
 
 		self::assertSame(5.0, $this->stored(self::ANA)->getManualAdjustment());
+	}
+
+	public function testARowCreatedByAnotherRequestInTheMeantimeIsUsed(): void {
+		$existing = $this->entitlement(self::ANA, 20.0);
+		// The lookup ran just before the other request inserted the row.
+		$missesOnce = new class(Server::get(IDBConnection::class)) extends EntitlementMapper {
+			private bool $missed = false;
+
+			#[\Override]
+			public function findFor(string $employeeUid, int $year, int $typeId): Entitlement {
+				if (!$this->missed) {
+					$this->missed = true;
+					throw new DoesNotExistException('not there yet');
+				}
+				return parent::findFor($employeeUid, $year, $typeId);
+			}
+		};
+
+		$ent = $this->balances($missesOnce)->ensureEntitlement(self::ANA, self::YEAR, $this->annual);
+
+		self::assertSame([$existing->getId(), 20.0], [$ent->getId(), $ent->getBaseDays()]);
 	}
 }

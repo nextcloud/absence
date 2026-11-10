@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\DB\Exception;
 use OCP\IL10N;
 
 /**
@@ -344,7 +345,15 @@ class BalanceService {
 			$ent->setManualAdjustment(0.0);
 			$ent->setCreatedAt($now);
 			$ent->setUpdatedAt($now);
-			return $this->entitlementMapper->insert($ent);
+			try {
+				return $this->entitlementMapper->insert($ent);
+			} catch (Exception $e) {
+				if ($e->getReason() !== Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+					throw $e;
+				}
+				// Somebody else created the row in the meantime: use theirs.
+				return $this->entitlementMapper->findFor($employeeUid, $year, $typeId);
+			}
 		}
 	}
 }
