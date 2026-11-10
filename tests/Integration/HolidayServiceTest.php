@@ -101,6 +101,17 @@ class HolidayServiceTest extends TestCase {
 		self::assertSame([], $this->service->listForYear(2027, 'ZZ'));
 	}
 
+	public function testAnOversizedListIsRefusedBeforeReading(): void {
+		$this->createPeople();
+		$json = '[' . str_repeat(' ', 5 * 1024 * 1024) . ']';
+
+		foreach ([true, false] as $dryRun) {
+			$response = $this->controller(self::HR)->import($json, $dryRun);
+			self::assertSame(422, $response->getStatus());
+			self::assertSame(['message' => 'The list is too large: at most 5 MB'], $response->getData());
+		}
+	}
+
 	public function testARegionGetsItsCountryAndCompanyWideDays(): void {
 		$this->service->create('2027-01-01', 'ZZ', 'itest Country day');
 		$this->service->create('2027-01-06', 'ZZ-T1', 'itest Region day');

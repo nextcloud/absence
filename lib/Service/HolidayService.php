@@ -165,6 +165,9 @@ class HolidayService {
 	 * @throws ValidationException naming every invalid entry, nothing is imported then
 	 */
 	public function plan(string $json): array {
+		if (strlen($json) > EmployeeJsonService::SIZE_LIMIT) {
+			throw new ValidationException($this->l->t('The list is too large: at most %d MB', [EmployeeJsonService::SIZE_LIMIT / 1024 / 1024]));
+		}
 		try {
 			$entries = json_decode($json, true, 4, JSON_THROW_ON_ERROR);
 		} catch (\JsonException $e) {

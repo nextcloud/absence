@@ -375,6 +375,16 @@ class LeaveImportTest extends TestCase {
 		self::assertSame(2, $this->countFor(self::ROBIN));
 	}
 
+	public function testAnOversizedListIsRefusedBeforeReading(): void {
+		$json = '[' . str_repeat(' ', 5 * 1024 * 1024) . ']';
+
+		foreach ([true, false] as $dryRun) {
+			$response = $this->controller(self::HR)->leave($json, $dryRun);
+			self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+			self::assertSame(['message' => 'The list is too large: at most 5 MB'], $response->getData());
+		}
+	}
+
 	private function controller(string $uid): ImportController {
 		return new ImportController(
 			'absence',
