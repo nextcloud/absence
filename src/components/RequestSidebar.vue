@@ -81,8 +81,12 @@
 					<template v-if="detail.decidedBy">
 						<dt>{{ t('absence', 'Decided by') }}</dt>
 						<dd class="facts__decided">
-							<NcAvatar :user="detail.decidedBy" :size="20" hideStatus />
-							{{ detail.decidedBy }}<span v-if="decidedAtLabel" class="facts__muted"> · {{ decidedAtLabel }}</span>
+							<NcAvatar
+								:user="detail.decidedBy"
+								:displayName="detail.decidedByName || detail.decidedBy"
+								:size="20"
+								hideStatus />
+							{{ detail.decidedByName || detail.decidedBy }}<span v-if="decidedAtLabel" class="facts__muted"> · {{ decidedAtLabel }}</span>
 						</dd>
 					</template>
 					<template v-if="detail.decisionComment">
@@ -170,7 +174,7 @@
 				<!-- HR's cancel is immediate and notifies the employee, and it is reached
 				     from a browse list where a misclick is easy — so it is confirmed. -->
 				<NcNoteCard v-if="confirmingCancel" type="warning">
-					<p>{{ t('absence', 'Cancel this absence for {employee}? They are notified, and it is removed from the calendars. The record itself is kept, marked cancelled.', { employee: detail.employeeUid }) }}</p>
+					<p>{{ t('absence', 'Cancel this absence for {employee}? They are notified, and it is removed from the calendars. The record itself is kept, marked cancelled.', { employee: employeeName }, undefined, { escape: false }) }}</p>
 					<div class="confirm__actions">
 						<NcButton variant="tertiary" :disabled="busy" @click="confirmingCancel = false">
 							{{ t('absence', 'Back') }}
@@ -217,8 +221,12 @@
 				<ul v-if="detail.comments.length" class="comments">
 					<li v-for="c in detail.comments" :key="c.id" class="comments__item">
 						<div class="comments__head">
-							<NcAvatar :user="c.authorUid" :size="24" hideStatus />
-							<strong>{{ c.authorUid }}</strong>
+							<NcAvatar
+								:user="c.authorUid"
+								:displayName="c.authorName || c.authorUid"
+								:size="24"
+								hideStatus />
+							<strong>{{ c.authorName || c.authorUid }}</strong>
 						</div>
 						<p>{{ c.body }}</p>
 					</li>
@@ -255,8 +263,12 @@
 									{{ t('absence', 'Automatically') }}
 								</template>
 								<template v-else-if="ev.actorUid">
-									<NcAvatar :user="ev.actorUid" :size="20" hideStatus />
-									{{ ev.actorUid }}
+									<NcAvatar
+										:user="ev.actorUid"
+										:displayName="ev.actorName || ev.actorUid"
+										:size="20"
+										hideStatus />
+									{{ ev.actorName || ev.actorUid }}
 								</template>
 								<template v-else>
 									{{ t('absence', 'An administrator') }}

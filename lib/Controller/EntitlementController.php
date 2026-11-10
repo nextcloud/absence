@@ -16,6 +16,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IL10N;
 use OCP\IRequest;
+use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 
 class EntitlementController extends Controller {
@@ -29,6 +30,7 @@ class EntitlementController extends Controller {
 		private PermissionService $permission,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private IUserManager $userManager,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -83,10 +85,18 @@ class EntitlementController extends Controller {
 	public function history(int $id): DataResponse {
 		return $this->handle(function () use ($id) {
 			$this->permission->assertHr((string)$this->userId);
-			return array_map(
-				static fn ($event) => $event->jsonSerialize(),
-				$this->service->historyFor($id),
-			);
+			// One lookup per person, however many changes they made.
+			$names = [];
+			$history = [];
+			foreach ($this->service->historyFor($id) as $event) {
+				// A change made without a user (occ) has no actor to name
+				$uid = $event->getActorUid();
+				if ($uid !== null) {
+					$names[$uid] ??= $this->userManager->getDisplayName($uid) ?? $uid;
+				}
+				$history[] = [...$event->jsonSerialize(), 'actorName' => $uid !== null ? $names[$uid] : null];
+			}
+			return $history;
 		});
 	}
 

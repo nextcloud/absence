@@ -51,7 +51,7 @@
 								{{ fieldLabel(ev.field) }} {{ fmt(ev.oldValue) }} → {{ fmt(ev.newValue) }}
 							</span>
 							<span v-if="ev.note" class="log__note">{{ ev.note }}</span>
-							<span class="log__meta">{{ ev.actorUid || t('absence', 'An administrator') }} · {{ formatDateTime(ev.createdAt) }}</span>
+							<span class="log__meta">{{ ev.actorName || ev.actorUid || t('absence', 'An administrator') }} · {{ formatDateTime(ev.createdAt) }}</span>
 						</div>
 					</li>
 				</ol>
