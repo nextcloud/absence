@@ -49,7 +49,7 @@ Directory already fills in.
 * 📅 Approved leave synced to Nextcloud Calendar (personal and shared team calendar), with configurable type visibility
 * 🔔 Notifications, email and Activity for every step — quoting what people actually wrote, so nobody has to open the app to find out
 * 🔒 Strict server-side permissions, rate limiting and GDPR deletion handling
-* 📝 An always-on audit log in `nextcloud.log`, written regardless of your log level
+* 📝 Every important action recorded in the admin audit log when the Auditing / Logging app is enabled
 
 Full days only for now (no half-days), CSV export only, and deliberately no payroll,
 time-tracking or shift-planning — this app manages leave and does that one thing
@@ -86,18 +86,14 @@ properly. Every rule and design decision is documented in the
 	<repair-steps>
 		<post-migration>
 			<step>OCA\Absence\Migration\SeedConfidentialLeaveTypes</step>
-			<step>OCA\Absence\Migration\EnableAuditLogging</step>
+			<step>OCA\Absence\Migration\RemoveAuditLogCondition</step>
 			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
 			<step>OCA\Absence\Migration\ShareTeamCalendar</step>
 		</post-migration>
 		<install>
 			<step>OCA\Absence\Migration\SeedLeaveTypes</step>
 			<step>OCA\Absence\Migration\SeedConfidentialLeaveTypes</step>
-			<step>OCA\Absence\Migration\EnableAuditLogging</step>
 		</install>
-		<uninstall>
-			<step>OCA\Absence\Migration\DisableAuditLogging</step>
-		</uninstall>
 	</repair-steps>
 	<commands>
 		<command>OCA\Absence\Command\ImportEntitlements</command>

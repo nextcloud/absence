@@ -41,8 +41,7 @@ Absence puts it on infrastructure you already run and already trust:
   notifications and email, approved leave appears in Nextcloud Calendar, and the
   balance sits on the Nextcloud dashboard. Nobody has to remember a new tool exists.
 - **It is auditable by design.** Every decision is written to the request's own
-  history, the Activity feed, and `nextcloud.log` — always, regardless of your log
-  level.
+  history, the Activity feed, and the admin audit log.
 
 ---
 
@@ -335,8 +334,7 @@ Built for a European works council to be comfortable with:
   visible on the shared calendar and the who's-off timeline is an admin decision, and
   the default is a neutral *"Absent"*.
 - **A three-level audit trail**: per-request history, the Nextcloud Activity feed,
-  and a structured JSON entry per action in `nextcloud.log` that is written
-  regardless of your log level.
+  and an entry per action in the admin audit log.
 - **GDPR deletion.** When a user account is deleted, their events are removed from
   the shared calendar, they are detached as anybody's replacement, and their personal
   data is purged — with the purge itself recorded.
@@ -365,7 +363,7 @@ occ app:enable absence
 ```
 
 On install the app seeds four leave types — **Annual leave 🌴**, **Sick leave 🤒**,
-**Unpaid leave 💸** and **Special leave 🕊️** — and switches on its own audit logging.
+**Unpaid leave 💸** and **Special leave 🕊️**.
 Then:
 
 1. Create (or pick) the **HR group** and put your HR people in it.
@@ -394,20 +392,17 @@ the employee decides, and the manager verifies.
 
 ## Audit logging
 
-Every important action — request created / edited / approved / rejected / cancelled,
-withdrawal requested/approved/rejected, escalation, comments, entitlement changes,
-carry-over rollover and expiry, leave-type and holiday changes, admin-config changes,
-and GDPR user-data purge — is written to **`nextcloud.log`** as a structured JSON
-entry tagged `"app":"absence"` with a machine-readable `action` and full context
-(actor, request id, employee, type, dates, working days, status). Where the action
-carried free text, the text is part of the entry: `detail` holds a comment body or a
-decision comment, `reason` holds the note the applicant wrote.
+Every important action (request created / edited / approved / rejected / cancelled,
+withdrawal requested/approved/rejected, escalation, comments, attachments, entitlement
+changes, carry-over rollover and expiry, leave-type and holiday changes, admin-config
+changes, and GDPR user-data purge) goes to the **admin audit log** when the
+*Auditing / Logging* app (`admin_audit`) is enabled. The entry names the action, who
+did it and the id of the request or entitlement. Reasons, comments, leave types and
+file names are not logged: they stay in the app, where access is controlled.
 
-These entries are **always written regardless of the instance log level**. On install
-(and every update) the app adds `absence` to the system `log.condition.apps` list,
-which Nextcloud honours by forcing DEBUG-level capture for the app's tagged messages.
-The existing condition is merged, never replaced, and the entry is removed again on
-uninstall.
+The same actions are written to **`nextcloud.log`** at info level, tagged
+`"app":"absence"` with a machine-readable `action`, so they show up when your log level
+is 1 or lower. The app does not change your `config.php`.
 
 ```bash
 grep '"app":"absence"' nextcloud.log            # everything
