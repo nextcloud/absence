@@ -444,7 +444,7 @@ class RequestService {
 		$scope = (string)($filters['scope'] ?? 'mine');
 		$query = [];
 		if (isset($filters['status'])) {
-			$query['status'] = (string)$filters['status'];
+			$query['status'] = $this->statusFilter((string)$filters['status']);
 		}
 		if (isset($filters['typeId'])) {
 			$query['typeId'] = (int)$filters['typeId'];
@@ -479,6 +479,22 @@ class RequestService {
 		// Default: the actor's own requests.
 		$query['employeeUid'] = $actorUid;
 		return $this->requestMapper->findFiltered($query, $limit, $offset);
+	}
+
+	/**
+	 * The statuses a list is narrowed to: one, or several separated by commas.
+	 *
+	 * @return list<string>
+	 * @throws ValidationException
+	 */
+	private function statusFilter(string $csv): array {
+		$statuses = array_values(array_filter(array_map('trim', explode(',', $csv)), static fn (string $status): bool => $status !== ''));
+		foreach ($statuses as $status) {
+			if (!in_array($status, [...LeaveRequest::ACTIVE_STATUSES, ...LeaveRequest::TERMINAL_STATUSES], true)) {
+				throw new ValidationException($this->l->t('Unknown status: %s', [$status]));
+			}
+		}
+		return $statuses;
 	}
 
 	// -------------------------------------------------------------- create ----

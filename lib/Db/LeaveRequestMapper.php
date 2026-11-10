@@ -61,7 +61,7 @@ class LeaveRequestMapper extends QBMapper {
 	 * Generic filtered query used by the API list endpoint. An `employeeUids`
 	 * filter that is set but empty matches nothing.
 	 *
-	 * @param array{status?:string,typeId?:int,from?:string,to?:string,employeeUid?:string,employeeUids?:string[]} $filters
+	 * @param array{status?:list<string>,typeId?:int,from?:string,to?:string,employeeUid?:string,employeeUids?:string[]} $filters
 	 * @return LeaveRequest[]
 	 */
 	public function findFiltered(array $filters, ?int $limit = null, ?int $offset = null): array {
@@ -78,7 +78,7 @@ class LeaveRequestMapper extends QBMapper {
 			$qb->andWhere($this->employeeIn($qb, $filters['employeeUids']));
 		}
 		if (!empty($filters['status'])) {
-			$qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($filters['status'])));
+			$qb->andWhere($qb->expr()->in('status', $qb->createNamedParameter($filters['status'], IQueryBuilder::PARAM_STR_ARRAY)));
 		}
 		if (!empty($filters['typeId'])) {
 			$qb->andWhere($qb->expr()->eq('type_id', $qb->createNamedParameter($filters['typeId'], IQueryBuilder::PARAM_INT)));

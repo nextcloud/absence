@@ -115,8 +115,7 @@ export default {
 			this.loading = true
 			this.loadError = false
 			try {
-				const reports = await api.listRequests({ scope: 'reports' })
-				this.teamQueue = reports.filter((r) => ACTIONABLE.includes(r.status))
+				this.teamQueue = await api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') })
 				if (store.session.isHr) {
 					this.escalated = await api.listRequests({ scope: 'hr', status: 'ESCALATED' })
 				}

@@ -1219,7 +1219,7 @@ the SPA). All list endpoints paginate and accept filters.
 - `DELETE /api/attachments/{id}` — HR or the uploader.
 
 **Requests**
-- `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status, type, date range, employee, group).
+- `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status (one, or several separated by commas), type, date range, employee, group).
   `limit` is kept within 1 to 500 and `offset` at 0 or more; an unknown `status` is a 400.
 - `POST /api/requests` — create (§5.1).
 - `GET  /api/requests/{id}` — detail (with comments, coverage summary, and the
