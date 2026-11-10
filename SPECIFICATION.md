@@ -1218,6 +1218,9 @@ the SPA). All list endpoints paginate and accept filters.
 - `POST /api/requests/{id}/cancel` — cancel / request withdrawal.
 - `POST /api/requests/{id}/approve` — manager/HR approve (optional comment).
 - `POST /api/requests/{id}/reject` — manager/HR reject (comment required).
+  Every transition (edit, cancel, approve,
+  reject) is decided on the request as it is inside the transaction, and is a
+  409 when another change got there first.
 - `POST /api/requests/{id}/comments` — add comment.
 
 **Balances & entitlements**

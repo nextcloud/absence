@@ -12,6 +12,7 @@ use OCA\Absence\Db\Attachment;
 use OCA\Absence\Db\AttachmentMapper;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -92,6 +93,25 @@ class LeaveRequestMapperTest extends TestCase {
 
 		self::assertSame(LeaveRequest::STATUS_ESCALATED, $this->mapper->find((int)$pending->getId())->getStatus());
 		self::assertSame(LeaveRequest::STATUS_APPROVED, $this->mapper->find((int)$approved->getId())->getStatus());
+	}
+
+	public function testFindForUpdateReadsWhatWasWrittenAfterTheEntityWasLoaded(): void {
+		$loaded = $this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-03-02', '2026-03-03', 2.0);
+		// Somebody else decides the request after it was loaded.
+		$other = $this->mapper->find($loaded->getId());
+		$other->setStatus(LeaveRequest::STATUS_CANCELLED);
+		$this->mapper->update($other);
+
+		$db = Server::get(IDBConnection::class);
+		$db->beginTransaction();
+		try {
+			$fresh = $this->mapper->findForUpdate($loaded->getId());
+		} finally {
+			$db->rollBack();
+		}
+
+		self::assertSame(LeaveRequest::STATUS_PENDING, $loaded->getStatus());
+		self::assertSame(LeaveRequest::STATUS_CANCELLED, $fresh->getStatus());
 	}
 
 	public function testHasApprovedAbsenceCoveringMatchesWholeRangesOnly(): void {

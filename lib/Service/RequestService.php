@@ -132,7 +132,8 @@ class RequestService {
 	 * @throws ConflictException if a competing write holds the lock
 	 */
 	private function withEmployeeLock(string $employeeUid, callable $fn): mixed {
-		$key = 'absence/employee/' . $employeeUid;
+		// Hashed: the lock table's key column holds 64 characters, a uid alone can be that long.
+		$key = 'absence/employee/' . md5($employeeUid);
 		try {
 			$this->lockingProvider->acquireLock($key, ILockingProvider::LOCK_EXCLUSIVE, 'leave of ' . $employeeUid);
 		} catch (LockedException) {
@@ -143,6 +144,29 @@ class RequestService {
 		} finally {
 			$this->lockingProvider->releaseLock($key, ILockingProvider::LOCK_EXCLUSIVE);
 		}
+	}
+
+	/**
+	 * The request as it is now, for a transition (§4) to decide on. Call it inside
+	 * the transaction: the row stays locked until that ends, so the status checked
+	 * here is the status the write replaces, with or without {@see withEmployeeLock()}.
+	 *
+	 * @param string[] $from statuses the transition may start from
+	 * @param ?\DateTimeInterface $seen when given, the `updatedAt` of the request the caller validated against
+	 * @throws ConflictException when the request has moved on since
+	 * @throws NotFoundException
+	 */
+	private function freshForTransition(int $id, array $from, ?\DateTimeInterface $seen = null): LeaveRequest {
+		try {
+			$request = $this->requestMapper->findForUpdate($id);
+		} catch (DoesNotExistException) {
+			throw new NotFoundException($this->l->t('Request not found'));
+		}
+		if (!in_array($request->getStatus(), $from, true)
+			|| ($seen !== null && $request->getUpdatedAt()->getTimestamp() !== $seen->getTimestamp())) {
+			throw new ConflictException($this->l->t('This request was changed in the meantime. Please reload it and try again.'));
+		}
+		return $request;
 	}
 
 	/**
@@ -717,6 +741,8 @@ class RequestService {
 		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use (
 			$request, $type, $start, $end, $replacementUid, $workingDays, $data,
 		): LeaveRequest {
+			// The values validated above default to the ones loaded, so those have to be current too.
+			$request = $this->freshForTransition((int)$request->getId(), LeaveRequest::PENDING_STATUSES, $request->getUpdatedAt());
 			$this->assertNoOverlap($request->getEmployeeUid(), $start, $end, $this->chainExcludeIds($request));
 
 			$request->setTypeId($type->getId());
@@ -771,6 +797,7 @@ class RequestService {
 		$new = $this->withEmployeeLock($actorUid, fn (): LeaveRequest => $this->atomic(function () use (
 			$actorUid, $original, $type, $start, $end, $replacementUid, $workingDays, $managerUid, $now, $data,
 		): LeaveRequest {
+			$original = $this->freshForTransition((int)$original->getId(), [LeaveRequest::STATUS_APPROVED], $original->getUpdatedAt());
 			// Re-checked under the lock: two concurrent edits would otherwise both
 			// find no sibling in the fast check above and both insert.
 			$this->assertNoPendingEdit($original);
@@ -892,14 +919,17 @@ class RequestService {
 		if (in_array($status, LeaveRequest::TERMINAL_STATUSES, true)) {
 			throw new ConflictException($this->l->t('This request is already closed.'));
 		}
+		// What a direct cancellation may start from: anything still open for HR,
+		// only an undecided request for the employee.
+		$cancellable = $isHrOverride ? LeaveRequest::ACTIVE_STATUSES : LeaveRequest::PENDING_STATUSES;
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
-			return $this->transitionToCancelled($actorUid, $request);
+			return $this->transitionToCancelled($actorUid, $request, $cancellable);
 		}
 
 		if ($status === LeaveRequest::STATUS_APPROVED) {
 			if ($isHrOverride) {
-				return $this->transitionToCancelled($actorUid, $request);
+				return $this->transitionToCancelled($actorUid, $request, $cancellable);
 			}
 			// Not while an edit of this leave is awaiting a decision (§5.3). The edit
 			// excludes the original from its overlap check as part of the supersedes
@@ -908,13 +938,14 @@ class RequestService {
 			// approving the edit would leave both in force, the same leave counted
 			// twice, and a declined withdrawal would put two overlapping approved
 			// requests on the same dates. Cancel the edit first, then withdraw.
-			$this->assertNoPendingEdit($request);
 			// Employee: approved leave requires a withdrawal approval step.
-			$request = $this->atomic(function () use ($request): LeaveRequest {
+			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($id): LeaveRequest {
+				$request = $this->freshForTransition($id, [LeaveRequest::STATUS_APPROVED]);
+				$this->assertNoPendingEdit($request);
 				$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
 				$request->setUpdatedAt($this->clock->now());
 				return $this->requestMapper->update($request);
-			}, $this->db);
+			}, $this->db));
 			$recipients = array_filter([$this->managerResolver->getManagerUid($request->getEmployeeUid()), ...$this->permission->getHrUids()]);
 			$this->notifications->notifyWithdrawal($request, array_values($recipients));
 			$this->activity->publish(ActivityPublisher::SUBJECT_WITHDRAWAL, $this->activityParams($request), [$request->getEmployeeUid(), ...$recipients], $request);
@@ -923,27 +954,28 @@ class RequestService {
 		}
 
 		if ($status === LeaveRequest::STATUS_WITHDRAWAL_PENDING && $isHrOverride) {
-			return $this->transitionToCancelled($actorUid, $request);
+			return $this->transitionToCancelled($actorUid, $request, $cancellable);
 		}
 		throw new ConflictException($this->l->t('This request cannot be cancelled in its current state.'));
 	}
 
-	private function transitionToCancelled(string $actorUid, LeaveRequest $request, string $action = 'request_cancelled'): LeaveRequest {
-		// If an already-approved leave is being cancelled, the replacement no longer
-		// covers. WITHDRAWAL_PENDING counts too: it is approved leave awaiting a
-		// withdrawal decision, so the replacement was told they cover (§5.1).
-		$wasApproved = in_array($request->getStatus(), [
-			LeaveRequest::STATUS_APPROVED,
-			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
-		], true);
-		$request = $this->atomic(function () use ($actorUid, $request): LeaveRequest {
+	/**
+	 * @param string[] $from statuses the cancellation may start from
+	 */
+	private function transitionToCancelled(string $actorUid, LeaveRequest $request, array $from, string $action = 'request_cancelled'): LeaveRequest {
+		[$request, $wasApproved] = $this->withEmployeeLock($request->getEmployeeUid(), fn (): array => $this->atomic(function () use ($actorUid, $request, $from): array {
+			$request = $this->freshForTransition((int)$request->getId(), $from);
+			// If an already-approved leave is being cancelled, the replacement no longer
+			// covers. WITHDRAWAL_PENDING counts too: it is approved leave awaiting a
+			// withdrawal decision, so the replacement was told they cover (§5.1).
+			$wasApproved = in_array($request->getStatus(), LeaveRequest::USED_STATUSES, true);
 			$now = $this->clock->now();
 			$request->setStatus(LeaveRequest::STATUS_CANCELLED);
 			$request->setDecidedBy($actorUid);
 			$request->setDecidedAt($now);
 			$request->setUpdatedAt($now);
-			return $this->requestMapper->update($request);
-		}, $this->db);
+			return [$this->requestMapper->update($request), $wasApproved];
+		}, $this->db));
 		// Only drop the calendar entry once the cancellation is durably committed —
 		// removing it first would strand the employee's calendar if the update failed.
 		$this->calendar->onRemoved($request);
@@ -976,7 +1008,8 @@ class RequestService {
 			// cannot slip a new sibling in between.
 			[$request, $retired] = $this->withEmployeeLock(
 				$request->getEmployeeUid(),
-				fn (): array => $this->atomic(function () use ($actorUid, $request, $comment): array {
+				fn (): array => $this->atomic(function () use ($actorUid, $id, $comment): array {
+					$request = $this->freshForTransition($id, LeaveRequest::PENDING_STATUSES);
 					$now = $this->clock->now();
 					$request->setStatus(LeaveRequest::STATUS_APPROVED);
 					$request->setDecidedBy($actorUid);
@@ -1021,7 +1054,7 @@ class RequestService {
 
 		if ($status === LeaveRequest::STATUS_WITHDRAWAL_PENDING) {
 			// Approving a withdrawal cancels the leave.
-			return $this->transitionToCancelled($actorUid, $request, 'withdrawal_approved');
+			return $this->transitionToCancelled($actorUid, $request, [LeaveRequest::STATUS_WITHDRAWAL_PENDING], 'withdrawal_approved');
 		}
 		throw new ConflictException($this->l->t('This request cannot be approved in its current state.'));
 	}
@@ -1040,7 +1073,8 @@ class RequestService {
 		$status = $request->getStatus();
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
-			$request = $this->atomic(function () use ($actorUid, $request, $comment): LeaveRequest {
+			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($actorUid, $id, $comment): LeaveRequest {
+				$request = $this->freshForTransition($id, LeaveRequest::PENDING_STATUSES);
 				$now = $this->clock->now();
 				$request->setStatus(LeaveRequest::STATUS_REJECTED);
 				$request->setDecidedBy($actorUid);
@@ -1048,7 +1082,7 @@ class RequestService {
 				$request->setDecisionComment($comment);
 				$request->setUpdatedAt($now);
 				return $this->requestMapper->update($request);
-			}, $this->db);
+			}, $this->db));
 			$this->notifications->dismiss($request);
 			$this->notifications->notifyDecision($request, false);
 			$this->activity->publish(ActivityPublisher::SUBJECT_REJECTED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
@@ -1061,13 +1095,14 @@ class RequestService {
 			// approval comment intact and record the refusal as a comment instead —
 			// the status change and that comment are one unit, or the employee could
 			// see their leave reinstated with no stated reason.
-			$request = $this->atomic(function () use ($actorUid, $request, $comment): LeaveRequest {
+			$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($actorUid, $id, $comment): LeaveRequest {
+				$request = $this->freshForTransition($id, [LeaveRequest::STATUS_WITHDRAWAL_PENDING]);
 				$request->setStatus(LeaveRequest::STATUS_APPROVED);
 				$request->setUpdatedAt($this->clock->now());
 				$request = $this->requestMapper->update($request);
 				$this->recordSystemComment($actorUid, $request->getId(), 'Withdrawal declined: ' . $comment);
 				return $request;
-			}, $this->db);
+			}, $this->db));
 			$this->notifications->dismiss($request);
 			// A declined withdrawal is not an approval — tell the employee their
 			// leave stands, not "your leave was approved, enjoy!".
@@ -1254,7 +1289,7 @@ class RequestService {
 			return null;
 		}
 		try {
-			$original = $this->requestMapper->find($request->getSupersedesId());
+			$original = $this->requestMapper->findForUpdate($request->getSupersedesId());
 		} catch (DoesNotExistException) {
 			return null;
 		}
