@@ -39,10 +39,17 @@
 					text-anchor="middle">{{ p.label }}</text>
 			</g>
 		</svg>
+		<ul class="hidden-visually">
+			<li v-for="(item, i) in data" :key="i">
+				{{ item.label }}: {{ fmt(item.value) }}
+			</li>
+		</ul>
 	</figure>
 </template>
 
 <script>
+import { formatNumber } from '../utils/locale.js'
+
 export default {
 	name: 'LineChart',
 	props: {
@@ -89,6 +96,8 @@ export default {
 	},
 
 	methods: {
+		fmt(v) { return formatNumber(v) },
+
 		showLabel(i) {
 			// Avoid crowding: with many points, label every other one.
 			const step = this.data.length > 8 ? 2 : 1

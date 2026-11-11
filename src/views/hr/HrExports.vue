@@ -27,12 +27,16 @@
 						label="displayName"
 						:aria-label-combobox="t('absence', 'Group')" />
 				</div>
-				<a :href="requestsUrl" class="dl">
-					<NcButton variant="primary" :disabled="!requestsUrl">
-						<template #icon><Download :size="20" /></template>
-						{{ t('absence', 'Download requests CSV') }}
-					</NcButton>
-				</a>
+				<NcButton
+					class="dl"
+					variant="primary"
+					:href="requestsUrl ?? undefined"
+					:disabled="!requestsUrl">
+					<template #icon>
+						<Download :size="20" />
+					</template>
+					{{ t('absence', 'Download requests CSV') }}
+				</NcButton>
 			</div>
 
 			<div class="surface card">
@@ -52,12 +56,12 @@
 						label="displayName"
 						:aria-label-combobox="t('absence', 'Group')" />
 				</div>
-				<a :href="balancesUrl" class="dl">
-					<NcButton variant="primary">
-						<template #icon><Download :size="20" /></template>
-						{{ t('absence', 'Download balances CSV') }}
-					</NcButton>
-				</a>
+				<NcButton class="dl" variant="primary" :href="balancesUrl">
+					<template #icon>
+						<Download :size="20" />
+					</template>
+					{{ t('absence', 'Download balances CSV') }}
+				</NcButton>
 			</div>
 		</div>
 	</div>
@@ -149,6 +153,6 @@ export default {
 }
 
 .dl {
-	text-decoration: none;
+	align-self: flex-start;
 }
 </style>
