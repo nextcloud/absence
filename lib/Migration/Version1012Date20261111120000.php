@@ -49,7 +49,10 @@ class Version1012Date20261111120000 extends SimpleMigrationStep {
 				// as type; Nextcloud 34 hands out the Doctrine one.
 				$type = $column->getType();
 				$wrapped = $type instanceof \BackedEnum;
-				if (($wrapped ? $type->value : Type::lookupName($type)) !== Types::STRING) {
+				/** @psalm-suppress UndefinedClass Doctrine is not part of the OCP stubs */
+				$isText = ($wrapped ? $type->value : Type::lookupName($type)) === Types::STRING;
+				if (!$isText) {
+					/** @psalm-suppress UndefinedClass Doctrine is not part of the OCP stubs */
 					$column->setType($wrapped ? Types::STRING : Type::getType(Types::STRING));
 					$column->setLength(10);
 					$changed = true;
