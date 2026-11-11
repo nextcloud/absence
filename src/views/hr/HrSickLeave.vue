@@ -320,7 +320,6 @@ export default {
 				name: 'hr-absences',
 				query: {
 					employee: row.employeeUid,
-					employeeName: row.displayName,
 					// The report can aggregate several sick types; filter by type only
 					// when there is exactly one, so nothing gets hidden.
 					...(this.types.length === 1 ? { type: this.types[0].id } : {}),

@@ -68,6 +68,7 @@ class SessionService {
 			// after every action, so it must not hydrate rows it only counts.
 			'pendingApprovals' => $this->requestMapper->countPendingForEmployees($reports),
 			'escalatedCount' => $isHr ? $this->requestMapper->countEscalated() : 0,
+			'maxAttachmentBytes' => AttachmentService::MAX_SIZE_BYTES,
 		];
 	}
 

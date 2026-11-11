@@ -283,16 +283,18 @@ export default {
 		 * excluded — this is for a trip to look forward to, not every status change.
 		 */
 		celebrateNewApprovals() {
+			// One list per account: several people can share a browser.
+			const key = `${CELEBRATED_KEY}:${store.session.uid}`
 			let raw
 			try {
-				raw = window.localStorage.getItem(CELEBRATED_KEY)
+				raw = window.localStorage.getItem(key)
 			} catch {
 				return // no storage (private mode, etc.) — skip quietly.
 			}
 			const approvedIds = store.requests.filter((r) => r.status === 'APPROVED').map((r) => r.id)
 			const persist = () => {
 				try {
-					window.localStorage.setItem(CELEBRATED_KEY, JSON.stringify(approvedIds))
+					window.localStorage.setItem(key, JSON.stringify(approvedIds))
 				} catch { /* ignore */ }
 			}
 			// First run on this browser: adopt the existing approvals silently so the

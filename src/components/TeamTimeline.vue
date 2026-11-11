@@ -41,9 +41,15 @@
 		</NcEmptyContent>
 
 		<div v-else class="gantt__scroll">
-			<div class="gantt__grid" :style="{ '--day-w': dayWidth + 'px', '--days': days.length }">
+			<!-- Read out as a list of people, each with their absences as text: the
+			     day columns only mean something to the eye. -->
+			<div
+				class="gantt__grid"
+				role="list"
+				:aria-label="t('absence', 'Absences in {month}', { month: monthLabel })"
+				:style="{ '--day-w': dayWidth + 'px', '--days': days.length }">
 				<!-- header -->
-				<div class="gantt__row gantt__row--head">
+				<div class="gantt__row gantt__row--head" aria-hidden="true">
 					<div class="gantt__name gantt__name--head">
 						{{ t('absence', 'Person') }}
 					</div>
@@ -58,7 +64,11 @@
 				</div>
 
 				<!-- rows -->
-				<div v-for="row in rows" :key="row.uid" class="gantt__row">
+				<div
+					v-for="row in rows"
+					:key="row.uid"
+					class="gantt__row"
+					role="listitem">
 					<div class="gantt__name">
 						<NcAvatar
 							:user="row.uid"
@@ -86,11 +96,11 @@
 								'gantt__pill--active': selectable && store.selectedId === seg.requestId,
 							}"
 							:type="selectable ? 'button' : null"
-							:style="{ left: seg.left + 'px', width: seg.width + 'px', '--pill': seg.color }"
+							:style="{ left: seg.left + 'px', width: seg.width + 'px', '--pill': seg.color, '--pill-text': seg.textColor }"
 							:title="seg.title"
-							:aria-label="selectable ? seg.title : null"
 							@click="selectable && $emit('select', seg.requestId)">
 							<span class="gantt__pill-icon" aria-hidden="true">{{ seg.icon }}</span>
+							<span class="hidden-visually">{{ seg.label }}</span>
 						</component>
 					</div>
 				</div>
@@ -129,6 +139,7 @@ import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import SkeletonList from './SkeletonList.vue'
 import api from '../api.js'
 import { statusMeta, store } from '../store.js'
+import { readableTextColor } from '../utils/colors.js'
 import { formatRange, toIso } from '../utils/dates.js'
 import { latestOnly } from '../utils/latest.js'
 import { locale } from '../utils/locale.js'
@@ -209,14 +220,19 @@ export default {
 					continue
 				}
 				const type = store.leaveType(ev.typeId)
+				const dates = formatRange(ev.start, ev.end)
+				const status = statusMeta(ev.status).label
 				byUid[ev.employeeUid].segments.push({
 					requestId: ev.requestId,
 					left: startIdx * this.dayWidth + 2,
 					width: (endIdx - startIdx + 1) * this.dayWidth - 4,
 					color: type.color,
+					textColor: readableTextColor(type.color),
 					icon: type.icon,
 					pending: ev.status !== 'APPROVED',
-					title: `${type.label} · ${formatRange(ev.start, ev.end)}${ev.status !== 'APPROVED' ? ' (' + statusMeta(ev.status).label + ')' : ''}`,
+					title: `${type.label} · ${dates}${ev.status !== 'APPROVED' ? ' (' + status + ')' : ''}`,
+					// What a screen reader gets instead of position, colour and stripes
+					label: t('absence', '{person}: {type}, {dates}, {status}', { person: ev.displayName, type: type.label, dates, status }, undefined, { escape: false }),
 				})
 			}
 			return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))
@@ -436,7 +452,7 @@ $name-w: 180px;
 		padding: 0 8px;
 		border-radius: var(--border-radius-pill, 14px);
 		background: var(--pill);
-		color: #fff;
+		color: var(--pill-text, #fff);
 		font-size: 0.85rem;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 		overflow: hidden;

@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Db\RequestComment;
 use OCA\Absence\Db\RequestCommentMapper;
 use OCA\Absence\Db\RequestEvent;
 use OCA\Absence\Db\RequestEventMapper;
@@ -38,6 +39,7 @@ use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
+use OCP\IUser;
 use OCP\IUserManager;
 use OCP\Lock\ILockingProvider;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
@@ -271,6 +273,51 @@ class RequestServiceTest extends TestCase {
 		$this->rebuildService();
 
 		self::assertNull($this->service->getDetail('hr', 5)['balance']);
+	}
+
+	public function testDetailNamesTheDeciderTheCommentAuthorsAndThePeopleInTheHistory(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		$request->setDecidedBy('lead');
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$comments = [];
+		foreach (['lead', 'emp', 'lead'] as $authorUid) {
+			$comment = new RequestComment();
+			$comment->setAuthorUid($authorUid);
+			$comments[] = $comment;
+		}
+		$this->commentMapper->method('findForRequest')->willReturn($comments);
+		$events = [];
+		foreach (['emp', 'gone', 'lead'] as $actorUid) {
+			$event = new RequestEvent();
+			$event->setActorUid($actorUid);
+			$events[] = $event;
+		}
+		$this->eventMapper->method('findForRequest')->willReturn($events);
+		$lookups = [];
+		$this->userManager->method('get')->willReturnCallback(
+			function (string $uid) use (&$lookups): ?IUser {
+				$lookups[] = $uid;
+				if ($uid === 'gone') {
+					return null;
+				}
+				$user = $this->createMock(IUser::class);
+				$user->method('getDisplayName')->willReturn(['lead' => 'Robin Vale', 'emp' => 'Sam Okoro'][$uid]);
+				return $user;
+			},
+		);
+
+		$detail = $this->service->getDetail('emp', 5);
+
+		self::assertSame('Robin Vale', $detail['decidedByName']);
+		self::assertSame(['Robin Vale', 'Sam Okoro', 'Robin Vale'], array_column($detail['comments'], 'authorName'));
+		self::assertSame(['lead', 'emp', 'lead'], array_column($detail['comments'], 'authorUid'));
+		// An account that no longer exists keeps its uid as the name.
+		self::assertSame(['Sam Okoro', 'gone', 'Robin Vale'], array_column($detail['history'], 'actorName'));
+		// The six comments and events cost one lookup per person.
+		$forThreads = array_slice($lookups, 2);
+		self::assertEqualsCanonicalizing(['lead', 'emp', 'gone'], $forThreads);
 	}
 
 	public function testApplyingForOwnLeaveStillDemandsAReplacement(): void {

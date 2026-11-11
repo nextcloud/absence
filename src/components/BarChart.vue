@@ -36,6 +36,11 @@
 					class="chart__value">{{ fmt(bar.value) }}</text>
 			</g>
 		</svg>
+		<ul class="hidden-visually">
+			<li v-for="(item, i) in data" :key="i">
+				{{ item.label }}: {{ fmt(item.value) }}
+			</li>
+		</ul>
 	</figure>
 </template>
 

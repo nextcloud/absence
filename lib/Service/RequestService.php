@@ -303,7 +303,7 @@ class RequestService {
 			// The disability flag (§5.8) exists for HR eyes only.
 			$detail['disability'] = null;
 		}
-		$detail = $this->withDisplayNames($detail, $request);
+		$detail = $this->withAuthorNames($this->withDisplayNames($detail, $request));
 		// What this absence leaves the person with. Without it, seeing that somebody
 		// took three days says nothing about whether they have any left, and the only
 		// way to find out was to abandon the view for the Balances report and come
@@ -409,7 +409,34 @@ class RequestService {
 		if ($request->getReplacementUid() !== null) {
 			$data['replacementName'] = $this->displayName($request->getReplacementUid());
 		}
+		if (($data['decidedBy'] ?? null) !== null) {
+			$data['decidedByName'] = $this->displayName((string)$data['decidedBy']);
+		}
 		return $data;
+	}
+
+	/**
+	 * Add the display names of the comment authors and of the people in the
+	 * history of a request detail. Each person is looked up once.
+	 *
+	 * @param array<string,mixed> $detail
+	 * @return array<string,mixed>
+	 */
+	private function withAuthorNames(array $detail): array {
+		$names = [];
+		// A history entry written without a user (occ) has no actor to name
+		foreach (array_filter([...array_column($detail['comments'], 'authorUid'), ...array_column($detail['history'], 'actorUid')]) as $uid) {
+			$names[$uid] ??= $this->displayName($uid);
+		}
+		$detail['comments'] = array_map(
+			static fn (array $comment): array => [...$comment, 'authorName' => $names[$comment['authorUid']] ?? null],
+			$detail['comments'],
+		);
+		$detail['history'] = array_map(
+			static fn (array $event): array => [...$event, 'actorName' => $names[$event['actorUid'] ?? ''] ?? null],
+			$detail['history'],
+		);
+		return $detail;
 	}
 
 	/** A user's display name, falling back to the uid for a deleted account. */
