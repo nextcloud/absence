@@ -208,9 +208,11 @@ import type {
 	ContractPeriod,
 	Coverage,
 	CoverageEvent,
+	HolidayRecord,
 	LeaveRequest,
 	LeaveType,
 	RequestCreateData,
+	RequestUpdateData,
 	UserRef,
 } from '../types/index.ts'
 
@@ -236,6 +238,7 @@ import { weekdaysOn } from '../utils/contract.ts'
 import { parseWeekdays, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.ts'
+import { missingYears } from '../utils/holidayYears.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { formatNumber } from '../utils/locale.ts'
 import { namesAndMore } from '../utils/people.ts'
@@ -274,6 +277,9 @@ const workingDays = ref<string | number>('')
 // overwriting their number (§7: prefilled but manually changeable).
 const workingDaysTouched = ref(false)
 const holidayChecker = ref<((iso: string) => boolean) | null>(null)
+// The public holidays fetched so far for the person whose absence this is.
+// Replaced with the person, so a late answer for the previous one lands nowhere.
+let holidaySource: { code: string, years: Set<number>, days: HolidayRecord[] } | null = null
 // The contract periods of somebody else whose absence this is, once loaded.
 const subjectPeriods = ref<ContractPeriod[] | null>(null)
 const reason = ref('')
@@ -558,11 +564,13 @@ watch(selectedType, () => {
 
 watch(startIso, () => {
 	recomputePrefill()
+	loadHolidays()
 	scheduleCoverage()
 })
 
 watch(endIso, () => {
 	recomputePrefill()
+	loadHolidays()
 	scheduleCoverage()
 })
 
@@ -647,6 +655,7 @@ async function loadSubject() {
 	const isLatest = startSubjectLoad()
 	subjectPeriods.value = null
 	holidayChecker.value = null
+	holidaySource = null
 	recomputePrefill()
 	const uid = subjectUid.value
 	if (!uid) {
@@ -669,15 +678,32 @@ async function loadSubject() {
 			return
 		}
 	}
+	holidaySource = { code, years: new Set(), days: [] }
+	await loadHolidays()
+}
+
+/**
+ * Fetches the public holidays of the years of the picked range that are not
+ * there yet, in one request, and refreshes the prefill with them.
+ */
+async function loadHolidays() {
+	const source = holidaySource
+	const years = source ? missingYears(startIso.value, endIso.value, source.years) : []
+	if (!source || years.length === 0) {
+		return
+	}
+	// Marked before the answer: both dates can change at once, and must not ask twice
+	years.forEach((year) => source.years.add(year))
 	try {
-		const year = new Date().getFullYear()
-		const holidays = await api.listApplyingHolidays(code, `${year - 1}-01-01`, `${year + 1}-12-31`)
-		if (isLatest()) {
-			holidayChecker.value = makeHolidayChecker(holidays)
+		const days = await api.listApplyingHolidays(source.code, `${Math.min(...years)}-01-01`, `${Math.max(...years)}-12-31`)
+		source.days.push(...days)
+		if (source === holidaySource) {
+			holidayChecker.value = makeHolidayChecker(source.days)
 			recomputePrefill()
 		}
 	} catch {
-		// Load failed: prefill stays weekday-only
+		// Load failed: prefill stays weekday-only, and the next date change asks again
+		years.forEach((year) => source.years.delete(year))
 	}
 }
 
@@ -802,35 +828,39 @@ async function onReplacementSearch(query: string) {
  */
 async function submit() {
 	const type = selectedType.value
+	const startDate = startIso.value
+	const endDate = endIso.value
 	// canSubmit already implies the type and both dates: repeated to narrow them.
-	if (!canSubmit.value || !type || !startIso.value || !endIso.value) {
+	if (!canSubmit.value || !type || !startDate || !endDate) {
 		return
 	}
 	submitting.value = true
-	const payload: RequestCreateData = {
-		typeId: (showSickCategories.value && sickCategory.value && sickCategory.value.id !== null)
-			? sickCategory.value.id
-			: type.id,
-
-		startDate: startIso.value,
-		endDate: endIso.value,
+	const typeId = (showSickCategories.value && sickCategory.value && sickCategory.value.id !== null)
+		? sickCategory.value.id
+		: type.id
+	const changes: RequestUpdateData = {
+		typeId,
+		startDate,
+		endDate,
 		workingDays: workingDaysNum.value,
 		reason: reason.value,
 	}
-	if (props.hrMode && selectedEmployee.value) {
-		payload.employeeUid = selectedEmployee.value.uid
-	}
 	if (showDisability.value) {
-		payload.disability = disability.value
+		changes.disability = disability.value
 	}
 	if (needsReplacement.value && selectedReplacement.value) {
-		payload.replacementUid = selectedReplacement.value.uid
+		changes.replacementUid = selectedReplacement.value.uid
 	}
 	try {
 		if (props.request) {
-			await requestsStore.updateRequest(props.request.id, payload)
+			await requestsStore.updateRequest(props.request.id, changes)
 		} else {
-			await requestsStore.createRequest(payload)
+			const creation: RequestCreateData = { ...changes, typeId, startDate, endDate }
+			// Whose absence it is only counts when it is recorded: the server does not read it on an update
+			if (props.hrMode && selectedEmployee.value) {
+				creation.employeeUid = selectedEmployee.value.uid
+			}
+			await requestsStore.createRequest(creation)
 		}
 		emit('saved')
 	} catch (e) {
