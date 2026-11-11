@@ -18,9 +18,12 @@ use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\SimpleFS\ISimpleFolder;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -38,6 +41,8 @@ class AttachmentServiceTest extends TestCase {
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private PermissionService&MockObject $permission;
 	private ISimpleFolder&MockObject $folder;
+	private LoggerInterface&MockObject $logger;
+	private IEventDispatcher&MockObject $dispatcher;
 	private AttachmentService $service;
 
 	protected function setUp(): void {
@@ -50,6 +55,8 @@ class AttachmentServiceTest extends TestCase {
 		$appData->method('getFolder')->willReturn($this->folder);
 		$factory = $this->createMock(IAppDataFactory::class);
 		$factory->method('get')->willReturn($appData);
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->dispatcher = $this->createMock(IEventDispatcher::class);
 		$this->service = new AttachmentService(
 			$this->attachmentMapper,
 			$this->requestMapper,
@@ -57,7 +64,8 @@ class AttachmentServiceTest extends TestCase {
 			$factory,
 			$this->clockAtRealTime(),
 			$this->l10nMock(),
-			$this->createMock(LoggerInterface::class),
+			$this->logger,
+			$this->dispatcher,
 		);
 	}
 
@@ -156,15 +164,96 @@ class AttachmentServiceTest extends TestCase {
 		$this->service->upload('hr', 5, $this->upload());
 	}
 
-	public function testOnlyHrOrTheUploaderMayDelete(): void {
+	private function attachment(string $uploader): Attachment {
 		$attachment = new Attachment();
 		$attachment->setId(9);
 		$attachment->setRequestId(5);
-		$attachment->setUploaderUid('emp');
+		$attachment->setUploaderUid($uploader);
 		$this->attachmentMapper->method('find')->willReturn($attachment);
+		return $attachment;
+	}
+
+	public function testOnlyHrOrTheUploaderMayDelete(): void {
+		$this->request();
+		$this->attachment('emp');
 		$this->permission->method('isHr')->willReturn(false);
 
 		$this->expectException(ForbiddenException::class);
 		$this->service->delete('boss', 9);
+	}
+
+	public function testTheUploaderDeletesTheirFileOnAnOpenRequest(): void {
+		$this->request(LeaveRequest::STATUS_PENDING);
+		$attachment = $this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::once())->method('delete')->with($attachment);
+
+		$this->service->delete('emp', 9);
+	}
+
+	public static function closedStatuses(): array {
+		return [[LeaveRequest::STATUS_REJECTED], [LeaveRequest::STATUS_CANCELLED]];
+	}
+
+	#[DataProvider('closedStatuses')]
+	public function testTheUploaderMayNotDeleteOnceTheRequestIsClosed(string $status): void {
+		$this->request($status);
+		$this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$this->expectException(ForbiddenException::class);
+		$this->service->delete('emp', 9);
+	}
+
+	public function testTheUploaderMayNotDeleteWhatTheyNoLongerSee(): void {
+		// Uploaded while in the HR group, on someone else's request
+		$this->request(LeaveRequest::STATUS_PENDING);
+		$this->attachment('former-hr');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$this->expectException(ForbiddenException::class);
+		$this->service->delete('former-hr', 9);
+	}
+
+	public function testHrDeletesOnAClosedRequest(): void {
+		$this->request(LeaveRequest::STATUS_REJECTED);
+		$attachment = $this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(true);
+		$this->attachmentMapper->expects(self::once())->method('delete')->with($attachment);
+
+		$this->service->delete('hr', 9);
+	}
+
+	public function testAddingAndRemovingGoToTheLogsWithIdsOnly(): void {
+		$this->request(LeaveRequest::STATUS_PENDING);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->method('countForRequest')->willReturn(0);
+		$this->attachmentMapper->method('insert')->willReturnCallback(static function (Attachment $a): Attachment {
+			$a->setId(77);
+			return $a;
+		});
+		$logged = [];
+		$this->logger->method('info')->willReturnCallback(function (string $message, array $context) use (&$logged): void {
+			$logged[] = $context;
+		});
+		$audited = [];
+		$this->dispatcher->method('dispatchTyped')->willReturnCallback(function (CriticalActionPerformedEvent $event) use (&$audited): void {
+			$audited[] = vsprintf($event->getLogMessage(), $event->getParameters());
+		});
+
+		$attachment = $this->service->upload('emp', 5, $this->upload());
+		$this->attachmentMapper->method('find')->willReturn($attachment);
+		$this->service->delete('emp', 77);
+
+		self::assertSame([
+			['app' => 'absence', 'action' => 'attachment_added', 'actor' => 'emp', 'requestId' => 5, 'attachmentId' => 77],
+			['app' => 'absence', 'action' => 'attachment_removed', 'actor' => 'emp', 'requestId' => 5, 'attachmentId' => 77],
+		], $logged);
+		self::assertSame([
+			'Absence request 5: attachment 77 added by emp',
+			'Absence request 5: attachment 77 removed by emp',
+		], $audited);
 	}
 }

@@ -15,9 +15,11 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Db\RequestEvent;
 use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Exception\ValidationException;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\IUserManager;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -55,6 +57,7 @@ class LeaveImportService {
 		private IL10N $l,
 		private LoggerInterface $logger,
 		private IDBConnection $db,
+		private IEventDispatcher $dispatcher,
 	) {
 	}
 
@@ -192,6 +195,9 @@ class LeaveImportService {
 			'people' => count(array_filter($preview['people'], static fn (array $p): bool => $p['entries'] > 0)),
 			'workingDays' => $preview['days'],
 		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence leave import of %s entries by %s', [(string)$preview['entries'], $actorUid],
+		));
 		return $preview;
 	}
 

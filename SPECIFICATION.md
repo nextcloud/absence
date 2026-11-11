@@ -335,9 +335,10 @@ only** — the manager reads the request, not the medical documents on it. On
 confidential requests (§5.7) even the employee sees none. Upload: HR always;
 the employee on their own non-terminal, non-confidential request (which
 includes HR-recorded sick leave — exactly where a doctor's note belongs).
-Delete: HR, or the uploader. Limits: 10 MB per file, 10 files per request.
+Delete: HR, or the uploader while they still see the request and it is not
+in a terminal state. Limits: 10 MB per file, 10 files per request.
 Attachments never appear in the request-history timeline (it is
-manager-visible); adds and removals go to the always-on audit log. The GDPR
+manager-visible); adds and removals go to the admin audit log (§11). The GDPR
 purge removes rows and bytes. API: §14; the earlier `attachment_note`
 free-text field remains for a quick remark.
 
@@ -626,8 +627,8 @@ statutory entitlement for employees with a recognised disability. Rules:
 - **Seen by HR alone**: serialization nulls the flag for every non-HR viewer —
   the employee's own views included — and the request-history timeline never
   mentions it (`describeChanges()` deliberately excludes it, since the history
-  is visible to the employee and manager). Changes are recorded in the
-  always-on server log instead.
+  is visible to the employee and manager). The logs (§11) record that HR
+  edited the request, not the flag.
 - The flag rides on the request row (`disability`, boolean); it does not alter
   balances or workflows.
 
@@ -1016,23 +1017,21 @@ All four channels are required.
 - **Activity:** implement `OCP\Activity\IProvider` / setting so all state changes
   appear in the Activity app feed, filterable to an "Absence" activity type. Include
   activity for HR overrides and balance adjustments.
-- **Server-log audit trail (always-on):** every important action is written to
-  `nextcloud.log` as a structured entry tagged `["app" => "absence"]` with a
-  machine-readable `action` and full context (actor, request id, employee, type,
-  dates, working days, status) plus, where the action carried free text, that text
-  itself — `detail` for a comment body or decision comment, `reason` for the note
-  the applicant wrote on creation. Covered actions: the full request lifecycle (create,
+- **Audit trail in the logs:** every important action is dispatched as a
+  `CriticalActionPerformedEvent`, which the *Auditing / Logging* app (`admin_audit`)
+  writes to the admin audit log when it is enabled, and is written to
+  `nextcloud.log` at info level, tagged `["app" => "absence"]` with a
+  machine-readable `action`, so it follows the instance log level. Both carry the
+  action, the actor and the ids (request, attachment, entitlement, employee) and
+  nothing else: no reason, comment or decision text, leave type of a request,
+  disability flag or attachment file name. Those stay in the database, where access
+  is controlled (§3.7). Covered actions: the full request lifecycle (create,
   edit, superseding edit, HR edit, approve, reject, cancel, withdrawal
-  request/approve/reject, escalate, comment), entitlement changes, bulk-set,
-  carry-over rollover/expiry, leave import (§6.5), leave-type and holiday changes,
-  admin-config changes, and GDPR user-data purge.
-  - These entries must appear **regardless of the instance log level**. Achieve this
-    with Nextcloud's `log.condition.apps` mechanism: on install/update a repair step
-    merges `absence` into `log.condition.apps` (never clobbering existing config),
-    which makes Nextcloud force DEBUG capture for the app's tagged messages; a
-    matching uninstall step removes it. Only messages tagged `app=absence` (the audit
-    calls) are forced always-on — incidental diagnostic logs still follow the normal
-    level.
+  request/approve/reject, escalate, comment), attachments, entitlement changes,
+  bulk-set, carry-over rollover/expiry, leave import (§6.5), leave-type and holiday
+  changes, admin-config changes, and GDPR user-data purge.
+  - The app does not change the system config. Earlier versions added `absence` to
+    `log.condition.apps`; a repair step removes that entry on update.
   - The same call site also writes the per-request history event (§3.7), keeping the
     log, history and activity in sync.
 
@@ -1592,8 +1591,8 @@ under `prefers-reduced-motion: reduce`.
 - Sick-leave reasons/notes are sensitive: never expose reason/note text to peers;
   restrict shared-calendar titles per the type-visibility setting (§10/§12).
 - Full audit trail on three levels: per-request history (§3.7), the Activity feed,
-  and an always-on `nextcloud.log` audit entry per action (§11) for all decisions,
-  overrides, and balance edits.
+  and an admin audit log entry per action (§11) for all decisions, overrides, and
+  balance edits.
 - Input validation and rate-limiting on create/edit endpoints
   (`#[UserRateLimit]` where appropriate).
 - GDPR: provide data via Nextcloud's user data export/deletion hooks — implement
@@ -1646,7 +1645,7 @@ apps/absence/
 │   ├── Activity/           # Provider + Setting
 │   ├── Exception/          # AbsenceException + Validation/Forbidden/NotFound/Conflict
 │   ├── Migration/          # Version1000Date… schema; Version1001/1002/1003 (columns);
-│   │                       # SeedLeaveTypes; EnableAuditLogging / DisableAuditLogging (§11)
+│   │                       # SeedLeaveTypes; RemoveAuditLogCondition (§11)
 │   ├── Settings/           # Personal (the app settings are an in-app page, §12)
 │   └── Listener/UserDeletedListener.php   # GDPR purge (§17)
 ├── src/                    # Vue 3 SPA: App.vue, router, store, api,
@@ -1670,7 +1669,7 @@ synchronous on decision (§10), which is sufficient for phase 1.
 - ✅ Employee can apply; manager can approve/reject; HR sees overview, stats, export.
 - ✅ Full balance tracking with entitlements + carry-over.
 - ✅ Full-day requests, configurable leave types, manually entered + manager-verified working-day counts (§7).
-- ✅ Notifications (bell), email, activity, **and always-on server-log audit** for all state changes.
+- ✅ Notifications (bell), email, activity, **and the admin audit log** for all state changes.
 - ✅ Escalation to HR on manager non-response.
 - ✅ Edit/cancel/withdraw workflow with balance restoration.
 - ✅ Approved leave written to Nextcloud Calendar (personal + shared team), removed on cancellation.
@@ -1697,7 +1696,7 @@ mobile-tuned views.
 | Replacement | Mandatory for annual/unpaid/special (org-wide picker); replacement gets a push notification on approval and on cancellation (§5.1) |
 | Balances | Full tracking: entitlement, used, pending, remaining, available, carry-over |
 | Calendar | Nextcloud Calendar via CalDAV (personal + shared team) |
-| Notifications | Nextcloud notifications + email + activity stream + always-on server log |
+| Notifications | Nextcloud notifications + email + activity stream + admin audit log |
 | Holidays | A list HR maintains by region code, with a JSON import (§7.2); never used to recompute working days |
 | Working days | Entered manually by the employee, verified by the manager (no auto-calc, no region) |
 | Coverage | Team overlap view + conflict warnings for managers |
@@ -1720,9 +1719,8 @@ Recorded during the build so the spec matches the code:
 - **Manager resolution** uses `OCP\IUser::getManagerUids()` (§2.1). The originally
   proposed `IAccountManager::PROPERTY_MANAGER` does not exist in NC 34 — the manager
   relationship lives on `IUser`, not in the account-properties list.
-- **Always-on audit logging** (§11) was added: a structured `nextcloud.log` entry per
-  important action, forced regardless of log level via a merged `log.condition.apps`
-  repair step (`EnableAuditLogging` / `DisableAuditLogging`).
+- **Audit logging** (§11) was added: an admin audit log entry and an info-level
+  `nextcloud.log` line per important action, with ids only.
 - **Per-request history** (§3.7, `absence_request_events`) was added and surfaced in
   the sidebar History tab, written from the same `audit()` call site.
 - **Dashboard widget** (§15.6) implemented as a role-aware `IAPIWidgetV2` (no custom

@@ -18,8 +18,10 @@ use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IL10N;
 use OCP\IRequest;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use Psr\Log\LoggerInterface;
 
 class LeaveTypeController extends Controller {
@@ -38,6 +40,7 @@ class LeaveTypeController extends Controller {
 		private PermissionService $permission,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private IEventDispatcher $dispatcher,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -84,6 +87,7 @@ class LeaveTypeController extends Controller {
 			$this->assertConfidentialIsHrRecorded($type);
 			$type = $this->mapper->insert($type);
 			$this->logger->info('Absence action: leave_type_created', ['app' => 'absence', 'action' => 'leave_type_created', 'actor' => $this->userId, 'typeId' => $type->getId(), 'key' => $type->getKey()]);
+			$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence leave type %s created by %s', [(string)$type->getId(), (string)$this->userId]));
 			return $type->jsonSerialize();
 		});
 	}
@@ -137,6 +141,7 @@ class LeaveTypeController extends Controller {
 			}
 			$type = $this->mapper->update($type);
 			$this->logger->info('Absence action: leave_type_updated', ['app' => 'absence', 'action' => 'leave_type_updated', 'actor' => $this->userId, 'typeId' => $type->getId(), 'key' => $type->getKey(), 'enabled' => $type->getEnabled()]);
+			$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence leave type %s updated by %s', [(string)$type->getId(), (string)$this->userId]));
 			return $type->jsonSerialize();
 		});
 	}
@@ -197,6 +202,7 @@ class LeaveTypeController extends Controller {
 			$type->setEnabled(false);
 			$type = $this->mapper->update($type);
 			$this->logger->info('Absence action: leave_type_disabled', ['app' => 'absence', 'action' => 'leave_type_disabled', 'actor' => $this->userId, 'typeId' => $type->getId(), 'key' => $type->getKey()]);
+			$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence leave type %s disabled by %s', [(string)$type->getId(), (string)$this->userId]));
 			return $type->jsonSerialize();
 		});
 	}

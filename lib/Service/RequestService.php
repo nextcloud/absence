@@ -1166,12 +1166,12 @@ class RequestService {
 	// --------------------------------------------------------------- helpers ----
 
 	/**
-	 * Record an important action: (1) a structured line in the Nextcloud server log
-	 * (always-on, tagged app=absence) and (2) an immutable entry in the request's
-	 * own history timeline shown to the employee, manager and HR (§15.1).
+	 * Record an important action: (1) a line in the Nextcloud server log and an
+	 * entry in the admin audit log, both with ids only, and (2) an immutable entry
+	 * in the request's own history timeline shown to the employee, manager and HR
+	 * (§15.1), which is where the free text lives.
 	 *
-	 * @param array<string,mixed> $extra `actor` and optional `detail` are consumed;
-	 *                                   everything else is added to the log context.
+	 * @param array<string,mixed> $extra `actor` and optional `detail` are consumed
 	 */
 	/**
 	 * @param array<string,mixed>|null $before {@see snapshot()} of an edited request, for the change event
@@ -1182,18 +1182,16 @@ class RequestService {
 			? (string)$extra['detail']
 			: null;
 
-		$this->logger->info('Absence action: ' . $action, array_merge([
+		$this->logger->info('Absence action: ' . $action, [
 			'app' => 'absence',
 			'action' => $action,
+			'actor' => $actor,
 			'requestId' => $request->getId(),
 			'employee' => $request->getEmployeeUid(),
-			'managerUid' => $request->getManagerUid(),
-			'typeId' => $request->getTypeId(),
-			'startDate' => $request->getStartDate(),
-			'endDate' => $request->getEndDate(),
-			'workingDays' => $request->getWorkingDays(),
-			'status' => $request->getStatus(),
-		], $extra));
+		]);
+		$this->eventDispatcher->dispatchTyped(new \OCP\Log\Audit\CriticalActionPerformedEvent(
+			'Absence request %s: %s by %s', [(string)$request->getId(), $action, $actor],
+		));
 
 		// Other apps learn about changes to the absence itself, not about comments
 		if ($action !== 'comment_added') {

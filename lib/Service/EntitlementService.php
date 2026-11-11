@@ -16,7 +16,9 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IL10N;
+use OCP\Log\Audit\CriticalActionPerformedEvent;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -34,6 +36,7 @@ class EntitlementService {
 		private EmployeeDirectory $employees,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private IEventDispatcher $dispatcher,
 	) {
 	}
 
@@ -121,13 +124,13 @@ class EntitlementService {
 			'app' => 'absence',
 			'action' => 'entitlement_updated',
 			'actor' => $actorUid,
+			'entitlementId' => $ent->getId(),
 			'employee' => $ent->getEmployeeUid(),
 			'year' => $ent->getYear(),
-			'typeId' => $ent->getTypeId(),
-			'baseDays' => $ent->getBaseDays(),
-			'carryOverDays' => $ent->getCarryOverDays(),
-			'manualAdjustment' => $ent->getManualAdjustment(),
 		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence entitlement %s updated by %s', [(string)$ent->getId(), $actorUid],
+		));
 		return $ent;
 	}
 
@@ -172,6 +175,9 @@ class EntitlementService {
 			'group' => $group,
 			'affected' => $count,
 		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence entitlements of leave type %s for %s set for %s people', [(string)$typeId, (string)$year, (string)$count],
+		));
 		return $count;
 	}
 
@@ -232,6 +238,9 @@ class EntitlementService {
 			'policy' => $policy,
 			'affected' => $affected,
 		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence carry-over from %s to %s applied to %s entitlements', [(string)$fromYear, (string)$toYear, (string)$affected],
+		));
 		return $affected;
 	}
 
@@ -282,6 +291,9 @@ class EntitlementService {
 				'year' => $year,
 				'affected' => $affected,
 			]);
+			$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+				'Absence carry-over of %s expired on %s entitlements', [(string)$year, (string)$affected],
+			));
 		}
 		return $affected;
 	}
