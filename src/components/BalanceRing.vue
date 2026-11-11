@@ -40,91 +40,84 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { BalanceRow } from '../types/index.ts'
+
+import { t } from '@nextcloud/l10n'
+import { computed, onMounted, ref } from 'vue'
 import { formatNumber } from '../utils/locale.ts'
 
-export default {
-	name: 'BalanceRing',
-	props: {
-		row: { type: Object, required: true },
-	},
+const props = defineProps<{
+	row: BalanceRow
+}>()
 
-	data() {
-		return {
-			radius: 50,
-			animated: false,
-			tween: 0,
-		}
-	},
+const radius = 50
+const circumference = 2 * Math.PI * radius
 
-	computed: {
-		circumference() {
-			return 2 * Math.PI * this.radius
-		},
+const animated = ref(false)
+const tween = ref(0)
 
-		fraction() {
-			if (!this.row.entitlement || this.row.entitlement <= 0) {
-				return this.row.used > 0 ? 1 : 0
-			}
-			return Math.min(1, Math.max(0, this.row.used / this.row.entitlement))
-		},
+const fraction = computed(() => {
+	if (!props.row.entitlement || props.row.entitlement <= 0) {
+		return props.row.used > 0 ? 1 : 0
+	}
+	return Math.min(1, Math.max(0, props.row.used / props.row.entitlement))
+})
 
-		usedOffset() {
-			// Animate from full (nothing drawn) to the used fraction.
-			return this.animated ? this.circumference * (1 - this.fraction) : this.circumference
-		},
+// Animate from full (nothing drawn) to the used fraction.
+const usedOffset = computed(() => animated.value ? circumference * (1 - fraction.value) : circumference)
 
-		targetValue() {
-			if (this.row.remaining !== null && this.row.remaining !== undefined) {
-				return Number(this.row.remaining)
-			}
-			return Number(this.row.used)
-		},
+const targetValue = computed(() => {
+	if (props.row.remaining !== null && props.row.remaining !== undefined) {
+		return Number(props.row.remaining)
+	}
+	return Number(props.row.used)
+})
 
-		remainingLabel() {
-			return this.format(this.tween)
-		},
+const remainingLabel = computed(() => format(tween.value))
 
-		ariaLabel() {
-			return `${this.row.typeLabel}: ${this.remainingLabel} ${this.t('absence', 'days left')}`
-		},
-	},
+const ariaLabel = computed(() => `${props.row.typeLabel}: ${remainingLabel.value} ${t('absence', 'days left')}`)
 
-	mounted() {
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			this.animated = true
-			this.tween = this.targetValue
-			return
-		}
-		requestAnimationFrame(() => {
-			this.animated = true
-		})
-		this.countUp()
-	},
+onMounted(() => {
+	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		animated.value = true
+		tween.value = targetValue.value
+		return
+	}
+	requestAnimationFrame(() => {
+		animated.value = true
+	})
+	countUp()
+})
 
-	methods: {
-		countUp() {
-			const target = this.targetValue
-			const duration = 900
-			const start = performance.now()
-			const step = (now) => {
-				const p = Math.min(1, (now - start) / duration)
-				// easeOutCubic
-				const eased = 1 - Math.pow(1 - p, 3)
-				this.tween = Math.round(target * eased * 10) / 10
-				if (p < 1) {
-					requestAnimationFrame(step)
-				} else {
-					this.tween = target
-				}
-			}
+/**
+ * Count the figure in the ring up from zero to its value.
+ */
+function countUp() {
+	const target = targetValue.value
+	const duration = 900
+	const start = performance.now()
+	const step = (now: number) => {
+		const p = Math.min(1, (now - start) / duration)
+		// easeOutCubic
+		const eased = 1 - Math.pow(1 - p, 3)
+		tween.value = Math.round(target * eased * 10) / 10
+		if (p < 1) {
 			requestAnimationFrame(step)
-		},
+		} else {
+			tween.value = target
+		}
+	}
+	requestAnimationFrame(step)
+}
 
-		format(v) {
-			return formatNumber(v)
-		},
-	},
+/**
+ * A number of days in the account's locale.
+ *
+ * @param v the number of days
+ */
+function format(v: number): string {
+	return formatNumber(v)
 }
 </script>
 

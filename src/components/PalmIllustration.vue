@@ -101,49 +101,39 @@
 	</svg>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Season } from '../utils/dates.ts'
+
+import { computed } from 'vue'
 import { store } from '../store.ts'
 import { seasonOf } from '../utils/dates.ts'
 
-export default {
-	name: 'PalmIllustration',
-	props: {
-		/** Force a season; by default it follows today's date and the user's country. */
-		season: {
-			type: String,
-			default: null,
-			validator: (v) => v === null || ['winter', 'spring', 'summer', 'autumn'].includes(v),
-		},
-	},
+const props = withDefaults(defineProps<{
+	/** Force a season; by default it follows today's date and the user's country. */
+	season?: Season | null
+}>(), {
+	season: null,
+})
 
-	data() {
-		return {
-			// Fixed rather than random so the illustration is identical on every render
-			// and in screenshots — the staggered delays supply the variety.
-			blossoms: [
-				{ x: 46, y: 62 },
-				{ x: 62, y: 55 },
-				{ x: 88, y: 50 },
-				{ x: 104, y: 58 },
-				{ x: 80, y: 44 },
-			],
+// Fixed rather than random so the illustration is identical on every render
+// and in screenshots — the staggered delays supply the variety.
+const blossoms = [
+	{ x: 46, y: 62 },
+	{ x: 62, y: 55 },
+	{ x: 88, y: 50 },
+	{ x: 104, y: 58 },
+	{ x: 80, y: 44 },
+]
 
-			fallers: [
-				{ x: 40, delay: 0 },
-				{ x: 62, delay: 1.3 },
-				{ x: 84, delay: 2.6 },
-				{ x: 106, delay: 0.7 },
-				{ x: 128, delay: 2 },
-			],
-		}
-	},
+const fallers = [
+	{ x: 40, delay: 0 },
+	{ x: 62, delay: 1.3 },
+	{ x: 84, delay: 2.6 },
+	{ x: 106, delay: 0.7 },
+	{ x: 128, delay: 2 },
+]
 
-	computed: {
-		resolvedSeason() {
-			return this.season || seasonOf(new Date(), store.session.holidayCountry)
-		},
-	},
-}
+const resolvedSeason = computed<Season>(() => props.season || seasonOf(new Date(), store.session.holidayCountry))
 </script>
 
 <style scoped lang="scss">

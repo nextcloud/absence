@@ -41,29 +41,34 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { BalanceRow } from '../types/index.ts'
+
 import { t } from '@nextcloud/l10n'
 import BalanceRing from './BalanceRing.vue'
 import { formatNumber } from '../utils/locale.ts'
 
-export default {
-	name: 'BalanceCard',
-	components: { BalanceRing },
-	props: {
-		row: { type: Object, required: true },
-	},
+defineProps<{
+	row: BalanceRow
+}>()
 
-	methods: {
-		t,
-		format(v) {
-			return formatNumber(v)
-		},
+/**
+ * A number of days in the account's locale.
+ *
+ * @param v the number of days, null counting as none
+ */
+function format(v: number | null): string {
+	return formatNumber(v ?? 0)
+}
 
-		signed(v) {
-			const n = Number(v)
-			return (n >= 0 ? '+' : '−') + this.format(Math.abs(n))
-		},
-	},
+/**
+ * A number of days with its sign in front.
+ *
+ * @param v the number of days
+ */
+function signed(v: number): string {
+	const n = Number(v)
+	return (n >= 0 ? '+' : '−') + format(Math.abs(n))
 }
 </script>
 

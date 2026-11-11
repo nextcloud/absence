@@ -24,7 +24,7 @@
 				:y1="g"
 				:y2="g" />
 			<path class="line__area" :d="areaPath" />
-			<path ref="line" class="line__stroke" :d="linePath" />
+			<path class="line__stroke" :d="linePath" />
 			<g v-for="(p, i) in points" :key="'p' + i">
 				<circle
 					class="line__dot"
@@ -47,63 +47,78 @@
 	</figure>
 </template>
 
-<script>
+<script setup lang="ts">
+import { computed } from 'vue'
 import { formatNumber } from '../utils/locale.ts'
 
-export default {
-	name: 'LineChart',
-	props: {
-		title: { type: String, default: '' },
-		data: { type: Array, required: true }, // [{ label, value }]
-	},
+/** One point of the series */
+interface LineDatum {
+	label: string
+	value: number
+}
 
-	data() {
-		return { width: 640, height: 200, padX: 28, padTop: 16, padBottom: 22 }
-	},
+const props = withDefaults(defineProps<{
+	title?: string
+	data: LineDatum[] // [{ label, value }]
+}>(), {
+	title: '',
+})
 
-	computed: {
-		max() { return Math.max(1, ...this.data.map((d) => d.value)) },
-		points() {
-			const n = this.data.length
-			const usableW = this.width - this.padX * 2
-			const usableH = this.height - this.padTop - this.padBottom
-			return this.data.map((d, i) => ({
-				x: this.padX + (n <= 1 ? usableW / 2 : (usableW * i) / (n - 1)),
-				y: this.padTop + usableH * (1 - d.value / this.max),
-				label: d.label,
-				value: d.value,
-			}))
-		},
+const width = 640
+const height = 200
+const padX = 28
+const padTop = 16
+const padBottom = 22
 
-		linePath() {
-			return this.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
-		},
+const max = computed(() => Math.max(1, ...props.data.map((d) => d.value)))
 
-		areaPath() {
-			if (!this.points.length) {
-				return ''
-			}
-			const base = this.height - this.padBottom
-			const first = this.points[0]
-			const last = this.points[this.points.length - 1]
-			return `M${first.x} ${base} ` + this.points.map((p) => `L${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ` L${last.x} ${base} Z`
-		},
+const points = computed(() => {
+	const n = props.data.length
+	const usableW = width - padX * 2
+	const usableH = height - padTop - padBottom
+	return props.data.map((d, i) => ({
+		x: padX + (n <= 1 ? usableW / 2 : (usableW * i) / (n - 1)),
+		y: padTop + usableH * (1 - d.value / max.value),
+		label: d.label,
+		value: d.value,
+	}))
+})
 
-		gridlines() {
-			const usableH = this.height - this.padTop - this.padBottom
-			return [0, 0.5, 1].map((f) => this.padTop + usableH * f)
-		},
-	},
+const linePath = computed(() => points.value.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '))
 
-	methods: {
-		fmt(v) { return formatNumber(v) },
+const areaPath = computed(() => {
+	const first = points.value.at(0)
+	const last = points.value.at(-1)
+	if (!first || !last) {
+		return ''
+	}
+	const base = height - padBottom
+	return `M${first.x} ${base} ` + points.value.map((p) => `L${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ` L${last.x} ${base} Z`
+})
 
-		showLabel(i) {
-			// Avoid crowding: with many points, label every other one.
-			const step = this.data.length > 8 ? 2 : 1
-			return i % step === 0
-		},
-	},
+const gridlines = computed(() => {
+	const usableH = height - padTop - padBottom
+	return [0, 0.5, 1].map((f) => padTop + usableH * f)
+})
+
+/**
+ * A value in the account's locale.
+ *
+ * @param v the value to format
+ */
+function fmt(v: number): string {
+	return formatNumber(v)
+}
+
+/**
+ * Whether the point gets its label under the axis.
+ *
+ * @param i the index of the point
+ */
+function showLabel(i: number): boolean {
+	// Avoid crowding: with many points, label every other one.
+	const step = props.data.length > 8 ? 2 : 1
+	return i % step === 0
 }
 </script>
 

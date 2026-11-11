@@ -17,17 +17,14 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 
-export default {
-	name: 'SkeletonList',
-	props: {
-		rows: { type: Number, default: 4 },
-	},
-
-	methods: { t },
-}
+withDefaults(defineProps<{
+	rows?: number
+}>(), {
+	rows: 4,
+})
 </script>
 
 <style scoped lang="scss">

@@ -14,25 +14,16 @@
 	</span>
 </template>
 
-<script>
+<script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 import Check from 'vue-material-design-icons/Check.vue'
 
-export default {
-	name: 'SavedCheck',
-	components: { Check },
-	props: {
-		/** When the section was last saved, a new value flashes the check again */
-		savedAt: {
-			type: Number,
-			default: 0,
-		},
-	},
-
-	methods: {
-		t,
-	},
-}
+withDefaults(defineProps<{
+	/** When the section was last saved, a new value flashes the check again */
+	savedAt?: number
+}>(), {
+	savedAt: 0,
+})
 </script>
 
 <style scoped lang="scss">

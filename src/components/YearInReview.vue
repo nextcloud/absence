@@ -35,75 +35,75 @@
 	</section>
 </template>
 
-<script>
+<script setup lang="ts">
 import { n, t } from '@nextcloud/l10n'
+import { computed } from 'vue'
 import { store } from '../store.ts'
 import { addWorkingDaysByMonth } from '../utils/dates.ts'
 import { formatNumber, locale } from '../utils/locale.ts'
 
-export default {
-	name: 'YearInReview',
+/** The figures of the card */
+interface YearStats {
+	days: number
+	trips: number
+	longest: number
+	favouriteMonth: string | null
+}
 
-	props: {
-		year: { type: Number, required: true },
-	},
+const props = defineProps<{
+	year: number
+}>()
 
-	setup() {
-		return { store }
-	},
+/**
+ * Summary of this year's approved, balance-counting leave (holidays and the
+ * like — not sick leave, which is not a "trip"). Null when there is nothing
+ * to celebrate yet, so the card stays hidden.
+ */
+const stats = computed<YearStats | null>(() => {
+	const mine = store.requests.filter((r) => {
+		if (r.status !== 'APPROVED') {
+			return false
+		}
+		if (Number(r.startDate.slice(0, 4)) !== props.year) {
+			return false
+		}
+		// Genuine, balance-counting leave only — not sick leave, and not a
+		// withheld confidential absence (whose type is null on this view).
+		const type = store.leaveType(r.typeId)
+		return type.countsAgainstBalance === true && type.key && type.key !== 'sick'
+	})
+	if (!mine.length) {
+		return null
+	}
+	const months = new Array<number>(12).fill(0)
+	let days = 0
+	let longest = 0
+	for (const r of mine) {
+		days += r.workingDays
+		longest = Math.max(longest, r.workingDays)
+		addWorkingDaysByMonth(months, r.startDate, r.endDate, r.workingDays, props.year)
+	}
+	let favouriteMonth: string | null = null
+	const peak = Math.max(...months)
+	if (peak > 0) {
+		favouriteMonth = new Date(props.year, months.indexOf(peak), 1)
+			.toLocaleDateString(locale(), { month: 'long' })
+	}
+	return {
+		days: Math.round(days * 10) / 10,
+		trips: mine.length,
+		longest: Math.round(longest * 10) / 10,
+		favouriteMonth,
+	}
+})
 
-	computed: {
-		/**
-		 * Summary of this year's approved, balance-counting leave (holidays and the
-		 * like — not sick leave, which is not a "trip"). Null when there is nothing
-		 * to celebrate yet, so the card stays hidden.
-		 */
-		stats() {
-			const mine = store.requests.filter((r) => {
-				if (r.status !== 'APPROVED') {
-					return false
-				}
-				if (Number(r.startDate.slice(0, 4)) !== this.year) {
-					return false
-				}
-				// Genuine, balance-counting leave only — not sick leave, and not a
-				// withheld confidential absence (whose type is null on this view).
-				const type = store.leaveType(r.typeId)
-				return type.countsAgainstBalance === true && type.key && type.key !== 'sick'
-			})
-			if (!mine.length) {
-				return null
-			}
-			const months = new Array(12).fill(0)
-			let days = 0
-			let longest = 0
-			for (const r of mine) {
-				days += r.workingDays
-				longest = Math.max(longest, r.workingDays)
-				addWorkingDaysByMonth(months, r.startDate, r.endDate, r.workingDays, this.year)
-			}
-			let favouriteMonth = null
-			const peak = Math.max(...months)
-			if (peak > 0) {
-				favouriteMonth = new Date(this.year, months.indexOf(peak), 1)
-					.toLocaleDateString(locale(), { month: 'long' })
-			}
-			return {
-				days: Math.round(days * 10) / 10,
-				trips: mine.length,
-				longest: Math.round(longest * 10) / 10,
-				favouriteMonth,
-			}
-		},
-	},
-
-	methods: {
-		t,
-		n,
-		format(v) {
-			return formatNumber(v)
-		},
-	},
+/**
+ * A number of days in the account's locale.
+ *
+ * @param v the number of days
+ */
+function format(v: number): string {
+	return formatNumber(v)
 }
 </script>
 
