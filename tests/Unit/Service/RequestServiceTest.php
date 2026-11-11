@@ -14,6 +14,7 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Db\RequestCommentMapper;
+use OCA\Absence\Db\RequestEvent;
 use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Event\LeaveRequestChangedEvent;
 use OCA\Absence\Exception\ConflictException;
@@ -1073,6 +1074,63 @@ class RequestServiceTest extends TestCase {
 		$this->calendar->expects(self::never())->method('onApproved');
 
 		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
+	}
+
+	public function testHrSettingTheDisabilityFlagIsRecordedInTheHistory(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$recorded = [];
+		$this->eventMapper->method('insert')->willReturnCallback(function (RequestEvent $event) use (&$recorded): RequestEvent {
+			$recorded[$event->getEventType()] = [$event->getActorUid(), $event->getDetail()];
+			return $event;
+		});
+
+		$this->service->update('hr', 5, ['disability' => true]);
+
+		self::assertSame(['hr', 'Set'], $recorded['disability_changed'] ?? null);
+	}
+
+	public function testAnHrEditThatLeavesTheDisabilityFlagAloneRecordsNoFlagEntry(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$types = [];
+		$this->eventMapper->method('insert')->willReturnCallback(function (RequestEvent $event) use (&$types): RequestEvent {
+			$types[] = $event->getEventType();
+			return $event;
+		});
+
+		$this->service->update('hr', 5, ['reason' => 'itest', 'disability' => false]);
+
+		self::assertNotContains('disability_changed', $types);
+	}
+
+	public function testTheDisabilityFlagHistoryIsShownToHrOnly(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => $uid === 'hr');
+		$this->commentMapper->method('findForRequest')->willReturn([]);
+		$created = new RequestEvent();
+		$created->setEventType('request_created');
+		$flag = new RequestEvent();
+		$flag->setEventType('disability_changed');
+		$this->eventMapper->method('findForRequest')->willReturn([$created, $flag]);
+
+		$forEmployee = array_column($this->service->getDetail('emp', 5)['history'], 'eventType');
+		$forHr = array_column($this->service->getDetail('hr', 5)['history'], 'eventType');
+
+		self::assertSame(['request_created'], $forEmployee);
+		self::assertSame(['request_created', 'disability_changed'], $forHr);
 	}
 
 	public function testARequestRoutesToHrWhileTheManagerIsAway(): void {

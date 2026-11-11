@@ -627,10 +627,10 @@ statutory entitlement for employees with a recognised disability. Rules:
   annual leave; the API silently ignores the field from anyone else (the
   request itself still succeeds).
 - **Seen by HR alone**: serialization nulls the flag for every non-HR viewer —
-  the employee's own views included — and the request-history timeline never
-  mentions it (`describeChanges()` deliberately excludes it, since the history
-  is visible to the employee and manager). The logs (§11) record that HR
-  edited the request, not the flag.
+  the employee's own views included. Setting or clearing it adds an entry to
+  the request's history that only HR is shown; the entries the employee and
+  manager read never mention it (`describeChanges()` excludes it). The logs
+  (§11) record that HR edited the request, not the flag.
 - The flag rides on the request row (`disability`, boolean); it does not alter
   balances or workflows.
 
