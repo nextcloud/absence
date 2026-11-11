@@ -731,7 +731,11 @@ pattern: the ISO weekdays someone works and their contract percentage, **from a 
 on** (`absence_employments`, `absence_contract_periods`). A change of pattern is a new
 period with its own date, so the past keeps the pattern it had; someone can work 5 days
 at 70%. Only HR edits it (`PUT /api/profiles/{uid}/contract`, the whole contract at
-once); the person, their manager and HR read it. Every change goes to the person's
+once); the person, their manager and HR read it. The start date and the working
+pattern are not confidential: every employee may know when someone started and their
+part time, and other apps get them through `getContracts()` (§14b). The end date stays
+with the person, their manager and HR: it can tell that someone leaves before it is
+announced. Every change goes to the person's
 history (`absence_employee_history`, with the values before and after and the author)
 and to the admin audit log; the region code people set themselves (§7.2) goes to the
 same history. The weekdays drive the working-days prefill (§7.1); the percentage is
@@ -1330,6 +1334,9 @@ not HTTP:
   app need not ask again.
 - **`getPublicHolidays($regionCodes, $from, $to)`** returns the public holidays
   (§7.2) for those region codes, recurring ones once per year in the range.
+- **`getContracts($userIds)`** returns each person's start date and working pattern
+  (§6.4): the dated periods of weekdays and contract percentage, oldest first. The end
+  date is left out.
 - **Confidentiality holds (§5.7):** for an `hr_only` type the type key and label are
   null and `confidential` is true. A consumer learns the dates and nothing else.
 
