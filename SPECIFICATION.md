@@ -440,7 +440,8 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
    - Validates dates (`start ≤ end`, not entirely in the past — in the *employee's*
      timezone, §3.9 — unless HR, not
      overlapping an existing non-terminal request for the same user — reject overlap
-     with a clear error).
+     with a clear error). Dates are real `YYYY-MM-DD` dates between 2000 and 2100,
+     at most 366 days from start to end, 3660 when HR records the leave.
    - Enforces `requires_note`, **`requires_replacement`** (the `replacement_uid` must be
      present, a valid user, and not the employee), and that **`working_days` is a positive
      number** — all 422 otherwise. `working_days` is stored as entered, not recomputed.
@@ -467,7 +468,8 @@ HR can change it via the HR edit path.
 ### 5.3 Employee edits / cancels (full edit workflow)
 
 - **Pending request:** employee may edit fields or cancel outright. Editing a
-  pending request updates it in place and re-notifies the manager.
+  pending request updates it in place and re-notifies the manager, after
+  dismissing the notification of the version it replaces.
 - **Approved request — edit:** employee submits an edit; this creates a **new**
   request (`supersedes_id` → original) in `PENDING`, and the original stays
   `APPROVED` until the new one is approved. On approval of the superseding request,
@@ -991,7 +993,9 @@ All four channels are required.
   - *Approve* is a `POST` straight to `request#approve`, the same endpoint the app
     uses, so the common answer costs one click and no page load. The notification
     dismisses itself on success; a request whose state moved on in the meantime
-    fails the same way it would in the app.
+    fails the same way it would in the app. The link carries the request's
+    `updatedAt` from when the notification was sent, so a request edited since
+    is not approved (409).
   - *Decline* is deliberately **not** a one-click verdict. A decline requires a
     reason (§5.2), and a manager able to reject somebody's holiday from a toast
     without saying why would be a worse app, not a faster one. It is a `WEB` link
@@ -1207,6 +1211,7 @@ the SPA). All list endpoints paginate and accept filters.
 
 **Requests**
 - `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status, type, date range, employee, group).
+  `limit` is kept within 1 to 500 and `offset` at 0 or more; an unknown `status` is a 400.
 - `POST /api/requests` — create (§5.1).
 - `GET  /api/requests/{id}` — detail (with comments, coverage summary, and the
   employee's **balance** for that leave type in the year the leave starts — gated on
@@ -1218,6 +1223,10 @@ the SPA). All list endpoints paginate and accept filters.
 - `POST /api/requests/{id}/cancel` — cancel / request withdrawal.
 - `POST /api/requests/{id}/approve` — manager/HR approve (optional comment).
 - `POST /api/requests/{id}/reject` — manager/HR reject (comment required).
+  Both take an optional `updatedAt`, the value the decider last saw: a request
+  changed since is not decided (409). Every transition (edit, cancel, approve,
+  reject) is decided on the request as it is inside the transaction, and is a
+  409 when another change got there first.
 - `POST /api/requests/{id}/comments` — add comment.
 
 **Balances & entitlements**

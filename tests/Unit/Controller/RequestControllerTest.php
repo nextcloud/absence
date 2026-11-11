@@ -118,11 +118,62 @@ class RequestControllerTest extends TestCase {
 
 	public function testRejectRequiresACommentBySignature(): void {
 		$this->service->expects(self::once())->method('reject')
-			->with('emp', 5, 'too thin that week')
+			->with('emp', 5, 'too thin that week', null)
 			->willReturn($this->request());
 
 		$response = $this->controller->reject(5, 'too thin that week');
 
 		self::assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	/** @return array<string,array{0:int,1:int,2:int,3:int}> */
+	public static function pages(): array {
+		return [
+			'as asked' => [50, 100, 50, 100],
+			'more than a page holds' => [100000, 0, 500, 0],
+			'nothing' => [0, 0, 1, 0],
+			'negative' => [-5, -20, 1, 0],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('pages')]
+	public function testTheListIsPagedWithinBounds(int $limit, int $offset, int $expectedLimit, int $expectedOffset): void {
+		$this->service->expects(self::once())->method('listSerialized')
+			->with('emp', self::anything(), $expectedLimit, $expectedOffset)
+			->willReturn([]);
+
+		$response = $this->controller->index(limit: $limit, offset: $offset);
+
+		self::assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	public function testAnUnknownStatusFilterIsA400(): void {
+		$this->service->expects(self::never())->method('listSerialized');
+
+		$response = $this->controller->index(status: 'pending');
+
+		self::assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+	}
+
+	public function testEveryStatusCanBeFilteredOn(): void {
+		$this->service->expects(self::exactly(7))->method('listSerialized')->willReturn([]);
+
+		foreach (['PENDING', 'ESCALATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'WITHDRAWAL_PENDING'] as $status) {
+			self::assertSame(Http::STATUS_OK, $this->controller->index(status: $status)->getStatus());
+		}
+		self::assertSame(Http::STATUS_OK, $this->controller->index(status: 'PENDING,ESCALATED')->getStatus());
+		self::assertSame(Http::STATUS_BAD_REQUEST, $this->controller->index(status: 'PENDING,nope')->getStatus());
+	}
+
+	public function testADecisionCarriesTheVersionItWasMadeOn(): void {
+		$this->service->expects(self::once())->method('approve')
+			->with('emp', 5, null, '2026-02-01T09:00:00+00:00')
+			->willReturn($this->request());
+		$this->service->expects(self::once())->method('reject')
+			->with('emp', 5, 'too thin that week', '2026-02-01T09:00:00+00:00')
+			->willReturn($this->request());
+
+		$this->controller->approve(5, null, '2026-02-01T09:00:00+00:00');
+		$this->controller->reject(5, 'too thin that week', '2026-02-01T09:00:00+00:00');
 	}
 }

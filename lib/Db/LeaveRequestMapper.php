@@ -37,6 +37,27 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * The row as it is now, locked until the running transaction ends: a second
+	 * transaction asking for the same row waits here and then reads what the
+	 * first one wrote. Only meaningful inside a transaction.
+	 *
+	 * SQLite has no row locks and needs none: it lets one transaction write at a
+	 * time and fails the one whose read has gone stale.
+	 *
+	 * @throws DoesNotExistException
+	 */
+	public function findForUpdate(int $id): LeaveRequest {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		if ($this->db->getDatabaseProvider() !== IDBConnection::PLATFORM_SQLITE) {
+			$qb->forUpdate();
+		}
+		return $this->findEntity($qb);
+	}
+
+	/**
 	 * Generic filtered query used by the API list endpoint. An `employeeUids`
 	 * filter that is set but empty matches nothing.
 	 *

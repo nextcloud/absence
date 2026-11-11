@@ -137,7 +137,7 @@ class Notifier implements INotifier {
 		$link = $this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/requests/' . $requestId;
 		$notification->setLink($link);
 
-		$this->addDecisionActions($notification, $l, $requestId, $link);
+		$this->addDecisionActions($notification, $l, $requestId, $link, (string)($params['updatedAt'] ?? ''));
 
 		return $notification;
 	}
@@ -153,7 +153,7 @@ class Notifier implements INotifier {
 	 * therefore opens the request with the reason box already unfolded, which is
 	 * still a step better than "Review" for someone who has decided to say no.
 	 */
-	private function addDecisionActions(INotification $notification, IL10N $l, string $requestId, string $link): void {
+	private function addDecisionActions(INotification $notification, IL10N $l, string $requestId, string $link, string $updatedAt): void {
 		$subject = $notification->getSubject();
 		$deciding = [
 			NotificationService::SUBJECT_NEW_REQUEST,
@@ -174,7 +174,10 @@ class Notifier implements INotifier {
 		$approve = $notification->createAction();
 		$approve->setLabel('approve')
 			->setParsedLabel($isWithdrawal ? $l->t('Approve withdrawal') : $l->t('Approve'))
-			->setLink($this->urlGenerator->linkToRouteAbsolute('absence.request.approve', ['id' => $requestId]), 'POST')
+			// The request as it was when this notification was sent: once it has been
+			// edited, the click is refused rather than taken as a yes to the new dates.
+			// Notifications stored before this was carried approve as they always did.
+			->setLink($this->urlGenerator->linkToRouteAbsolute('absence.request.approve', array_filter(['id' => $requestId, 'updatedAt' => $updatedAt])), 'POST')
 			->setPrimary(true);
 		$notification->addParsedAction($approve);
 

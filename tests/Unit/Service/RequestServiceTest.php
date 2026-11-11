@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Db\RequestCommentMapper;
 use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Event\LeaveRequestChangedEvent;
+use OCA\Absence\Exception\ConflictException;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
@@ -70,12 +71,19 @@ class RequestServiceTest extends TestCase {
 	private ILockingProvider&MockObject $lockingProvider;
 	private IEventDispatcher&MockObject $eventDispatcher;
 	private RequestService $service;
+	/** @var array<int,LeaveRequest> rows somebody else changed after the service loaded them, by id */
+	private array $changedSince = [];
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->db = $this->createMock(IDBConnection::class);
 		$this->lockingProvider = $this->createMock(ILockingProvider::class);
 		$this->requestMapper = $this->createMock(LeaveRequestMapper::class);
+		// The locked re-read inside the transaction sees the same row as the first
+		// read, unless a test puts a newer one in $changedSince.
+		$this->requestMapper->method('findForUpdate')->willReturnCallback(
+			fn (int $id): LeaveRequest => $this->changedSince[$id] ?? $this->requestMapper->find($id),
+		);
 		$this->commentMapper = $this->createMock(RequestCommentMapper::class);
 		$this->eventMapper = $this->createMock(RequestEventMapper::class);
 		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
@@ -1075,5 +1083,363 @@ class RequestServiceTest extends TestCase {
 
 		self::assertSame(LeaveRequest::STATUS_ESCALATED, $created->getStatus());
 		self::assertTrue($created->getEscalated());
+	}
+
+	// ------------------------------------- deciding on the row as it is now ----
+
+	/** The same request as $request, in the status somebody else just gave it. */
+	private function changedTo(LeaveRequest $request, string $status): LeaveRequest {
+		$changed = clone $request;
+		$changed->setStatus($status);
+		return $this->changedSince[(int)$request->getId()] = $changed;
+	}
+
+	private function decidable(LeaveRequest $request): void {
+		$this->requestMapper->method('find')->with($request->getId())->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+	}
+
+	public function testApprovingARequestCancelledInTheMeantimeIsAConflict(): void {
+		// The employee withdrew the request while the manager had it open.
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->changedTo($request, LeaveRequest::STATUS_CANCELLED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->calendar->expects(self::never())->method('onApproved');
+		$this->notifications->expects(self::never())->method('notifyDecision');
+
+		$this->expectException(ConflictException::class);
+		$this->service->approve('mgr', 5, null);
+	}
+
+	public function testRejectingARequestApprovedInTheMeantimeIsAConflict(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->changedTo($request, LeaveRequest::STATUS_APPROVED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->notifications->expects(self::never())->method('dismiss');
+		$this->notifications->expects(self::never())->method('notifyDecision');
+
+		$this->expectException(ConflictException::class);
+		$this->service->reject('mgr', 5, 'Too thin that week');
+	}
+
+	public function testCancellingARequestApprovedInTheMeantimeIsAConflict(): void {
+		// Approved leave is withdrawn through its own step, not cancelled outright.
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->changedTo($request, LeaveRequest::STATUS_APPROVED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->calendar->expects(self::never())->method('onRemoved');
+		$this->notifications->expects(self::never())->method('dismiss');
+
+		$this->expectException(ConflictException::class);
+		$this->service->cancel('emp', 5);
+	}
+
+	public function testAskingToWithdrawLeaveCancelledInTheMeantimeIsAConflict(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->changedTo($request, LeaveRequest::STATUS_CANCELLED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->notifications->expects(self::never())->method('notifyWithdrawal');
+
+		$this->expectException(ConflictException::class);
+		$this->service->cancel('emp', 5);
+	}
+
+	public function testDecidingAWithdrawalAlreadyDecidedIsAConflict(): void {
+		// HR declined the withdrawal; the manager's "approve withdrawal" comes second.
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+		$this->decidable($request);
+		$this->changedTo($request, LeaveRequest::STATUS_APPROVED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->calendar->expects(self::never())->method('onRemoved');
+
+		$this->expectException(ConflictException::class);
+		$this->service->approve('mgr', 5, null);
+	}
+
+	public function testEditingARequestDecidedInTheMeantimeIsAConflict(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->changedTo($request, LeaveRequest::STATUS_APPROVED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->notifications->expects(self::never())->method('notifyNewRequest');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->expectException(ConflictException::class);
+		$this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+	}
+
+	public function testEditingApprovedLeaveCancelledInTheMeantimeIsAConflict(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->changedTo($original, LeaveRequest::STATUS_CANCELLED);
+
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->expectException(ConflictException::class);
+		$this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+	}
+
+	public function testHrCancelsWhateverTheRequestHasBecome(): void {
+		// HR may cancel any open request, so a decision landing first does not stop it.
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$approved = $this->changedTo($request, LeaveRequest::STATUS_APPROVED);
+		$approved->setReplacementUid('rep');
+
+		// Decided on the row as it is: the leave was approved by then, so its replacement is released.
+		$this->notifications->expects(self::once())->method('notifyReplacementCancelled');
+
+		self::assertSame(LeaveRequest::STATUS_CANCELLED, $this->service->cancel('hr', 5)->getStatus());
+	}
+
+	/** @return array<string,array{0:string}> */
+	public static function lockedTransitions(): array {
+		return ['approve' => ['approve'], 'reject' => ['reject'], 'cancel' => ['cancel']];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('lockedTransitions')]
+	public function testEveryTransitionHoldsTheEmployeeLock(string $transition): void {
+		$request = $this->pendingOwnRequest();
+		$request->setEmployeeUid(str_repeat('u', 64));
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		// The lock table's key column holds 64 characters, and so can a uid.
+		$this->lockingProvider->expects(self::once())->method('acquireLock')
+			->with(self::callback(static fn (string $key): bool => strlen($key) <= 64));
+		$this->lockingProvider->expects(self::once())->method('releaseLock');
+
+		match ($transition) {
+			'approve' => $this->service->approve('mgr', 5, null),
+			'reject' => $this->service->reject('mgr', 5, 'Too thin that week'),
+			'cancel' => $this->service->cancel(str_repeat('u', 64), 5),
+		};
+	}
+
+	public function testTwoEmployeesNeverShareALock(): void {
+		$keys = [];
+		$this->lockingProvider->method('acquireLock')->willReturnCallback(function (string $key) use (&$keys): void {
+			$keys[] = $key;
+		});
+		foreach (['emp', 'emp2'] as $id => $uid) {
+			$request = $this->pendingOwnRequest();
+			$request->setId($id + 1);
+			$request->setEmployeeUid($uid);
+			$this->changedSince[$id + 1] = $request;
+		}
+		$this->requestMapper->method('find')->willReturnCallback(fn (int $id): LeaveRequest => $this->changedSince[$id]);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+
+		$this->service->reject('mgr', 1, 'No');
+		$this->service->reject('mgr', 2, 'No');
+
+		self::assertCount(2, array_unique($keys));
+	}
+
+	// ------------------------------------------- the version a decision saw ----
+
+	public function testApprovingARequestEditedSinceItWasShownIsAConflict(): void {
+		// The manager looks at one week; the employee makes it three; the click
+		// must not approve three.
+		$request = $this->pendingOwnRequest();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T10:05:00+00:00'));
+		$this->decidable($request);
+
+		$this->requestMapper->expects(self::never())->method('update');
+		$this->calendar->expects(self::never())->method('onApproved');
+
+		$this->expectException(ConflictException::class);
+		$this->service->approve('mgr', 5, null, '2026-02-01T09:00:00+00:00');
+	}
+
+	public function testRejectingARequestEditedSinceItWasShownIsAConflict(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T10:05:00+00:00'));
+		$this->decidable($request);
+
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ConflictException::class);
+		$this->service->reject('mgr', 5, 'Too thin that week', '2026-02-01T09:00:00+00:00');
+	}
+
+	public function testApprovingTheVersionThatWasShownGoesThrough(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T10:05:00+00:00'));
+		$this->decidable($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		// The same instant, serialised by a server in another timezone.
+		$result = $this->service->approve('mgr', 5, null, '2026-02-01T11:05:00+01:00');
+
+		self::assertSame(LeaveRequest::STATUS_APPROVED, $result->getStatus());
+	}
+
+	public function testAnUnreadableUpdatedAtIsRefusedRatherThanIgnored(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->approve('mgr', 5, null, 'yesterday');
+	}
+
+	public function testAnEditReplacesTheDecisionNotificationOfTheOldVersion(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('mgr');
+		$this->managerResolver->method('getManagerUid')->willReturn('mgr');
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$order = [];
+		$this->notifications->method('dismiss')->willReturnCallback(function () use (&$order): void {
+			$order[] = 'dismiss';
+		});
+		$this->notifications->method('notifyNewRequest')->willReturnCallback(function () use (&$order): void {
+			$order[] = 'notify';
+		});
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+
+		self::assertSame(['dismiss', 'notify'], $order);
+	}
+
+	// ------------------------------------------------------ dates and span ----
+
+	/** @return array<string,array{0:string,1:string}> */
+	public static function implausibleDates(): array {
+		return [
+			'a day that does not exist' => ['2026-02-31', '2026-03-04'],
+			'an end that does not exist' => ['2026-04-01', '2026-04-31'],
+			'not zero-padded' => ['2026-4-1', '2026-04-02'],
+			'a year far ahead' => ['2026-04-01', '9999-12-31'],
+			'a year long gone' => ['1999-12-31', '2026-04-01'],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('implausibleDates')]
+	public function testImplausibleDatesAreRejected(string $start, string $end): void {
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		// HR, so "entirely in the past" is not what refuses these.
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$this->expectException(ValidationException::class);
+		$this->service->create('hr', ['typeId' => 1, 'startDate' => $start, 'endDate' => $end, 'workingDays' => 1.0, 'employeeUid' => 'emp']);
+	}
+
+	/** @return array<string,array{0:string,1:int,2:bool}> */
+	public static function spans(): array {
+		return [
+			'own leave of 366 days' => ['emp', 366, true],
+			'own leave of 367 days' => ['emp', 367, false],
+			'HR recording two years' => ['hr', 730, true],
+			'HR recording 3660 days' => ['hr', 3660, true],
+			'HR recording 3661 days' => ['hr', 3661, false],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('spans')]
+	public function testTheLengthOfALeaveIsCapped(string $actor, int $days, bool $accepted): void {
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => $uid === 'hr');
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->expects($accepted ? self::once() : self::never())->method('insert')->willReturnArgument(0);
+
+		if (!$accepted) {
+			$this->expectException(ValidationException::class);
+		}
+		$start = new \DateTimeImmutable('+30 days');
+		$this->service->create($actor, [
+			'typeId' => 1,
+			'startDate' => $start->format('Y-m-d'),
+			'endDate' => $start->modify('+' . $days . ' days')->format('Y-m-d'),
+			'workingDays' => 200.0,
+			'employeeUid' => 'emp',
+		]);
+	}
+
+	public function testHrCannotStretchRecordedLeaveBeyondTheCap(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->update('hr', 5, ['endDate' => '2036-03-01']);
+	}
+
+	// ----------------------------------------- editing approved leave ----
+
+	public function testEditingApprovedLeaveKeepsTheReasonAndNoteThatWereNotResent(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setReason('Family wedding abroad.');
+		$original->setAttachmentNote('Invitation attached.');
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$edit = $this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+
+		self::assertSame('Family wedding abroad.', $edit->getReason());
+		self::assertSame('Invitation attached.', $edit->getAttachmentNote());
+	}
+
+	public function testEditingApprovedLeaveCanStillClearTheReason(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setReason('Family wedding abroad.');
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$edit = $this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0, 'reason' => '']);
+
+		self::assertSame('', $edit->getReason());
 	}
 }

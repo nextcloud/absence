@@ -542,13 +542,26 @@ export default {
 			}
 		},
 
+		/**
+		 * A 409 means the request is no longer what is on screen: show what it is now,
+		 * so the next click decides on that.
+		 *
+		 * @param {object} error the failed call
+		 */
+		async reloadIfChanged(error) {
+			if (error.response?.status === 409) {
+				await this.load()
+			}
+		},
+
 		async approve() {
 			this.busy = true
 			try {
-				await store.approveRequest(this.detail.id)
+				await store.approveRequest(this.detail.id, undefined, this.detail.updatedAt)
 				this.$emit('changed')
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not approve'))
+				await this.reloadIfChanged(e)
 			} finally {
 				this.busy = false
 			}
@@ -589,10 +602,11 @@ export default {
 		async reject() {
 			this.busy = true
 			try {
-				await store.rejectRequest(this.detail.id, this.rejectComment)
+				await store.rejectRequest(this.detail.id, this.rejectComment, this.detail.updatedAt)
 				this.$emit('changed')
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not decline'))
+				await this.reloadIfChanged(e)
 			} finally {
 				this.busy = false
 			}

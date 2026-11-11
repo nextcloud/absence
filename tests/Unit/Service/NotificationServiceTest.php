@@ -180,6 +180,16 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame("First line.\n\nSecond line.", $this->emailNotes[0][0]);
 	}
 
+	public function testADecisionNotificationRemembersTheVersionItAsksAbout(): void {
+		$this->withUsers('emp', 'boss');
+		$request = $this->request();
+		$request->setUpdatedAt(new \DateTime('2026-02-01T09:00:00+00:00'));
+
+		$this->service->notifyNewRequest($request, 'boss');
+
+		self::assertSame('2026-02-01T09:00:00+00:00', $this->pushed[0]['updatedAt']);
+	}
+
 	public function testTheApplicantsReasonTravelsWithTheNewRequestNotification(): void {
 		// Without it the manager is asked to decide on a request whose stated reason
 		// they can only read by opening the app.
