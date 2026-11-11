@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { readableTextColor } from './colors.js'
+import { readableTextColor } from './colors.ts'
 
 describe('readableTextColor', () => {
 	it('puts white on dark colours', () => {

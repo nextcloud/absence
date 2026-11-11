@@ -205,7 +205,7 @@ import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import Confetti from './components/Confetti.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
-import { store } from './store.js'
+import { store } from './store.ts'
 
 export default {
 	name: 'App',

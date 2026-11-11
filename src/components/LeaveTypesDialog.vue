@@ -91,8 +91,8 @@ import NcColorPicker from '@nextcloud/vue/components/NcColorPicker'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Plus from 'vue-material-design-icons/Plus.vue'
-import api from '../api.js'
-import { store } from '../store.js'
+import api from '../services/api.ts'
+import { store } from '../store.ts'
 
 const EDITABLE = ['label', 'color', 'icon', 'countsAgainstBalance', 'requiresApproval', 'requiresNote', 'requiresReplacement', 'employeeRequestable', 'hrOnly']
 

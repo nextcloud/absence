@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { compareHolidays, groupByYear, hasHolidays, makeHolidayChecker, parseRegionCode } from './holidays.js'
+import { compareHolidays, groupByYear, hasHolidays, makeHolidayChecker, parseRegionCode } from './holidays.ts'
 
 describe('parseRegionCode', () => {
 	it('splits and uppercases a code', () => {

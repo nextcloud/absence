@@ -10,7 +10,7 @@
 </template>
 
 <script>
-import { store } from '../store.js'
+import { store } from '../store.ts'
 
 export default {
 	name: 'LeaveTypeChip',

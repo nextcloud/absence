@@ -107,7 +107,7 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import FileUpload from 'vue-material-design-icons/FileUploadOutline.vue'
-import api from '../api.js'
+import api from '../services/api.ts'
 
 export default {
 	name: 'LeaveImportDialog',

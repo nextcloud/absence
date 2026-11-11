@@ -44,7 +44,7 @@
 <script>
 import { t } from '@nextcloud/l10n'
 import BalanceRing from './BalanceRing.vue'
-import { formatNumber } from '../utils/locale.js'
+import { formatNumber } from '../utils/locale.ts'
 
 export default {
 	name: 'BalanceCard',

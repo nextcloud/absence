@@ -137,12 +137,12 @@ import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { statusMeta, store } from '../store.js'
-import { readableTextColor } from '../utils/colors.js'
-import { formatRange, toIso } from '../utils/dates.js'
-import { latestOnly } from '../utils/latest.js'
-import { locale } from '../utils/locale.js'
+import api from '../services/api.ts'
+import { statusMeta, store } from '../store.ts'
+import { readableTextColor } from '../utils/colors.ts'
+import { formatRange, toIso } from '../utils/dates.ts'
+import { latestOnly } from '../utils/latest.ts'
+import { locale } from '../utils/locale.ts'
 
 const DAY_MS = 86400000
 

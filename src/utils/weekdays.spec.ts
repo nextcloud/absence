@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { formatWeekdays } from './weekdays.js'
+import { formatWeekdays } from './weekdays.ts'
 
 describe('formatWeekdays', () => {
 	it('writes three or more days in a row as a range', () => {

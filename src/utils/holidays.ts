@@ -8,28 +8,38 @@
 
 const CODE = /^([A-Z]{2})(?:[-_]([A-Z0-9]{1,3}))?$/
 
+/** A region code split in its two parts, both '' for "no region" */
+export interface RegionCode {
+	country: string
+	region: string
+}
+
+/** A day off, as far as these helpers look at it */
+interface Dated {
+	date: string
+}
+
 /**
  * `de-by` or `DE_BY` → { country: 'DE', region: 'BY' }. Null when it is not a code; an empty
  * code is valid and means "no region".
  *
- * @param {string} code what the person typed
- * @return {{country: string, region: string} | null}
+ * @param code what the person typed
  */
-export function parseRegionCode(code) {
+export function parseRegionCode(code: string | null | undefined): RegionCode | null {
 	const value = (code || '').trim().toUpperCase()
 	if (value === '') {
 		return { country: '', region: '' }
 	}
-	const match = CODE.exec(value)
-	return match ? { country: match[1], region: match[2] || '' } : null
+	const [, country, region] = CODE.exec(value) ?? []
+	return country ? { country, region: region || '' } : null
 }
 
 /**
- * @param {string} country two-letter country
- * @param {string} region subdivision, may be empty
- * @return {string} `DE-BY`, `DE`, or '' when no country is set
+ * @param country two-letter country
+ * @param region subdivision, may be empty
+ * @return `DE-BY`, `DE`, or '' when no country is set
  */
-export function formatRegionCode(country, region) {
+export function formatRegionCode(country: string, region: string): string {
 	if (!country) {
 		return ''
 	}
@@ -39,11 +49,10 @@ export function formatRegionCode(country, region) {
 /**
  * Whether HR entered any holiday for this code or its country.
  *
- * @param {string} code a valid, non-empty region code
- * @param {string[]} regions the codes that have holidays
- * @return {boolean}
+ * @param code a valid, non-empty region code
+ * @param regions the codes that have holidays
  */
-export function hasHolidays(code, regions) {
+export function hasHolidays(code: string, regions: string[]): boolean {
 	const parsed = parseRegionCode(code)
 	return parsed !== null && (regions.includes(formatRegionCode(parsed.country, parsed.region)) || regions.includes(parsed.country))
 }
@@ -51,11 +60,10 @@ export function hasHolidays(code, regions) {
 /**
  * What changes for someone moving from one region code to another.
  *
- * @param {Array<{date: string, label: string}>} before holidays of the old code
- * @param {Array<{date: string, label: string}>} after holidays of the new code
- * @return {{lost: Array<{date: string, label: string}>, gained: Array<{date: string, label: string}>, kept: number}}
+ * @param before holidays of the old code
+ * @param after holidays of the new code
  */
-export function compareHolidays(before, after) {
+export function compareHolidays<T extends Dated>(before: T[], after: T[]): { lost: T[], gained: T[], kept: number } {
 	const beforeDates = new Set(before.map((h) => h.date))
 	const afterDates = new Set(after.map((h) => h.date))
 	return {
@@ -68,10 +76,9 @@ export function compareHolidays(before, after) {
 /**
  * A predicate `(iso) => boolean` for the working-days prefill.
  *
- * @param {Array<{date: string}>} holidays the days off
- * @return {(iso: string) => boolean}
+ * @param holidays the days off
  */
-export function makeHolidayChecker(holidays) {
+export function makeHolidayChecker(holidays: Dated[]): (iso: string) => boolean {
 	const dates = new Set(holidays.map((h) => h.date))
 	return (iso) => dates.has(iso)
 }
@@ -79,11 +86,10 @@ export function makeHolidayChecker(holidays) {
 /**
  * Days grouped by their year, in date order, for a list split under year headings.
  *
- * @param {Array<{date: string}>} days the days to group
- * @return {Array<{year: string, days: Array<{date: string}>}>}
+ * @param days the days to group
  */
-export function groupByYear(days) {
-	const years = new Map()
+export function groupByYear<T extends Dated>(days: T[]): { year: string, days: T[] }[] {
+	const years = new Map<string, T[]>()
 	for (const day of [...days].sort((a, b) => a.date.localeCompare(b.date))) {
 		const year = day.date.slice(0, 4)
 		years.set(year, [...(years.get(year) ?? []), day])

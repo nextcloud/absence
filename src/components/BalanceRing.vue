@@ -41,7 +41,7 @@
 </template>
 
 <script>
-import { formatNumber } from '../utils/locale.js'
+import { formatNumber } from '../utils/locale.ts'
 
 export default {
 	name: 'BalanceRing',

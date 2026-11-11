@@ -198,9 +198,9 @@ import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
-import api from '../../api.js'
-import { store } from '../../store.js'
-import { formatNumber, locale } from '../../utils/locale.js'
+import api from '../../services/api.ts'
+import { store } from '../../store.ts'
+import { formatNumber, locale } from '../../utils/locale.ts'
 
 export default {
 	name: 'HrSickLeave',

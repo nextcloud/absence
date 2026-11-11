@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { keepUnsaved } from './unsaved.js'
+import { keepUnsaved } from './unsaved.ts'
 
 describe('keepUnsaved', () => {
 	const before = { default_entitlement: 25, handbook_url: '', caldav_shared: false }

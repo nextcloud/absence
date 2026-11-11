@@ -37,9 +37,9 @@
 
 <script>
 import { n, t } from '@nextcloud/l10n'
-import { store } from '../store.js'
-import { addWorkingDaysByMonth } from '../utils/dates.js'
-import { formatNumber, locale } from '../utils/locale.js'
+import { store } from '../store.ts'
+import { addWorkingDaysByMonth } from '../utils/dates.ts'
+import { formatNumber, locale } from '../utils/locale.ts'
 
 export default {
 	name: 'YearInReview',

@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import type { RouteRecordRaw } from 'vue-router'
+
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Approvals from './views/Approvals.vue'
 import Holidays from './views/Holidays.vue'
@@ -16,10 +18,19 @@ import HrWhosOff from './views/hr/HrWhosOff.vue'
 import MyLeave from './views/MyLeave.vue'
 import Profile from './views/Profile.vue'
 import Team from './views/Team.vue'
-import { store } from './store.js'
-import { canOpenRoute } from './utils/access.js'
+import { store } from './store.ts'
+import { canOpenRoute } from './utils/access.ts'
 
-const routes = [
+declare module 'vue-router' {
+	interface RouteMeta {
+		/** For HR only */
+		hr?: boolean
+		/** Also open to admins, who set the app up before HR exists */
+		admin?: boolean
+	}
+}
+
+const routes: RouteRecordRaw[] = [
 	{ path: '/', redirect: '/my' },
 	{ path: '/my', name: 'my', component: MyLeave },
 	{ path: '/approvals', name: 'approvals', component: Approvals },

@@ -255,12 +255,12 @@ import Plus from 'vue-material-design-icons/Plus.vue'
 import Delete from 'vue-material-design-icons/TrashCanOutline.vue'
 import Upload from 'vue-material-design-icons/Upload.vue'
 import SkeletonList from '../components/SkeletonList.vue'
-import api from '../api.js'
-import { store } from '../store.js'
-import { formatDate, toIso } from '../utils/dates.js'
-import { latestOnly } from '../utils/latest.js'
-import { locale } from '../utils/locale.js'
-import { EVERYWHERE, regionFlag } from '../utils/regions.js'
+import api from '../services/api.ts'
+import { store } from '../store.ts'
+import { formatDate, toIso } from '../utils/dates.ts'
+import { latestOnly } from '../utils/latest.ts'
+import { locale } from '../utils/locale.ts'
+import { EVERYWHERE, regionFlag } from '../utils/regions.ts'
 
 export default {
 	name: 'Holidays',

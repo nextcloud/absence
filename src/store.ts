@@ -1,47 +1,67 @@
-import { showError, showSuccess } from '@nextcloud/dialogs'
-import { loadState } from '@nextcloud/initial-state'
-import { t } from '@nextcloud/l10n'
 /**
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
  * Lightweight reactive store shared across views (no Vuex/Pinia dependency).
  */
+import type {
+	BalanceRow,
+	InitialState,
+	LeaveRequest,
+	LeaveRequestRecord,
+	LeaveType,
+	RequestCreateData,
+	RequestListParams,
+	RequestStatus,
+	RequestUpdateData,
+	SessionInfo,
+} from './types/index.ts'
+
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import { loadState } from '@nextcloud/initial-state'
+import { t } from '@nextcloud/l10n'
 import { reactive } from 'vue'
-import api from './api.js'
+import api from './services/api.ts'
+import { logger } from './services/logger.ts'
 
-/**
- *
- */
-function initialSession() {
-	try {
-		return loadState('absence', 'session')
-	} catch {
-		return { uid: null }
-	}
+/** How a leave type shows: the stored type, or a stand-in for a withheld or unknown one */
+export type LeaveTypeLook = Pick<LeaveType, 'label' | 'color' | 'icon'> & Partial<LeaveType>
+
+/** How a request status shows */
+export interface StatusMeta {
+	label: string
+	text: string
+	tint: string
+	icon: string
 }
 
-/**
- *
- */
-function initialLeaveTypes() {
-	try {
-		return loadState('absence', 'leaveTypes') || []
-	} catch {
-		return []
-	}
+/** The part of a request that tells whether HR recorded it */
+type Typed = Pick<LeaveRequest, 'typeId'>
+
+interface State {
+	session: SessionInfo
+	leaveTypes: LeaveType[]
+	requests: LeaveRequest[]
+	balance: { balances: BalanceRow[] }
+	loading: boolean
+	selectedId: number | null
 }
 
-export const store = reactive({
-	session: initialSession(),
-	leaveTypes: initialLeaveTypes(),
+const state: State = {
+	// The page always provides both. A missing one only means the template changed.
+	session: loadState<InitialState['session']>('absence', 'session', { uid: null }),
+	leaveTypes: loadState<InitialState['leaveTypes'] | null>('absence', 'leaveTypes', []) || [],
 	requests: [],
 	balance: { balances: [] },
 	loading: false,
 	selectedId: null,
+}
+
+export const store = reactive({
+	...state,
 
 	// ---- getters ----
-	leaveType(id) {
+	leaveType(id: number | null | undefined): LeaveTypeLook {
 		// A null/undefined id means the server withheld the leave type (neutral
 		// shared-calendar visibility): show a generic "Absent" marker, not "Unknown".
 		// The marker has to say nothing about *why* somebody is away. A palm tree here
@@ -56,9 +76,9 @@ export const store = reactive({
 	/**
 	 * True when the type is recorded by HR (e.g. sick leave), not self-requested.
 	 *
-	 * @param request
+	 * @param request the request to look at
 	 */
-	isHrRecorded(request) {
+	isHrRecorded(request: Typed): boolean {
 		// A withheld type (null: the server kept a confidential category to
 		// itself) is by definition HR-recorded — confidential types cannot be
 		// self-requested.
@@ -66,39 +86,39 @@ export const store = reactive({
 			return true
 		}
 		const type = this.leaveType(request.typeId)
-		return type && type.employeeRequestable === false
+		return type.employeeRequestable === false
 	},
 	/**
 	 * Whether to show a status chip. HR-recorded leave (sick) that is approved has no
 	 * approval concept, so the "Approved" label is hidden as noise.
 	 *
-	 * @param request
+	 * @param request the request to look at
 	 */
-	statusVisible(request) {
+	statusVisible(request: Typed & Pick<LeaveRequest, 'status'>): boolean {
 		return !(this.isHrRecorded(request) && request.status === 'APPROVED')
 	},
-	get enabledLeaveTypes() {
+	get enabledLeaveTypes(): LeaveType[] {
 		return this.leaveTypes.filter((t) => t.enabled)
 	},
 	/** Types an employee may self-request (excludes HR-recorded types like sick leave). */
-	get requestableLeaveTypes() {
+	get requestableLeaveTypes(): LeaveType[] {
 		return this.leaveTypes.filter((t) => t.enabled && t.employeeRequestable)
 	},
 
 	// ---- actions ----
-	async refreshSession() {
+	async refreshSession(): Promise<void> {
 		try {
 			this.session = await api.getSession()
 		} catch (e) {
-			console.error('Absence: failed to refresh session', e)
+			logger.error('Failed to refresh session', { error: e })
 		}
 	},
 
-	async loadLeaveTypes() {
+	async loadLeaveTypes(): Promise<void> {
 		this.leaveTypes = await api.listLeaveTypes(false)
 	},
 
-	async loadRequests(params) {
+	async loadRequests(params?: RequestListParams): Promise<void> {
 		this.loading = true
 		try {
 			this.requests = await api.listRequests(params)
@@ -109,7 +129,7 @@ export const store = reactive({
 		}
 	},
 
-	async loadMyBalance(year) {
+	async loadMyBalance(year: number): Promise<void> {
 		// Mirrors loadRequests: callers run the two in a Promise.all, so an
 		// unhandled rejection here took the request list down with it.
 		try {
@@ -119,40 +139,40 @@ export const store = reactive({
 		}
 	},
 
-	async createRequest(data) {
+	async createRequest(data: RequestCreateData): Promise<LeaveRequestRecord> {
 		const created = await api.createRequest(data)
 		showSuccess(t('absence', 'On its way ✈️'))
 		await this.refreshSession()
 		return created
 	},
 
-	async updateRequest(id, data) {
+	async updateRequest(id: number, data: RequestUpdateData): Promise<LeaveRequest> {
 		const updated = await api.updateRequest(id, data)
 		showSuccess(t('absence', 'Request updated'))
 		return updated
 	},
 
-	async cancelRequest(id) {
+	async cancelRequest(id: number): Promise<LeaveRequest> {
 		const res = await api.cancelRequest(id)
 		showSuccess(t('absence', 'Request cancelled'))
 		await this.refreshSession()
 		return res
 	},
 
-	async approveRequest(id, comment, updatedAt) {
+	async approveRequest(id: number, comment?: string | null, updatedAt?: string | null): Promise<LeaveRequest> {
 		const res = await api.approveRequest(id, comment, updatedAt)
 		await this.refreshSession()
 		return res
 	},
 
-	async rejectRequest(id, comment, updatedAt) {
+	async rejectRequest(id: number, comment: string, updatedAt?: string | null): Promise<LeaveRequest> {
 		const res = await api.rejectRequest(id, comment, updatedAt)
 		showSuccess(t('absence', 'Request declined'))
 		await this.refreshSession()
 		return res
 	},
 
-	select(id) {
+	select(id: number | null): void {
 		this.selectedId = id
 	},
 })
@@ -162,9 +182,9 @@ export const store = reactive({
  * `text` uses Nextcloud's contrast-optimised *-text variables so labels stay
  * readable; `tint` is the base semantic colour used for the chip background.
  *
- * @param status
+ * @param status the status, as the server names it
  */
-export function statusMeta(status) {
+export function statusMeta(status: RequestStatus | string): StatusMeta {
 	switch (status) {
 		case 'PENDING':
 			return { label: t('absence', 'Pending'), text: 'var(--color-warning-text)', tint: 'var(--color-warning)', icon: '⏳' }

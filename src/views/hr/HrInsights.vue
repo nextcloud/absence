@@ -217,8 +217,8 @@ import { n, t } from '@nextcloud/l10n'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
-import api from '../../api.js'
-import { formatNumber, locale } from '../../utils/locale.js'
+import api from '../../services/api.ts'
+import { formatNumber, locale } from '../../utils/locale.ts'
 
 export default {
 	name: 'HrInsights',

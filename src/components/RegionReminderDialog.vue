@@ -84,9 +84,9 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { locale } from '../utils/locale.js'
-import { regionFlag } from '../utils/regions.js'
+import api from '../services/api.ts'
+import { locale } from '../utils/locale.ts'
+import { regionFlag } from '../utils/regions.ts'
 
 export default {
 	name: 'RegionReminderDialog',

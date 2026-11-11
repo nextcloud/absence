@@ -140,8 +140,8 @@ import Upload from 'vue-material-design-icons/Upload.vue'
 import LeaveImportDialog from '../../components/LeaveImportDialog.vue'
 import RequestListItem from '../../components/RequestListItem.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
-import api from '../../api.js'
-import { statusMeta, store } from '../../store.js'
+import api from '../../services/api.ts'
+import { statusMeta, store } from '../../store.ts'
 
 const PAGE_SIZE = 100
 

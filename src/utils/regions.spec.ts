@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it, vi } from 'vitest'
-import { regionCountryName, regionFlag } from './regions.js'
+import { regionCountryName, regionFlag } from './regions.ts'
 
 vi.mock('@nextcloud/l10n', () => ({ getLanguage: () => 'en' }))
 

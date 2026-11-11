@@ -1,11 +1,13 @@
+import type { EntitlementForm } from './entitlement.ts'
+
 /**
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { entitlementPayload } from './entitlement.js'
+import { entitlementPayload } from './entitlement.ts'
 
-const form = (values) => ({ baseDays: '30', adjustmentDelta: '', adjustmentNote: '', ...values })
+const form = (values: Partial<EntitlementForm>): EntitlementForm => ({ baseDays: '30', adjustmentDelta: '', adjustmentNote: '', ...values })
 
 describe('entitlementPayload', () => {
 	it('refuses an emptied base days field instead of reading it as zero', () => {

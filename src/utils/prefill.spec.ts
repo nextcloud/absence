@@ -1,14 +1,16 @@
+import type { PrefillForm } from './prefill.ts'
+
 /**
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { prefilledWorkingDays } from './prefill.js'
+import { prefilledWorkingDays } from './prefill.ts'
 
 const monToFri = new Set([1, 2, 3, 4, 5])
 // Monday 2 to Friday 6 March 2026, saved by hand as 4.5 days.
 const saved = { startDate: '2026-03-02', endDate: '2026-03-06', workingDays: 4.5 }
-const form = (values) => prefilledWorkingDays({ request: null, touched: false, startIso: '2026-03-02', endIso: '2026-03-06', weekdays: monToFri, isHoliday: null, ...values })
+const form = (values: Partial<PrefillForm>) => prefilledWorkingDays({ request: null, touched: false, startIso: '2026-03-02', endIso: '2026-03-06', weekdays: monToFri, isHoliday: null, ...values })
 
 describe('prefilledWorkingDays', () => {
 	it('counts the working days of a new request', () => {
@@ -43,6 +45,6 @@ describe('prefilledWorkingDays', () => {
 	it('uses the weekdays and holidays it is given, not a default', () => {
 		const monToThu = new Set([1, 2, 3, 4])
 		expect(form({ weekdays: monToThu })).toBe('4')
-		expect(form({ weekdays: monToThu, isHoliday: (iso) => iso === '2026-03-03' })).toBe('3')
+		expect(form({ weekdays: monToThu, isHoliday: (iso: string) => iso === '2026-03-03' })).toBe('3')
 	})
 })

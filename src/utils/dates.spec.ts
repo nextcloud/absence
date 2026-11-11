@@ -11,7 +11,7 @@ import {
 	parseWeekdays,
 	seasonOf,
 	toIso,
-} from './dates.js'
+} from './dates.ts'
 
 describe('parseWeekdays', () => {
 	it('parses a CSV of ISO weekday numbers', () => {
@@ -39,7 +39,7 @@ describe('countWorkingDays', () => {
 	})
 
 	it('subtracts a public holiday inside the range', () => {
-		const isHoliday = (iso) => iso === '2026-03-03'
+		const isHoliday = (iso: string) => iso === '2026-03-03'
 		expect(countWorkingDays('2026-03-02', '2026-03-06', monFri, isHoliday)).toBe(4)
 	})
 

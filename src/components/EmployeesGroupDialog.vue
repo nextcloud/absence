@@ -61,8 +61,8 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { namesAndMore } from '../utils/people.js'
+import api from '../services/api.ts'
+import { namesAndMore } from '../utils/people.ts'
 
 export default {
 	name: 'EmployeesGroupDialog',

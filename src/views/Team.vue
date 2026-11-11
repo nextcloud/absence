@@ -75,8 +75,8 @@ import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import TeamTimeline from '../components/TeamTimeline.vue'
-import api from '../api.js'
-import { formatNumber } from '../utils/locale.js'
+import api from '../services/api.ts'
+import { formatNumber } from '../utils/locale.ts'
 
 export default {
 	name: 'Team',

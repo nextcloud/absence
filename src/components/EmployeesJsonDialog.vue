@@ -114,10 +114,10 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import Download from 'vue-material-design-icons/Download.vue'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { contractDiff, describePeriod } from '../utils/contract.js'
-import { formatDate } from '../utils/dates.js'
-import { regionFlag } from '../utils/regions.js'
+import api from '../services/api.ts'
+import { contractDiff, describePeriod } from '../utils/contract.ts'
+import { formatDate } from '../utils/dates.ts'
+import { regionFlag } from '../utils/regions.ts'
 
 export default {
 	name: 'EmployeesJsonDialog',

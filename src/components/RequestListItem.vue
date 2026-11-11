@@ -26,8 +26,8 @@
 import { n, t } from '@nextcloud/l10n'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import StatusChip from './StatusChip.vue'
-import { store } from '../store.js'
-import { formatRange } from '../utils/dates.js'
+import { store } from '../store.ts'
+import { formatRange } from '../utils/dates.ts'
 
 export default {
 	name: 'RequestListItem',

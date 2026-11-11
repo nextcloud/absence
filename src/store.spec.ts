@@ -2,26 +2,47 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import type { LeaveType } from './types/index.ts'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@nextcloud/axios', () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }))
-vi.mock('@nextcloud/router', () => ({ generateUrl: (path) => path }))
+vi.mock('@nextcloud/router', () => ({ generateUrl: (path: string) => path }))
 vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
-vi.mock('@nextcloud/initial-state', () => ({
-	loadState: vi.fn(() => {
-		throw new Error('no state')
-	}),
-}))
-vi.mock('@nextcloud/l10n', () => ({ t: (app, text) => text }))
+vi.mock('@nextcloud/initial-state', () => ({ loadState: vi.fn((app: string, key: string, fallback: unknown) => fallback) }))
+vi.mock('@nextcloud/l10n', () => ({ t: (app: string, text: string) => text }))
+vi.mock('./services/logger.ts', () => ({ logger: { error: vi.fn() } }))
 
-const { store, statusMeta } = await import('./store.js')
+const { store, statusMeta } = await import('./store.ts')
+
+/**
+ * @param values what the test is about
+ */
+function leaveType(values: Partial<LeaveType>): LeaveType {
+	return {
+		id: 0,
+		key: 'type',
+		label: '',
+		color: '#0082c9',
+		icon: '',
+		countsAgainstBalance: true,
+		requiresApproval: true,
+		requiresNote: false,
+		requiresReplacement: false,
+		employeeRequestable: true,
+		hrOnly: false,
+		enabled: true,
+		sortOrder: 0,
+		...values,
+	}
+}
 
 describe('store.leaveType', () => {
 	beforeEach(() => {
 		store.leaveTypes = [
-			{ id: 1, label: 'Annual leave', enabled: true, employeeRequestable: true },
-			{ id: 2, label: 'Sick leave', enabled: true, employeeRequestable: false },
-			{ id: 3, label: 'Retired type', enabled: false, employeeRequestable: true },
+			leaveType({ id: 1, label: 'Annual leave' }),
+			leaveType({ id: 2, label: 'Sick leave', employeeRequestable: false }),
+			leaveType({ id: 3, label: 'Retired type', enabled: false }),
 		]
 	})
 

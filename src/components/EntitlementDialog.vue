@@ -69,9 +69,9 @@ import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import api from '../api.js'
-import { entitlementPayload } from '../utils/entitlement.js'
-import { formatNumber, locale } from '../utils/locale.js'
+import api from '../services/api.ts'
+import { entitlementPayload } from '../utils/entitlement.ts'
+import { formatNumber, locale } from '../utils/locale.ts'
 
 /**
  * HR's editor for one entitlement of one employee and year, with its change

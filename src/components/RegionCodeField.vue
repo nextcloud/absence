@@ -81,12 +81,12 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import api from '../api.js'
-import { store } from '../store.js'
-import { parseWeekdays } from '../utils/dates.js'
-import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.js'
-import { locale } from '../utils/locale.js'
-import { regionCountryName, regionFlag } from '../utils/regions.js'
+import api from '../services/api.ts'
+import { store } from '../store.ts'
+import { parseWeekdays } from '../utils/dates.ts'
+import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.ts'
+import { locale } from '../utils/locale.ts'
+import { regionCountryName, regionFlag } from '../utils/regions.ts'
 
 export default {
 	name: 'RegionCodeField',

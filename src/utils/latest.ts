@@ -8,13 +8,11 @@
  * answered: call the returned function when a load starts, and ask what it
  * gives back before using the answer.
  *
- *     const isLatest = this.startLoad()
+ *     const isLatest = startLoad()
  *     const rows = await api.list()
- *     if (isLatest()) { this.rows = rows }
- *
- * @return {() => (() => boolean)}
+ *     if (isLatest()) { rows.value = rows }
  */
-export function latestOnly() {
+export function latestOnly(): () => (() => boolean) {
 	let current = 0
 	return () => {
 		const started = ++current

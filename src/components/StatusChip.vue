@@ -10,7 +10,7 @@
 </template>
 
 <script>
-import { statusMeta } from '../store.js'
+import { statusMeta } from '../store.ts'
 
 export default {
 	name: 'StatusChip',

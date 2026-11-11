@@ -22,7 +22,7 @@
 <script>
 import { t } from '@nextcloud/l10n'
 import TeamTimeline from '../../components/TeamTimeline.vue'
-import { store } from '../../store.js'
+import { store } from '../../store.ts'
 
 export default {
 	name: 'HrWhosOff',

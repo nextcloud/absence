@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { latestOnly } from './latest.js'
+import { latestOnly } from './latest.ts'
 
 describe('latestOnly', () => {
 	it('keeps the answer of a load nothing overtook', () => {
@@ -22,8 +22,8 @@ describe('latestOnly', () => {
 
 	it('lets a slow first answer land after the second without winning', async () => {
 		const start = latestOnly()
-		const shown = []
-		const load = async (value, delay) => {
+		const shown: string[] = []
+		const load = async (value: string, delay: number) => {
 			const isLatest = start()
 			await new Promise((resolve) => setTimeout(resolve, delay))
 			if (isLatest()) {

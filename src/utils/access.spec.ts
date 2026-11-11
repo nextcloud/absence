@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { canOpenRoute } from './access.js'
+import { canOpenRoute } from './access.ts'
 
 describe('canOpenRoute', () => {
 	it('opens ordinary pages to everyone', () => {

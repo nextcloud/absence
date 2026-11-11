@@ -49,7 +49,7 @@
 
 <script>
 import { t } from '@nextcloud/l10n'
-import { formatNumber } from '../utils/locale.js'
+import { formatNumber } from '../utils/locale.ts'
 
 export default {
 	name: 'DonutChart',

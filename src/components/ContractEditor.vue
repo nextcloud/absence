@@ -96,8 +96,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Plus from 'vue-material-design-icons/Plus.vue'
-import api from '../api.js'
-import { toIso } from '../utils/dates.js'
+import api from '../services/api.ts'
+import { toIso } from '../utils/dates.ts'
 
 let nextKey = 0
 

@@ -152,12 +152,12 @@ import ContractEditor from '../components/ContractEditor.vue'
 import EntitlementDialog from '../components/EntitlementDialog.vue'
 import RegionCodeField from '../components/RegionCodeField.vue'
 import SkeletonList from '../components/SkeletonList.vue'
-import api from '../api.js'
-import { store } from '../store.js'
-import { formatDate, formatRange, toIso } from '../utils/dates.js'
-import { latestOnly } from '../utils/latest.js'
-import { regionFlag } from '../utils/regions.js'
-import { dayNames } from '../utils/weekdays.js'
+import api from '../services/api.ts'
+import { store } from '../store.ts'
+import { formatDate, formatRange, toIso } from '../utils/dates.ts'
+import { latestOnly } from '../utils/latest.ts'
+import { regionFlag } from '../utils/regions.ts'
+import { dayNames } from '../utils/weekdays.ts'
 
 export default {
 	name: 'Profile',

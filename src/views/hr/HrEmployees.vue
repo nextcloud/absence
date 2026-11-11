@@ -250,12 +250,12 @@ import EmployeesJsonDialog from '../../components/EmployeesJsonDialog.vue'
 import EntitlementDialog from '../../components/EntitlementDialog.vue'
 import RegionReminderDialog from '../../components/RegionReminderDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
-import api from '../../api.js'
-import { formatDate } from '../../utils/dates.js'
-import { latestOnly } from '../../utils/latest.js'
-import { formatNumber } from '../../utils/locale.js'
-import { regionFlag } from '../../utils/regions.js'
-import { formatWeekdays } from '../../utils/weekdays.js'
+import api from '../../services/api.ts'
+import { formatDate } from '../../utils/dates.ts'
+import { latestOnly } from '../../utils/latest.ts'
+import { formatNumber } from '../../utils/locale.ts'
+import { regionFlag } from '../../utils/regions.ts'
+import { formatWeekdays } from '../../utils/weekdays.ts'
 
 /** Rows shown at first and added by "Load more" */
 const PAGE = 50

@@ -284,9 +284,9 @@ import LeaveTypeChip from '../../components/LeaveTypeChip.vue'
 import LeaveTypesDialog from '../../components/LeaveTypesDialog.vue'
 import SavedCheck from '../../components/SavedCheck.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
-import api from '../../api.js'
-import { store } from '../../store.js'
-import { keepUnsaved } from '../../utils/unsaved.js'
+import api from '../../services/api.ts'
+import { store } from '../../store.ts'
+import { keepUnsaved } from '../../utils/unsaved.ts'
 
 // The section each setting is shown in, to flash its check once saved
 const SECTION_OF = {

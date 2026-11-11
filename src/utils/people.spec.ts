@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@nextcloud/l10n', () => ({
-	n: (app, singular, plural, count, vars) => (count === 1 ? singular : plural).replace(/{(\w+)}/g, (_, key) => vars[key]),
+	n: (app: string, singular: string, plural: string, count: number, vars: Record<string, string | number>) => (count === 1 ? singular : plural).replace(/{(\w+)}/g, (_, key: string) => String(vars[key])),
 }))
 
 const { namesAndMore } = await import('./people.js')
