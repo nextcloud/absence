@@ -124,3 +124,15 @@ export interface EntitlementBulkResult {
 	/** Number of employees whose entitlement was set. */
 	affected: number
 }
+
+/** GET /api/entitlements/pro-rata: what the contract would give for a year. */
+export interface ProRataSuggestion {
+	/** The suggested base, rounded up to the next half day. */
+	days: number
+	/** What a full year at full time gives: the default entitlement. */
+	fullDays: number
+	/** The months that count, 0 to 12. */
+	months: number
+	/** The average days a week over those months, 5 at most. */
+	daysPerWeek: number
+}

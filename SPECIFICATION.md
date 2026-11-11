@@ -837,6 +837,27 @@ current data of every employee, *Download* saves the same text, and
   absence:import-employees <file> [--dry-run]` does the same with no author, like the
   holiday import.
 
+### 6.6 Pro rata suggestion (HR)
+
+The entitlement editor suggests, for the annual type, what the contract (§6.4)
+would give for the year (`GET /api/entitlements/pro-rata?employeeUid&year`, HR
+only, `ProRataService`):
+
+- The default entitlement (§12) is what a full year at full time gives.
+- A month counts when the person is employed on its 15th (start and end date;
+  without a start date every month before the end counts).
+- Each month counts by the days a week of the working pattern in force on that
+  day, out of 5: 5 without a pattern, and never more than 5. The contract
+  percentage is not used: five short days are five days of leave.
+- The result is rounded up to the next half day.
+
+It is **a suggestion, never applied by itself**: the editor shows it with its
+reasons ("employed 8 months of 12 · 4 days a week") and a button that puts it in
+the base field. HR saves as for any other change, so it lands in the entitlement
+history. It is shown only when it differs from the base in the field.
+
+---
+
 ## 7. Working Days (manually entered)
 
 There is **no automatic working-day calculation**. Keeping an accurate, always-current

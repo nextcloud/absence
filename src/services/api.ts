@@ -40,6 +40,7 @@ import type {
 	PersonalConfig,
 	PersonalConfigValues,
 	Profile,
+	ProRataSuggestion,
 	RegionReminder,
 	RequestCommentRecord,
 	RequestCreateData,
@@ -148,6 +149,8 @@ export default {
 	// A changed default can be handed on to the people who had the old one this year.
 	entitlementsOnDefault: (days: number) => get<{ year: number, count: number }>('/api/entitlements/on-default', { days }),
 	applyDefaultEntitlement: (from: number, to: number) => post<{ affected: number }>('/api/entitlements/apply-default', { from, to }),
+	// What the contract would give for the year, for HR to take over or not.
+	proRataEntitlement: (employeeUid: string, year: number) => get<ProRataSuggestion>('/api/entitlements/pro-rata', { employeeUid, year }),
 	// Who changed an entitlement, which figure, from what to what, and why.
 	entitlementHistory: (id: number) => get<EntitlementEvent[]>(`/api/entitlements/${id}/history`),
 	// Past leave as approved, HR-recorded leave; with dryRun only the review.

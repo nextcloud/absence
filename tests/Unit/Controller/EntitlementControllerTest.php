@@ -12,6 +12,7 @@ use OCA\Absence\Controller\EntitlementController;
 use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\ProRataService;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -40,6 +41,7 @@ class EntitlementControllerTest extends TestCase {
 			$this->createMock(IRequest::class),
 			'itest-hr',
 			$service,
+			$this->createMock(ProRataService::class),
 			$this->createMock(PermissionService::class),
 			$this->l10nMock(),
 			$this->createMock(LoggerInterface::class),
