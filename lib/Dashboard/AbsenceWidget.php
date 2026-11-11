@@ -181,7 +181,8 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 	 * @return array{title:string,subtitle:string}|null
 	 */
 	private function balanceSummary(string $userId): ?array {
-		foreach ($this->balanceService->getBalance($userId)['balances'] as $row) {
+		// Without a year the rows of every year with an entitlement come back, next year's first.
+		foreach ($this->balanceService->getBalance($userId, $this->balanceService->currentYear())['balances'] as $row) {
 			if ($row['typeKey'] === 'annual' && $row['remaining'] !== null) {
 				$remaining = $this->formatDays((float)$row['remaining']);
 				$pending = (float)$row['pending'];

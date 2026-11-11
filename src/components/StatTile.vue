@@ -67,7 +67,8 @@ withDefaults(defineProps<{
 		font-size: 2rem;
 		font-weight: 700;
 		line-height: 1.1;
-		color: var(--tile-accent);
+		// Not the accent: the status colours are too pale to read as text.
+		color: var(--color-main-text);
 		font-variant-numeric: tabular-nums;
 	}
 
