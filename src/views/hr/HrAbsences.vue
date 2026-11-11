@@ -149,6 +149,7 @@ import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
 import { useRequestsStore } from '../../stores/requests.ts'
 import { useSessionStore } from '../../stores/session.ts'
 import { openRecordKey } from '../../utils/injectionKeys.ts'
+import { yearFromQuery } from '../../utils/numbers.ts'
 import { statusMeta } from '../../utils/status.ts'
 
 const sessionStore = useSessionStore()
@@ -182,7 +183,7 @@ const thisYear = new Date().getFullYear()
 const presetEmployee: UserRef | null = typeof q.employee === 'string' && q.employee
 	? { uid: q.employee, displayName: q.employee }
 	: null
-const presetYear = q.year ? Number(q.year) : thisYear
+const presetYear = yearFromQuery(q.year, thisYear)
 
 const loading = ref(true)
 const loadingMore = ref(false)

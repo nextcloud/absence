@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import type { LeaveRequest } from './requests.ts'
-
 // The window events the views and the app shell talk through.
 declare global {
 	interface WindowEventMap {
@@ -16,7 +14,5 @@ declare global {
 		'absence:open-new': CustomEvent<undefined>
 		/** Open the form HR records an absence with */
 		'absence:open-record': CustomEvent<undefined>
-		/** Open the form on an existing request */
-		'absence:open-edit': CustomEvent<LeaveRequest>
 	}
 }

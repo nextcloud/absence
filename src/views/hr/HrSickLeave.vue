@@ -339,9 +339,9 @@ async function reload(): Promise<void> {
 		if (seq !== reloadSeq) {
 			return
 		}
-		rows.value = report.rows ?? []
-		types.value = report.types ?? []
-		totals.value = report.totals ?? { employees: 0, affected: 0, days: 0, episodes: 0 }
+		rows.value = report.rows
+		types.value = report.types
+		totals.value = report.totals
 	} catch {
 		if (seq === reloadSeq) {
 			loadError.value = true

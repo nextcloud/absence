@@ -198,7 +198,11 @@ const current = computed<ContractPeriod | null>(() => {
 	return [...profile.value.contract.periods].reverse().find((period) => period.from <= today) ?? null
 })
 
-watch(profileUid, () => load())
+watch(profileUid, () => {
+	// The row belongs to the previous person: saving it would write to this one
+	editingDays.value = null
+	load()
+})
 
 onMounted(() => {
 	load()

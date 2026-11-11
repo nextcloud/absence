@@ -299,6 +299,7 @@ import api from '../../services/api.ts'
 import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
 import { useSessionStore } from '../../stores/session.ts'
 import { serverMessage } from '../../utils/errors.ts'
+import { isNumeric } from '../../utils/numbers.ts'
 import { keepUnsaved } from '../../utils/unsaved.ts'
 
 const sessionStore = useSessionStore()
@@ -498,6 +499,11 @@ function copySetting<K extends SettingsKey>(target: SettingsPatch, source: Setti
  */
 function saveField(key: TextKey): void {
 	if (!form.value || !values.value || String(form.value[key]) === String(values.value[key])) {
+		return
+	}
+	// An emptied number field holds NaN, which the server would only refuse
+	if (typeof values.value[key] === 'number' && !isNumeric(form.value[key])) {
+		copySetting(form.value, values.value, key)
 		return
 	}
 	const patch: SettingsPatch = {}

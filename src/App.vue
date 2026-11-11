@@ -211,7 +211,7 @@ import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
 import { useRequestsStore } from './stores/requests.ts'
 import { useSessionStore } from './stores/session.ts'
-import { openEditKey, openNewKey, openRecordKey } from './utils/injectionKeys.ts'
+import { openNewKey, openRecordKey } from './utils/injectionKeys.ts'
 
 const requestsStore = useRequestsStore()
 const sessionStore = useSessionStore()
@@ -223,10 +223,9 @@ interface ClosedState {
 	icon: Component
 }
 
-// Let any descendant view open the create/edit/record dialog or select a request.
+// Let any descendant view open the create/record dialog.
 provide(openNewKey, () => window.dispatchEvent(new CustomEvent('absence:open-new')))
 provide(openRecordKey, () => window.dispatchEvent(new CustomEvent('absence:open-record')))
-provide(openEditKey, (r) => window.dispatchEvent(new CustomEvent('absence:open-edit', { detail: r })))
 
 const route = useRoute()
 
@@ -269,13 +268,11 @@ const escalatedCount = computed(() => sessionStore.session.escalatedCount ?? 0)
 onMounted(() => {
 	window.addEventListener('absence:open-new', openNewRequest)
 	window.addEventListener('absence:open-record', openRecord)
-	window.addEventListener('absence:open-edit', onOpenEditEvent)
 })
 
 onBeforeUnmount(() => {
 	window.removeEventListener('absence:open-new', openNewRequest)
 	window.removeEventListener('absence:open-record', openRecord)
-	window.removeEventListener('absence:open-edit', onOpenEditEvent)
 })
 
 /**
@@ -304,15 +301,6 @@ function openRecord(): void {
 	editRequest.value = null
 	recordMode.value = true
 	showDialog.value = true
-}
-
-/**
- * Open the form on the request a view asked to edit
- *
- * @param e the event carrying the request
- */
-function onOpenEditEvent(e: WindowEventMap['absence:open-edit']): void {
-	openEditRequest(e.detail)
 }
 
 /**
