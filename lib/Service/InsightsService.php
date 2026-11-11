@@ -37,7 +37,6 @@ class InsightsService {
 		private BalanceService $balanceService,
 		private EmployeeDirectory $employees,
 		private ManagerResolver $managerResolver,
-		private ConfigService $config,
 		private ClockService $clock,
 		private IUserManager $userManager,
 		private IL10N $l,
@@ -64,7 +63,7 @@ class InsightsService {
 			'approval' => $this->approvalHealth($yearRequests),
 			'bradford' => $this->bradford($yearRequests),
 			'utilization' => $this->utilization($balances, $teams),
-			'liability' => $this->liability($balances, $teams, $year),
+			'liability' => $this->liability($balances, $teams),
 		];
 	}
 
@@ -299,13 +298,13 @@ class InsightsService {
 	 * @param list<array{managerUid:?string,name:string,uids:string[]}> $teams
 	 * @return array<string,mixed>
 	 */
-	private function liability(array $balances, array $teams, int $year): array {
+	private function liability(array $balances, array $teams): array {
 		$company = $this->liabilityFor(array_map(strval(...), array_keys($balances)), $balances);
 		$perTeam = [];
 		foreach ($teams as $team) {
 			$row = $this->liabilityFor($team['uids'], $balances);
 			if ($row['outstanding'] > 0) {
-				$perTeam[] = ['name' => $team['name']] + $row;
+				$perTeam[] = ['name' => $team['name'], 'outstanding' => $row['outstanding'], 'carryOverExposure' => $row['carryOverExposure']];
 			}
 		}
 		usort($perTeam, static fn (array $a, array $b): int => $b['outstanding'] <=> $a['outstanding']);
@@ -313,7 +312,7 @@ class InsightsService {
 		return [
 			'outstanding' => $company['outstanding'],
 			'carryOverExposure' => $company['carryOverExposure'],
-			'expiryDate' => $this->carryOverExpiryDate($year),
+			'expiryDate' => $company['expiryDate'],
 			'perTeam' => $perTeam,
 		];
 	}
@@ -321,11 +320,12 @@ class InsightsService {
 	/**
 	 * @param string[] $uids
 	 * @param array<string,list<array<string,mixed>>> $balances
-	 * @return array{outstanding:float,carryOverExposure:float}
+	 * @return array{outstanding:float,carryOverExposure:float,expiryDate:?string}
 	 */
 	private function liabilityFor(array $uids, array $balances): array {
 		$outstanding = 0.0;
 		$carryOver = 0.0;
+		$expiryDate = null;
 		foreach ($uids as $uid) {
 			$row = $this->annualRow($balances[$uid] ?? []);
 			if ($row === null || $row['remaining'] === null) {
@@ -333,27 +333,16 @@ class InsightsService {
 			}
 			$remaining = max(0.0, (float)$row['remaining']);
 			$outstanding += $remaining;
-			// The at-risk carry-over is what is still unspent, capped at the
-			// carry-over that was granted — you cannot lose more than you carried.
-			$carryOver += min((float)$row['carryOverDays'], $remaining);
+			// What the expiry would remove today (§6.2), the same figure the
+			// person reads on their own balance. Nothing once the date has passed.
+			$carryOver += (float)($row['carryOverExpiring'] ?? 0.0);
+			$expiryDate ??= $row['carryOverExpiryDate'] ?? null;
 		}
 		return [
 			'outstanding' => round($outstanding, 1),
 			'carryOverExposure' => round($carryOver, 1),
+			'expiryDate' => $expiryDate,
 		];
-	}
-
-	/** The date this year's carry-over expires, or null when nothing expires. */
-	private function carryOverExpiryDate(int $year): ?string {
-		if ($this->config->getCarryOverPolicy() === ConfigService::CARRYOVER_NONE) {
-			return null;
-		}
-		$expiry = $this->config->getCarryOverExpiry(); // 'MM-DD' or ''
-		if ($expiry === '' || !preg_match('/^\d{2}-\d{2}$/', $expiry)) {
-			return null;
-		}
-		// Carry-over from `year` is used in `year + 1` and expires there.
-		return sprintf('%04d-%s', $year + 1, $expiry);
 	}
 
 	// ---------------------------------------------------------- helpers ----

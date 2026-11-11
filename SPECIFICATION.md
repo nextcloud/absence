@@ -1226,7 +1226,9 @@ The HR area (visible only to HR-group members) provides:
      (computed from a rolling one-year window), longest-neglected first.
    - **Leave liability** — accrued-but-untaken annual leave (Σ `remaining`) as a
      balance-sheet figure, company- and team-wide, plus the carry-over at risk
-     (Σ `min(carryOverDays, remaining)`) and the date it expires (§6.2). Teams are
+     and the date it expires: the sum of what the expiry would remove today (§6.2),
+     the figure each person reads on their own balance. Nothing is at risk once
+     the date has passed, or in a year other than the current one. Teams are
      grouped by the manager each employee reports to; those without a manager form
      one group. All of it is HR-only — it names people and includes health-adjacent
      figures.

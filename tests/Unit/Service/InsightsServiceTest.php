@@ -14,7 +14,6 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
-use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\InsightsService;
 use OCA\Absence\Service\ManagerResolver;
@@ -31,7 +30,6 @@ class InsightsServiceTest extends TestCase {
 	private BalanceService&MockObject $balanceService;
 	private EmployeeDirectory&MockObject $employees;
 	private ManagerResolver&MockObject $managerResolver;
-	private ConfigService&MockObject $config;
 	private ClockService&MockObject $clock;
 	private InsightsService $service;
 
@@ -42,7 +40,6 @@ class InsightsServiceTest extends TestCase {
 		$this->balanceService = $this->createMock(BalanceService::class);
 		$this->employees = $this->createMock(EmployeeDirectory::class);
 		$this->managerResolver = $this->createMock(ManagerResolver::class);
-		$this->config = $this->createMock(ConfigService::class);
 		$this->clock = $this->createMock(ClockService::class);
 		$userManager = $this->createMock(IUserManager::class);
 		// get() returns null → display names fall back to the uid, so assertions
@@ -65,7 +62,6 @@ class InsightsServiceTest extends TestCase {
 			$this->balanceService,
 			$this->employees,
 			$this->managerResolver,
-			$this->config,
 			$this->clock,
 			$userManager,
 			$this->l10nMock(),
@@ -109,6 +105,8 @@ class InsightsServiceTest extends TestCase {
 				'entitlement' => $b['entitlement'],
 				'remaining' => $b['remaining'],
 				'carryOverDays' => $b['carryOverDays'],
+				'carryOverExpiring' => $b['carryOverExpiring'] ?? 0.0,
+				'carryOverExpiryDate' => $b['carryOverExpiryDate'] ?? null,
 			]];
 		}
 		$this->balanceService->method('getBalancesForEmployees')->willReturn($out);
@@ -129,7 +127,6 @@ class InsightsServiceTest extends TestCase {
 	public function testApprovalHealthCountsOnlyManagerDecisions(): void {
 		$this->withRequests();
 		$this->balances(['alice' => ['used' => 5.0, 'entitlement' => 28.0, 'remaining' => 23.0, 'carryOverDays' => 3.0]]);
-		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_NONE);
 
 		$approval = $this->service->getInsights(2026)['approval'];
 
@@ -148,7 +145,6 @@ class InsightsServiceTest extends TestCase {
 	public function testBradfordScoresSpellsSquaredTimesDays(): void {
 		$this->withRequests();
 		$this->balances(['alice' => ['used' => 5.0, 'entitlement' => 28.0, 'remaining' => 23.0, 'carryOverDays' => 3.0]]);
-		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_NONE);
 
 		$bradford = $this->service->getInsights(2026)['bradford'];
 
@@ -169,7 +165,6 @@ class InsightsServiceTest extends TestCase {
 			'bob' => ['used' => 20.0, 'entitlement' => 28.0, 'remaining' => 8.0, 'carryOverDays' => 5.0],
 			'carol' => ['used' => 0.0, 'entitlement' => 25.0, 'remaining' => 25.0, 'carryOverDays' => 0.0],
 		]);
-		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_NONE);
 
 		$util = $this->service->getInsights(2026)['utilization'];
 
@@ -185,24 +180,33 @@ class InsightsServiceTest extends TestCase {
 		self::assertCount(3, $util['neglected']);
 	}
 
-	public function testLiabilitySumsOutstandingAndCarryOverExposure(): void {
+	public function testLiabilitySumsOutstandingAndTheCarryOverAboutToExpire(): void {
 		$this->withRequests();
 		$this->balances([
-			'alice' => ['used' => 5.0, 'entitlement' => 28.0, 'remaining' => 23.0, 'carryOverDays' => 3.0],
-			'bob' => ['used' => 20.0, 'entitlement' => 28.0, 'remaining' => 8.0, 'carryOverDays' => 5.0],
+			// 3 carried over, 2 of them used up by leave before the expiry date
+			'alice' => ['used' => 5.0, 'entitlement' => 28.0, 'remaining' => 23.0, 'carryOverDays' => 3.0, 'carryOverExpiring' => 1.0, 'carryOverExpiryDate' => '2026-03-31'],
+			'bob' => ['used' => 20.0, 'entitlement' => 28.0, 'remaining' => 8.0, 'carryOverDays' => 5.0, 'carryOverExpiring' => 5.0, 'carryOverExpiryDate' => '2026-03-31'],
 			'carol' => ['used' => 0.0, 'entitlement' => 25.0, 'remaining' => 25.0, 'carryOverDays' => 0.0],
 		]);
-		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_CAPPED);
-		$this->config->method('getCarryOverExpiry')->willReturn('03-31');
 
 		$liability = $this->service->getInsights(2026)['liability'];
 
-		// 23 + 8 + 25 = 56 outstanding; carry-over min(3,23)+min(5,8)+min(0,25) = 8.
 		self::assertSame(56.0, $liability['outstanding']);
-		self::assertSame(8.0, $liability['carryOverExposure']);
-		// This year's carry-over expires next year on the configured MM-DD.
-		self::assertSame('2027-03-31', $liability['expiryDate']);
+		self::assertSame(6.0, $liability['carryOverExposure']);
+		self::assertSame('2026-03-31', $liability['expiryDate']);
 		// Teams ranked by outstanding, largest first (mgr1: 31, no-manager: 25).
 		self::assertSame(31.0, $liability['perTeam'][0]['outstanding']);
+	}
+
+	public function testNoCarryOverIsAtRiskOnceTheExpiryHasRun(): void {
+		$this->withRequests();
+		$this->balances([
+			'bob' => ['used' => 20.0, 'entitlement' => 28.0, 'remaining' => 8.0, 'carryOverDays' => 5.0],
+		]);
+
+		$liability = $this->service->getInsights(2026)['liability'];
+
+		self::assertSame(0.0, $liability['carryOverExposure']);
+		self::assertNull($liability['expiryDate']);
 	}
 }
