@@ -18,6 +18,10 @@
 				{{ t('absence', 'Record an absence on behalf of an employee (e.g. sick leave). It is booked directly, without an approval step.') }}
 			</NcNoteCard>
 
+			<NcNoteCard v-if="isFollowUp" type="info">
+				{{ t('absence', 'This is the rest of the absence you split at New Year. The part before it is already saved.') }}
+			</NcNoteCard>
+
 			<div v-if="hrMode" class="dialog__field">
 				<label class="dialog__label">{{ t('absence', 'Employee') }}</label>
 				<!-- eslint-disable @nextcloud/no-deprecated-library-props -- NcSelectUsers migration deferred: needs live-instance testing -->
@@ -112,6 +116,21 @@
 					<NcDateTimePickerNative v-model="endDate" type="date" />
 				</div>
 			</div>
+
+			<NcNoteCard v-if="yearSplit" type="warning">
+				<p>{{ t('absence', 'This absence runs across New Year. All its working days count for {year}, the year it starts in.', { year: yearSplit.firstEnd.slice(0, 4) }) }}</p>
+				<NcButton
+					v-if="!isEdit"
+					class="dialog__split"
+					variant="secondary"
+					@click="splitAtNewYear">
+					{{ t('absence', 'Split at New Year') }}
+				</NcButton>
+			</NcNoteCard>
+
+			<NcNoteCard v-else-if="pendingRest" type="info">
+				{{ t('absence', 'Once this part is saved, the form opens again for the rest: {range}.', { range: formatRange(pendingRest.startIso, pendingRest.endIso) }) }}
+			</NcNoteCard>
 
 			<div class="dialog__field">
 				<label class="dialog__label">
@@ -215,6 +234,7 @@ import type {
 	RequestUpdateData,
 	UserRef,
 } from '../types/index.ts'
+import type { DateRange, YearSplit } from '../utils/yearSplit.ts'
 
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
@@ -235,7 +255,7 @@ import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { useRequestsStore } from '../stores/requests.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { weekdaysOn } from '../utils/contract.ts'
-import { parseWeekdays, toIso } from '../utils/dates.ts'
+import { formatRange, parseWeekdays, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.ts'
 import { missingYears } from '../utils/holidayYears.ts'
@@ -243,6 +263,7 @@ import { latestOnly } from '../utils/latest.ts'
 import { formatNumber } from '../utils/locale.ts'
 import { namesAndMore } from '../utils/people.ts'
 import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.ts'
+import { restAfter, splitAtYearEnd } from '../utils/yearSplit.ts'
 
 const props = withDefaults(defineProps<{
 	request?: LeaveRequest | null
@@ -284,6 +305,10 @@ let holidaySource: { code: string, years: Set<number>, days: HolidayRecord[] } |
 const subjectPeriods = ref<ContractPeriod[] | null>(null)
 const reason = ref('')
 const submitting = ref(false)
+// The cut made with "Split at New Year": its rest is requested next, in this same form.
+const split = ref<YearSplit | null>(null)
+// True once the form moved on to the rest of a split absence.
+const isFollowUp = ref(false)
 const selectedEmployee = ref<UserRef | null>(null)
 const employeeOptions = ref<UserRef[]>([])
 const employeeLoading = ref(false)
@@ -458,6 +483,12 @@ const prefillActive = computed(() => {
 		&& !isStoredRange(props.request, startIso.value, endIso.value)
 })
 
+/** Where the picked range would be cut at New Year, null while it stays within one year (§7). */
+const yearSplit = computed(() => splitAtYearEnd(startIso.value, endIso.value))
+
+/** The rest of a split absence, requested once the picked first part is saved. */
+const pendingRest = computed(() => restAfter(split.value, startIso.value, endIso.value))
+
 const settingsUrl = computed(() => generateUrl('/settings/user/availability'))
 
 const balanceRow = computed<BalanceRow | null>(() => {
@@ -574,6 +605,13 @@ watch(endIso, () => {
 	scheduleCoverage()
 })
 
+watch([startIso, endIso], () => {
+	// Dates moved off the first part: the split is dropped for good, not kept for a later 31 December.
+	if (!pendingRest.value) {
+		split.value = null
+	}
+})
+
 watch(subjectUid, () => {
 	loadSubject()
 })
@@ -628,6 +666,36 @@ async function loadCoverage() {
 function onWorkingDaysInput(v: string | number) {
 	workingDays.value = v
 	workingDaysTouched.value = true
+}
+
+/**
+ * Shorten the request to end on 31 December and remember the rest. The count
+ * goes back to the prefill, so a number typed for the long range does not stay.
+ */
+function splitAtNewYear() {
+	const cut = yearSplit.value
+	if (!cut) {
+		return
+	}
+	split.value = cut
+	workingDaysTouched.value = false
+	endIso.value = cut.firstEnd
+}
+
+/**
+ * Turn the form into a new request for the rest of a split absence, keeping
+ * everything but the dates and the count. The first part is saved: the lists
+ * reload now, as the form stays open and cancelling it only closes it.
+ *
+ * @param rest the range still to request
+ */
+function openRest(rest: DateRange) {
+	split.value = null
+	isFollowUp.value = true
+	workingDaysTouched.value = false
+	startIso.value = rest.startIso
+	endIso.value = rest.endIso
+	window.dispatchEvent(new CustomEvent('absence:refresh'))
 }
 
 /** Prefill the working-day count from the picked range (see prefilledWorkingDays). */
@@ -835,6 +903,8 @@ async function submit() {
 		return
 	}
 	submitting.value = true
+	// Read before the request is sent: the dates stay editable while it runs
+	const rest = pendingRest.value
 	const typeId = (showSickCategories.value && sickCategory.value && sickCategory.value.id !== null)
 		? sickCategory.value.id
 		: type.id
@@ -861,6 +931,10 @@ async function submit() {
 				creation.employeeUid = selectedEmployee.value.uid
 			}
 			await requestsStore.createRequest(creation)
+			if (rest) {
+				openRest(rest)
+				return
+			}
 		}
 		emit('saved')
 	} catch (e) {
@@ -929,6 +1003,10 @@ async function submit() {
 
 	&__link {
 		text-decoration: underline;
+	}
+
+	&__split {
+		margin-top: calc(var(--default-grid-baseline, 4px) * 2);
 	}
 
 	&__actions {
