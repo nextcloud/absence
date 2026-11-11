@@ -264,6 +264,11 @@
 			@close="pendingEmployeesGroup = null"
 			@confirm="changeEmployeesGroup" />
 
+		<DefaultEntitlementDialog
+			v-if="changedDefault"
+			:change="changedDefault"
+			@close="changedDefault = null" />
+
 		<LeaveTypesDialog v-if="managingTypes" @close="managingTypes = false" />
 	</div>
 </template>
@@ -271,6 +276,7 @@
 <script setup lang="ts">
 import type {
 	CarryOverPolicy,
+	DefaultEntitlementChange,
 	Group,
 	LeaveType,
 	Settings,
@@ -290,6 +296,7 @@ import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CogOutline from 'vue-material-design-icons/CogOutline.vue'
 import Lock from 'vue-material-design-icons/Lock.vue'
+import DefaultEntitlementDialog from '../../components/DefaultEntitlementDialog.vue'
 import EmployeesGroupDialog from '../../components/EmployeesGroupDialog.vue'
 import LeaveTypeChip from '../../components/LeaveTypeChip.vue'
 import LeaveTypesDialog from '../../components/LeaveTypesDialog.vue'
@@ -364,6 +371,7 @@ const groups = ref<Group[]>([])
 const employeesCount = ref<number | null>(null)
 const pendingEmployeesGroup = ref<Group | null>(null)
 const managingTypes = ref(false)
+const changedDefault = ref<DefaultEntitlementChange | null>(null)
 // Section → when it was last saved
 const savedAt = ref<Partial<Record<Section, number>>>({})
 const carryOverOptions: CarryOverOption[] = [
@@ -518,9 +526,14 @@ function saveField(key: TextKey): void {
  */
 async function save(patch: SettingsPatch): Promise<boolean> {
 	const keys = Object.keys(patch).filter(isSettingsKey)
+	const oldDefault = values.value?.default_entitlement
 	saving.value = true
 	try {
 		apply(await api.updateSettings(patch), keys)
+		const newDefault = values.value?.default_entitlement
+		if (oldDefault !== undefined && newDefault !== undefined && newDefault !== oldDefault) {
+			offerDefaultToOthers(oldDefault, newDefault)
+		}
 		for (const key of keys) {
 			savedAt.value[SECTION_OF[key]] = Date.now()
 		}
@@ -539,6 +552,24 @@ async function save(patch: SettingsPatch): Promise<boolean> {
 		return false
 	} finally {
 		saving.value = false
+	}
+}
+
+/**
+ * A changed default reaches nobody who already has days for this year. When
+ * some of them had the old default, asks whether they follow.
+ *
+ * @param from the default before
+ * @param to the default now
+ */
+async function offerDefaultToOthers(from: number, to: number): Promise<void> {
+	try {
+		const { year, count } = await api.entitlementsOnDefault(from)
+		if (count > 0) {
+			changedDefault.value = { from, to, year, count }
+		}
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not check who had the old default'))
 	}
 }
 

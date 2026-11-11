@@ -655,6 +655,17 @@ statutory entitlement for employees with a recognised disability. Rules:
 - Bulk actions: set a default entitlement for a whole group/all employees for a
   given year (admin default in settings, §11, used to seed). All or nothing, and
   recorded in each employee's entitlement history (§3.7b) with the HR user as actor.
+- **Changing the default** (§12) reaches the people without an entitlement of
+  their own for the running year, such as new joiners. Two things keep it from
+  surprising anyone:
+  - Before the new value is stored, every past year an employee has no annual
+    entitlement for gets one with the old default (from the first year with an
+    entitlement or a leave on record), so the past is not recalculated.
+  - The Settings page then asks whether the employees whose base for the running
+    year equals the old default get the new one too
+    (`GET /api/entitlements/on-default`, `POST /api/entitlements/apply-default`,
+    HR or admin). Somebody with another base keeps it. All or nothing, and
+    recorded in each entitlement history.
 - Manual adjustments (+/−) require an `adjustment_note`.
 - The API and the CSV import (§6.3) accept the same figures: a year from 2000 to
   2100, day counts from -9999.9 to 9999.9 with one decimal at most (a finer value
@@ -1140,7 +1151,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 |---------|---------|---------|-------|
 | Who is who | HR group id | `hr` | Which NC group is HR (§2). Admins only. |
 | Who is who | Employees group | none | **Required**: only members count as employees (§2.2). Until one is chosen the app is closed (below). The select shows its member count. |
-| Vacation | Default annual entitlement (days) | 28 | The days of everyone HR hasn't set days for (§6.4). |
+| Vacation | Default annual entitlement (days) | 28 | The days of everyone HR hasn't set days for (§6.4). A change asks whether those on the old default follow (§6.1). |
 | Vacation | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
 | Vacation | Carry-over cap (days) | 5 | Used when `capped`. |
 | Vacation | Carry-over expiry | none / `MM-DD` (e.g. `03-31`) | §6.2. |

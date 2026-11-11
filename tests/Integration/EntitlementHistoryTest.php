@@ -227,4 +227,47 @@ class EntitlementHistoryTest extends TestCase {
 
 		self::assertSame([$existing->getId(), 20.0], [$ent->getId(), $ent->getBaseDays()]);
 	}
+
+	private function onlyTheTeamIsEmployed(): void {
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, self::GROUP);
+	}
+
+	public function testAChangedDefaultIsHandedOnOnlyToThoseOnTheOldOne(): void {
+		$this->onlyTheTeamIsEmployed();
+		$year = Server::get(ClockService::class)->serverYear();
+		$service = $this->service();
+		$ana = $service->setForEmployee(self::HR, self::ANA, $year, $this->annual, ['baseDays' => 28.0]);
+		$service->setForEmployee(self::HR, self::BEN, $year, $this->annual, ['baseDays' => 25.0]);
+
+		self::assertSame(['year' => $year, 'count' => 1], $service->countOnDefault(28.0));
+		self::assertSame(1, $service->applyDefault(self::HR, 28.0, 30.0));
+
+		$mapper = Server::get(EntitlementMapper::class);
+		self::assertSame(30.0, $mapper->findFor(self::ANA, $year, $this->annual)->getBaseDays());
+		self::assertSame(25.0, $mapper->findFor(self::BEN, $year, $this->annual)->getBaseDays());
+		$handedOn = array_values(array_filter(
+			$service->historyFor((int)$ana->getId()),
+			static fn (EntitlementEvent $event): bool => $event->getField() === EntitlementEvent::FIELD_BASE_DAYS && $event->getNewValue() === 30.0,
+		));
+		self::assertCount(1, $handedOn);
+		self::assertSame([28.0, self::HR], [$handedOn[0]->getOldValue(), $handedOn[0]->getActorUid()]);
+	}
+
+	public function testThePastKeepsTheDefaultItHad(): void {
+		$this->onlyTheTeamIsEmployed();
+		$year = Server::get(ClockService::class)->serverYear();
+		$default = Server::get(ConfigService::class)->getDefaultEntitlement();
+		$service = $this->service();
+		$service->setForEmployee(self::HR, self::ANA, $year - 2, $this->annual, ['baseDays' => 20.0]);
+
+		$service->freezePastDefault();
+
+		$mapper = Server::get(EntitlementMapper::class);
+		self::assertSame(20.0, $mapper->findFor(self::ANA, $year - 2, $this->annual)->getBaseDays());
+		self::assertSame($default, $mapper->findFor(self::ANA, $year - 1, $this->annual)->getBaseDays());
+		self::assertSame($default, $mapper->findFor(self::BEN, $year - 2, $this->annual)->getBaseDays());
+		// The running year is not the past: it follows the default
+		$this->expectException(DoesNotExistException::class);
+		$mapper->findFor(self::BEN, $year, $this->annual);
+	}
 }

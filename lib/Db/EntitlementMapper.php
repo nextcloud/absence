@@ -73,6 +73,16 @@ class EntitlementMapper extends QBMapper {
 	}
 
 	/**
+	 * The first year anybody has an entitlement for, null without any.
+	 */
+	public function firstYear(): ?int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->min('year'))->from($this->getTableName());
+		$year = $qb->executeQuery()->fetchOne();
+		return $year === null || $year === false ? null : (int)$year;
+	}
+
+	/**
 	 * @return Entitlement[]
 	 */
 	public function findForYear(int $year): array {

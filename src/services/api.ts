@@ -145,6 +145,9 @@ export default {
 	listEntitlements: (employeeUid: string, year: number) => get<Entitlement[]>('/api/entitlements', { employeeUid, year }),
 	createEntitlement: (data: EntitlementCreateData) => post<Entitlement>('/api/entitlements', data),
 	updateEntitlement: (id: number, data: EntitlementUpdateData) => put<Entitlement>(`/api/entitlements/${id}`, data),
+	// A changed default can be handed on to the people who had the old one this year.
+	entitlementsOnDefault: (days: number) => get<{ year: number, count: number }>('/api/entitlements/on-default', { days }),
+	applyDefaultEntitlement: (from: number, to: number) => post<{ affected: number }>('/api/entitlements/apply-default', { from, to }),
 	// Who changed an entitlement, which figure, from what to what, and why.
 	entitlementHistory: (id: number) => get<EntitlementEvent[]>(`/api/entitlements/${id}/history`),
 	// Past leave as approved, HR-recorded leave; with dryRun only the review.

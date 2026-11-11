@@ -91,3 +91,13 @@ export interface EmployeesPreview {
 	leaving: EmployeesPreviewSide
 	joining: EmployeesPreviewSide
 }
+
+/** A change of the default entitlement that some people could follow. */
+export interface DefaultEntitlementChange {
+	from: number
+	to: number
+	/** The running year, the only one the change can be handed on for. */
+	year: number
+	/** How many employees have `from` as their days for that year. */
+	count: number
+}
