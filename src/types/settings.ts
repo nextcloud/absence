@@ -43,6 +43,14 @@ export interface SettingsValues {
 export type SettingsKey = keyof SettingsValues
 
 /**
+ * The settings as a form sends them. ConfigService::normalizeAdminValues()
+ * reads a number written as text, and refuses what is not valid for the key.
+ */
+export type SettingsInput = {
+	[K in SettingsKey]?: SettingsValues[K] | (SettingsValues[K] extends boolean ? never : string | number)
+}
+
+/**
  * GET and PUT /api/settings and POST /api/settings/groups/{kind}, from
  * SettingsService::get(). HR and admins only.
  */
@@ -60,7 +68,7 @@ export interface Settings {
  * but booleans must be booleans.
  */
 export interface SettingsUpdateData {
-	values: Partial<SettingsValues>
+	values: SettingsInput
 }
 
 /** The {kind} of POST /api/settings/groups/{kind} (admins only): which group to create and choose. */

@@ -129,7 +129,7 @@ export const store = reactive({
 		}
 	},
 
-	async loadMyBalance(year: number): Promise<void> {
+	async loadMyBalance(year?: number): Promise<void> {
 		// Mirrors loadRequests: callers run the two in a Promise.all, so an
 		// unhandled rejection here took the request list down with it.
 		try {

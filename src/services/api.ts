@@ -48,7 +48,7 @@ import type {
 	SessionInfo,
 	Settings,
 	SettingsGroupKind,
-	SettingsValues,
+	SettingsInput,
 	SickLeaveReport,
 	Trends,
 } from '../types/index.ts'
@@ -111,7 +111,7 @@ export default {
 	updateContract: (uid: string, contract: ContractUpdateData) => put<Contract>(`/api/profiles/${user(uid)}/contract`, contract),
 	// App settings page (HR and admins)
 	getSettings: () => get<Settings>('/api/settings'),
-	updateSettings: (values: Partial<SettingsValues>) => put<Settings>('/api/settings', { values }),
+	updateSettings: (values: SettingsInput) => put<Settings>('/api/settings', { values }),
 	// Creates the HR or employees group and chooses it, admins only.
 	createSettingsGroup: (kind: SettingsGroupKind) => post<Settings>(`/api/settings/groups/${kind}`),
 	// Who leaves and who joins the employees if the employees group becomes `group` ('' = everyone).
@@ -138,7 +138,7 @@ export default {
 	attachmentUrl: (id: number) => url(`/api/attachments/${id}`),
 
 	// Balances & entitlements
-	getMyBalance: (year: number) => get<EmployeeBalance>('/api/balance', { year }),
+	getMyBalance: (year?: number) => get<EmployeeBalance>('/api/balance', { year }),
 	// Balances of the caller's own direct reports (empty for non-managers).
 	getTeamBalances: (year: number) => get<EmployeeBalanceRow[]>('/api/team/balances', { year }),
 	getEmployeeBalance: (uid: string, year: number) => get<EmployeeBalance>(`/api/employees/${user(uid)}/balance`, { year }),

@@ -31,7 +31,8 @@ export interface Contract {
 
 /** A period as sent: `percent` may be left out, the server stores null. */
 export interface ContractPeriodData {
-	from: string
+	/** 'YYYY-MM-DD'. A cleared date goes out as null and is refused with the message to show. */
+	from: string | null
 	weekdays: number[]
 	percent?: number | null
 }
