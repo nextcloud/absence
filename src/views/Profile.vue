@@ -37,7 +37,7 @@
 		</header>
 
 		<EntitlementDialog
-			v-if="editingDays"
+			v-if="editingDays && profile"
 			:uid="uid"
 			:displayName="profile.displayName"
 			:row="editingDays"
@@ -45,8 +45,8 @@
 			@close="editingDays = null"
 			@saved="onDaysSaved" />
 
-		<SkeletonList v-if="!profile" />
-		<NcEmptyContent v-else-if="error" :name="error" />
+		<NcEmptyContent v-if="error" :name="error" />
+		<SkeletonList v-else-if="!profile" />
 		<div v-else class="profile__grid">
 			<section class="profile__card">
 				<h3>{{ t('absence', 'Vacation {year}', { year: profile.holidays.year }) }}</h3>
@@ -54,7 +54,7 @@
 				<NcButton
 					v-if="profile.canEditContract && balances.length"
 					class="profile__edit"
-					@click="editingDays = balances[0]">
+					@click="editingDays = balances[0] ?? null">
 					<template #icon>
 						<Pencil :size="20" />
 					</template>
@@ -140,9 +140,12 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { BalanceRow, ContractPeriod, Profile, ProfileChange } from '../types/index.ts'
+
 import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import { computed, onMounted, ref, watch } from 'vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -155,126 +158,129 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
 import { store } from '../store.ts'
 import { formatDate, formatRange, toIso } from '../utils/dates.ts'
+import { serverMessage } from '../utils/errors.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { regionFlag } from '../utils/regions.ts'
 import { dayNames } from '../utils/weekdays.ts'
 
-export default {
-	name: 'Profile',
-	components: { BalanceCard, ContractEditor, EntitlementDialog, NcAvatar, NcButton, NcEmptyContent, Pencil, RegionCodeField, SkeletonList },
-	props: {
-		/** Someone else's profile; the viewer's own without it */
-		uid: { type: String, default: () => store.session.uid },
-	},
+const props = withDefaults(defineProps<{
+	/** Someone else's profile; the viewer's own without it */
+	uid?: string
+}>(), {
+	uid: () => store.session.uid ?? '',
+})
 
-	data() {
-		return {
-			profile: null,
-			balances: [],
-			error: null,
-			contractKey: 0,
-			// The balance row HR edits the vacation days of
-			editingDays: null,
-			year: new Date().getFullYear(),
+// Going from one profile to the next: the answer for the previous person
+// must not land on the current one.
+const startLoad = latestOnly()
+
+const profile = ref<Profile | null>(null)
+const balances = ref<BalanceRow[]>([])
+const error = ref<string | null>(null)
+const contractKey = ref(0)
+// The balance row HR edits the vacation days of
+const editingDays = ref<BalanceRow | null>(null)
+const year = new Date().getFullYear()
+
+const contactsUrl = computed(() => generateUrl('/apps/contacts/u/{uid}', { uid: props.uid }))
+
+const settingsUrl = computed(() => generateUrl('/settings/user'))
+
+/** The working pattern of today */
+const current = computed<ContractPeriod | null>(() => {
+	if (!profile.value) {
+		return null
+	}
+	const today = toIso(new Date())
+	return [...profile.value.contract.periods].reverse().find((period) => period.from <= today) ?? null
+})
+
+watch(() => props.uid, () => load())
+
+onMounted(() => {
+	load()
+})
+
+/**
+ * Load the profile and the vacation balance of the person
+ */
+async function load(): Promise<void> {
+	const isLatest = startLoad()
+	profile.value = null
+	error.value = null
+	try {
+		const [loaded, balance] = await Promise.all([
+			api.getProfile(props.uid),
+			api.getEmployeeBalance(props.uid, year),
+		])
+		if (!isLatest()) {
+			return
 		}
-	},
+		balances.value = balance.balances.filter((row) => row.countsAgainstBalance && row.typeKey === 'annual')
+		profile.value = loaded
+	} catch (e) {
+		if (!isLatest()) {
+			return
+		}
+		error.value = serverMessage(e) || t('absence', 'Could not load this profile')
+	}
+}
 
-	computed: {
-		contactsUrl() {
-			return generateUrl('/apps/contacts/u/{uid}', { uid: this.uid })
-		},
+/**
+ * The short names of a working pattern's days
+ *
+ * @param weekdays ISO weekdays, Mon=1
+ */
+function weekdayNames(weekdays: number[]): string {
+	const names = dayNames()
+	return weekdays.map((day) => names[day - 1]).join(', ')
+}
 
-		settingsUrl() {
-			return generateUrl('/settings/user')
-		},
+/**
+ * One line of the history, in words
+ *
+ * @param change the change to the contract or the region code
+ */
+function describe(change: ProfileChange): string {
+	if (change.field === 'region') {
+		return t('absence', 'Region code {before} → {after}', { before: change.before || t('absence', 'none'), after: change.after || t('absence', 'none') })
+	}
+	const latest = change.after.periods.at(-1)
+	if (!latest) {
+		return t('absence', 'Contract changed')
+	}
+	const days = weekdayNames(latest.weekdays)
+	const date = formatDate(latest.from)
+	return latest.percent === null
+		? t('absence', 'Contract: {days} from {date}', { days, date })
+		: t('absence', 'Contract: {days}, {percent}% from {date}', { days, percent: latest.percent, date })
+}
 
-		/** The working pattern of today */
-		current() {
-			const today = toIso(new Date())
-			return [...this.profile.contract.periods].reverse().find((period) => period.from <= today) ?? null
-		},
-	},
+/**
+ * The person saved another region code: the holidays and the session follow
+ *
+ * @param code the saved code, such as `DE-BY`
+ */
+function onRegionSaved(code: string): void {
+	load()
+	store.session.holidayCountry = code.split('-')[0] ?? ''
+	store.session.holidayRegion = code.split('-')[1] ?? ''
+}
 
-	watch: {
-		uid: 'load',
-	},
+/**
+ * HR saved the vacation days: close the dialog and load the new balance
+ */
+function onDaysSaved(): void {
+	editingDays.value = null
+	load()
+}
 
-	created() {
-		// Going from one profile to the next: the answer for the previous person
-		// must not land on the current one.
-		this.startLoad = latestOnly()
-	},
-
-	mounted() {
-		this.load()
-	},
-
-	methods: {
-		t,
-		n,
-		formatDate,
-		formatRange,
-		regionFlag,
-
-		async load() {
-			const isLatest = this.startLoad()
-			this.profile = null
-			this.error = null
-			try {
-				const [profile, balance] = await Promise.all([
-					api.getProfile(this.uid),
-					api.getEmployeeBalance(this.uid, this.year),
-				])
-				if (!isLatest()) {
-					return
-				}
-				this.balances = balance.balances.filter((row) => row.countsAgainstBalance && row.typeKey === 'annual')
-				this.profile = profile
-			} catch (e) {
-				if (!isLatest()) {
-					return
-				}
-				this.error = e.response?.data?.message || t('absence', 'Could not load this profile')
-				this.profile = {}
-			}
-		},
-
-		weekdayNames(weekdays) {
-			const names = dayNames()
-			return weekdays.map((day) => names[day - 1]).join(', ')
-		},
-
-		describe(change) {
-			if (change.field === 'region') {
-				return t('absence', 'Region code {before} → {after}', { before: change.before || t('absence', 'none'), after: change.after || t('absence', 'none') })
-			}
-			const latest = change.after.periods.at(-1)
-			if (!latest) {
-				return t('absence', 'Contract changed')
-			}
-			const days = this.weekdayNames(latest.weekdays)
-			const date = formatDate(latest.from)
-			return latest.percent === null
-				? t('absence', 'Contract: {days} from {date}', { days, date })
-				: t('absence', 'Contract: {days}, {percent}% from {date}', { days, percent: latest.percent, date })
-		},
-
-		onRegionSaved(code) {
-			this.load()
-			store.session.holidayCountry = code.split('-')[0] ?? ''
-			store.session.holidayRegion = code.split('-')[1] ?? ''
-		},
-
-		onDaysSaved() {
-			this.editingDays = null
-			this.load()
-		},
-
-		onContractSaved() {
-			this.contractKey++
-			this.load()
-		},
-	},
+/**
+ * HR saved the contract: the editor starts again from what was saved
+ */
+function onContractSaved(): void {
+	contractKey.value++
+	load()
 }
 </script>
 

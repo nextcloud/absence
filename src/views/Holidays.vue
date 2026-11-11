@@ -86,12 +86,12 @@
 							</div>
 						</td>
 						<td v-if="canEdit" class="holidays__actions">
-							<NcButton variant="tertiary" :aria-label="t('absence', 'Edit {name}', { name: holiday.label }, undefined, { escape: false })" @click="edit(holiday)">
+							<NcButton variant="tertiary" :ariaLabel="t('absence', 'Edit {name}', { name: holiday.label }, undefined, { escape: false })" @click="edit(holiday)">
 								<template #icon>
 									<Pencil :size="18" />
 								</template>
 							</NcButton>
-							<NcButton variant="tertiary" :aria-label="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false })" @click="deleting = holiday">
+							<NcButton variant="tertiary" :ariaLabel="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false })" @click="deleting = holiday">
 								<template #icon>
 									<Delete :size="18" />
 								</template>
@@ -119,11 +119,16 @@
 					:label="t('absence', 'Date')"
 					required />
 				<NcTextField
-					v-model="form.region"
+					:modelValue="form.region"
 					:label="t('absence', 'Region code')"
 					:helperText="t('absence', 'A country like DE, a region like DE-BY (ISO 3166-2), or * for everywhere')"
-					required />
-				<NcTextField v-model="form.label" :label="t('absence', 'Name')" required />
+					required
+					@update:modelValue="form.region = String($event)" />
+				<NcTextField
+					:modelValue="form.label"
+					:label="t('absence', 'Name')"
+					required
+					@update:modelValue="form.label = String($event)" />
 				<NcCheckboxRadioSwitch v-model="form.recurring">
 					{{ t('absence', 'Every year on this day') }}
 				</NcCheckboxRadioSwitch>
@@ -235,9 +240,12 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Holiday, HolidayChange, HolidayData, HolidayDescription, HolidayImportResult } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
@@ -258,227 +266,273 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
 import { store } from '../store.ts'
 import { formatDate, toIso } from '../utils/dates.ts'
+import { serverMessage } from '../utils/errors.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { locale } from '../utils/locale.ts'
 import { EVERYWHERE, regionFlag } from '../utils/regions.ts'
 
-export default {
-	name: 'Holidays',
-	components: { NcButton, NcCheckboxRadioSwitch, NcDateTimePickerNative, NcDialog, NcEmptyContent, NcModal, NcSelect, NcTextArea, NcTextField, Delete, Download, History, PartyPopper, Pencil, Plus, Upload, SkeletonList },
-	data() {
-		const y = new Date().getFullYear()
-		const all = { id: '', label: t('absence', 'All regions') }
-		return {
-			loading: true,
-			holidays: [],
-			year: y,
-			years: [y - 1, y, y + 1, y + 2],
-			all,
-			region: all,
-			form: null,
-			saving: false,
-			// The holiday whose deletion waits for a confirmation
-			deleting: null,
-			removing: false,
-			importing: false,
-			json: '',
-			plan: null,
-			importError: '',
-			history: null,
-			example: JSON.stringify([
-				{ date: `${y + 1}-01-01`, region: 'DE', label: t('absence', 'New Year\'s Day') },
-				{ date: `${y + 1}-12-24`, region: EVERYWHERE, label: t('absence', 'Company day off'), recurring: true },
-			], null, 2),
+/** An entry of the region filter: `id` is the region code, '' for all of them */
+interface RegionOption {
+	id: string
+	label: string
+}
+
+/** The add and edit form: `id` is null for a new holiday */
+interface HolidayForm {
+	id: number | null
+	date: Date | null
+	region: string
+	label: string
+	recurring: boolean
+}
+
+const currentYear = new Date().getFullYear()
+const all: RegionOption = { id: '', label: t('absence', 'All regions') }
+
+const loading = ref(true)
+const holidays = shallowRef<Holiday[]>([])
+const year = ref(currentYear)
+const years = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
+const region = shallowRef<RegionOption>(all)
+const form = ref<HolidayForm | null>(null)
+const saving = ref(false)
+// The holiday whose deletion waits for a confirmation
+const deleting = ref<Holiday | null>(null)
+const removing = ref(false)
+const importing = ref(false)
+const json = ref('')
+const plan = ref<HolidayImportResult | null>(null)
+const importError = ref('')
+const history = shallowRef<HolidayChange[] | null>(null)
+const example = JSON.stringify([
+	{ date: `${currentYear + 1}-01-01`, region: 'DE', label: t('absence', 'New Year\'s Day') },
+	{ date: `${currentYear + 1}-12-24`, region: EVERYWHERE, label: t('absence', 'Company day off'), recurring: true },
+], null, 2)
+
+// Changing the year twice quickly: only the year picked last may land.
+const startLoad = latestOnly()
+
+const session = computed(() => store.session)
+
+const canEdit = computed(() => store.session.canEditHolidays)
+
+const regionOptions = computed<RegionOption[]>(() => {
+	const codes = [...new Set(holidays.value.map((h) => h.region))].sort()
+	return [all, ...codes.map((code) => ({ id: code, label: `${regionFlag(code)} ${regionName(code)}`.trim() }))]
+})
+
+const shown = computed(() => (region.value.id === '' ? holidays.value : holidays.value.filter((h) => h.region === region.value.id)))
+
+watch(year, () => {
+	load()
+})
+
+onMounted(() => {
+	load()
+})
+
+/**
+ * The name to show for a region code.
+ *
+ * @param code a region code, or * for everywhere
+ */
+function regionName(code: string): string {
+	return code === EVERYWHERE ? t('absence', 'Everywhere') : code
+}
+
+/**
+ * Loads the holidays of the selected year.
+ */
+async function load(): Promise<void> {
+	const isLatest = startLoad()
+	loading.value = true
+	try {
+		const list = await api.listHolidays(year.value)
+		if (isLatest()) {
+			holidays.value = list
 		}
-	},
+	} catch {
+		if (isLatest()) {
+			showError(t('absence', 'Could not load the public holidays'))
+		}
+	} finally {
+		if (isLatest()) {
+			loading.value = false
+		}
+	}
+}
 
-	computed: {
-		session() {
-			return store.session
-		},
+/**
+ * Opens the form on a holiday, or empty to add one.
+ *
+ * @param holiday the holiday to edit, null to add one
+ */
+function edit(holiday: Holiday | null): void {
+	form.value = holiday
+		? { id: holiday.id, date: new Date(holiday.date + 'T00:00:00'), region: holiday.region, label: holiday.label, recurring: holiday.recurring }
+		: { id: null, date: new Date(`${year.value}-01-01T00:00:00`), region: region.value.id, label: '', recurring: false }
+}
 
-		canEdit() {
-			return store.session.canEditHolidays
-		},
+/**
+ * Saves the holiday of the form.
+ */
+async function save(): Promise<void> {
+	saving.value = true
+	try {
+		if (!form.value?.date) {
+			throw new Error('No date to save')
+		}
+		const data: HolidayData = { date: toIso(form.value.date), region: form.value.region, label: form.value.label, recurring: form.value.recurring }
+		await (form.value.id ? api.updateHoliday(form.value.id, data) : api.createHoliday(data))
+		showSuccess(t('absence', 'Holiday saved'))
+		form.value = null
+		await load()
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not save the holiday'))
+	} finally {
+		saving.value = false
+	}
+}
 
-		regionOptions() {
-			const codes = [...new Set(this.holidays.map((h) => h.region))].sort()
-			return [this.all, ...codes.map((code) => ({ id: code, label: `${regionFlag(code)} ${this.regionName(code)}`.trim() }))]
-		},
+/**
+ * Deletes the holiday that waits for a confirmation.
+ */
+async function remove(): Promise<void> {
+	const holiday = deleting.value
+	removing.value = true
+	try {
+		if (!holiday) {
+			throw new Error('No holiday to delete')
+		}
+		await api.deleteHoliday(holiday.id)
+		showSuccess(holiday.recurring
+			? t('absence', '{name} deleted from every year', { name: holiday.label }, undefined, { escape: false })
+			: t('absence', '{name} deleted', { name: holiday.label }, undefined, { escape: false }))
+		deleting.value = null
+		await load()
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not delete the holiday'))
+	} finally {
+		removing.value = false
+	}
+}
 
-		shown() {
-			return this.region.id === '' ? this.holidays : this.holidays.filter((h) => h.region === this.region.id)
-		},
-	},
+/**
+ * Opens the import dialog.
+ */
+function openImport(): void {
+	importing.value = true
+	plan.value = null
+	importError.value = ''
+}
 
-	watch: {
-		year() {
-			this.load()
-		},
-	},
+/**
+ * Asks the server what importing the pasted list would add.
+ */
+async function check(): Promise<void> {
+	saving.value = true
+	importError.value = ''
+	try {
+		plan.value = await api.importHolidays(json.value, true)
+	} catch (e) {
+		importError.value = serverMessage(e) || t('absence', 'Could not read the list')
+	} finally {
+		saving.value = false
+	}
+}
 
-	created() {
-		// Changing the year twice quickly: only the year picked last may land.
-		this.startLoad = latestOnly()
-	},
+/**
+ * Imports the pasted list.
+ */
+async function runImport(): Promise<void> {
+	saving.value = true
+	try {
+		const result = await api.importHolidays(json.value, false)
+		showSuccess(n('absence', '{count} holiday imported', '{count} holidays imported', result.new.length, { count: result.new.length }))
+		importing.value = false
+		json.value = ''
+		await load()
+	} catch (e) {
+		importError.value = serverMessage(e) || t('absence', 'Could not import the list')
+	} finally {
+		saving.value = false
+	}
+}
 
-	mounted() {
-		this.load()
-	},
+/**
+ * Who added and who changed a holiday, '' when nobody is known.
+ *
+ * @param holiday the holiday of the row
+ */
+function byline(holiday: Holiday): string {
+	if (holiday.createdByName && holiday.updatedByName) {
+		return t('absence', 'Added by {added} · changed by {changed}', { added: holiday.createdByName, changed: holiday.updatedByName }, undefined, { escape: false })
+	}
+	if (holiday.createdByName) {
+		return t('absence', 'Added by {name}', { name: holiday.createdByName }, undefined, { escape: false })
+	}
+	return holiday.updatedByName ? t('absence', 'Changed by {name}', { name: holiday.updatedByName }, undefined, { escape: false }) : ''
+}
 
-	methods: {
-		t,
-		n,
-		formatDate,
-		regionFlag,
-		regionName(code) {
-			return code === EVERYWHERE ? t('absence', 'Everywhere') : code
-		},
+/**
+ * Loads the history and opens its dialog.
+ */
+async function openHistory(): Promise<void> {
+	try {
+		history.value = await api.holidayHistory()
+	} catch {
+		showError(t('absence', 'Could not load the history'))
+	}
+}
 
-		async load() {
-			const isLatest = this.startLoad()
-			this.loading = true
-			try {
-				const holidays = await api.listHolidays(this.year)
-				if (isLatest()) {
-					this.holidays = holidays
-				}
-			} catch {
-				if (isLatest()) {
-					showError(t('absence', 'Could not load the public holidays'))
-				}
-			} finally {
-				if (isLatest()) {
-					this.loading = false
-				}
-			}
-		},
+/**
+ * Formats the time of a change.
+ *
+ * @param atom ISO 8601 timestamp
+ */
+function formatWhen(atom: string): string {
+	return new Date(atom).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })
+}
 
-		edit(holiday) {
-			this.form = holiday
-				? { id: holiday.id, date: new Date(holiday.date + 'T00:00:00'), region: holiday.region, label: holiday.label, recurring: holiday.recurring }
-				: { id: null, date: new Date(`${this.year}-01-01T00:00:00`), region: this.region.id, label: '', recurring: false }
-		},
+/**
+ * One sentence for an entry of the history.
+ *
+ * @param change the entry
+ */
+function describeChange(change: HolidayChange): string {
+	const who = change.actorName || t('absence', 'An administrator')
+	const day = (d: HolidayDescription) => `${d.label} (${formatDate(d.date)}, ${regionName(d.region)})`
+	// Kept as a string for the default branch: a newer server may know more actions
+	const action: string = change.action
+	switch (change.action) {
+		case 'added':
+			return t('absence', '{who} added {day}', { who, day: day(change.detail) }, undefined, { escape: false })
+		case 'deleted':
+			return t('absence', '{who} deleted {day}', { who, day: day(change.detail) }, undefined, { escape: false })
+		case 'changed':
+			return t('absence', '{who} changed {before} to {after}', { who, before: day(change.detail.before), after: day(change.detail.after) }, undefined, { escape: false })
+		case 'imported':
+			return n('absence', '{who} imported {count} holiday', '{who} imported {count} holidays', change.detail.count, { who, count: change.detail.count }, { escape: false })
+		case 'everyone_edits':
+			return t('absence', '{who} let everyone edit public holidays', { who }, undefined, { escape: false })
+		case 'hr_edits':
+			return t('absence', '{who} made public holidays editable by HR only', { who }, undefined, { escape: false })
+		default:
+			return action
+	}
+}
 
-		async save() {
-			this.saving = true
-			try {
-				const data = { date: toIso(this.form.date), region: this.form.region, label: this.form.label, recurring: this.form.recurring }
-				await (this.form.id ? api.updateHoliday(this.form.id, data) : api.createHoliday(data))
-				showSuccess(t('absence', 'Holiday saved'))
-				this.form = null
-				await this.load()
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not save the holiday'))
-			} finally {
-				this.saving = false
-			}
-		},
-
-		async remove() {
-			const holiday = this.deleting
-			this.removing = true
-			try {
-				await api.deleteHoliday(holiday.id)
-				showSuccess(holiday.recurring
-					? t('absence', '{name} deleted from every year', { name: holiday.label }, undefined, { escape: false })
-					: t('absence', '{name} deleted', { name: holiday.label }, undefined, { escape: false }))
-				this.deleting = null
-				await this.load()
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not delete the holiday'))
-			} finally {
-				this.removing = false
-			}
-		},
-
-		openImport() {
-			this.importing = true
-			this.plan = null
-			this.importError = ''
-		},
-
-		async check() {
-			this.saving = true
-			this.importError = ''
-			try {
-				this.plan = await api.importHolidays(this.json, true)
-			} catch (e) {
-				this.importError = e.response?.data?.message || t('absence', 'Could not read the list')
-			} finally {
-				this.saving = false
-			}
-		},
-
-		async runImport() {
-			this.saving = true
-			try {
-				const result = await api.importHolidays(this.json, false)
-				showSuccess(n('absence', '{count} holiday imported', '{count} holidays imported', result.new.length, { count: result.new.length }))
-				this.importing = false
-				this.json = ''
-				await this.load()
-			} catch (e) {
-				this.importError = e.response?.data?.message || t('absence', 'Could not import the list')
-			} finally {
-				this.saving = false
-			}
-		},
-
-		byline(holiday) {
-			if (holiday.createdByName && holiday.updatedByName) {
-				return t('absence', 'Added by {added} · changed by {changed}', { added: holiday.createdByName, changed: holiday.updatedByName }, undefined, { escape: false })
-			}
-			if (holiday.createdByName) {
-				return t('absence', 'Added by {name}', { name: holiday.createdByName }, undefined, { escape: false })
-			}
-			return holiday.updatedByName ? t('absence', 'Changed by {name}', { name: holiday.updatedByName }, undefined, { escape: false }) : ''
-		},
-
-		async openHistory() {
-			try {
-				this.history = await api.holidayHistory()
-			} catch {
-				showError(t('absence', 'Could not load the history'))
-			}
-		},
-
-		formatWhen(atom) {
-			return new Date(atom).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })
-		},
-
-		describeChange(change) {
-			const who = change.actorName || t('absence', 'An administrator')
-			const day = (d) => `${d.label} (${formatDate(d.date)}, ${this.regionName(d.region)})`
-			const d = change.detail
-			switch (change.action) {
-				case 'added':
-					return t('absence', '{who} added {day}', { who, day: day(d) }, undefined, { escape: false })
-				case 'deleted':
-					return t('absence', '{who} deleted {day}', { who, day: day(d) }, undefined, { escape: false })
-				case 'changed':
-					return t('absence', '{who} changed {before} to {after}', { who, before: day(d.before), after: day(d.after) }, undefined, { escape: false })
-				case 'imported':
-					return n('absence', '{who} imported {count} holiday', '{who} imported {count} holidays', d.count, { who, count: d.count }, { escape: false })
-				case 'everyone_edits':
-					return t('absence', '{who} let everyone edit public holidays', { who }, undefined, { escape: false })
-				case 'hr_edits':
-					return t('absence', '{who} made public holidays editable by HR only', { who }, undefined, { escape: false })
-				default:
-					return change.action
-			}
-		},
-
-		download() {
-			// The import format, so a year can be edited and imported again
-			const list = this.shown.map(({ date, region, label, recurring }) => ({ date, region, label, recurring }))
-			const link = document.createElement('a')
-			link.href = URL.createObjectURL(new Blob([JSON.stringify(list, null, '\t')], { type: 'application/json' }))
-			link.download = `holidays-${this.year}${this.region.id ? '-' + this.region.id : ''}.json`
-			link.click()
-			URL.revokeObjectURL(link.href)
-		},
-	},
+/**
+ * Downloads the shown holidays as a JSON file.
+ */
+function download(): void {
+	// The import format, so a year can be edited and imported again
+	const list = shown.value.map(({ date, region, label, recurring }) => ({ date, region, label, recurring }))
+	const link = document.createElement('a')
+	link.href = URL.createObjectURL(new Blob([JSON.stringify(list, null, '\t')], { type: 'application/json' }))
+	link.download = `holidays-${year.value}${region.value.id ? '-' + region.value.id : ''}.json`
+	link.click()
+	URL.revokeObjectURL(link.href)
 }
 </script>
 

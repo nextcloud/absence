@@ -69,9 +69,12 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { LeaveRequest, RequestStatus } from '../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
@@ -81,57 +84,44 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
 import { store } from '../store.ts'
 
-const ACTIONABLE = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING']
+const ACTIONABLE: RequestStatus[] = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING']
 
-export default {
-	name: 'Approvals',
-	components: { NcButton, NcEmptyContent, CheckAll, AlertCircleOutline, RequestListItem, SkeletonList },
-	setup() {
-		// Expose the module-level reactive store to the template (Options API).
-		return { store }
-	},
+const loading = ref(true)
+const loadError = ref(false)
+const teamQueue = shallowRef<LeaveRequest[]>([])
+const escalated = shallowRef<LeaveRequest[]>([])
 
-	data() {
-		return {
-			loading: true,
-			loadError: false,
-			teamQueue: [],
-			escalated: [],
+onMounted(() => {
+	reload()
+	window.addEventListener('absence:refresh', reload)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('absence:refresh', reload)
+})
+
+/**
+ * Load the requests waiting for the viewer, and for HR the escalated ones
+ */
+async function reload(): Promise<void> {
+	loading.value = true
+	loadError.value = false
+	try {
+		teamQueue.value = await api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') })
+		if (store.session.isHr) {
+			escalated.value = await api.listRequests({ scope: 'hr', status: 'ESCALATED' })
 		}
-	},
-
-	mounted() {
-		this.reload()
-		window.addEventListener('absence:refresh', this.reload)
-	},
-
-	beforeUnmount() {
-		window.removeEventListener('absence:refresh', this.reload)
-	},
-
-	methods: {
-		t,
-		async reload() {
-			this.loading = true
-			this.loadError = false
-			try {
-				this.teamQueue = await api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') })
-				if (store.session.isHr) {
-					this.escalated = await api.listRequests({ scope: 'hr', status: 'ESCALATED' })
-				}
-			} catch {
-				// Without this a failed load leaves both lists empty and the
-				// "All caught up!" state renders — a manager with pending requests
-				// would think there was nothing to do. Show the failure instead.
-				this.loadError = true
-				this.teamQueue = []
-				this.escalated = []
-				showError(t('absence', 'Could not load the approvals'))
-			} finally {
-				this.loading = false
-			}
-		},
-	},
+	} catch {
+		// Without this a failed load leaves both lists empty and the
+		// "All caught up!" state renders — a manager with pending requests
+		// would think there was nothing to do. Show the failure instead.
+		loadError.value = true
+		teamQueue.value = []
+		escalated.value = []
+		showError(t('absence', 'Could not load the approvals'))
+	} finally {
+		loading.value = false
+	}
 }
 </script>
 

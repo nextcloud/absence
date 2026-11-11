@@ -70,45 +70,46 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { EmployeeBalanceRow } from '../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { onMounted, shallowRef } from 'vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import TeamTimeline from '../components/TeamTimeline.vue'
 import api from '../services/api.ts'
 import { formatNumber } from '../utils/locale.ts'
 
-export default {
-	name: 'Team',
-	components: { NcAvatar, TeamTimeline },
+const year = new Date().getFullYear()
+const balances = shallowRef<EmployeeBalanceRow[]>([])
 
-	data() {
-		return {
-			year: new Date().getFullYear(),
-			balances: [],
-		}
-	},
+onMounted(async () => {
+	try {
+		balances.value = await api.getTeamBalances(year)
+	} catch {
+		// The timeline stands on its own; a failed balances call costs the
+		// table, not the page.
+		showError(t('absence', 'Could not load the balances of your team'))
+	}
+})
 
-	async mounted() {
-		try {
-			this.balances = await api.getTeamBalances(this.year)
-		} catch {
-			// The timeline stands on its own; a failed balances call costs the
-			// table, not the page.
-			showError(t('absence', 'Could not load the balances of your team'))
-		}
-	},
+/**
+ * A figure of the table, or a dash when the type has none
+ *
+ * @param v the figure
+ */
+function fmt(v: number | null | undefined): string {
+	return v === null || v === undefined ? '—' : formatNumber(v)
+}
 
-	methods: {
-		t,
-		fmt(v) {
-			return v === null || v === undefined ? '—' : formatNumber(v)
-		},
-
-		availableClass(row) {
-			return (row.available ?? 0) < 0 ? 'neg' : ''
-		},
-	},
+/**
+ * The class that marks an overdrawn balance
+ *
+ * @param row the balance row
+ */
+function availableClass(row: EmployeeBalanceRow): string {
+	return (row.available ?? 0) < 0 ? 'neg' : ''
 }
 </script>
 
