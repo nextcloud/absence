@@ -286,6 +286,7 @@ import SavedCheck from '../../components/SavedCheck.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../api.js'
 import { store } from '../../store.js'
+import { keepUnsaved } from '../../utils/unsaved.js'
 
 // The section each setting is shown in, to flash its check once saved
 const SECTION_OF = {
@@ -379,9 +380,19 @@ export default {
 			}
 		},
 
-		apply({ values, groups, employeesCount }) {
+		/**
+		 * Takes the server's answer. After a save, `saved` names the settings it
+		 * sent: what was typed in the other fields stays.
+		 *
+		 * @param {object} answer the settings payload
+		 * @param {object} answer.values the settings
+		 * @param {object[]} answer.groups the groups to choose from
+		 * @param {number|null} answer.employeesCount how many employees there are
+		 * @param {string[]} [saved] the keys a save sent
+		 */
+		apply({ values, groups, employeesCount }, saved) {
+			this.form = saved ? keepUnsaved(this.form, this.values, values, saved) : { ...values }
 			this.values = values
-			this.form = { ...values }
 			this.groups = groups
 			this.employeesCount = employeesCount
 		},
@@ -412,7 +423,7 @@ export default {
 		async createGroup(kind) {
 			this.saving = true
 			try {
-				this.apply(await api.createSettingsGroup(kind))
+				this.apply(await api.createSettingsGroup(kind), [`${kind}_group`])
 				this.savedAt.who = Date.now()
 				// The session carries whether the app is open and this user is HR
 				await store.refreshSession()
@@ -442,7 +453,7 @@ export default {
 		async save(patch) {
 			this.saving = true
 			try {
-				this.apply(await api.updateSettings(patch))
+				this.apply(await api.updateSettings(patch), Object.keys(patch))
 				for (const key of Object.keys(patch)) {
 					this.savedAt[SECTION_OF[key]] = Date.now()
 				}
@@ -453,7 +464,9 @@ export default {
 				return true
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not save the setting'))
-				this.form = { ...this.values }
+				for (const key of Object.keys(patch)) {
+					this.form[key] = this.values[key]
+				}
 				return false
 			} finally {
 				this.saving = false
