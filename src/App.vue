@@ -166,7 +166,7 @@
 			@close="closeDialog"
 			@saved="onChanged" />
 
-		<Confetti />
+		<ConfettiBurst />
 	</NcContent>
 </template>
 
@@ -206,7 +206,7 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
-import Confetti from './components/Confetti.vue'
+import ConfettiBurst from './components/ConfettiBurst.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
 import { useRequestsStore } from './stores/requests.ts'
