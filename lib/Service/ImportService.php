@@ -38,6 +38,7 @@ use OCP\IUserManager;
 class ImportService {
 	public function __construct(
 		private EntitlementService $entitlements,
+		private EntitlementValidator $validator,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private EmployeeDirectory $employees,
 		private IDBConnection $db,
@@ -85,8 +86,10 @@ class ImportService {
 				continue;
 			}
 			$year = trim($row['year'] ?? '') !== '' ? (int)$row['year'] : $defaultYear;
-			if ($year < 2000 || $year > 2100) {
-				$errors[] = "line $line: implausible year '$year'";
+			try {
+				$this->validator->assertYear($year);
+			} catch (ValidationException $e) {
+				$errors[] = "line $line: " . $e->getMessage();
 				continue;
 			}
 			$key = $uid . '/' . $type->getId() . '/' . $year;
@@ -110,6 +113,12 @@ class ImportService {
 			}
 			if ($data === []) {
 				$errors[] = "line $line: nothing to import (no base_days, carry_over_days or adjustment)";
+				continue;
+			}
+			try {
+				$this->validator->assertFigures($data);
+			} catch (ValidationException $e) {
+				$errors[] = "line $line: " . $e->getMessage();
 				continue;
 			}
 			$note = trim($row['note'] ?? '');

@@ -20,10 +20,12 @@ use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUserManager;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
@@ -69,6 +71,8 @@ class EntitlementServiceTest extends TestCase {
 				$this->createMock(ConfigService::class),
 				$this->createMock(LoggerInterface::class),
 			),
+			new EntitlementValidator($this->l10nMock()),
+			$this->createMock(IDBConnection::class),
 			$this->l10nMock(),
 			$this->logger,
 			$this->dispatcher,
@@ -222,6 +226,10 @@ class EntitlementServiceTest extends TestCase {
 		$ent->setManualAdjustment(0.0);
 		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
 		$this->entitlementMapper->method('update')->willReturnArgument(0);
+		// the database adds the correction to the stored value
+		$this->entitlementMapper->method('addToManualAdjustment')->willReturnCallback(
+			static fn (int $id, float $delta) => $ent->setManualAdjustment($ent->getManualAdjustment() + $delta),
+		);
 
 		$after = $this->service->update('hr', 1, ['adjustmentDelta' => 2.0, 'adjustmentNote' => 'Wedding']);
 		self::assertSame(2.0, $after->getManualAdjustment());
@@ -266,6 +274,14 @@ class EntitlementServiceTest extends TestCase {
 		$this->service->update('hr', 1, ['baseDays' => 28.0]);
 	}
 
+	public function testAFigureWithTwoDecimalsIsRefusedNotRounded(): void {
+		$this->entitlementMapper->method('find')->with(1)->willReturn($this->priorEntitlement(28.0));
+		$this->entitlementMapper->expects(self::never())->method('update');
+
+		$this->expectException(ValidationException::class);
+		$this->service->update('hr', 1, ['baseDays' => 28.25]);
+	}
+
 	/**
 	 * Covers assertCountingType(), which setForEmployee() shares — an HR form left open
 	 * while somebody else removed the type used to answer with a 500, because
@@ -279,6 +295,6 @@ class EntitlementServiceTest extends TestCase {
 		$this->entitlementMapper->expects(self::never())->method('update');
 
 		$this->expectException(ValidationException::class);
-		$this->service->bulkSet(2026, 99, 28.0, null);
+		$this->service->bulkSet('hr', 2026, 99, 28.0, null);
 	}
 }

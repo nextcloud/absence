@@ -46,6 +46,18 @@ class EntitlementMapper extends QBMapper {
 	}
 
 	/**
+	 * Add to the manual adjustment in the database itself, so that two
+	 * corrections made at the same moment both count.
+	 */
+	public function addToManualAdjustment(int $id, float $delta): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('manual_adjustment', $qb->func()->add('manual_adjustment', $qb->createNamedParameter($delta)))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		$qb->executeStatement();
+	}
+
+	/**
 	 * @return Entitlement[]
 	 */
 	public function findForEmployee(string $employeeUid, ?int $year = null): array {

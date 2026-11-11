@@ -95,7 +95,7 @@ class EntitlementController extends Controller {
 	public function bulk(int $year, int $typeId, float $baseDays, ?string $group = null): DataResponse {
 		return $this->handle(function () use ($year, $typeId, $baseDays, $group) {
 			$this->permission->assertHr((string)$this->userId);
-			return ['affected' => $this->service->bulkSet($year, $typeId, $baseDays, $group)];
+			return ['affected' => $this->service->bulkSet((string)$this->userId, $year, $typeId, $baseDays, $group)];
 		});
 	}
 }
