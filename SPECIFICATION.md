@@ -253,8 +253,8 @@ remaining   = entitlement − used
 available   = entitlement − used − pending   (what the employee can still safely book)
 ```
 
-A request that spans a year boundary is split for accounting: working days are
-attributed to the year in which each day falls.
+A request that spans a year boundary is not split for accounting: all its working
+days are attributed to the year in which it starts (§7).
 
 ### 3.5 `absence_holidays`
 
@@ -548,6 +548,13 @@ employees — sick leave is the canonical example (`employee_requestable = false
   employee (My leave), their line manager (Team) and HR (overview), counts in stats, and
   is written to the shared/personal **CalDAV** calendar exactly like any approved leave
   (§10). Sick leave does not count against the balance (`counts_against_balance = false`).
+- **The line manager is told.** When HR records leave for somebody else, that person's
+  current line manager (§2.1) gets a notification and an e-mail saying who is absent
+  and from when to when. It never names the leave type or the reason, for any type,
+  so a confidential one (§5.7) does not stand out. Nobody is told when there is no
+  line manager, when the manager's account is disabled, or when the manager is the
+  HR member who recorded it. The leave import (§6.5) does not send it. A later HR
+  edit of the dates sends no new message; a cancellation removes the notification.
 - Recorded via a dedicated **"Record absence"** HR action in the UI (§14.2) with an
   employee search + date range + type; history/audit note the entry as "Recorded by HR".
 - **Only HR can edit or cancel it.** For an HR-recorded type, `PermissionService::canModify`
@@ -721,6 +728,23 @@ becomes the request's reason.
 - Rollover and expiry are recorded in the entitlement history (§3.7b) with the actor
   `system`. A rollover with failed rows is tried again the next day, and
   `occ absence:rollover <year>` recomputes it by hand.
+- Taken leave is set against the carried-over days first. Until the expiry date,
+  the balance row of the running year says how many carried-over days would be
+  lost as things stand (`carryOverExpiring`) and on which date
+  (`carryOverExpiryDate`): the carry-over minus the taken leave (approved, or
+  approved with a withdrawal pending) starting from 1 January up to and including
+  the date. Leave that is still waiting for a decision does not count yet. The
+  figure comes from the same rule the expiry applies. It is 0 when no date is
+  set, the date has passed, nothing was carried over or the leave taken covers it.
+- The balance card (My leave and the profile) shows it as one line, for example
+  "3 carried-over days expire on 31 Mar 2026", to whoever may see that balance.
+- 30 days before the date, the daily ReminderJob tells each employee who still
+  has such days how many expire and when, by notification and email (§11). Once a
+  year: the job stores the year it reminded. A run that missed the day catches up
+  until the expiry date, not after it, and it waits for the year rollover.
+  Confidential types (§5.7) are left out of the count. Someone who gets
+  carry-over after the reminder went out, or a date HR changes afterwards, gets
+  no second reminder that year.
 
 ---
 
@@ -816,6 +840,11 @@ public-holiday calendar for every region is impractical, so the app does not att
   working days are attributed wholly to the **year (for balances, §3.4) and month (for
   trends, §13) in which it starts**. Year-boundary requests are rare; split them into two
   requests if precise per-year accounting is needed.
+  The request dialog helps with that: when the picked range ends in a later year than it
+  starts, a note says so and, for a new request or record, offers **Split at New Year**.
+  That shortens the request to 31 December and, once it is saved, opens the form again
+  for a second request from 1 January to the original end, with the same type and
+  replacement (cancelling there keeps the first part).
 
 > There is **no `WorkingDayCalculator`**: the entered value is always authoritative and
 > the server never recomputes it, public holidays (§7.2) included.
@@ -955,6 +984,7 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    requests approaching the escalation window. Each request once: the job stores the
    cut-off it last processed, so a second run on the same day sends nothing and a
    missed day is caught up on the next run (at most 7 days back).
+   It also sends the yearly carry-over expiry reminder to employees (§6.2).
 3. **YearRolloverJob** (daily, acts once per year / idempotent): computes carry-over
    and seeds next-year entitlements (§6.2); expires unused carry-over.
 4. **CalendarSyncJob** (optional, if async sync chosen): reconciles approved leave
@@ -1011,8 +1041,12 @@ All four channels are required.
   (→ the employee and their manager, plus HR once the request has been escalated;
   never back to the comment's own author), **replacement assigned**
   (→ replacement, on approval) and **replacement cancelled** (→ replacement, when
-  approved leave is cancelled) — §5.1. These are pushed (a standard NC notification is
+  approved leave is cancelled) — §5.1, and **absence recorded by HR** (→ the
+  employee's line manager, dates only, no leave type and no reason; §5.6). These are pushed (a standard NC notification is
   delivered to push automatically).
+- **Carry-over about to expire** (→ the employee, §6.2): how many carried-over
+  days expire and on which date, as a notification and an email that link to My
+  leave. It names no leave type and carries no buttons.
 - **Actionable where the recipient owes an answer.** The four notifications that ask
   for a decision — new request, escalation, reminder, withdrawal — carry three
   buttons: **Approve**, **Decline** and **Review**.
@@ -1031,7 +1065,7 @@ All four channels are required.
   - A withdrawal asks the opposite question, so its buttons read **Approve
     withdrawal** / **Keep leave**, matching the sidebar's wording (§15.2).
   - Notifications that merely report an outcome (approved, declined, comment,
-    replacement) carry no decision buttons: nothing is owed on them.
+    replacement, absence recorded by HR) carry no decision buttons: nothing is owed on them.
 - **Email:** via `OCP\Mail\IMailer` with templated messages
   (`OCP\Mail\IEMailTemplate`) for each of the above events. Respect the user's
   configured email + language.
@@ -1200,6 +1234,10 @@ The HR area (visible only to HR-group members) provides:
    dependency is undesirable. The group pickers are fed by `GET /api/groups`
    (HR-only), so ordinary employees cannot enumerate the instance's groups through
    this app.
+   Both files identify the employee by display name, account id and e-mail address
+   (columns `Employee`, `Account ID`, `Email`, in that order), so two people with the
+   same name can be told apart and payroll can match rows to its own records. The
+   e-mail cell is empty when the account has none or was deleted; the account id stays.
 
 Managers get a scoped version (their reports only) of the who's-off calendar — the
 Team timeline — and, below it, a **scoped balances table** of their direct reports
