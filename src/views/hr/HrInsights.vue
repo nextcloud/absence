@@ -40,7 +40,7 @@
 					icon="🌿"
 					:value="fmtPct(data.utilization.company.rate)"
 					:label="t('absence', 'annual leave used')"
-					:caption="t('absence', '{used} of {total} days', { used: fmtDays(data.utilization.company.used), total: fmtDays(data.utilization.company.entitlement) })"
+					:caption="n('absence', '{used} of {total} day', '{used} of {total} days', data.utilization.company.entitlement, { used: fmtDays(data.utilization.company.used), total: fmtDays(data.utilization.company.entitlement) })"
 					accent="var(--color-success)" />
 				<StatTile
 					icon="💰"
@@ -218,6 +218,7 @@ import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
+import { formatNumber, locale } from '../../utils/locale.js'
 
 export default {
 	name: 'HrInsights',
@@ -248,7 +249,7 @@ export default {
 			if (!d) {
 				return ''
 			}
-			const date = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+			const date = new Date(d + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
 			return t('absence', 'carry-over expires {date}', { date })
 		},
 	},
@@ -293,9 +294,10 @@ export default {
 				return '—'
 			}
 			if (h < 48) {
-				return Math.round(h) + 'h'
+				return n('absence', '%n hour', '%n hours', Math.round(h))
 			}
-			return (Math.round(h / 24 * 10) / 10).toLocaleString() + ' ' + t('absence', 'days')
+			const days = Math.round(h / 24 * 10) / 10
+			return n('absence', '{days} day', '{days} days', days, { days: formatNumber(days) })
 		},
 
 		fmtPct(rate) {
@@ -303,7 +305,7 @@ export default {
 		},
 
 		fmtDays(v) {
-			return Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v || 0)
 		},
 
 		neglectedLabel(p) {

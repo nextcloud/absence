@@ -259,6 +259,7 @@ import api from '../api.js'
 import { store } from '../store.js'
 import { formatDate, toIso } from '../utils/dates.js'
 import { latestOnly } from '../utils/latest.js'
+import { locale } from '../utils/locale.js'
 import { EVERYWHERE, regionFlag } from '../utils/regions.js'
 
 export default {
@@ -443,7 +444,7 @@ export default {
 		},
 
 		formatWhen(atom) {
-			return new Date(atom).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+			return new Date(atom).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })
 		},
 
 		describeChange(change) {

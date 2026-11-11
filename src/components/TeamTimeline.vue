@@ -128,9 +128,10 @@ import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import SkeletonList from './SkeletonList.vue'
 import api from '../api.js'
-import { store } from '../store.js'
+import { statusMeta, store } from '../store.js'
 import { formatRange, toIso } from '../utils/dates.js'
 import { latestOnly } from '../utils/latest.js'
+import { locale } from '../utils/locale.js'
 
 const DAY_MS = 86400000
 
@@ -173,7 +174,7 @@ export default {
 		},
 
 		monthLabel() {
-			return this.firstDay.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+			return this.firstDay.toLocaleDateString(locale(), { month: 'long', year: 'numeric' })
 		},
 
 		days() {
@@ -215,7 +216,7 @@ export default {
 					color: type.color,
 					icon: type.icon,
 					pending: ev.status !== 'APPROVED',
-					title: `${type.label} · ${formatRange(ev.start, ev.end)}${ev.status !== 'APPROVED' ? ' (' + ev.status + ')' : ''}`,
+					title: `${type.label} · ${formatRange(ev.start, ev.end)}${ev.status !== 'APPROVED' ? ' (' + statusMeta(ev.status).label + ')' : ''}`,
 				})
 			}
 			return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))

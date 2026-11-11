@@ -6,6 +6,7 @@
  * days in a range that fall on the user's working weekdays and are not public
  * holidays. The count only prefills the request form — it stays editable.
  */
+import { locale } from './locale.js'
 
 /**
  * Format a Date as 'YYYY-MM-DD' in local time.
@@ -70,7 +71,7 @@ export function formatDate(iso) {
 	if (!iso) {
 		return ''
 	}
-	return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+	return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 /**

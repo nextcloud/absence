@@ -84,7 +84,7 @@
 							:value="row.available"
 							:max="row.entitlement"
 							:color="row.significant ? 'var(--color-warning)' : 'var(--color-success)'"
-							:ariaLabel="t('absence', '{days} of {total} days still available', { days: fmt(row.available), total: fmt(row.entitlement) })" />
+							:ariaLabel="n('absence', '{days} of {total} day still available', '{days} of {total} days still available', row.entitlement, { days: fmt(row.available), total: fmt(row.entitlement) })" />
 						<span class="vacation__days" :class="{ 'vacation__days--significant': row.significant }">
 							{{ n('absence', '%n day left', '%n days left', row.available) }}
 						</span>
@@ -109,6 +109,7 @@ import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../api.js'
 import { formatDate, toIso } from '../../utils/dates.js'
+import { formatNumber, locale } from '../../utils/locale.js'
 
 // Enough for a decade of monthly points; past this a line chart is unreadable
 // anyway and the range is almost certainly a typo.
@@ -249,7 +250,7 @@ export default {
 	methods: {
 		t,
 		n,
-		fmt(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) },
+		fmt(v) { return formatNumber(v) },
 
 		/**
 		 * Localised name for a 'YYYY-MM' key.
@@ -259,7 +260,7 @@ export default {
 		 * @return {string}
 		 */
 		monthLabel(month, options) {
-			return new Date(month + '-01T00:00:00').toLocaleDateString(undefined, options)
+			return new Date(month + '-01T00:00:00').toLocaleDateString(locale(), options)
 		},
 
 		async reload() {

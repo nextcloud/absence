@@ -304,6 +304,7 @@ import StatusChip from './StatusChip.vue'
 import api from '../api.js'
 import { store } from '../store.js'
 import { formatRange } from '../utils/dates.js'
+import { locale } from '../utils/locale.js'
 
 export default {
 	name: 'RequestSidebar',
@@ -520,7 +521,7 @@ export default {
 			if (!iso) {
 				return ''
 			}
-			return new Date(iso).toLocaleString(undefined, {
+			return new Date(iso).toLocaleString(locale(), {
 				year: 'numeric',
 				month: 'short',
 				day: 'numeric',

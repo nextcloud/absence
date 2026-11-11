@@ -249,13 +249,14 @@ export default {
 				return t('absence', 'Region code {before} → {after}', { before: change.before || t('absence', 'none'), after: change.after || t('absence', 'none') })
 			}
 			const latest = change.after.periods.at(-1)
-			return latest
-				? t('absence', 'Contract: {days}, {percent} from {date}', {
-						days: this.weekdayNames(latest.weekdays),
-						percent: latest.percent === null ? '' : `${latest.percent}%`,
-						date: formatDate(latest.from),
-					})
-				: t('absence', 'Contract changed')
+			if (!latest) {
+				return t('absence', 'Contract changed')
+			}
+			const days = this.weekdayNames(latest.weekdays)
+			const date = formatDate(latest.from)
+			return latest.percent === null
+				? t('absence', 'Contract: {days} from {date}', { days, date })
+				: t('absence', 'Contract: {days}, {percent}% from {date}', { days, percent: latest.percent, date })
 		},
 
 		onRegionSaved(code) {

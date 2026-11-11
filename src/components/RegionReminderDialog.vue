@@ -85,6 +85,7 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import SkeletonList from './SkeletonList.vue'
 import api from '../api.js'
+import { locale } from '../utils/locale.js'
 import { regionFlag } from '../utils/regions.js'
 
 export default {
@@ -161,7 +162,7 @@ export default {
 		 */
 		ago(iso) {
 			const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-			return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(-days, 'day')
+			return new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }).format(-days, 'day')
 		},
 
 		async send() {

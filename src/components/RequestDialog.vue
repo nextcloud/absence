@@ -131,16 +131,15 @@
 						{{ t('absence', 'Prefilled from the working days and public holidays of {name}. This is only an estimate: always check the number and adjust it manually if it is off.', { name: subjectName }, undefined, { escape: false }) }}
 					</template>
 					<template v-else-if="prefillActive">
-						{{ t('absence', 'Prefilled from your') }}
+						{{ t('absence', 'Prefilled from your working days and public holidays. This is only an estimate: always check the number and adjust it manually if it is off.') }}
+						<template v-if="!hrMode">
+							{{ t('absence', 'Your manager will verify it.') }}
+						</template>
 						<a
 							:href="settingsUrl"
 							target="_blank"
 							rel="noreferrer noopener"
-							class="dialog__link">{{ t('absence', 'working days and public holidays') }}</a>
-						{{ t('absence', '— this is only an estimate: always check the number and adjust it manually if it is off.') }}
-						<template v-if="!hrMode">
-							{{ t('absence', 'Your manager will verify it.') }}
-						</template>
+							class="dialog__link">{{ t('absence', 'Check your working days') }}</a>
 					</template>
 					<template v-else>
 						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays) — this is only an estimate: always check the number and adjust it manually if it is off.') }}
@@ -223,6 +222,8 @@ import { weekdaysOn } from '../utils/contract.js'
 import { parseWeekdays, toIso } from '../utils/dates.js'
 import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.js'
 import { latestOnly } from '../utils/latest.js'
+import { formatNumber } from '../utils/locale.js'
+import { namesAndMore } from '../utils/people.js'
 import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.js'
 
 export default {
@@ -508,13 +509,7 @@ export default {
 
 		overlapLabel() {
 			const names = this.overlapNames
-			if (names.length <= 3) {
-				return names.join(', ')
-			}
-			return t('absence', '{names} and {count} more', {
-				names: names.slice(0, 3).join(', '),
-				count: names.length - 3,
-			})
+			return namesAndMore({ count: names.length, names: names.slice(0, 3) })
 		},
 
 		/**
@@ -685,7 +680,7 @@ export default {
 			if (v === null || v === undefined) {
 				return '—'
 			}
-			return Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })
+			return formatNumber(v)
 		},
 
 		async initFromProps() {

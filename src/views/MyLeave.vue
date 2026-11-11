@@ -93,6 +93,7 @@ import SkeletonList from '../components/SkeletonList.vue'
 import YearInReview from '../components/YearInReview.vue'
 import { store } from '../store.js'
 import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.js'
+import { locale } from '../utils/locale.js'
 
 // Inside this window the hero counts down in seconds rather than whole days.
 // Two days is roughly where "2 days to go" stops being the more useful sentence.
@@ -168,13 +169,13 @@ export default {
 				// leave is not something to enjoy, either.
 				const headline = type.key === 'sick'
 					? t('absence', 'Get well soon.')
-					: t('absence', 'Enjoy your {type}!', { type: type.label.toLowerCase() })
+					: t('absence', 'Enjoy your time off!')
 				return {
 					icon: type.icon,
 					color: type.color,
 					eyebrow: t('absence', 'You are off right now'),
 					headline,
-					sub: range,
+					sub: `${type.label} · ${range}`,
 					live: false,
 				}
 			}
@@ -258,7 +259,7 @@ export default {
 				addWorkingDaysByMonth(buckets, r.startDate, r.endDate, r.workingDays, this.year)
 			}
 			return buckets.map((value, month) => ({
-				label: new Date(this.year, month, 1).toLocaleDateString(undefined, { month: 'short' }),
+				label: new Date(this.year, month, 1).toLocaleDateString(locale(), { month: 'short' }),
 				value: Math.round(value * 10) / 10,
 				...(color ? { color } : {}),
 			}))
@@ -323,7 +324,7 @@ export default {
 			}
 			window.dispatchEvent(new CustomEvent('absence:celebrate'))
 			const type = store.leaveType(fresh[0].typeId)
-			showSuccess(t('absence', 'Your {type} is approved — enjoy! ✈️', { type: type.label.toLowerCase() }))
+			showSuccess(t('absence', 'Approved: {type}. Enjoy! ✈️', { type: type.label }))
 		},
 	},
 }

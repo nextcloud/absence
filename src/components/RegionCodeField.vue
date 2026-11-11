@@ -85,6 +85,7 @@ import api from '../api.js'
 import { store } from '../store.js'
 import { parseWeekdays } from '../utils/dates.js'
 import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.js'
+import { locale } from '../utils/locale.js'
 import { regionCountryName, regionFlag } from '../utils/regions.js'
 
 export default {
@@ -160,7 +161,7 @@ export default {
 		},
 
 		shortDate(iso) {
-			return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+			return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' })
 		},
 
 		isWorkingDay(iso) {

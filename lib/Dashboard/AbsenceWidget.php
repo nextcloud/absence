@@ -189,7 +189,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 					? $this->l->t('%1$s used · %2$s pending', [$this->formatDays((float)$row['used']), $this->formatDays($pending)])
 					: $this->l->t('%s used', [$this->formatDays((float)$row['used'])]);
 				return [
-					'title' => $this->l->t('%s days of annual leave left', [$remaining]),
+					'title' => $this->l->n('%s day of annual leave left', '%s days of annual leave left', (int)ceil((float)$row['remaining']), [$remaining]),
 					'subtitle' => $subtitle,
 				];
 			}
@@ -233,8 +233,12 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 
 	private function range(LeaveRequest $r): string {
 		return $r->getStartDate() === $r->getEndDate()
-			? $r->getStartDate()
-			: $r->getStartDate() . ' – ' . $r->getEndDate();
+			? $this->formatDate($r->getStartDate())
+			: $this->formatDate($r->getStartDate()) . ' – ' . $this->formatDate($r->getEndDate());
+	}
+
+	private function formatDate(string $date): string {
+		return (string)$this->l->l('date', new \DateTime($date), ['width' => 'medium']);
 	}
 
 	private function statusLabel(string $status): string {
