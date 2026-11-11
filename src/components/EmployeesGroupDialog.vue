@@ -36,9 +36,10 @@
 			</template>
 
 			<NcTextField
-				v-model="typed"
+				:modelValue="typed"
 				:label="t('absence', 'Type the group name to confirm')"
 				:placeholder="group.displayName"
+				@update:modelValue="typed = String($event)"
 				@keydown.enter="confirm" />
 		</div>
 
@@ -53,65 +54,57 @@
 	</NcDialog>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { EmployeesPreview, Group } from '../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { namesAndMore } from '../utils/people.js'
+import api from '../services/api.ts'
+import { serverMessage } from '../utils/errors.ts'
+import { namesAndMore } from '../utils/people.ts'
 
-export default {
-	name: 'EmployeesGroupDialog',
-	components: { NcButton, NcDialog, NcNoteCard, NcTextField, SkeletonList },
-	props: {
-		/** The group to switch to: { id, displayName } */
-		group: { type: Object, required: true },
-		saving: { type: Boolean, default: false },
-	},
+const props = withDefaults(defineProps<{
+	/** The group to switch to: { id, displayName } */
+	group: Group
+	saving?: boolean
+}>(), {
+	saving: false,
+})
 
-	emits: ['close', 'confirm'],
+const emit = defineEmits<{
+	close: []
+	confirm: []
+}>()
 
-	data() {
-		return {
-			preview: null,
-			typed: '',
-		}
-	},
+const preview = ref<EmployeesPreview | null>(null)
+const typed = ref('')
 
-	computed: {
-		title() {
-			return t('absence', 'Change the employees group to "{group}"?', { group: this.group.displayName }, undefined, { escape: false })
-		},
+const title = computed(() => t('absence', 'Change the employees group to "{group}"?', { group: props.group.displayName }, undefined, { escape: false }))
 
-		confirmed() {
-			return this.preview !== null && !this.saving && this.typed.trim() === this.group.displayName
-		},
-	},
+const confirmed = computed(() => preview.value !== null && !props.saving && typed.value.trim() === props.group.displayName)
 
-	async mounted() {
-		try {
-			this.preview = await api.previewEmployeesGroup(this.group.id)
-		} catch (e) {
-			showError(e.response?.data?.message || t('absence', 'Could not check who this group changes'))
-			this.$emit('close')
-		}
-	},
+onMounted(async () => {
+	try {
+		preview.value = await api.previewEmployeesGroup(props.group.id)
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not check who this group changes'))
+		emit('close')
+	}
+})
 
-	methods: {
-		t,
-		n,
-		namesAndMore,
-
-		confirm() {
-			if (this.confirmed) {
-				this.$emit('confirm')
-			}
-		},
-	},
+/**
+ * Confirms the change once the group name is typed.
+ */
+function confirm() {
+	if (confirmed.value) {
+		emit('confirm')
+	}
 }
 </script>
 

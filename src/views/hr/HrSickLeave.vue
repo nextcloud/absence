@@ -183,9 +183,13 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { LeaveType, SickLeaveRow, SickLeaveTotals, SickLeaveType } from '../../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
@@ -198,162 +202,156 @@ import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
-import api from '../../api.js'
-import { store } from '../../store.js'
-import { formatNumber, locale } from '../../utils/locale.js'
+import api from '../../services/api.ts'
+import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
+import { formatNumber, locale } from '../../utils/locale.ts'
 
-export default {
-	name: 'HrSickLeave',
-	components: { NcAvatar, NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcSelect, NcTextField, AlertCircleOutline, Magnify, Thermometer, SkeletonList, StatTile, MeterBar },
+const leaveTypesStore = useLeaveTypesStore()
 
-	data() {
-		const y = new Date().getFullYear()
-		return {
-			loading: true,
-			loadError: false,
-			// Bumped on every reload; a response whose seq is stale on return is discarded.
-			reloadSeq: 0,
-			rows: [],
-			types: [],
-			totals: { employees: 0, affected: 0, days: 0, episodes: 0 },
-			search: '',
-			onlyAffected: true,
-			// null means "let the server pick" — it counts the type keyed "sick".
-			type: null,
-			year: y,
-			years: [y - 2, y - 1, y, y + 1],
+const router = useRouter()
+
+const y = new Date().getFullYear()
+
+const loading = ref(true)
+const loadError = ref(false)
+// Bumped on every reload; a response whose seq is stale on return is discarded.
+let reloadSeq = 0
+const rows = shallowRef<SickLeaveRow[]>([])
+const types = ref<SickLeaveType[]>([])
+const totals = ref<SickLeaveTotals>({ employees: 0, affected: 0, days: 0, episodes: 0 })
+// NcTextField types what it emits as string or number
+const search = ref<string | number>('')
+const onlyAffected = ref(true)
+// null means "let the server pick" — it counts the type keyed "sick".
+const type = ref<LeaveType | null>(null)
+const year = ref(y)
+const years = [y - 2, y - 1, y, y + 1]
+
+// A disabled type can still have history worth reporting on, so offer the
+// full list rather than the enabled subset — same reasoning as HrAbsences.
+const typeOptions = computed<LeaveType[]>(() => leaveTypesStore.leaveTypes)
+
+/**
+ * What the page is actually counting, in the report's own words. Taken from
+ * the server's answer rather than from the picker so the labels stay true in
+ * the default case too — where nothing is picked and the server resolved the
+ * "sick" key on its own.
+ */
+const countedLabel = computed<string>(() => {
+	if (!types.value.length) {
+		return t('absence', 'Sick leave')
+	}
+	return types.value.map((type) => type.label).join(' / ')
+})
+
+const filtered = computed<SickLeaveRow[]>(() => {
+	const q = String(search.value).trim().toLowerCase()
+	return rows.value.filter((row) => {
+		if (onlyAffected.value && !row.days) {
+			return false
 		}
-	},
+		if (!q) {
+			return true
+		}
+		return row.displayName.toLowerCase().includes(q)
+			|| row.employeeUid.toLowerCase().includes(q)
+	})
+})
 
-	computed: {
-		typeOptions() {
-			// A disabled type can still have history worth reporting on, so offer the
-			// full list rather than the enabled subset — same reasoning as HrAbsences.
-			return store.leaveTypes
+/** The worst case in the current list, for scaling the bars. */
+const maxDays = computed<number>(() => rows.value.reduce((max, row) => Math.max(max, row.days || 0), 0))
+
+const barColor = computed<string>(() => types.value[0]?.color || 'var(--color-primary-element)')
+
+/**
+ * Spread across the whole workforce, not just the people who fell ill —
+ * the average over the affected only would climb as fewer people get sick,
+ * which is the opposite of what the number is read as meaning.
+ */
+const averagePerEmployee = computed<number>(() => (totals.value.employees ? totals.value.days / totals.value.employees : 0))
+
+watch(year, () => {
+	reload()
+})
+
+watch(type, () => {
+	reload()
+})
+
+onMounted(() => {
+	reload()
+})
+
+/**
+ * A count of days, or a dash without one.
+ *
+ * @param value the number to format
+ */
+function fmt(value: number | null | undefined): string {
+	return value === null || value === undefined
+		? '—'
+		: formatNumber(value)
+}
+
+/**
+ * A day in the account's locale.
+ *
+ * @param iso the day as 'YYYY-MM-DD'
+ */
+function formatDate(iso: string): string {
+	return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { dateStyle: 'medium' })
+}
+
+/**
+ * Drill into the individual records behind a row, where they can be
+ * corrected or cancelled. Rows with no sick leave have nothing to show.
+ *
+ * @param row one employee's aggregated figures
+ */
+function openRecords(row: SickLeaveRow): void {
+	if (!row.days) {
+		return
+	}
+	const onlyType = types.value.length === 1 ? types.value[0] : undefined
+	router.push({
+		name: 'hr-absences',
+		query: {
+			employee: row.employeeUid,
+			// The report can aggregate several sick types; filter by type only
+			// when there is exactly one, so nothing gets hidden.
+			...(onlyType ? { type: onlyType.id } : {}),
+			year: year.value,
 		},
+	})
+}
 
-		/**
-		 * What the page is actually counting, in the report's own words. Taken from
-		 * the server's answer rather than from the picker so the labels stay true in
-		 * the default case too — where nothing is picked and the server resolved the
-		 * "sick" key on its own.
-		 */
-		countedLabel() {
-			if (!this.types.length) {
-				return t('absence', 'Sick leave')
-			}
-			return this.types.map((type) => type.label).join(' / ')
-		},
-
-		filtered() {
-			const q = this.search.trim().toLowerCase()
-			return this.rows.filter((row) => {
-				if (this.onlyAffected && !row.days) {
-					return false
-				}
-				if (!q) {
-					return true
-				}
-				return row.displayName.toLowerCase().includes(q)
-					|| row.employeeUid.toLowerCase().includes(q)
-			})
-		},
-
-		/** The worst case in the current list, for scaling the bars. */
-		maxDays() {
-			return this.rows.reduce((max, row) => Math.max(max, row.days || 0), 0)
-		},
-
-		barColor() {
-			return this.types[0]?.color || 'var(--color-primary-element)'
-		},
-
-		/**
-		 * Spread across the whole workforce, not just the people who fell ill —
-		 * the average over the affected only would climb as fewer people get sick,
-		 * which is the opposite of what the number is read as meaning.
-		 */
-		averagePerEmployee() {
-			return this.totals.employees ? this.totals.days / this.totals.employees : 0
-		},
-	},
-
-	watch: {
-		year() {
-			this.reload()
-		},
-
-		type() {
-			this.reload()
-		},
-	},
-
-	mounted() {
-		this.reload()
-	},
-
-	methods: {
-		t,
-		n,
-
-		fmt(value) {
-			return value === null || value === undefined
-				? '—'
-				: formatNumber(value)
-		},
-
-		formatDate(iso) {
-			return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { dateStyle: 'medium' })
-		},
-
-		/**
-		 * Drill into the individual records behind a row, where they can be
-		 * corrected or cancelled. Rows with no sick leave have nothing to show.
-		 *
-		 * @param {object} row one employee's aggregated figures
-		 */
-		openRecords(row) {
-			if (!row.days) {
-				return
-			}
-			this.$router.push({
-				name: 'hr-absences',
-				query: {
-					employee: row.employeeUid,
-					// The report can aggregate several sick types; filter by type only
-					// when there is exactly one, so nothing gets hidden.
-					...(this.types.length === 1 ? { type: this.types[0].id } : {}),
-					year: this.year,
-				},
-			})
-		},
-
-		async reload() {
-			// Guard against overlapping reloads (rapid year/type changes): a slow earlier
-			// response must not overwrite the rows of a newer one already on screen.
-			const seq = ++this.reloadSeq
-			this.loading = true
-			this.loadError = false
-			try {
-				const report = await api.reportSickLeave(this.year, null, this.type?.id ?? null)
-				if (seq !== this.reloadSeq) {
-					return
-				}
-				this.rows = report.rows ?? []
-				this.types = report.types ?? []
-				this.totals = report.totals ?? { employees: 0, affected: 0, days: 0, episodes: 0 }
-			} catch {
-				if (seq === this.reloadSeq) {
-					this.loadError = true
-					showError(t('absence', 'Could not load the sick leave overview'))
-				}
-			} finally {
-				if (seq === this.reloadSeq) {
-					this.loading = false
-				}
-			}
-		},
-	},
+/**
+ * Loads the report of the chosen year and leave type.
+ */
+async function reload(): Promise<void> {
+	// Guard against overlapping reloads (rapid year/type changes): a slow earlier
+	// response must not overwrite the rows of a newer one already on screen.
+	const seq = ++reloadSeq
+	loading.value = true
+	loadError.value = false
+	try {
+		const report = await api.reportSickLeave(year.value, null, type.value?.id ?? null)
+		if (seq !== reloadSeq) {
+			return
+		}
+		rows.value = report.rows ?? []
+		types.value = report.types ?? []
+		totals.value = report.totals ?? { employees: 0, affected: 0, days: 0, episodes: 0 }
+	} catch {
+		if (seq === reloadSeq) {
+			loadError.value = true
+			showError(t('absence', 'Could not load the sick leave overview'))
+		}
+	} finally {
+		if (seq === reloadSeq) {
+			loading.value = false
+		}
+	}
 }
 </script>
 

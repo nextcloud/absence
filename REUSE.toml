@@ -42,7 +42,7 @@ SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "CC0-1.0"
 
 [[annotations]]
-path = ["package.json", "package-lock.json", "**/package.json", "**/package-lock.json", "composer.json", "composer.lock", "**/composer.json", "**/composer.lock", "psalm.xml", "tests/psalm-baseline.xml", ".tx/config", "**/phpunit.xml", "js/vendor.LICENSE.txt"]
+path = ["package.json", "package-lock.json", "**/package.json", "**/package-lock.json", "composer.json", "composer.lock", "**/composer.json", "**/composer.lock", "psalm.xml", "tsconfig.json", "tests/psalm-baseline.xml", ".tx/config", "**/phpunit.xml", "js/vendor.LICENSE.txt"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "none"
 SPDX-License-Identifier = "CC0-1.0"

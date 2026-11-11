@@ -47,57 +47,61 @@
 	</figure>
 </template>
 
-<script>
+<script setup lang="ts">
 import { t } from '@nextcloud/l10n'
-import { formatNumber } from '../utils/locale.js'
+import { computed, onMounted, ref } from 'vue'
+import { formatNumber } from '../utils/locale.ts'
 
-export default {
-	name: 'DonutChart',
-	props: {
-		title: { type: String, default: '' },
-		data: { type: Array, required: true }, // [{ label, value, color }]
-	},
+/** One slice of the donut */
+interface DonutDatum {
+	label: string
+	value: number
+	color: string
+}
 
-	data() {
-		return { radius: 64, animated: false }
-	},
+const props = withDefaults(defineProps<{
+	title?: string
+	data: DonutDatum[] // [{ label, value, color }]
+}>(), {
+	title: '',
+})
 
-	computed: {
-		circumference() {
-			return 2 * Math.PI * this.radius
-		},
+const radius = 64
+const circumference = 2 * Math.PI * radius
 
-		total() {
-			return this.data.reduce((s, d) => s + d.value, 0)
-		},
+const animated = ref(false)
 
-		segments() {
-			const total = this.total || 1
-			let acc = 0
-			return this.data.filter((d) => d.value > 0).map((d) => {
-				const pct = (d.value / total) * 100
-				const len = (d.value / total) * this.circumference
-				const seg = { ...d, pct, len, offset: acc }
-				acc += len
-				return seg
-			})
-		},
-	},
+const total = computed(() => props.data.reduce((s, d) => s + d.value, 0))
 
-	mounted() {
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			this.animated = true
-			return
-		}
-		requestAnimationFrame(() => {
-			this.animated = true
-		})
-	},
+const segments = computed(() => {
+	const sum = total.value || 1
+	let acc = 0
+	return props.data.filter((d) => d.value > 0).map((d) => {
+		const pct = (d.value / sum) * 100
+		const len = (d.value / sum) * circumference
+		const seg = { ...d, pct, len, offset: acc }
+		acc += len
+		return seg
+	})
+})
 
-	methods: {
-		t,
-		fmt(v) { return formatNumber(v) },
-	},
+onMounted(() => {
+	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		animated.value = true
+		return
+	}
+	requestAnimationFrame(() => {
+		animated.value = true
+	})
+})
+
+/**
+ * A value in the account's locale.
+ *
+ * @param v the value to format
+ */
+function fmt(v: number): string {
+	return formatNumber(v)
 }
 </script>
 

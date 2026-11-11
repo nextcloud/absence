@@ -8,13 +8,13 @@
 <template>
 	<div class="gantt">
 		<div class="gantt__toolbar">
-			<NcButton variant="tertiary" :aria-label="t('absence', 'Previous month')" @click="shift(-1)">
+			<NcButton variant="tertiary" :ariaLabel="t('absence', 'Previous month')" @click="shift(-1)">
 				<template #icon>
 					<ChevronLeft :size="20" />
 				</template>
 			</NcButton>
 			<strong class="gantt__month">{{ monthLabel }}</strong>
-			<NcButton variant="tertiary" :aria-label="t('absence', 'Next month')" @click="shift(1)">
+			<NcButton variant="tertiary" :ariaLabel="t('absence', 'Next month')" @click="shift(1)">
 				<template #icon>
 					<ChevronRight :size="20" />
 				</template>
@@ -93,7 +93,7 @@
 							:class="{
 								'gantt__pill--pending': seg.pending,
 								'gantt__pill--clickable': selectable,
-								'gantt__pill--active': selectable && store.selectedId === seg.requestId,
+								'gantt__pill--active': selectable && requestsStore.selectedId === seg.requestId,
 							}"
 							:type="selectable ? 'button' : null"
 							:style="{ left: seg.left + 'px', width: seg.width + 'px', '--pill': seg.color, '--pill-text': seg.textColor }"
@@ -127,8 +127,11 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { CoverageEvent, CoverageScope } from '../types/index.ts'
+
 import { t } from '@nextcloud/l10n'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -137,180 +140,199 @@ import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { statusMeta, store } from '../store.js'
-import { readableTextColor } from '../utils/colors.js'
-import { formatRange, toIso } from '../utils/dates.js'
-import { latestOnly } from '../utils/latest.js'
-import { locale } from '../utils/locale.js'
+import api from '../services/api.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
+import { readableTextColor } from '../utils/colors.ts'
+import { formatRange, toIso } from '../utils/dates.ts'
+import { latestOnly } from '../utils/latest.ts'
+import { locale } from '../utils/locale.ts'
+import { statusMeta } from '../utils/status.ts'
+
+const props = withDefaults(defineProps<{
+	scope?: CoverageScope
+	// Turn the pills into buttons that open the request. Only set it where the
+	// viewer may actually read every request in the timeline (HR's "Who's off") —
+	// elsewhere the calendar can include leave whose detail the API would refuse.
+	selectable?: boolean
+}>(), {
+	scope: 'team',
+	selectable: false,
+})
+defineEmits<{
+	select: [requestId: number]
+}>()
+const requestsStore = useRequestsStore()
+const leaveTypesStore = useLeaveTypesStore()
+
+/** One day column of the month */
+interface TimelineDay {
+	day: number
+	index: number
+	weekend: boolean
+	iso: string
+}
+
+/** One absence pill on a person's track */
+interface TimelineSegment {
+	requestId: number
+	left: number
+	width: number
+	color: string
+	textColor: string
+	icon: string
+	pending: boolean
+	title: string
+	label: string
+}
+
+/** One person with their absences of the month */
+interface TimelineRow {
+	uid: string
+	name: string
+	segments: TimelineSegment[]
+}
 
 const DAY_MS = 86400000
 
-export default {
-	name: 'TeamTimeline',
-	components: { NcAvatar, NcButton, NcEmptyContent, AlertCircleOutline, ChevronLeft, ChevronRight, CalendarBlank, SkeletonList },
-	props: {
-		scope: { type: String, default: 'team' },
-		// Turn the pills into buttons that open the request. Only set it where the
-		// viewer may actually read every request in the timeline (HR's "Who's off") —
-		// elsewhere the calendar can include leave whose detail the API would refuse.
-		selectable: { type: Boolean, default: false },
-	},
+const dayWidth = 30
 
-	emits: ['select'],
-	setup() {
-		// Expose the module-level reactive store to the template (Options API).
-		return { store }
-	},
+const today = new Date()
+const year = ref(today.getFullYear())
+const month = ref(today.getMonth())
+const events = shallowRef<CoverageEvent[]>([])
+const loading = ref(true)
+const loadError = ref(false)
 
-	data() {
-		const now = new Date()
-		return {
-			year: now.getFullYear(),
-			month: now.getMonth(),
-			events: [],
-			dayWidth: 30,
-			loading: true,
-			loadError: false,
+// Fast month navigation: only the month asked for last may land.
+const startLoad = latestOnly()
+
+const firstDay = computed(() => new Date(year.value, month.value, 1))
+
+const lastDay = computed(() => new Date(year.value, month.value + 1, 0))
+
+const monthLabel = computed(() => firstDay.value.toLocaleDateString(locale(), { month: 'long', year: 'numeric' }))
+
+const days = computed(() => {
+	const arr: TimelineDay[] = []
+	for (let i = 1; i <= lastDay.value.getDate(); i++) {
+		const dt = new Date(year.value, month.value, i)
+		const dow = dt.getDay()
+		arr.push({ day: i, index: i - 1, weekend: dow === 0 || dow === 6, iso: toIso(dt) })
+	}
+	return arr
+})
+
+const todayIndex = computed(() => {
+	const now = new Date()
+	if (now.getFullYear() === year.value && now.getMonth() === month.value) {
+		return now.getDate() - 1
+	}
+	return -1
+})
+
+const rows = computed(() => {
+	const byUid: Record<string, TimelineRow> = {}
+	const monthStart = firstDay.value.getTime()
+	const lastIndex = lastDay.value.getDate() - 1
+	for (const ev of events.value) {
+		const row = byUid[ev.employeeUid] ??= { uid: ev.employeeUid, name: ev.displayName, segments: [] }
+		const startIdx = Math.max(0, Math.round((new Date(ev.start + 'T00:00:00').getTime() - monthStart) / DAY_MS))
+		const endIdx = Math.min(lastIndex, Math.round((new Date(ev.end + 'T00:00:00').getTime() - monthStart) / DAY_MS))
+		if (endIdx < 0 || startIdx > lastIndex) {
+			continue
 		}
-	},
+		const type = leaveTypesStore.leaveType(ev.typeId)
+		const dates = formatRange(ev.start, ev.end)
+		const status = statusMeta(ev.status).label
+		row.segments.push({
+			requestId: ev.requestId,
+			left: startIdx * dayWidth + 2,
+			width: (endIdx - startIdx + 1) * dayWidth - 4,
+			color: type.color,
+			textColor: readableTextColor(type.color),
+			icon: type.icon,
+			pending: ev.status !== 'APPROVED',
+			title: `${type.label} · ${dates}${ev.status !== 'APPROVED' ? ' (' + status + ')' : ''}`,
+			// What a screen reader gets instead of position, colour and stripes
+			label: t('absence', '{person}: {type}, {dates}, {status}', { person: ev.displayName, type: type.label, dates, status }, undefined, { escape: false }),
+		})
+	}
+	return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))
+})
 
-	computed: {
-		firstDay() {
-			return new Date(this.year, this.month, 1)
-		},
+const legendTypes = computed(() => {
+	const ids = new Set(events.value.map((e) => e.typeId))
+	return leaveTypesStore.leaveTypes.filter((lt) => ids.has(lt.id))
+})
 
-		lastDay() {
-			return new Date(this.year, this.month + 1, 0)
-		},
+watch(() => props.scope, () => {
+	load()
+})
 
-		monthLabel() {
-			return this.firstDay.toLocaleDateString(locale(), { month: 'long', year: 'numeric' })
-		},
+onMounted(() => {
+	load()
+	// A cancellation made through the sidebar must drop off the timeline.
+	window.addEventListener('absence:refresh', load)
+})
 
-		days() {
-			const arr = []
-			for (let i = 1; i <= this.lastDay.getDate(); i++) {
-				const dt = new Date(this.year, this.month, i)
-				const dow = dt.getDay()
-				arr.push({ day: i, index: i - 1, weekend: dow === 0 || dow === 6, iso: toIso(dt) })
-			}
-			return arr
-		},
+onBeforeUnmount(() => {
+	window.removeEventListener('absence:refresh', load)
+})
 
-		todayIndex() {
-			const now = new Date()
-			if (now.getFullYear() === this.year && now.getMonth() === this.month) {
-				return now.getDate() - 1
-			}
-			return -1
-		},
+/**
+ * Fetch the absences of the month on show.
+ */
+async function load() {
+	const isLatest = startLoad()
+	loading.value = true
+	loadError.value = false
+	try {
+		const { events: fetched } = await api.getCalendar(toIso(firstDay.value), toIso(lastDay.value), props.scope)
+		if (isLatest()) {
+			events.value = fetched
+		}
+	} catch {
+		if (isLatest()) {
+			events.value = []
+			loadError.value = true
+		}
+	} finally {
+		if (isLatest()) {
+			loading.value = false
+		}
+	}
+}
 
-		rows() {
-			const byUid = {}
-			const monthStart = this.firstDay
-			const lastIndex = this.lastDay.getDate() - 1
-			for (const ev of this.events) {
-				if (!byUid[ev.employeeUid]) {
-					byUid[ev.employeeUid] = { uid: ev.employeeUid, name: ev.displayName, segments: [] }
-				}
-				const startIdx = Math.max(0, Math.round((new Date(ev.start + 'T00:00:00') - monthStart) / DAY_MS))
-				const endIdx = Math.min(lastIndex, Math.round((new Date(ev.end + 'T00:00:00') - monthStart) / DAY_MS))
-				if (endIdx < 0 || startIdx > lastIndex) {
-					continue
-				}
-				const type = store.leaveType(ev.typeId)
-				const dates = formatRange(ev.start, ev.end)
-				const status = statusMeta(ev.status).label
-				byUid[ev.employeeUid].segments.push({
-					requestId: ev.requestId,
-					left: startIdx * this.dayWidth + 2,
-					width: (endIdx - startIdx + 1) * this.dayWidth - 4,
-					color: type.color,
-					textColor: readableTextColor(type.color),
-					icon: type.icon,
-					pending: ev.status !== 'APPROVED',
-					title: `${type.label} · ${dates}${ev.status !== 'APPROVED' ? ' (' + status + ')' : ''}`,
-					// What a screen reader gets instead of position, colour and stripes
-					label: t('absence', '{person}: {type}, {dates}, {status}', { person: ev.displayName, type: type.label, dates, status }, undefined, { escape: false }),
-				})
-			}
-			return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))
-		},
+/**
+ * Move to another month.
+ *
+ * @param delta the number of months to move by, -1 or 1
+ */
+function shift(delta: number) {
+	let m = month.value + delta
+	let y = year.value
+	if (m < 0) {
+		m = 11
+		y--
+	}
+	if (m > 11) {
+		m = 0
+		y++
+	}
+	month.value = m
+	year.value = y
+	load()
+}
 
-		legendTypes() {
-			const ids = new Set(this.events.map((e) => e.typeId))
-			return store.leaveTypes.filter((lt) => ids.has(lt.id))
-		},
-	},
-
-	watch: {
-		scope() {
-			this.load()
-		},
-	},
-
-	created() {
-		// Fast month navigation: only the month asked for last may land.
-		this.startLoad = latestOnly()
-	},
-
-	mounted() {
-		this.load()
-		// A cancellation made through the sidebar must drop off the timeline.
-		window.addEventListener('absence:refresh', this.load)
-	},
-
-	beforeUnmount() {
-		window.removeEventListener('absence:refresh', this.load)
-	},
-
-	methods: {
-		t,
-		async load() {
-			const isLatest = this.startLoad()
-			this.loading = true
-			this.loadError = false
-			try {
-				const { events } = await api.getCalendar(toIso(this.firstDay), toIso(this.lastDay), this.scope)
-				if (isLatest()) {
-					this.events = events
-				}
-			} catch {
-				if (isLatest()) {
-					this.events = []
-					this.loadError = true
-				}
-			} finally {
-				if (isLatest()) {
-					this.loading = false
-				}
-			}
-		},
-
-		shift(delta) {
-			let m = this.month + delta
-			let y = this.year
-			if (m < 0) {
-				m = 11
-				y--
-			}
-			if (m > 11) {
-				m = 0
-				y++
-			}
-			this.month = m
-			this.year = y
-			this.load()
-		},
-
-		goToday() {
-			const now = new Date()
-			this.year = now.getFullYear()
-			this.month = now.getMonth()
-			this.load()
-		},
-	},
+/**
+ * Come back to the current month.
+ */
+function goToday() {
+	const now = new Date()
+	year.value = now.getFullYear()
+	month.value = now.getMonth()
+	load()
 }
 </script>
 

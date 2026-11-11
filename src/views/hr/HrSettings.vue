@@ -172,21 +172,21 @@
 						type="switch"
 						:modelValue="form.caldav_personal"
 						:disabled="saving"
-						@update:modelValue="(on) => save({ caldav_personal: on })">
+						@update:modelValue="(on: boolean) => save({ caldav_personal: on })">
 						{{ t('absence', 'Add approved leave to each person\'s calendar') }}
 					</NcCheckboxRadioSwitch>
 					<NcCheckboxRadioSwitch
 						type="switch"
 						:modelValue="form.caldav_shared"
 						:disabled="saving"
-						@update:modelValue="(on) => save({ caldav_shared: on })">
+						@update:modelValue="(on: boolean) => save({ caldav_shared: on })">
 						{{ t('absence', 'Keep a shared team calendar') }}
 					</NcCheckboxRadioSwitch>
 					<NcCheckboxRadioSwitch
 						type="switch"
 						:modelValue="form.shared_calendar_visibility === 'reveal'"
 						:disabled="saving || !form.caldav_shared"
-						@update:modelValue="(on) => save({ shared_calendar_visibility: on ? 'reveal' : 'neutral' })">
+						@update:modelValue="(on: boolean) => save({ shared_calendar_visibility: on ? 'reveal' : 'neutral' })">
 						{{ t('absence', 'Show the leave type on the shared calendar') }}
 						<span class="settings__muted">{{ t('absence', '(otherwise "Absent")') }}</span>
 					</NcCheckboxRadioSwitch>
@@ -206,7 +206,7 @@
 						type="switch"
 						:modelValue="form.holidays_everyone_edits"
 						:disabled="saving"
-						@update:modelValue="(on) => save({ holidays_everyone_edits: on })">
+						@update:modelValue="(on: boolean) => save({ holidays_everyone_edits: on })">
 						{{ t('absence', 'Everyone can add and edit public holidays') }}
 					</NcCheckboxRadioSwitch>
 				</div>
@@ -226,14 +226,14 @@
 						class="settings__field settings__field--wide"
 						type="url"
 						:label="t('absence', 'Handbook for everyone')"
-						placeholder="https://"
+						:placeholder="URL_PLACEHOLDER"
 						@change="saveField('handbook_url')" />
 					<NcTextField
 						v-model="form.hr_handbook_url"
 						class="settings__field settings__field--wide"
 						type="url"
 						:label="t('absence', 'Handbook for HR')"
-						placeholder="https://"
+						:placeholder="URL_PLACEHOLDER"
 						@change="saveField('hr_handbook_url')" />
 				</div>
 			</section>
@@ -268,9 +268,20 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type {
+	CarryOverPolicy,
+	Group,
+	LeaveType,
+	Settings,
+	SettingsGroupKind,
+	SettingsKey,
+	SettingsValues,
+} from '../../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -284,12 +295,44 @@ import LeaveTypeChip from '../../components/LeaveTypeChip.vue'
 import LeaveTypesDialog from '../../components/LeaveTypesDialog.vue'
 import SavedCheck from '../../components/SavedCheck.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
-import api from '../../api.js'
-import { store } from '../../store.js'
-import { keepUnsaved } from '../../utils/unsaved.js'
+import api from '../../services/api.ts'
+import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
+import { useSessionStore } from '../../stores/session.ts'
+import { serverMessage } from '../../utils/errors.ts'
+import { keepUnsaved } from '../../utils/unsaved.ts'
+
+const sessionStore = useSessionStore()
+const leaveTypesStore = useLeaveTypesStore()
+
+/** The sections of the page */
+type Section = 'who' | 'vacation' | 'approvals' | 'calendar' | 'holidays' | 'handbooks'
+
+/** The settings a text field edits */
+type TextKey = 'default_entitlement' | 'carryover_cap' | 'carryover_expiry' | 'handbook_url' | 'hr_handbook_url' | ApprovalField['key']
+
+/** The settings as the fields hold them: a text field hands back a string or a number, whatever the setting is */
+type SettingsForm = {
+	[K in SettingsKey]: SettingsValues[K] | (K extends TextKey ? string | number : never)
+}
+
+/** The settings a save sends */
+type SettingsPatch = Partial<SettingsForm>
+
+/** A choice of the carry-over select */
+interface CarryOverOption {
+	id: CarryOverPolicy
+	label: string
+}
+
+/** A number field of the approvals section */
+interface ApprovalField {
+	key: 'escalation_window_days' | 'reminder_lead_days' | 'max_concurrent_absences' | 'notice_period_days'
+	label: string
+	hint?: string
+}
 
 // The section each setting is shown in, to flash its check once saved
-const SECTION_OF = {
+const SECTION_OF: Record<SettingsKey, Section> = {
 	hr_group: 'who',
 	employees_group: 'who',
 	default_entitlement: 'vacation',
@@ -308,193 +351,217 @@ const SECTION_OF = {
 	hr_handbook_url: 'handbooks',
 }
 
-export default {
-	name: 'HrSettings',
-	components: { NcButton, NcCheckboxRadioSwitch, NcEmptyContent, NcNoteCard, NcSelect, NcTextField, CogOutline, Lock, EmployeesGroupDialog, LeaveTypeChip, LeaveTypesDialog, SavedCheck, SkeletonList },
-	data() {
-		return {
-			loading: true,
-			saving: false,
-			// Server values, and the editable copy the fields bind to
-			values: null,
-			form: null,
-			groups: [],
-			employeesCount: null,
-			pendingEmployeesGroup: null,
-			managingTypes: false,
-			// Section → when it was last saved
-			savedAt: {},
-			carryOverOptions: [
-				{ id: 'none', label: t('absence', 'No carry-over') },
-				{ id: 'capped', label: t('absence', 'Up to a limit') },
-				{ id: 'unlimited', label: t('absence', 'Unlimited') },
-			],
+// Not written in the template: vue-tsc 3.3 takes the `//` of a static attribute for a comment and breaks its generated code
+const URL_PLACEHOLDER = 'https://'
 
-			approvalFields: [
-				{ key: 'escalation_window_days', label: t('absence', 'Escalate to HR after (working days)') },
-				{ key: 'reminder_lead_days', label: t('absence', 'Remind the manager (days before)') },
-				{ key: 'max_concurrent_absences', label: t('absence', 'Too many people off at once (per team)') },
-				{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), hint: t('absence', '0 switches the warning off.') },
-			],
+const loading = ref(true)
+const saving = ref(false)
+// Server values, and the editable copy the fields bind to
+const values = ref<SettingsValues | null>(null)
+const form = ref<SettingsForm | null>(null)
+const groups = ref<Group[]>([])
+const employeesCount = ref<number | null>(null)
+const pendingEmployeesGroup = ref<Group | null>(null)
+const managingTypes = ref(false)
+// Section → when it was last saved
+const savedAt = ref<Partial<Record<Section, number>>>({})
+const carryOverOptions: CarryOverOption[] = [
+	{ id: 'none', label: t('absence', 'No carry-over') },
+	{ id: 'capped', label: t('absence', 'Up to a limit') },
+	{ id: 'unlimited', label: t('absence', 'Unlimited') },
+]
+
+const approvalFields: ApprovalField[] = [
+	{ key: 'escalation_window_days', label: t('absence', 'Escalate to HR after (working days)') },
+	{ key: 'reminder_lead_days', label: t('absence', 'Remind the manager (days before)') },
+	{ key: 'max_concurrent_absences', label: t('absence', 'Too many people off at once (per team)') },
+	{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), hint: t('absence', '0 switches the warning off.') },
+]
+
+const session = computed(() => sessionStore.session)
+
+const hrGroupOption = computed<Group>(() => groupOption(form.value?.hr_group ?? ''))
+
+const employeesGroupOption = computed<Group | null>(() => {
+	const id = form.value?.employees_group ?? ''
+	return id === '' ? null : groupOption(id)
+})
+
+const carryOverOption = computed<CarryOverOption | undefined>(() => carryOverOptions.find((option) => option.id === form.value?.carryover_policy))
+
+const enabledTypes = computed<LeaveType[]>(() => [...leaveTypesStore.enabledLeaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
+
+onMounted(() => {
+	load()
+})
+
+/**
+ * Whether a string names a setting.
+ *
+ * @param key the string to check
+ */
+function isSettingsKey(key: string): key is SettingsKey {
+	return key in SECTION_OF
+}
+
+/**
+ * Loads the settings.
+ */
+async function load(): Promise<void> {
+	loading.value = true
+	try {
+		apply(await api.getSettings())
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not load the settings'))
+	} finally {
+		loading.value = false
+	}
+}
+
+/**
+ * Takes the server's answer. After a save, `saved` names the settings it
+ * sent: what was typed in the other fields stays.
+ *
+ * @param answer the settings payload
+ * @param saved the keys a save sent
+ */
+function apply(answer: Settings, saved?: string[]): void {
+	form.value = saved && form.value && values.value
+		? keepUnsaved<SettingsForm>(form.value, values.value, answer.values, saved)
+		: { ...answer.values }
+	values.value = answer.values
+	groups.value = answer.groups
+	employeesCount.value = answer.employeesCount
+}
+
+/**
+ * Whether a group setting points at no group, or one that is gone.
+ *
+ * @param id group id
+ */
+function missing(id: string): boolean {
+	return !groups.value.some((group) => group.id === id)
+}
+
+/**
+ * Why a group setting needs a group.
+ *
+ * @param id group id, '' while none is chosen
+ */
+function missingText(id: string): string {
+	return id === '' ? t('absence', 'No group chosen yet.') : t('absence', 'This group doesn\'t exist.')
+}
+
+/**
+ * Creates the HR or employees group and chooses it (admins).
+ *
+ * @param kind which group
+ */
+async function createGroup(kind: SettingsGroupKind): Promise<void> {
+	saving.value = true
+	try {
+		apply(await api.createSettingsGroup(kind), [`${kind}_group`])
+		savedAt.value.who = Date.now()
+		// The session carries whether the app is open and this user is HR
+		await sessionStore.refreshSession()
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not create the group'))
+	} finally {
+		saving.value = false
+	}
+}
+
+/**
+ * A group as a select option, also when it no longer exists.
+ *
+ * @param id group id
+ */
+function groupOption(id: string): Group {
+	return groups.value.find((group) => group.id === id) || { id, displayName: id }
+}
+
+/**
+ * Copies one setting from an object to another.
+ *
+ * @param target the object to write to
+ * @param source the object to read from
+ * @param key the setting
+ */
+function copySetting<K extends SettingsKey>(target: SettingsPatch, source: SettingsForm, key: K): void {
+	target[key] = source[key]
+}
+
+/**
+ * Saves a field once it changed.
+ *
+ * @param key the setting the field holds
+ */
+function saveField(key: TextKey): void {
+	if (!form.value || !values.value || String(form.value[key]) === String(values.value[key])) {
+		return
+	}
+	const patch: SettingsPatch = {}
+	copySetting(patch, form.value, key)
+	save(patch)
+}
+
+/**
+ * Saves settings, and puts the fields back when the server refuses.
+ *
+ * @param patch the settings to change
+ */
+async function save(patch: SettingsPatch): Promise<boolean> {
+	const keys = Object.keys(patch).filter(isSettingsKey)
+	saving.value = true
+	try {
+		apply(await api.updateSettings(patch), keys)
+		for (const key of keys) {
+			savedAt.value[SECTION_OF[key]] = Date.now()
 		}
-	},
-
-	computed: {
-		session() {
-			return store.session
-		},
-
-		hrGroupOption() {
-			return this.groupOption(this.form.hr_group)
-		},
-
-		employeesGroupOption() {
-			return this.form.employees_group === '' ? null : this.groupOption(this.form.employees_group)
-		},
-
-		carryOverOption() {
-			return this.carryOverOptions.find((option) => option.id === this.form.carryover_policy)
-		},
-
-		enabledTypes() {
-			return [...store.enabledLeaveTypes].sort((a, b) => a.sortOrder - b.sortOrder)
-		},
-	},
-
-	mounted() {
-		this.load()
-	},
-
-	methods: {
-		t,
-		n,
-
-		async load() {
-			this.loading = true
-			try {
-				this.apply(await api.getSettings())
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not load the settings'))
-			} finally {
-				this.loading = false
+		if (['hr_group', 'employees_group', 'holidays_everyone_edits', 'handbook_url', 'hr_handbook_url'].some((key) => key in patch)) {
+			// The session carries whether the app is open, this user still is HR, may edit holidays, and the handbook links.
+			await sessionStore.refreshSession()
+		}
+		return true
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not save the setting'))
+		if (form.value && values.value) {
+			for (const key of keys) {
+				copySetting(form.value, values.value, key)
 			}
-		},
+		}
+		return false
+	} finally {
+		saving.value = false
+	}
+}
 
-		/**
-		 * Takes the server's answer. After a save, `saved` names the settings it
-		 * sent: what was typed in the other fields stays.
-		 *
-		 * @param {object} answer the settings payload
-		 * @param {object} answer.values the settings
-		 * @param {object[]} answer.groups the groups to choose from
-		 * @param {number|null} answer.employeesCount how many employees there are
-		 * @param {string[]} [saved] the keys a save sent
-		 */
-		apply({ values, groups, employeesCount }, saved) {
-			this.form = saved ? keepUnsaved(this.form, this.values, values, saved) : { ...values }
-			this.values = values
-			this.groups = groups
-			this.employeesCount = employeesCount
-		},
+/**
+ * The first choice opens the app, nothing to confirm; a change says who leaves and joins.
+ *
+ * @param group the chosen group
+ */
+function chooseEmployeesGroup(group: Group): void {
+	if (!form.value || group.id === form.value.employees_group) {
+		return
+	}
+	if (form.value.employees_group === '') {
+		save({ employees_group: group.id })
+	} else {
+		pendingEmployeesGroup.value = group
+	}
+}
 
-		/**
-		 * Whether a group setting points at no group, or one that is gone.
-		 *
-		 * @param {string} id group id
-		 */
-		missing(id) {
-			return !this.groups.some((group) => group.id === id)
-		},
-
-		/**
-		 * Why a group setting needs a group.
-		 *
-		 * @param {string} id group id, '' while none is chosen
-		 */
-		missingText(id) {
-			return id === '' ? t('absence', 'No group chosen yet.') : t('absence', 'This group doesn\'t exist.')
-		},
-
-		/**
-		 * Creates the HR or employees group and chooses it (admins).
-		 *
-		 * @param {'hr'|'employees'} kind which group
-		 */
-		async createGroup(kind) {
-			this.saving = true
-			try {
-				this.apply(await api.createSettingsGroup(kind), [`${kind}_group`])
-				this.savedAt.who = Date.now()
-				// The session carries whether the app is open and this user is HR
-				await store.refreshSession()
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not create the group'))
-			} finally {
-				this.saving = false
-			}
-		},
-
-		/**
-		 * A group as a select option, also when it no longer exists.
-		 *
-		 * @param {string} id group id
-		 */
-		groupOption(id) {
-			return this.groups.find((group) => group.id === id) || { id, displayName: id }
-		},
-
-		saveField(key) {
-			if (String(this.form[key]) === String(this.values[key])) {
-				return
-			}
-			this.save({ [key]: this.form[key] })
-		},
-
-		async save(patch) {
-			this.saving = true
-			try {
-				this.apply(await api.updateSettings(patch), Object.keys(patch))
-				for (const key of Object.keys(patch)) {
-					this.savedAt[SECTION_OF[key]] = Date.now()
-				}
-				if (['hr_group', 'employees_group', 'holidays_everyone_edits', 'handbook_url', 'hr_handbook_url'].some((key) => key in patch)) {
-					// The session carries whether the app is open, this user still is HR, may edit holidays, and the handbook links.
-					await store.refreshSession()
-				}
-				return true
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not save the setting'))
-				for (const key of Object.keys(patch)) {
-					this.form[key] = this.values[key]
-				}
-				return false
-			} finally {
-				this.saving = false
-			}
-		},
-
-		/**
-		 * The first choice opens the app, nothing to confirm; a change says who leaves and joins.
-		 *
-		 * @param {{id: string, displayName: string}} group the chosen group
-		 */
-		chooseEmployeesGroup(group) {
-			if (group.id === this.form.employees_group) {
-				return
-			}
-			if (this.form.employees_group === '') {
-				this.save({ employees_group: group.id })
-			} else {
-				this.pendingEmployeesGroup = group
-			}
-		},
-
-		async changeEmployeesGroup() {
-			if (await this.save({ employees_group: this.pendingEmployeesGroup.id })) {
-				this.pendingEmployeesGroup = null
-			}
-		},
-	},
+/**
+ * Saves the employees group that was confirmed.
+ */
+async function changeEmployeesGroup(): Promise<void> {
+	if (!pendingEmployeesGroup.value) {
+		return
+	}
+	if (await save({ employees_group: pendingEmployeesGroup.value.id })) {
+		pendingEmployeesGroup.value = null
+	}
 }
 </script>
 

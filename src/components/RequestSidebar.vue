@@ -113,7 +113,7 @@
 							<NcButton
 								v-if="canRemoveAttachment(a)"
 								variant="tertiary"
-								:aria-label="t('absence', 'Remove attachment')"
+								:ariaLabel="t('absence', 'Remove attachment')"
 								@click="removing = a">
 								<template #icon>
 									<Close :size="16" />
@@ -312,9 +312,14 @@
 		@close="$emit('close')" />
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Attachment, LeaveRequestDetail, RequestEventType } from '../types/index.ts'
+
+import { isAxiosError } from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
-import { translatePlural as n, translate as t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
@@ -336,378 +341,410 @@ import CoveragePanel from './CoveragePanel.vue'
 import LeaveTypeChip from './LeaveTypeChip.vue'
 import RequestStepper from './RequestStepper.vue'
 import StatusChip from './StatusChip.vue'
-import api from '../api.js'
-import { store } from '../store.js'
-import { formatRange } from '../utils/dates.js'
-import { locale } from '../utils/locale.js'
+import api from '../services/api.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
+import { useSessionStore } from '../stores/session.ts'
+import { formatRange } from '../utils/dates.ts'
+import { serverMessage } from '../utils/errors.ts'
+import { locale } from '../utils/locale.ts'
 
-export default {
-	name: 'RequestSidebar',
-	components: {
-		Paperclip,
-		NcAppSidebar,
-		NcAppSidebarTab,
-		NcAvatar,
-		NcButton,
-		NcDialog,
-		NcTextArea,
-		NcEmptyContent,
-		NcNoteCard,
-		StatusChip,
-		LeaveTypeChip,
-		CoveragePanel,
-		RequestStepper,
-		InformationOutline,
-		AccountGroup,
-		CommentOutline,
-		History,
-		Check,
-		Close,
-		Pencil,
-		CancelIcon,
-	},
+const emit = defineEmits<{
+	close: []
+	edit: [request: LeaveRequestDetail]
+	changed: []
+}>()
+const leaveTypesStore = useLeaveTypesStore()
+const sessionStore = useSessionStore()
+const requestsStore = useRequestsStore()
 
-	emits: ['close', 'edit', 'changed'],
-	data() {
-		return {
-			detail: null,
-			busy: false,
-			rejecting: false,
-			confirmingCancel: false,
-			rejectComment: '',
-			newComment: '',
-			uploading: false,
-			// The attachment whose removal is being confirmed
-			removing: null,
-			removingBusy: false,
-		}
-	},
+/** How a history entry shows */
+interface EventMeta {
+	label: string
+	icon: string
+}
 
-	computed: {
-		type() {
-			return this.detail ? store.leaveType(this.detail.typeId) : {}
-		},
+const route = useRoute()
+const router = useRouter()
 
-		rangeLabel() {
-			return this.detail ? formatRange(this.detail.startDate, this.detail.endDate) : ''
-		},
+const attachmentInputElement = useTemplateRef<HTMLInputElement>('attachmentInput')
 
-		/** Older payloads carry no name; the uid is a poor label but better than blank. */
-		employeeName() {
-			return this.detail?.employeeName || this.detail?.employeeUid || ''
-		},
+const detail = ref<LeaveRequestDetail | null>(null)
+const busy = ref(false)
+const rejecting = ref(false)
+const confirmingCancel = ref(false)
+const rejectComment = ref('')
+const newComment = ref('')
+const uploading = ref(false)
+// The attachment whose removal is being confirmed
+const removing = ref<Attachment | null>(null)
+const removingBusy = ref(false)
 
-		/**
-		 * Whose absence this is, shown under the title — but only for other people's
-		 * leave. On your own there is nobody to disambiguate, and naming you back at
-		 * yourself just crowds out the dates.
-		 */
-		subLabel() {
-			if (!this.detail || this.detail.employeeUid === store.session.uid) {
-				return this.rangeLabel
-			}
-			return `${this.employeeName} · ${this.rangeLabel}`
-		},
+const type = computed(() => leaveTypesStore.leaveType(detail.value?.typeId))
 
-		decidedAtLabel() {
-			return this.detail && this.detail.decidedAt ? this.formatDateTime(this.detail.decidedAt) : ''
-		},
+const rangeLabel = computed(() => detail.value ? formatRange(detail.value.startDate, detail.value.endDate) : '')
 
-		/**
-		 * The short-notice warning, phrased to match the one in the notification and
-		 * the email (NoticeService::sentence) so the same request never reads two
-		 * different ways. Absent unless the server sent one, which it only does for
-		 * someone who may decide and while a decision is still outstanding.
-		 */
-		shortNoticeLabel() {
-			const notice = this.detail?.shortNotice
-			if (!notice) {
-				return ''
-			}
-			if (notice.days > 0) {
-				return n('absence', 'The leave starts in %n day, less than the {period} days of notice expected.', 'The leave starts in %n days, less than the {period} days of notice expected.', notice.days, { period: notice.noticePeriod })
-			}
-			if (notice.days === 0) {
-				return t('absence', 'The leave starts today, with none of the {period} days of notice expected.', { period: notice.noticePeriod })
-			}
-			return t('absence', 'The leave has already started, though {period} days of notice are expected.', { period: notice.noticePeriod })
-		},
+/** Older payloads carry no name; the uid is a poor label but better than blank. */
+const employeeName = computed(() => detail.value?.employeeName || detail.value?.employeeUid || '')
 
-		/** A confidential absence seen by someone outside HR: no category, no thread. */
-		withheld() {
-			return this.detail.typeId === null
-		},
+/**
+ * Whose absence this is, shown under the title — but only for other people's
+ * leave. On your own there is nobody to disambiguate, and naming you back at
+ * yourself just crowds out the dates.
+ */
+const subLabel = computed(() => {
+	if (!detail.value || detail.value.employeeUid === sessionStore.session.uid) {
+		return rangeLabel.value
+	}
+	return `${employeeName.value} · ${rangeLabel.value}`
+})
 
-		showStatus() {
-			return this.detail ? store.statusVisible(this.detail) : true
-		},
+const decidedAtLabel = computed(() => detail.value && detail.value.decidedAt ? formatDateTime(detail.value.decidedAt) : '')
 
-		isDecidable() {
-			return ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(this.detail.status)
-		},
+/**
+ * The short-notice warning, phrased to match the one in the notification and
+ * the email (NoticeService::sentence) so the same request never reads two
+ * different ways. Absent unless the server sent one, which it only does for
+ * someone who may decide and while a decision is still outstanding.
+ */
+const shortNoticeLabel = computed(() => {
+	const notice = detail.value?.shortNotice
+	if (!notice) {
+		return ''
+	}
+	if (notice.days > 0) {
+		return n('absence', 'The leave starts in %n day, less than the {period} days of notice expected.', 'The leave starts in %n days, less than the {period} days of notice expected.', notice.days, { period: notice.noticePeriod })
+	}
+	if (notice.days === 0) {
+		return t('absence', 'The leave starts today, with none of the {period} days of notice expected.', { period: notice.noticePeriod })
+	}
+	return t('absence', 'The leave has already started, though {period} days of notice are expected.', { period: notice.noticePeriod })
+})
 
-		isModifiable() {
-			return !['REJECTED', 'CANCELLED'].includes(this.detail.status)
-		},
+/** A confidential absence seen by someone outside HR: no category, no thread. */
+const withheld = computed(() => detail.value?.typeId === null)
 
-		canEdit() {
-			return ['PENDING', 'ESCALATED', 'APPROVED'].includes(this.detail.status)
-		},
+const showStatus = computed(() => detail.value ? leaveTypesStore.statusVisible(detail.value) : true)
 
-		isWithdrawal() {
-			return this.detail.status === 'WITHDRAWAL_PENDING'
-		},
+const isDecidable = computed(() => detail.value !== null && ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(detail.value.status))
 
-		decideLabelApprove() {
-			return this.isWithdrawal ? t('absence', 'Approve withdrawal') : t('absence', 'Approve')
-		},
+const isModifiable = computed(() => detail.value !== null && !['REJECTED', 'CANCELLED'].includes(detail.value.status))
 
-		decideLabelReject() {
-			return this.isWithdrawal ? t('absence', 'Keep leave') : t('absence', 'Decline')
-		},
+const canEdit = computed(() => detail.value !== null && ['PENDING', 'ESCALATED', 'APPROVED'].includes(detail.value.status))
 
-		/**
-		 * HR cancelling somebody else's leave — or their own HR-recorded leave —
-		 * takes effect immediately, with no withdrawal-approval step (§5.6). Mirrors
-		 * the same condition in `RequestService::cancel`.
-		 */
-		hrOverride() {
-			return !!store.session.isHr
-				&& (this.detail.employeeUid !== store.session.uid || store.isHrRecorded(this.detail))
-		},
+const isWithdrawal = computed(() => detail.value?.status === 'WITHDRAWAL_PENDING')
 
-		cancelLabel() {
-			if (this.detail.status === 'APPROVED' && !this.hrOverride) {
-				return t('absence', 'Request withdrawal')
-			}
-			return this.hrOverride ? t('absence', 'Cancel absence') : t('absence', 'Cancel request')
-		},
-	},
+const decideLabelApprove = computed(() => isWithdrawal.value ? t('absence', 'Approve withdrawal') : t('absence', 'Approve'))
 
-	mounted() {
-		// App.vue remounts this component (via :key="store.selectedId") whenever the
-		// selection changes, so loading once on mount always reflects the current id.
-		this.load()
-	},
+const decideLabelReject = computed(() => isWithdrawal.value ? t('absence', 'Keep leave') : t('absence', 'Decline'))
 
-	methods: {
-		t,
+/**
+ * HR cancelling somebody else's leave — or their own HR-recorded leave —
+ * takes effect immediately, with no withdrawal-approval step (§5.6). Mirrors
+ * the same condition in `RequestService::cancel`.
+ */
+const hrOverride = computed(() => !!sessionStore.session.isHr
+	&& detail.value !== null
+	&& (detail.value.employeeUid !== sessionStore.session.uid || leaveTypesStore.isHrRecorded(detail.value)))
 
-		attachmentUrl(id) {
-			return api.attachmentUrl(id)
-		},
+const cancelLabel = computed(() => {
+	if (detail.value?.status === 'APPROVED' && !hrOverride.value) {
+		return t('absence', 'Request withdrawal')
+	}
+	return hrOverride.value ? t('absence', 'Cancel absence') : t('absence', 'Cancel request')
+})
 
-		canRemoveAttachment(a) {
-			return store.session.isHr || a.uploaderUid === store.session.uid
-		},
+onMounted(() => {
+	// App.vue remounts this component (via :key="requestsStore.selectedId") whenever the
+	// selection changes, so loading once on mount always reflects the current id.
+	load()
+})
 
-		formatSize(bytes) {
-			if (bytes < 1024) {
-				return bytes + ' B'
-			}
-			if (bytes < 1024 * 1024) {
-				return Math.round(bytes / 1024) + ' KB'
-			}
-			return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-		},
+/**
+ * Where an attachment is downloaded from.
+ *
+ * @param id the attachment's id
+ */
+function attachmentUrl(id: number): string {
+	return api.attachmentUrl(id)
+}
 
-		pickAttachment() {
-			this.$refs.attachmentInput?.click()
-		},
+/**
+ * Whether the viewer may remove an attachment: HR, or whoever uploaded it.
+ *
+ * @param a the attachment
+ */
+function canRemoveAttachment(a: Attachment): boolean {
+	return sessionStore.session.isHr || a.uploaderUid === sessionStore.session.uid
+}
 
-		async onAttachmentPicked(event) {
-			const file = event.target.files?.[0]
-			event.target.value = ''
-			if (!file) {
-				return
-			}
-			const limit = store.session.maxAttachmentBytes
-			if (limit && file.size > limit) {
-				showError(t('absence', 'Attachments can be up to {size} MB.', { size: limit / 1024 / 1024 }))
-				return
-			}
-			this.uploading = true
-			try {
-				await api.uploadAttachment(this.detail.id, file)
-				await this.load()
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not upload the file'))
-			} finally {
-				this.uploading = false
-			}
-		},
+/**
+ * A file size in B, KB or MB.
+ *
+ * @param bytes the size in bytes
+ */
+function formatSize(bytes: number): string {
+	if (bytes < 1024) {
+		return bytes + ' B'
+	}
+	if (bytes < 1024 * 1024) {
+		return Math.round(bytes / 1024) + ' KB'
+	}
+	return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+}
 
-		async removeAttachment() {
-			this.removingBusy = true
-			try {
-				await api.deleteAttachment(this.removing.id)
-				this.removing = null
-				await this.load()
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not remove the attachment'))
-			} finally {
-				this.removingBusy = false
-			}
-		},
+/**
+ * Opens the file picker of the hidden input.
+ */
+function pickAttachment() {
+	attachmentInputElement.value?.click()
+}
 
-		eventMeta(type) {
-			const map = {
-				request_created: { label: t('absence', 'Requested'), icon: '📝' },
-				request_imported: { label: t('absence', 'Imported'), icon: '📥' },
-				request_updated: { label: t('absence', 'Edited'), icon: '✏️' },
-				request_edited_superseding: { label: t('absence', 'Edited (needs re-approval)'), icon: '✏️' },
-				request_hr_edited: { label: t('absence', 'Adjusted by HR'), icon: '🛠️' },
-				disability_changed: { label: t('absence', 'Disability flag changed'), icon: '♿' },
-				withdrawal_requested: { label: t('absence', 'Withdrawal requested'), icon: '↩️' },
-				request_cancelled: { label: t('absence', 'Cancelled'), icon: '🚫' },
-				withdrawal_approved: { label: t('absence', 'Withdrawal approved'), icon: '↩️' },
-				request_approved: { label: t('absence', 'Approved'), icon: '✅' },
-				request_rejected: { label: t('absence', 'Declined'), icon: '✋' },
-				withdrawal_rejected: { label: t('absence', 'Withdrawal declined'), icon: '✋' },
-				request_escalated: { label: t('absence', 'Escalated to HR'), icon: '⏫' },
-				comment_added: { label: t('absence', 'Comment'), icon: '💬' },
-			}
-			return map[type] || { label: type, icon: '•' }
-		},
+/**
+ * Uploads the picked file and reloads the request.
+ *
+ * @param event the change event of the file input
+ */
+async function onAttachmentPicked(event: Event) {
+	const input = event.target
+	if (!(input instanceof HTMLInputElement)) {
+		return
+	}
+	const file = input.files?.[0]
+	input.value = ''
+	if (!file || !detail.value) {
+		return
+	}
+	const limit = sessionStore.session.maxAttachmentBytes
+	if (limit && file.size > limit) {
+		showError(t('absence', 'Attachments can be up to {size} MB.', { size: limit / 1024 / 1024 }))
+		return
+	}
+	uploading.value = true
+	try {
+		await api.uploadAttachment(detail.value.id, file)
+		await load()
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not upload the file'))
+	} finally {
+		uploading.value = false
+	}
+}
 
-		formatDateTime(iso) {
-			if (!iso) {
-				return ''
-			}
-			return new Date(iso).toLocaleString(locale(), {
-				year: 'numeric',
-				month: 'short',
-				day: 'numeric',
-				hour: '2-digit',
-				minute: '2-digit',
-			})
-		},
+/**
+ * Deletes the attachment whose removal was confirmed and reloads the request.
+ */
+async function removeAttachment() {
+	if (!removing.value) {
+		return
+	}
+	removingBusy.value = true
+	try {
+		await api.deleteAttachment(removing.value.id)
+		removing.value = null
+		await load()
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not remove the attachment'))
+	} finally {
+		removingBusy.value = false
+	}
+}
 
-		async load() {
-			if (!store.selectedId) {
-				this.detail = null
-				return
-			}
-			try {
-				this.detail = await api.getRequest(store.selectedId)
-				this.rejecting = false
-				this.rejectComment = ''
-				this.confirmingCancel = false
-				this.applyDecideIntent()
-			} catch {
-				showError(t('absence', 'Could not load the request'))
-				this.$emit('close')
-			}
-		},
+/**
+ * The label and icon of a history entry.
+ *
+ * @param type the event type, as the server names it
+ */
+function eventMeta(type: RequestEventType): EventMeta {
+	const map: Record<string, EventMeta> = {
+		request_created: { label: t('absence', 'Requested'), icon: '📝' },
+		request_imported: { label: t('absence', 'Imported'), icon: '📥' },
+		request_updated: { label: t('absence', 'Edited'), icon: '✏️' },
+		request_edited_superseding: { label: t('absence', 'Edited (needs re-approval)'), icon: '✏️' },
+		request_hr_edited: { label: t('absence', 'Adjusted by HR'), icon: '🛠️' },
+		disability_changed: { label: t('absence', 'Disability flag changed'), icon: '♿' },
+		withdrawal_requested: { label: t('absence', 'Withdrawal requested'), icon: '↩️' },
+		request_cancelled: { label: t('absence', 'Cancelled'), icon: '🚫' },
+		withdrawal_approved: { label: t('absence', 'Withdrawal approved'), icon: '↩️' },
+		request_approved: { label: t('absence', 'Approved'), icon: '✅' },
+		request_rejected: { label: t('absence', 'Declined'), icon: '✋' },
+		withdrawal_rejected: { label: t('absence', 'Withdrawal declined'), icon: '✋' },
+		request_escalated: { label: t('absence', 'Escalated to HR'), icon: '⏫' },
+		comment_added: { label: t('absence', 'Comment'), icon: '💬' },
+	} satisfies Record<RequestEventType, EventMeta>
+	return map[type] || { label: type, icon: '•' }
+}
 
-		/**
-		 * A 409 means the request is no longer what is on screen: show what it is now,
-		 * so the next click decides on that.
-		 *
-		 * @param {object} error the failed call
-		 */
-		async reloadIfChanged(error) {
-			if (error.response?.status === 409) {
-				await this.load()
-			}
-		},
+/**
+ * A timestamp as a short date and time in the user's locale.
+ *
+ * @param iso the ISO 8601 timestamp, empty when there is none
+ */
+function formatDateTime(iso: string | null): string {
+	if (!iso) {
+		return ''
+	}
+	return new Date(iso).toLocaleString(locale(), {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	})
+}
 
-		async approve() {
-			this.busy = true
-			try {
-				await store.approveRequest(this.detail.id, undefined, this.detail.updatedAt)
-				this.$emit('changed')
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not approve'))
-				await this.reloadIfChanged(e)
-			} finally {
-				this.busy = false
-			}
-		},
+/**
+ * Loads the selected request and resets the decline and cancel forms.
+ */
+async function load() {
+	if (!requestsStore.selectedId) {
+		detail.value = null
+		return
+	}
+	try {
+		detail.value = await api.getRequest(requestsStore.selectedId)
+		rejecting.value = false
+		rejectComment.value = ''
+		confirmingCancel.value = false
+		applyDecideIntent()
+	} catch {
+		showError(t('absence', 'Could not load the request'))
+		emit('close')
+	}
+}
 
-		/**
-		 * "Decline" in a notification links here with `?decide=decline`, so the
-		 * reason box is already open when the sidebar arrives — the click that meant
-		 * "no" should not land on a screen that looks like a read-only summary. The
-		 * verdict itself is still the manager's to confirm, and the intent is
-		 * consumed from the URL so re-selecting another request does not inherit it.
-		 */
-		applyDecideIntent() {
-			if (this.$route?.query?.decide !== 'decline') {
-				return
-			}
-			this.$router.replace({ path: this.$route.path })
-			if (this.detail.canDecide && this.isDecidable) {
-				this.rejecting = true
-			}
-		},
+/**
+ * A 409 means the request is no longer what is on screen: show what it is now,
+ * so the next click decides on that.
+ *
+ * @param error the failed call
+ */
+async function reloadIfChanged(error: unknown) {
+	if (isAxiosError(error) && error.response?.status === 409) {
+		await load()
+	}
+}
 
-		/**
-		 * A day count without a trailing `.0`, so "22 days" not "22.0 days".
-		 *
-		 * @param {number} value day count
-		 * @return {string}
-		 */
-		fmtDays(value) {
-			const days = Math.round((Number(value) || 0) * 10) / 10
-			return n('absence', '%n day', '%n days', days)
-		},
+/**
+ * Approves the request, or its withdrawal.
+ */
+async function approve() {
+	if (!detail.value) {
+		return
+	}
+	busy.value = true
+	try {
+		await requestsStore.approveRequest(detail.value.id, undefined, detail.value.updatedAt)
+		emit('changed')
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not approve'))
+		await reloadIfChanged(e)
+	} finally {
+		busy.value = false
+	}
+}
 
-		startReject() {
-			this.rejecting = true
-		},
+/**
+ * "Decline" in a notification links here with `?decide=decline`, so the
+ * reason box is already open when the sidebar arrives — the click that meant
+ * "no" should not land on a screen that looks like a read-only summary. The
+ * verdict itself is still the manager's to confirm, and the intent is
+ * consumed from the URL so re-selecting another request does not inherit it.
+ */
+function applyDecideIntent() {
+	if (route.query.decide !== 'decline') {
+		return
+	}
+	router.replace({ path: route.path })
+	if (detail.value?.canDecide && isDecidable.value) {
+		rejecting.value = true
+	}
+}
 
-		async reject() {
-			this.busy = true
-			try {
-				await store.rejectRequest(this.detail.id, this.rejectComment, this.detail.updatedAt)
-				this.$emit('changed')
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not decline'))
-				await this.reloadIfChanged(e)
-			} finally {
-				this.busy = false
-			}
-		},
+/**
+ * A day count without a trailing `.0`, so "22 days" not "22.0 days".
+ *
+ * @param value day count
+ */
+function fmtDays(value: number): string {
+	const days = Math.round((Number(value) || 0) * 10) / 10
+	return n('absence', '%n day', '%n days', days)
+}
 
-		/**
-		 * Employees cancel straight away: their own request either has not been
-		 * approved yet or goes through a withdrawal approval anyway. HR's cancel is
-		 * final, so it asks first.
-		 */
-		startCancel() {
-			if (this.hrOverride) {
-				this.confirmingCancel = true
-				return
-			}
-			this.cancel()
-		},
+/**
+ * Opens the box for the reason of a decline.
+ */
+function startReject() {
+	rejecting.value = true
+}
 
-		async cancel() {
-			this.busy = true
-			try {
-				await store.cancelRequest(this.detail.id)
-				this.$emit('changed')
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not cancel'))
-			} finally {
-				this.busy = false
-			}
-		},
+/**
+ * Declines the request, or its withdrawal, with the reason typed.
+ */
+async function reject() {
+	if (!detail.value) {
+		return
+	}
+	busy.value = true
+	try {
+		await requestsStore.rejectRequest(detail.value.id, rejectComment.value, detail.value.updatedAt)
+		emit('changed')
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not decline'))
+		await reloadIfChanged(e)
+	} finally {
+		busy.value = false
+	}
+}
 
-		async postComment() {
-			this.busy = true
-			try {
-				await api.addComment(this.detail.id, this.newComment)
-				this.newComment = ''
-				await this.load()
-			} catch {
-				showError(t('absence', 'Could not add comment'))
-			} finally {
-				this.busy = false
-			}
-		},
-	},
+/**
+ * Employees cancel straight away: their own request either has not been
+ * approved yet or goes through a withdrawal approval anyway. HR's cancel is
+ * final, so it asks first.
+ */
+function startCancel() {
+	if (hrOverride.value) {
+		confirmingCancel.value = true
+		return
+	}
+	cancel()
+}
+
+/**
+ * Cancels the request, or asks for its withdrawal once it is approved.
+ */
+async function cancel() {
+	if (!detail.value) {
+		return
+	}
+	busy.value = true
+	try {
+		await requestsStore.cancelRequest(detail.value.id)
+		emit('changed')
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not cancel'))
+	} finally {
+		busy.value = false
+	}
+}
+
+/**
+ * Posts the comment typed and reloads the request.
+ */
+async function postComment() {
+	if (!detail.value) {
+		return
+	}
+	busy.value = true
+	try {
+		await api.addComment(detail.value.id, newComment.value)
+		newComment.value = ''
+		await load()
+	} catch {
+		showError(t('absence', 'Could not add comment'))
+	} finally {
+		busy.value = false
+	}
 }
 </script>
 

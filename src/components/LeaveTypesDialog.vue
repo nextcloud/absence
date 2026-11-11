@@ -15,7 +15,7 @@
 							variant="tertiary"
 							wide
 							alignment="start"
-							:pressed="form && form.id === type.id"
+							:pressed="form ? form.id === type.id : undefined"
 							@click="edit(type)">
 							<span aria-hidden="true">{{ type.icon }}</span>
 							{{ type.label }}
@@ -36,23 +36,26 @@
 				<h3>{{ form.id ? t('absence', 'Edit leave type') : t('absence', 'Add leave type') }}</h3>
 				<NcTextField
 					v-if="!form.id"
-					v-model="form.key"
+					:modelValue="form.key"
 					:label="t('absence', 'Key')"
 					:helperText="t('absence', 'A short machine name like training. It cannot be changed later.')"
 					maxlength="32"
-					required />
+					required
+					@update:modelValue="form.key = String($event)" />
 				<div class="types__row">
 					<NcTextField
-						v-model="form.icon"
+						:modelValue="form.icon"
 						class="types__icon"
 						:label="t('absence', 'Emoji')"
-						maxlength="16" />
+						maxlength="16"
+						@update:modelValue="form.icon = String($event)" />
 					<NcTextField
-						v-model="form.label"
+						:modelValue="form.label"
 						:label="t('absence', 'Name')"
 						maxlength="128"
-						required />
-					<NcColorPicker v-model="form.color" :advancedFields="true">
+						required
+						@update:modelValue="form.label = String($event)" />
+					<NcColorPicker :modelValue="form.color" :advancedFields="true" @update:modelValue="form.color = $event ?? form.color">
 						<NcButton :aria-label="t('absence', 'Colour')">
 							<template #icon>
 								<span class="types__swatch" :style="{ background: form.color }" />
@@ -82,73 +85,85 @@
 	</NcModal>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { LeaveType } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { computed, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcColorPicker from '@nextcloud/vue/components/NcColorPicker'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Plus from 'vue-material-design-icons/Plus.vue'
-import api from '../api.js'
-import { store } from '../store.js'
+import api from '../services/api.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { serverMessage } from '../utils/errors.ts'
 
-const EDITABLE = ['label', 'color', 'icon', 'countsAgainstBalance', 'requiresApproval', 'requiresNote', 'requiresReplacement', 'employeeRequestable', 'hrOnly']
+defineEmits<{
+	close: []
+}>()
 
-export default {
-	name: 'LeaveTypesDialog',
-	components: { NcButton, NcCheckboxRadioSwitch, NcColorPicker, NcModal, NcTextField, Plus },
-	emits: ['close'],
+const leaveTypesStore = useLeaveTypesStore()
 
-	data() {
-		return {
-			form: null,
-			saving: false,
-			flags: [
-				{ key: 'countsAgainstBalance', label: t('absence', 'Counts against the vacation days') },
-				{ key: 'requiresApproval', label: t('absence', 'Needs the manager\'s approval') },
-				{ key: 'requiresNote', label: t('absence', 'Needs a note') },
-				{ key: 'requiresReplacement', label: t('absence', 'Needs a replacement') },
-				{ key: 'employeeRequestable', label: t('absence', 'Employees can request it (otherwise HR records it)') },
-				{ key: 'hrOnly', label: t('absence', 'Confidential: only HR sees the type') },
-			],
+/** A leave type while it is edited: a new one has no id yet, and is enabled by the server */
+interface LeaveTypeForm extends Omit<LeaveType, 'id' | 'enabled'> {
+	id?: number
+	enabled?: boolean
+}
+
+/** A yes or no setting of a leave type, with the label of its checkbox */
+interface Flag {
+	key: 'countsAgainstBalance' | 'requiresApproval' | 'requiresNote' | 'requiresReplacement' | 'employeeRequestable' | 'hrOnly'
+	label: string
+}
+
+const form = ref<LeaveTypeForm | null>(null)
+const saving = ref(false)
+const flags: Flag[] = [
+	{ key: 'countsAgainstBalance', label: t('absence', 'Counts against the vacation days') },
+	{ key: 'requiresApproval', label: t('absence', 'Needs the manager\'s approval') },
+	{ key: 'requiresNote', label: t('absence', 'Needs a note') },
+	{ key: 'requiresReplacement', label: t('absence', 'Needs a replacement') },
+	{ key: 'employeeRequestable', label: t('absence', 'Employees can request it (otherwise HR records it)') },
+	{ key: 'hrOnly', label: t('absence', 'Confidential: only HR sees the type') },
+]
+
+const types = computed(() => [...leaveTypesStore.leaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
+
+/**
+ * @param type the leave type to edit, null to add one
+ */
+function edit(type: LeaveType | null) {
+	form.value = type
+		? { ...type }
+		: { key: '', label: '', icon: '🌴', color: '#0082c9', countsAgainstBalance: false, requiresApproval: true, requiresNote: false, requiresReplacement: false, employeeRequestable: true, hrOnly: false, sortOrder: types.value.length }
+}
+
+/**
+ * Saves the edited type, or creates the new one, and reloads the list everyone uses.
+ */
+async function save() {
+	const edited = form.value
+	if (!edited) {
+		return
+	}
+	saving.value = true
+	try {
+		if (edited.id) {
+			const { label, color, icon, countsAgainstBalance, requiresApproval, requiresNote, requiresReplacement, employeeRequestable, hrOnly, enabled } = edited
+			form.value = { ...await api.updateLeaveType(edited.id, { label, color, icon, countsAgainstBalance, requiresApproval, requiresNote, requiresReplacement, employeeRequestable, hrOnly, enabled }) }
+		} else {
+			form.value = { ...await api.createLeaveType(edited) }
 		}
-	},
-
-	computed: {
-		types() {
-			return [...store.leaveTypes].sort((a, b) => a.sortOrder - b.sortOrder)
-		},
-	},
-
-	methods: {
-		t,
-
-		edit(type) {
-			this.form = type
-				? { ...type }
-				: { key: '', label: '', icon: '🌴', color: '#0082c9', countsAgainstBalance: false, requiresApproval: true, requiresNote: false, requiresReplacement: false, employeeRequestable: true, hrOnly: false, sortOrder: this.types.length }
-		},
-
-		async save() {
-			this.saving = true
-			try {
-				if (this.form.id) {
-					const changes = Object.fromEntries([...EDITABLE, 'enabled'].map((key) => [key, this.form[key]]))
-					this.form = { ...await api.updateLeaveType(this.form.id, changes) }
-				} else {
-					this.form = { ...await api.createLeaveType(this.form) }
-				}
-				await store.loadLeaveTypes()
-				showSuccess(t('absence', 'Leave type saved'))
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not save the leave type'))
-			} finally {
-				this.saving = false
-			}
-		},
-	},
+		await leaveTypesStore.loadLeaveTypes()
+		showSuccess(t('absence', 'Leave type saved'))
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not save the leave type'))
+	} finally {
+		saving.value = false
+	}
 }
 </script>
 

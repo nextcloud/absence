@@ -1,0 +1,16 @@
+{
+	"extends": "@vue/tsconfig/tsconfig.dom.json",
+	"include": ["src/**/*.ts", "src/**/*.vue"],
+	"compilerOptions": {
+		"lib": ["DOM", "DOM.Iterable", "ESNext"],
+		"rootDir": "src",
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noUncheckedIndexedAccess": true
+	},
+	"vueCompilerOptions": {
+		"target": 3.5,
+		"strictTemplates": true,
+		"checkUnknownProps": false
+	}
+}

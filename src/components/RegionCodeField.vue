@@ -9,10 +9,11 @@
 	<div class="region-code">
 		<div class="region-code__row">
 			<NcTextField
-				v-model="code"
+				:modelValue="code"
 				:label="t('absence', 'My region code')"
 				:error="code !== '' && !codeValid"
-				:helperText="code !== '' && !codeValid ? t('absence', 'Use a country like DE or a region like DE-BY') : ''" />
+				:helperText="code !== '' && !codeValid ? t('absence', 'Use a country like DE or a region like DE-BY') : ''"
+				@update:modelValue="code = String($event)" />
 			<NcButton :disabled="saving || !codeValid || code === savedCode" @click="save">
 				{{ t('absence', 'Change') }}
 			</NcButton>
@@ -74,138 +75,174 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { ButtonVariant } from '@nextcloud/vue/components/NcButton'
+import type { HolidayRecord } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import api from '../api.js'
-import { store } from '../store.js'
-import { parseWeekdays } from '../utils/dates.js'
-import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.js'
-import { locale } from '../utils/locale.js'
-import { regionCountryName, regionFlag } from '../utils/regions.js'
+import api from '../services/api.ts'
+import { useSessionStore } from '../stores/session.ts'
+import { parseWeekdays } from '../utils/dates.ts'
+import { serverMessage } from '../utils/errors.ts'
+import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.ts'
+import { locale } from '../utils/locale.ts'
+import { regionCountryName, regionFlag } from '../utils/regions.ts'
 
-export default {
-	name: 'RegionCodeField',
-	components: { NcButton, NcDialog, NcNoteCard, NcTextField },
-	props: {
-		/** The saved code, e.g. `DE-BY`, empty when none */
-		savedCode: { type: String, required: true },
-	},
+const props = defineProps<{
+	/** The saved code, e.g. `DE-BY`, empty when none */
+	savedCode: string
+}>()
 
-	emits: ['saved'],
+const emit = defineEmits<{
+	saved: [code: string]
+}>()
 
-	data() {
-		return {
-			code: this.savedCode,
-			knownCodes: [],
-			// What a changed code would change, shown before saving it
-			change: null,
-			saving: false,
+const sessionStore = useSessionStore()
+
+/** What moving from the saved code to the typed one changes */
+interface RegionChange {
+	before: string
+	code: string
+	noHolidays: boolean
+	lost: HolidayRecord[]
+	gained: HolidayRecord[]
+	kept: number
+}
+
+/** One side of the comparison: the days lost or the days gained */
+interface ChangeColumn {
+	key: 'lost' | 'gained'
+	title: string
+	count: string
+	years: { year: string, days: HolidayRecord[] }[]
+}
+
+/** A button of the confirmation dialog */
+interface DialogButton {
+	label: string
+	variant?: ButtonVariant
+	callback: () => void
+}
+
+const code = ref(props.savedCode)
+const knownCodes = ref<string[]>([])
+// What a changed code would change, shown before saving it
+const change = ref<RegionChange | null>(null)
+const saving = ref(false)
+
+const codeValid = computed(() => parseRegionCode(code.value) !== null)
+
+/** The days lost and gained, each split by year */
+const changeColumns = computed<ChangeColumn[]>(() => {
+	const current = change.value
+	if (!current) {
+		return []
+	}
+	return [
+		{ key: 'lost', title: t('absence', 'No longer days off'), count: `−${current.lost.length}`, years: groupByYear(current.lost) },
+		{ key: 'gained', title: t('absence', 'New days off'), count: `+${current.gained.length}`, years: groupByYear(current.gained) },
+	]
+})
+
+const workingWeekdays = computed(() => parseWeekdays(sessionStore.session.workWeekdays))
+
+const changeButtons = computed<DialogButton[]>(() => [
+	{ label: t('absence', 'Cancel'), callback: () => {} },
+	{ label: t('absence', 'Change region'), variant: 'primary', callback: () => storeCode() },
+])
+
+watch(() => props.savedCode, (saved) => {
+	code.value = saved
+})
+
+onMounted(async () => {
+	try {
+		knownCodes.value = (await api.listHolidayRegions()).filter((known) => known !== '*')
+	} catch {
+		// Only the hint is missing
+	}
+})
+
+/**
+ * @param regionCode a region code, '' for none
+ * @return the code with its flag and country, as far as they are known
+ */
+function describeCode(regionCode: string): string {
+	if (!regionCode) {
+		return t('absence', 'No region code')
+	}
+	const country = regionCountryName(regionCode)
+	return country ? `${regionFlag(regionCode)} ${regionCode} · ${country}` : regionCode
+}
+
+/**
+ * @param iso 'YYYY-MM-DD'
+ */
+function shortDate(iso: string): string {
+	return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+/**
+ * @param iso 'YYYY-MM-DD'
+ */
+function isWorkingDay(iso: string): boolean {
+	const day = new Date(iso + 'T00:00:00').getDay()
+	return workingWeekdays.value.has(day === 0 ? 7 : day)
+}
+
+/**
+ * Loads what the typed code changes and shows it, for the person to confirm.
+ */
+async function save() {
+	const parsed = parseRegionCode(code.value)
+	if (!parsed) {
+		return
+	}
+	const typed = formatRegionCode(parsed.country, parsed.region)
+	saving.value = true
+	try {
+		const year = new Date().getFullYear()
+		const [before, after] = await Promise.all([
+			api.listApplyingHolidays(props.savedCode, `${year}-01-01`, `${year + 1}-12-31`),
+			api.listApplyingHolidays(typed, `${year}-01-01`, `${year + 1}-12-31`),
+		])
+		change.value = {
+			before: props.savedCode,
+			code: typed,
+			noHolidays: typed !== '' && !hasHolidays(typed, knownCodes.value),
+			...compareHolidays(before, after),
 		}
-	},
+	} catch {
+		showError(t('absence', 'Could not load the holidays of {code}', { code: typed }))
+	} finally {
+		saving.value = false
+	}
+}
 
-	computed: {
-		codeValid() {
-			return parseRegionCode(this.code) !== null
-		},
-
-		/** The days lost and gained, each split by year */
-		changeColumns() {
-			return [
-				{ key: 'lost', title: t('absence', 'No longer days off'), count: `−${this.change.lost.length}`, years: groupByYear(this.change.lost) },
-				{ key: 'gained', title: t('absence', 'New days off'), count: `+${this.change.gained.length}`, years: groupByYear(this.change.gained) },
-			]
-		},
-
-		workingWeekdays() {
-			return parseWeekdays(store.session.workWeekdays)
-		},
-
-		changeButtons() {
-			return [
-				{ label: t('absence', 'Cancel'), callback: () => {} },
-				{ label: t('absence', 'Change region'), variant: 'primary', callback: () => this.store() },
-			]
-		},
-	},
-
-	watch: {
-		savedCode(code) {
-			this.code = code
-		},
-	},
-
-	async mounted() {
-		try {
-			this.knownCodes = (await api.listHolidayRegions()).filter((known) => known !== '*')
-		} catch {
-			// Only the hint is missing
-		}
-	},
-
-	methods: {
-		t,
-		n,
-		regionFlag,
-
-		describeCode(code) {
-			if (!code) {
-				return t('absence', 'No region code')
-			}
-			const country = regionCountryName(code)
-			return country ? `${regionFlag(code)} ${code} · ${country}` : code
-		},
-
-		shortDate(iso) {
-			return new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' })
-		},
-
-		isWorkingDay(iso) {
-			const day = new Date(iso + 'T00:00:00').getDay()
-			return this.workingWeekdays.has(day === 0 ? 7 : day)
-		},
-
-		async save() {
-			const parsed = parseRegionCode(this.code)
-			const code = formatRegionCode(parsed.country, parsed.region)
-			this.saving = true
-			try {
-				const year = new Date().getFullYear()
-				const [before, after] = await Promise.all([
-					api.listApplyingHolidays(this.savedCode, `${year}-01-01`, `${year + 1}-12-31`),
-					api.listApplyingHolidays(code, `${year}-01-01`, `${year + 1}-12-31`),
-				])
-				this.change = {
-					before: this.savedCode,
-					code,
-					noHolidays: code !== '' && !hasHolidays(code, this.knownCodes),
-					...compareHolidays(before, after),
-				}
-			} catch {
-				showError(t('absence', 'Could not load the holidays of {code}', { code }))
-			} finally {
-				this.saving = false
-			}
-		},
-
-		store() {
-			this.saving = true
-			const { country, region } = parseRegionCode(this.code)
-			api.updatePersonalConfig({ holiday_country: country, holiday_region: region })
-				.then((updated) => {
-					this.$emit('saved', formatRegionCode(updated.holidayCountry, updated.holidayRegion))
-					showSuccess(t('absence', 'Region code saved'))
-				})
-				.catch((e) => showError(e.response?.data?.message || t('absence', 'Could not save the region code')))
-				.finally(() => {
-					this.saving = false
-				})
-		},
-	},
+/**
+ * Saves the typed code, once confirmed.
+ */
+function storeCode() {
+	const parsed = parseRegionCode(code.value)
+	if (!parsed) {
+		return
+	}
+	saving.value = true
+	api.updatePersonalConfig({ holiday_country: parsed.country, holiday_region: parsed.region })
+		.then((updated) => {
+			emit('saved', formatRegionCode(updated.holidayCountry, updated.holidayRegion))
+			showSuccess(t('absence', 'Region code saved'))
+		})
+		.catch((e: unknown) => showError(serverMessage(e) || t('absence', 'Could not save the region code')))
+		.finally(() => {
+			saving.value = false
+		})
 }
 </script>
 

@@ -9,21 +9,18 @@
 	</span>
 </template>
 
-<script>
-import { store } from '../store.js'
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 
-export default {
-	name: 'LeaveTypeChip',
-	props: {
-		typeId: { type: Number, required: true },
-	},
+const props = defineProps<{
+	/** Null when the server withheld the type */
+	typeId: number | null
+}>()
 
-	computed: {
-		type() {
-			return store.leaveType(this.typeId)
-		},
-	},
-}
+const leaveTypesStore = useLeaveTypesStore()
+
+const type = computed(() => leaveTypesStore.leaveType(props.typeId))
 </script>
 
 <style scoped lang="scss">

@@ -44,56 +44,65 @@
 	</figure>
 </template>
 
-<script>
-import { formatNumber } from '../utils/locale.js'
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { formatNumber } from '../utils/locale.ts'
 
-export default {
-	name: 'BarChart',
-	props: {
-		title: { type: String, default: '' },
-		data: { type: Array, required: true }, // [{ label, value, color? }]
-	},
+/** One bar of the chart */
+interface BarDatum {
+	label: string
+	value: number
+	color?: string | null
+}
 
-	data() {
-		return { width: 640, height: 220, animated: false }
-	},
+const props = withDefaults(defineProps<{
+	title?: string
+	data: BarDatum[] // [{ label, value, color? }]
+}>(), {
+	title: '',
+})
 
-	computed: {
-		padTop() { return 24 },
-		baseline() { return this.height - 22 },
-		max() { return Math.max(1, ...this.data.map((d) => d.value)) },
-		slot() { return this.data.length ? this.width / this.data.length : this.width },
-		barWidth() { return Math.min(48, this.slot * 0.6) },
-		bars() {
-			return this.data.map((d, i) => {
-				const h = (d.value / this.max) * (this.baseline - this.padTop)
-				const x = i * this.slot + (this.slot - this.barWidth) / 2
-				return {
-					x,
-					cx: x + this.barWidth / 2,
-					y: this.baseline - h,
-					h,
-					value: d.value,
-					label: d.label,
-					color: d.color || 'var(--color-primary-element)',
-				}
-			})
-		},
-	},
+const width = 640
+const height = 220
+const padTop = 24
+const baseline = height - 22
 
-	mounted() {
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			this.animated = true
-			return
-		}
-		requestAnimationFrame(() => {
-			this.animated = true
-		})
-	},
+const animated = ref(false)
 
-	methods: {
-		fmt(v) { return formatNumber(v) },
-	},
+const max = computed(() => Math.max(1, ...props.data.map((d) => d.value)))
+const slot = computed(() => props.data.length ? width / props.data.length : width)
+const barWidth = computed(() => Math.min(48, slot.value * 0.6))
+const bars = computed(() => props.data.map((d, i) => {
+	const h = (d.value / max.value) * (baseline - padTop)
+	const x = i * slot.value + (slot.value - barWidth.value) / 2
+	return {
+		x,
+		cx: x + barWidth.value / 2,
+		y: baseline - h,
+		h,
+		value: d.value,
+		label: d.label,
+		color: d.color || 'var(--color-primary-element)',
+	}
+}))
+
+onMounted(() => {
+	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		animated.value = true
+		return
+	}
+	requestAnimationFrame(() => {
+		animated.value = true
+	})
+})
+
+/**
+ * A value in the account's locale.
+ *
+ * @param v the value to format
+ */
+function fmt(v: number): string {
+	return formatNumber(v)
 }
 </script>
 

@@ -67,63 +67,50 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Group } from '../../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { computed, onMounted, reactive, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import Download from 'vue-material-design-icons/Download.vue'
-import api from '../../api.js'
-import { toIso } from '../../utils/dates.js'
+import api from '../../services/api.ts'
+import { toIso } from '../../utils/dates.ts'
 
-export default {
-	name: 'HrExports',
-	components: { NcButton, NcDateTimePickerNative, NcSelect, Download },
-	data() {
-		const now = new Date()
-		const everyone = { id: '', displayName: t('absence', 'All employees') }
-		return {
-			from: new Date(now.getFullYear(), 0, 1),
-			to: new Date(now.getFullYear(), 11, 31),
-			year: now.getFullYear(),
-			years: [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1],
-			everyone,
-			groups: [],
-			requestsGroup: everyone,
-			balancesGroup: everyone,
-		}
-	},
+const now = new Date()
+const everyone = reactive<Group>({ id: '', displayName: t('absence', 'All employees') })
 
-	computed: {
-		groupOptions() {
-			return [this.everyone, ...this.groups]
-		},
+const from = ref<Date | null>(new Date(now.getFullYear(), 0, 1))
+const to = ref<Date | null>(new Date(now.getFullYear(), 11, 31))
+const year = ref(now.getFullYear())
+const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]
+const groups = ref<Group[]>([])
+const requestsGroup = ref<Group | null>(everyone)
+const balancesGroup = ref<Group | null>(everyone)
 
-		/** Null while a date is cleared: there is no range to export then. */
-		requestsUrl() {
-			if (!this.from || !this.to) {
-				return null
-			}
-			return api.exportRequestsUrl(toIso(this.from), toIso(this.to), this.requestsGroup?.id || '')
-		},
+const groupOptions = computed<Group[]>(() => [everyone, ...groups.value])
 
-		balancesUrl() {
-			return api.exportBalancesUrl(this.year, this.balancesGroup?.id || '')
-		},
-	},
+/** Null while a date is cleared: there is no range to export then. */
+const requestsUrl = computed<string | null>(() => {
+	if (!from.value || !to.value) {
+		return null
+	}
+	return api.exportRequestsUrl(toIso(from.value), toIso(to.value), requestsGroup.value?.id || '')
+})
 
-	async mounted() {
-		try {
-			this.groups = await api.listGroups()
-		} catch {
-			// The filter stays at "All employees": the export works without it.
-			showError(t('absence', 'Could not load the groups to filter by'))
-		}
-	},
+const balancesUrl = computed<string>(() => api.exportBalancesUrl(year.value, balancesGroup.value?.id || ''))
 
-	methods: { t },
-}
+onMounted(async () => {
+	try {
+		groups.value = await api.listGroups()
+	} catch {
+		// The filter stays at "All employees": the export works without it.
+		showError(t('absence', 'Could not load the groups to filter by'))
+	}
+})
 </script>
 
 <style scoped lang="scss">

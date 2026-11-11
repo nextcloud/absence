@@ -9,21 +9,17 @@
 	</span>
 </template>
 
-<script>
-import { statusMeta } from '../store.js'
+<script setup lang="ts">
+import type { RequestStatus } from '../types/index.ts'
 
-export default {
-	name: 'StatusChip',
-	props: {
-		status: { type: String, required: true },
-	},
+import { computed } from 'vue'
+import { statusMeta } from '../utils/status.ts'
 
-	computed: {
-		meta() {
-			return statusMeta(this.status)
-		},
-	},
-}
+const props = defineProps<{
+	status: RequestStatus
+}>()
+
+const meta = computed(() => statusMeta(props.status))
 </script>
 
 <style scoped lang="scss">

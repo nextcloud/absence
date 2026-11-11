@@ -33,7 +33,9 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { RequestCoverage } from '../types/index.ts'
+
 import { n, t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -41,15 +43,9 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import StatusChip from './StatusChip.vue'
 
-export default {
-	name: 'CoveragePanel',
-	components: { NcAvatar, NcEmptyContent, NcNoteCard, AccountGroup, StatusChip },
-	props: {
-		coverage: { type: Object, required: true },
-	},
-
-	methods: { n, t },
-}
+defineProps<{
+	coverage: RequestCoverage
+}>()
 </script>
 
 <style scoped lang="scss">

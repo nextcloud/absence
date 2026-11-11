@@ -25,7 +25,7 @@
 				<strong
 					class="hero__headline"
 					:class="{ 'hero__headline--ticking': nextBreak.live }"
-					:role="nextBreak.live ? 'timer' : null">{{ nextBreak.headline }}</strong>
+					:role="nextBreak.live ? 'timer' : undefined">{{ nextBreak.headline }}</strong>
 				<span class="hero__sub">{{ nextBreak.sub }}</span>
 			</div>
 		</section>
@@ -49,18 +49,18 @@
 			<h3 class="requests__title">
 				{{ t('absence', 'Requests') }}
 			</h3>
-			<SkeletonList v-if="store.loading" :rows="4" />
+			<SkeletonList v-if="requestsStore.loading" :rows="4" />
 			<TransitionGroup
-				v-else-if="store.requests.length"
+				v-else-if="requestsStore.requests.length"
 				tag="ul"
 				name="rli"
 				class="requests__list">
 				<RequestListItem
-					v-for="r in store.requests"
+					v-for="r in requestsStore.requests"
 					:key="r.id"
 					:request="r"
-					:active="store.selectedId === r.id"
-					@select="store.select($event)" />
+					:active="requestsStore.selectedId === r.id"
+					@select="requestsStore.select($event)" />
 			</TransitionGroup>
 			<NcEmptyContent
 				v-else
@@ -79,9 +79,12 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { LeaveTypeLook } from '../stores/leaveTypes.ts'
+
 import { showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import Plus from 'vue-material-design-icons/Plus.vue'
@@ -91,9 +94,39 @@ import PalmIllustration from '../components/PalmIllustration.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import YearInReview from '../components/YearInReview.vue'
-import { store } from '../store.js'
-import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.js'
-import { locale } from '../utils/locale.js'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
+import { useSessionStore } from '../stores/session.ts'
+import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.ts'
+import { openNewKey } from '../utils/injectionKeys.ts'
+import { locale } from '../utils/locale.ts'
+
+const props = withDefaults(defineProps<{
+	id?: string | number | null
+}>(), {
+	id: null,
+})
+const requestsStore = useRequestsStore()
+const leaveTypesStore = useLeaveTypesStore()
+const sessionStore = useSessionStore()
+
+/** The hero above the balances: the leave to look forward to, or the one going on */
+interface NextBreak {
+	icon: string
+	color: string
+	eyebrow: string
+	headline: string
+	sub: string
+	/** Whether the headline counts down in seconds */
+	live: boolean
+}
+
+/** One bar of a month chart */
+interface MonthBar {
+	label: string
+	value: number
+	color?: string
+}
 
 // Inside this window the hero counts down in seconds rather than whole days.
 // Two days is roughly where "2 days to go" stops being the more useful sentence.
@@ -104,231 +137,211 @@ const LIVE_COUNTDOWN_MS = 48 * 60 * 60 * 1000
 // backlog that already existed the first time this browser ran the app.
 const CELEBRATED_KEY = 'absence:celebrated'
 
-export default {
-	name: 'MyLeave',
-	components: { NcButton, NcEmptyContent, Plus, BalanceCard, BarChart, RequestListItem, SkeletonList, PalmIllustration, YearInReview },
-	inject: ['absence:openNew'],
-	props: {
-		id: { type: [String, Number], default: null },
-	},
+const openNewRequest = inject(openNewKey)
 
-	setup() {
-		// Expose the module-level reactive store to the template (Options API).
-		return { store }
-	},
+// The clock the hero reads from. Kept in state rather than called inline so
+// the countdown re-renders — and so a tab left open overnight still rolls
+// its day count over at midnight instead of freezing on yesterday.
+const now = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | undefined
 
-	data() {
+const year = computed(() => new Date(now.value).getFullYear())
+
+const rings = computed(() => requestsStore.balance.balances.filter((b) => b.year === year.value && b.countsAgainstBalance))
+
+/** Approved counting leave (annual etc.) per month of the current year. */
+const leaveByMonth = computed(() => monthChart((type) => type.countsAgainstBalance !== false && type.key !== 'sick', null))
+
+/** Sick days per month of the current year, or null when the type is not configured. */
+const sickByMonth = computed(() => {
+	const sickType = leaveTypesStore.leaveTypes.find((type) => type.key === 'sick')
+	if (!sickType) {
+		return null
+	}
+	return monthChart((type) => type.key === 'sick', sickType.color)
+})
+
+/** The soonest upcoming (or ongoing) approved leave, as a motivating hero. */
+const nextBreak = computed<NextBreak | null>(() => {
+	const today = toIso(new Date(now.value))
+	const approved = requestsStore.requests
+		.filter((r) => r.status === 'APPROVED' && r.endDate >= today)
+		.sort((a, b) => a.startDate.localeCompare(b.startDate))
+	const r = approved[0]
+	if (!r) {
+		return null
+	}
+	const type = leaveTypesStore.leaveType(r.typeId)
+	const range = formatRange(r.startDate, r.endDate)
+	if (r.startDate <= today) {
+		// The hero already renders the leave type's own icon next to this text, so
+		// the palm that used to be baked into the string was a second, type-blind
+		// one — it wished a holiday on whatever the absence actually was. Sick
+		// leave is not something to enjoy, either.
+		const headline = type.key === 'sick'
+			? t('absence', 'Get well soon.')
+			: t('absence', 'Enjoy your time off!')
 		return {
-			// The clock the hero reads from. Kept in state rather than called inline so
-			// the countdown re-renders — and so a tab left open overnight still rolls
-			// its day count over at midnight instead of freezing on yesterday.
-			now: Date.now(),
-			clock: null,
+			icon: type.icon,
+			color: type.color,
+			eyebrow: t('absence', 'You are off right now'),
+			headline,
+			sub: `${type.label} · ${range}`,
+			live: false,
 		}
-	},
+	}
+	const remaining = new Date(r.startDate + 'T00:00:00').getTime() - now.value
+	// The last two days are the ones worth watching, and "1 day to go" is a
+	// poor description of an afternoon — so the final stretch ticks.
+	if (remaining <= LIVE_COUNTDOWN_MS) {
+		return {
+			icon: type.icon,
+			color: type.color,
+			eyebrow: t('absence', 'Almost there'),
+			headline: t('absence', '{countdown} to go', { countdown: formatCountdown(remaining) }),
+			sub: `${type.label} · ${range}`,
+			live: true,
+		}
+	}
+	return {
+		icon: type.icon,
+		color: type.color,
+		eyebrow: t('absence', 'Your next break'),
+		headline: n('absence', '%n day to go', '%n days to go', Math.round(remaining / 86400000)),
+		sub: `${type.label} · ${range}`,
+		live: false,
+	}
+})
 
-	computed: {
-		year() {
-			return new Date(this.now).getFullYear()
-		},
+// Immediate, and watched: a link to /requests/:id followed while this page
+// is already open changes the id without mounting the page again.
+watch(() => props.id, (id) => {
+	if (id) {
+		requestsStore.select(Number(id))
+	}
+}, { immediate: true })
 
-		rings() {
-			return store.balance.balances.filter((b) => b.year === this.year && b.countsAgainstBalance)
-		},
+onMounted(() => {
+	reload()
+	window.addEventListener('absence:refresh', reload)
+	clock = setInterval(tick, 1000)
+})
 
-		/** Approved counting leave (annual etc.) per month of the current year. */
-		leaveByMonth() {
-			return this.monthChart((type) => type.countsAgainstBalance !== false && type.key !== 'sick', null)
-		},
+onBeforeUnmount(() => {
+	window.removeEventListener('absence:refresh', reload)
+	clearInterval(clock)
+})
 
-		/** Sick days per month of the current year, or null when the type is not configured. */
-		sickByMonth() {
-			const sickType = store.leaveTypes.find((type) => type.key === 'sick')
-			if (!sickType) {
-				return null
-			}
-			return this.monthChart((type) => type.key === 'sick', sickType.color)
-		},
+/**
+ * Advance the hero's clock. The interval runs every second but only commits a
+ * new value when the rendered text can have changed — otherwise a page showing
+ * "12 days to go" would re-render its whole request list once a second, all
+ * year, to display the same sentence.
+ */
+function tick(): void {
+	const current = Date.now()
+	if (nextBreak.value?.live || current - now.value >= 60000) {
+		now.value = current
+	}
+}
 
-		/** The soonest upcoming (or ongoing) approved leave, as a motivating hero. */
-		nextBreak() {
-			const today = toIso(new Date(this.now))
-			const approved = store.requests
-				.filter((r) => r.status === 'APPROVED' && r.endDate >= today)
-				.sort((a, b) => a.startDate.localeCompare(b.startDate))
-			if (!approved.length) {
-				return null
-			}
-			const r = approved[0]
-			const type = store.leaveType(r.typeId)
-			const range = formatRange(r.startDate, r.endDate)
-			if (r.startDate <= today) {
-				// The hero already renders the leave type's own icon next to this text, so
-				// the palm that used to be baked into the string was a second, type-blind
-				// one — it wished a holiday on whatever the absence actually was. Sick
-				// leave is not something to enjoy, either.
-				const headline = type.key === 'sick'
-					? t('absence', 'Get well soon.')
-					: t('absence', 'Enjoy your time off!')
-				return {
-					icon: type.icon,
-					color: type.color,
-					eyebrow: t('absence', 'You are off right now'),
-					headline,
-					sub: `${type.label} · ${range}`,
-					live: false,
-				}
-			}
-			const remaining = new Date(r.startDate + 'T00:00:00').getTime() - this.now
-			// The last two days are the ones worth watching, and "1 day to go" is a
-			// poor description of an afternoon — so the final stretch ticks.
-			if (remaining <= LIVE_COUNTDOWN_MS) {
-				return {
-					icon: type.icon,
-					color: type.color,
-					eyebrow: t('absence', 'Almost there'),
-					headline: t('absence', '{countdown} to go', { countdown: formatCountdown(remaining) }),
-					sub: `${type.label} · ${range}`,
-					live: true,
-				}
-			}
-			return {
-				icon: type.icon,
-				color: type.color,
-				eyebrow: t('absence', 'Your next break'),
-				headline: n('absence', '%n day to go', '%n days to go', Math.round(remaining / 86400000)),
-				sub: `${type.label} · ${range}`,
-				live: false,
-			}
-		},
-	},
+/**
+ * BarChart data (12 months of the current year) from my approved requests
+ * whose type matches. Months without leave stay at zero so the chart is
+ * always visible.
+ *
+ * @param typeMatches which leave types to count
+ * @param color the colour of the bars
+ */
+function monthChart(typeMatches: (type: LeaveTypeLook) => boolean, color: string | null): MonthBar[] {
+	const buckets = new Array<number>(12).fill(0)
+	for (const r of requestsStore.requests) {
+		if (r.status !== 'APPROVED' || !typeMatches(leaveTypesStore.leaveType(r.typeId))) {
+			continue
+		}
+		addWorkingDaysByMonth(buckets, r.startDate, r.endDate, r.workingDays, year.value)
+	}
+	return buckets.map((value, month) => ({
+		label: new Date(year.value, month, 1).toLocaleDateString(locale(), { month: 'short' }),
+		value: Math.round(value * 10) / 10,
+		...(color ? { color } : {}),
+	}))
+}
 
-	watch: {
-		// Immediate, and watched: a link to /requests/:id followed while this page
-		// is already open changes the id without mounting the page again.
-		id: {
-			immediate: true,
-			handler(id) {
-				if (id) {
-					store.select(Number(id))
-				}
-			},
-		},
-	},
+/**
+ * Open the form for a new request
+ */
+function openNew(): void {
+	openNewRequest?.()
+}
 
-	mounted() {
-		this.reload()
-		window.addEventListener('absence:refresh', this.reload)
-		this.clock = setInterval(this.tick, 1000)
-	},
+/**
+ * Load my requests and balances, then celebrate what was approved meanwhile
+ */
+async function reload(): Promise<void> {
+	await Promise.all([
+		requestsStore.loadRequests({ scope: 'mine' }),
+		// No year on purpose: the server then answers with every year, which the request form reads.
+		requestsStore.loadMyBalance(),
+	])
+	celebrateNewApprovals()
+}
 
-	beforeUnmount() {
-		window.removeEventListener('absence:refresh', this.reload)
-		clearInterval(this.clock)
-	},
-
-	methods: {
-		t,
-		/**
-		 * Advance the hero's clock. The interval runs every second but only commits a
-		 * new value when the rendered text can have changed — otherwise a page showing
-		 * "12 days to go" would re-render its whole request list once a second, all
-		 * year, to display the same sentence.
-		 */
-		tick() {
-			const now = Date.now()
-			if (this.nextBreak?.live || now - this.now >= 60000) {
-				this.now = now
-			}
-		},
-
-		/**
-		 * BarChart data (12 months of the current year) from my approved requests
-		 * whose type matches. Months without leave stay at zero so the chart is
-		 * always visible.
-		 *
-		 * @param typeMatches
-		 * @param color
-		 */
-		monthChart(typeMatches, color) {
-			const buckets = new Array(12).fill(0)
-			for (const r of store.requests) {
-				if (r.status !== 'APPROVED' || !typeMatches(store.leaveType(r.typeId))) {
-					continue
-				}
-				addWorkingDaysByMonth(buckets, r.startDate, r.endDate, r.workingDays, this.year)
-			}
-			return buckets.map((value, month) => ({
-				label: new Date(this.year, month, 1).toLocaleDateString(locale(), { month: 'short' }),
-				value: Math.round(value * 10) / 10,
-				...(color ? { color } : {}),
-			}))
-		},
-
-		openNew() {
-			this['absence:openNew']()
-		},
-
-		async reload() {
-			await Promise.all([
-				store.loadRequests({ scope: 'mine' }),
-				store.loadMyBalance(),
-			])
-			this.celebrateNewApprovals()
-		},
-
-		/**
-		 * Fire a one-time celebration when one of my own leave requests has newly
-		 * been approved since the last visit. Sick leave and past-dated records are
-		 * excluded — this is for a trip to look forward to, not every status change.
-		 */
-		celebrateNewApprovals() {
-			// One list per account: several people can share a browser.
-			const key = `${CELEBRATED_KEY}:${store.session.uid}`
-			let raw
-			try {
-				raw = window.localStorage.getItem(key)
-			} catch {
-				return // no storage (private mode, etc.) — skip quietly.
-			}
-			const approvedIds = store.requests.filter((r) => r.status === 'APPROVED').map((r) => r.id)
-			const persist = () => {
-				try {
-					window.localStorage.setItem(key, JSON.stringify(approvedIds))
-				} catch { /* ignore */ }
-			}
-			// First run on this browser: adopt the existing approvals silently so the
-			// backlog never sets off a burst — only future approvals celebrate.
-			if (raw === null) {
-				persist()
-				return
-			}
-			let seen
-			try {
-				seen = new Set(JSON.parse(raw))
-			} catch {
-				persist()
-				return
-			}
-			const today = toIso(new Date())
-			const fresh = store.requests.filter((r) => {
-				if (r.status !== 'APPROVED' || seen.has(r.id) || r.endDate < today) {
-					return false
-				}
-				// Only a genuine trip to look forward to — never sick leave, and never
-				// a withheld confidential absence (its type is null on this view).
-				const type = store.leaveType(r.typeId)
-				return type.countsAgainstBalance === true && type.key && type.key !== 'sick'
-			})
-			persist()
-			if (!fresh.length) {
-				return
-			}
-			window.dispatchEvent(new CustomEvent('absence:celebrate'))
-			const type = store.leaveType(fresh[0].typeId)
-			showSuccess(t('absence', 'Approved: {type}. Enjoy! ✈️', { type: type.label }))
-		},
-	},
+/**
+ * Fire a one-time celebration when one of my own leave requests has newly
+ * been approved since the last visit. Sick leave and past-dated records are
+ * excluded — this is for a trip to look forward to, not every status change.
+ */
+function celebrateNewApprovals(): void {
+	// One list per account: several people can share a browser.
+	const key = `${CELEBRATED_KEY}:${sessionStore.session.uid}`
+	let raw: string | null
+	try {
+		raw = window.localStorage.getItem(key)
+	} catch {
+		return // no storage (private mode, etc.) — skip quietly.
+	}
+	const approvedIds = requestsStore.requests.filter((r) => r.status === 'APPROVED').map((r) => r.id)
+	const persist = () => {
+		try {
+			window.localStorage.setItem(key, JSON.stringify(approvedIds))
+		} catch { /* ignore */ }
+	}
+	// First run on this browser: adopt the existing approvals silently so the
+	// backlog never sets off a burst — only future approvals celebrate.
+	if (raw === null) {
+		persist()
+		return
+	}
+	let seen: Set<unknown>
+	try {
+		const stored: unknown = JSON.parse(raw)
+		if (!Array.isArray(stored)) {
+			throw new TypeError('The celebrated list is not a list')
+		}
+		seen = new Set<unknown>(stored)
+	} catch {
+		persist()
+		return
+	}
+	const today = toIso(new Date())
+	const fresh = requestsStore.requests.filter((r) => {
+		if (r.status !== 'APPROVED' || seen.has(r.id) || r.endDate < today) {
+			return false
+		}
+		// Only a genuine trip to look forward to — never sick leave, and never
+		// a withheld confidential absence (its type is null on this view).
+		const type = leaveTypesStore.leaveType(r.typeId)
+		return type.countsAgainstBalance === true && type.key && type.key !== 'sick'
+	})
+	persist()
+	const first = fresh[0]
+	if (!first) {
+		return
+	}
+	window.dispatchEvent(new CustomEvent('absence:celebrate'))
+	const type = leaveTypesStore.leaveType(first.typeId)
+	showSuccess(t('absence', 'Approved: {type}. Enjoy! ✈️', { type: type.label }))
 }
 </script>
 

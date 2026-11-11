@@ -55,7 +55,7 @@
 					v-if="session.handbookUrl"
 					:name="t('absence', 'Handbook')"
 					:href="newTabUrl(session.handbookUrl)"
-					:aria-description="t('absence', 'Opens in a new tab')">
+					:ariaDescription="t('absence', 'Opens in a new tab')">
 					<template #icon>
 						<BookOpenVariant :size="20" />
 					</template>
@@ -100,15 +100,15 @@
 						<template #icon>
 							<CalendarMonth :size="20" />
 						</template>
-						<template v-if="session.escalatedCount > 0" #counter>
-							<NcCounterBubble :count="session.escalatedCount" />
+						<template v-if="escalatedCount > 0" #counter>
+							<NcCounterBubble :count="escalatedCount" />
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
 						v-if="session.hrHandbookUrl"
 						:name="t('absence', 'HR handbook')"
 						:href="newTabUrl(session.hrHandbookUrl)"
-						:aria-description="t('absence', 'Opens in a new tab')">
+						:ariaDescription="t('absence', 'Opens in a new tab')">
 						<template #icon>
 							<BookOpenPageVariant :size="20" />
 						</template>
@@ -136,7 +136,7 @@
 
 		<NcAppContent>
 			<NcEmptyContent
-				v-if="closed && $route.name !== 'hr-settings'"
+				v-if="closed && route.name !== 'hr-settings'"
 				class="closed"
 				:name="closed.name"
 				:description="closed.description">
@@ -153,9 +153,9 @@
 		</NcAppContent>
 
 		<RequestSidebar
-			v-if="store.selectedId"
-			:key="store.selectedId"
-			@close="store.select(null)"
+			v-if="requestsStore.selectedId"
+			:key="requestsStore.selectedId"
+			@close="requestsStore.select(null)"
 			@edit="openEditRequest"
 			@changed="onChanged" />
 
@@ -166,13 +166,17 @@
 			@close="closeDialog"
 			@saved="onChanged" />
 
-		<Confetti />
+		<ConfettiBurst />
 	</NcContent>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Component } from 'vue'
+import type { LeaveRequest } from './types/index.ts'
+
 import { t } from '@nextcloud/l10n'
-import { provide } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
@@ -202,161 +206,144 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import PartyPopper from 'vue-material-design-icons/PartyPopper.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
-import Confetti from './components/Confetti.vue'
+import ConfettiBurst from './components/ConfettiBurst.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
-import { store } from './store.js'
+import { useRequestsStore } from './stores/requests.ts'
+import { useSessionStore } from './stores/session.ts'
+import { openEditKey, openNewKey, openRecordKey } from './utils/injectionKeys.ts'
 
-export default {
-	name: 'App',
-	components: {
-		NcContent,
-		NcAppContent,
-		NcAppNavigation,
-		NcAppNavigationNew,
-		NcAppNavigationItem,
-		NcAppNavigationList,
-		NcAppNavigationCaption,
-		BookOpenPageVariant,
-		BookOpenVariant,
-		NcButton,
-		NcCounterBubble,
-		NcEmptyContent,
-		Confetti,
-		RequestDialog,
-		RequestSidebar,
-		Plus,
-		CalendarAccountOutline,
-		CalendarSearch,
-		CardAccountDetailsOutline,
-		ClipboardCheck,
-		AccountGroup,
-		AccountCircleOutline,
-		AccountOffOutline,
-		ChartBar,
-		CalendarMonth,
-		Download,
-		PartyPopper,
-		ClipboardPlusOutline,
-		Thermometer,
-		LightbulbOnOutline,
-		CogOutline,
-		OpenInNew,
-	},
+const requestsStore = useRequestsStore()
+const sessionStore = useSessionStore()
 
-	setup() {
-		// Let any descendant view open the create/edit/record dialog or select a request.
-		provide('absence:openNew', () => window.dispatchEvent(new CustomEvent('absence:open-new')))
-		provide('absence:openRecord', () => window.dispatchEvent(new CustomEvent('absence:open-record')))
-		provide('absence:openEdit', (r) => window.dispatchEvent(new CustomEvent('absence:open-edit', { detail: r })))
-		return { store }
-	},
+/** What the page shows instead of the views while the app is closed to the user */
+interface ClosedState {
+	name: string
+	description: string | undefined
+	icon: Component
+}
 
-	data() {
+// Let any descendant view open the create/edit/record dialog or select a request.
+provide(openNewKey, () => window.dispatchEvent(new CustomEvent('absence:open-new')))
+provide(openRecordKey, () => window.dispatchEvent(new CustomEvent('absence:open-record')))
+provide(openEditKey, (r) => window.dispatchEvent(new CustomEvent('absence:open-edit', { detail: r })))
+
+const route = useRoute()
+
+const showDialog = ref(false)
+const editRequest = ref<LeaveRequest | null>(null)
+const recordMode = ref(false)
+
+const session = computed(() => sessionStore.session)
+
+const canOpenSettings = computed(() => sessionStore.session.isAdmin || sessionStore.session.isHr)
+
+/** Why the app is closed to this user, or null. HR keeps its pages outside the employees group. */
+const closed = computed<ClosedState | null>(() => {
+	if (!sessionStore.session.configured) {
 		return {
-			showDialog: false,
-			editRequest: null,
-			recordMode: false,
+			name: t('absence', 'Absence isn\'t set up yet'),
+			// Only those who can fix it are told why
+			description: canOpenSettings.value ? t('absence', 'Choose the HR and employees groups in the settings.') : undefined,
+
+			icon: CogOutline,
 		}
-	},
+	}
+	if (!sessionStore.session.isEmployee && !sessionStore.session.isHr) {
+		return {
+			name: t('absence', 'You are not in the employees group'),
+			description: canOpenSettings.value
+				? t('absence', 'Absence is for the members of the employees group. You can choose that group in the settings.')
+				: t('absence', 'Absence is for the members of the employees group. Ask HR if you should be in it.'),
 
-	computed: {
-		session() {
-			return store.session
-		},
+			icon: AccountOffOutline,
+		}
+	}
+	return null
+})
 
-		canOpenSettings() {
-			return store.session.isAdmin || store.session.isHr
-		},
+const pendingCount = computed(() => sessionStore.session.pendingApprovals || 0)
 
-		/** Why the app is closed to this user, or null. HR keeps its pages outside the employees group. */
-		closed() {
-			if (!store.session.configured) {
-				return {
-					name: t('absence', 'Absence isn\'t set up yet'),
-					// Only those who can fix it are told why
-					description: this.canOpenSettings ? t('absence', 'Choose the HR and employees groups in the settings.') : undefined,
+const escalatedCount = computed(() => sessionStore.session.escalatedCount ?? 0)
 
-					icon: CogOutline,
-				}
-			}
-			if (!store.session.isEmployee && !store.session.isHr) {
-				return {
-					name: t('absence', 'You are not in the employees group'),
-					description: this.canOpenSettings
-						? t('absence', 'Absence is for the members of the employees group. You can choose that group in the settings.')
-						: t('absence', 'Absence is for the members of the employees group. Ask HR if you should be in it.'),
+onMounted(() => {
+	window.addEventListener('absence:open-new', openNewRequest)
+	window.addEventListener('absence:open-record', openRecord)
+	window.addEventListener('absence:open-edit', onOpenEditEvent)
+})
 
-					icon: AccountOffOutline,
-				}
-			}
-			return null
-		},
+onBeforeUnmount(() => {
+	window.removeEventListener('absence:open-new', openNewRequest)
+	window.removeEventListener('absence:open-record', openRecord)
+	window.removeEventListener('absence:open-edit', onOpenEditEvent)
+})
 
-		pendingCount() {
-			return store.session.pendingApprovals || 0
-		},
-	},
+/**
+ * NcAppNavigationItem only opens links with a scheme in a new tab,
+ * so a path on this server becomes a full URL
+ *
+ * @param url a handbook link from the settings
+ */
+function newTabUrl(url: string): string {
+	return new URL(url, window.location.origin).href
+}
 
-	mounted() {
-		window.addEventListener('absence:open-new', this.openNewRequest)
-		window.addEventListener('absence:open-record', this.openRecord)
-		window.addEventListener('absence:open-edit', this.onOpenEditEvent)
-	},
+/**
+ * Open the form for a new request
+ */
+function openNewRequest(): void {
+	editRequest.value = null
+	recordMode.value = false
+	showDialog.value = true
+}
 
-	beforeUnmount() {
-		window.removeEventListener('absence:open-new', this.openNewRequest)
-		window.removeEventListener('absence:open-record', this.openRecord)
-		window.removeEventListener('absence:open-edit', this.onOpenEditEvent)
-	},
+/**
+ * Open the form HR records an absence with
+ */
+function openRecord(): void {
+	editRequest.value = null
+	recordMode.value = true
+	showDialog.value = true
+}
 
-	methods: {
-		/**
-		 * NcAppNavigationItem only opens links with a scheme in a new tab,
-		 * so a path on this server becomes a full URL
-		 *
-		 * @param {string} url a handbook link from the settings
-		 */
-		newTabUrl(url) {
-			return new URL(url, window.location.origin).href
-		},
+/**
+ * Open the form on the request a view asked to edit
+ *
+ * @param e the event carrying the request
+ */
+function onOpenEditEvent(e: WindowEventMap['absence:open-edit']): void {
+	openEditRequest(e.detail)
+}
 
-		openNewRequest() {
-			this.editRequest = null
-			this.recordMode = false
-			this.showDialog = true
-		},
+/**
+ * Open the form on an existing request
+ *
+ * @param request the request to edit
+ */
+function openEditRequest(request: LeaveRequest): void {
+	editRequest.value = request
+	recordMode.value = false
+	showDialog.value = true
+	requestsStore.select(null)
+}
 
-		openRecord() {
-			this.editRequest = null
-			this.recordMode = true
-			this.showDialog = true
-		},
+/**
+ * Close the form and forget what it was opened for
+ */
+function closeDialog(): void {
+	showDialog.value = false
+	editRequest.value = null
+	recordMode.value = false
+}
 
-		onOpenEditEvent(e) {
-			this.openEditRequest(e.detail)
-		},
-
-		openEditRequest(request) {
-			this.editRequest = request
-			this.recordMode = false
-			this.showDialog = true
-			store.select(null)
-		},
-
-		closeDialog() {
-			this.showDialog = false
-			this.editRequest = null
-			this.recordMode = false
-		},
-
-		onChanged() {
-			this.closeDialog()
-			// Close the detail sidebar so it can't show a stale (pre-decision) state.
-			store.select(null)
-			window.dispatchEvent(new CustomEvent('absence:refresh'))
-		},
-	},
+/**
+ * A request was saved or decided: every open list reloads
+ */
+function onChanged(): void {
+	closeDialog()
+	// Close the detail sidebar so it can't show a stale (pre-decision) state.
+	requestsStore.select(null)
+	window.dispatchEvent(new CustomEvent('absence:refresh'))
 }
 </script>
 

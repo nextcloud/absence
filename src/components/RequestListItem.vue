@@ -22,84 +22,77 @@
 	</div>
 </template>
 
-<script>
-import { n, t } from '@nextcloud/l10n'
+<script setup lang="ts">
+import type { LeaveRequest } from '../types/index.ts'
+
+import { n } from '@nextcloud/l10n'
+import { computed } from 'vue'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import StatusChip from './StatusChip.vue'
-import { store } from '../store.js'
-import { formatRange } from '../utils/dates.js'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { formatRange } from '../utils/dates.ts'
 
-export default {
-	name: 'RequestListItem',
-	components: { NcListItem, StatusChip },
-	props: {
-		request: { type: Object, required: true },
-		active: { type: Boolean, default: false },
-		showEmployee: { type: Boolean, default: false },
-		// The employee's remaining days for this leave type and year, when the caller
-		// has them to hand. Null for leave that counts against no allowance, and while
-		// the figures are still loading.
-		remaining: { type: Number, default: null },
-	},
+const props = withDefaults(defineProps<{
+	request: LeaveRequest
+	active?: boolean
+	showEmployee?: boolean
+	// The employee's remaining days for this leave type and year, when the caller
+	// has them to hand. Null for leave that counts against no allowance, and while
+	// the figures are still loading.
+	remaining?: number | null
+}>(), {
+	active: false,
+	showEmployee: false,
+	remaining: null,
+})
 
-	emits: ['select'],
-	computed: {
-		type() {
-			return store.leaveType(this.request.typeId)
-		},
+const emit = defineEmits<{
+	select: [id: number]
+}>()
 
-		showStatus() {
-			return store.statusVisible(this.request)
-		},
+const leaveTypesStore = useLeaveTypesStore()
 
-		colorSoft() {
-			return `color-mix(in srgb, ${this.type.color} 18%, transparent)`
-		},
+const type = computed(() => leaveTypesStore.leaveType(props.request.typeId))
 
-		title() {
-			if (this.showEmployee) {
-				return `${this.employeeName} · ${this.type.label}`
-			}
-			return this.type.label
-		},
+const showStatus = computed(() => leaveTypesStore.statusVisible(props.request))
 
-		/** Older payloads carry no name; the uid is a poor label but better than blank. */
-		employeeName() {
-			return this.request.employeeName || this.request.employeeUid
-		},
+const colorSoft = computed(() => `color-mix(in srgb, ${type.value.color} 18%, transparent)`)
 
-		subtitle() {
-			const range = formatRange(this.request.startDate, this.request.endDate)
-			const days = n('absence', '%n day', '%n days', this.request.workingDays)
-			if (this.remaining === null) {
-				return `${range} · ${days}`
-			}
-			// Days taken alone does not answer the question the list is scanned for.
-			const left = n('absence', '%n day left', '%n days left', Math.round(this.remaining * 10) / 10)
-			return `${range} · ${days} · ${left}`
-		},
-	},
+/** Older payloads carry no name; the uid is a poor label but better than blank. */
+const employeeName = computed(() => props.request.employeeName || props.request.employeeUid)
 
-	methods: {
-		t,
-		n,
+const title = computed(() => {
+	if (props.showEmployee) {
+		return `${employeeName.value} · ${type.value.label}`
+	}
+	return type.value.label
+})
 
-		/**
-		 * Selecting a row opens the detail sidebar — it must not navigate.
-		 *
-		 * NcListItem always renders an anchor and defaults its href to "#", and it
-		 * only calls preventDefault() itself when given a `to` (router-link) prop.
-		 * Left alone, the browser follows that "#" — which under this app's hash
-		 * history is the route "/", redirecting to My leave. So an HR user opening
-		 * someone's absence was thrown back to their own overview.
-		 *
-		 * @param {MouseEvent} event the native click NcListItem forwards
-		 */
-		select(event) {
-			event?.preventDefault?.()
-			this.$emit('select', this.request.id)
-		},
-	},
+const subtitle = computed(() => {
+	const range = formatRange(props.request.startDate, props.request.endDate)
+	const days = n('absence', '%n day', '%n days', props.request.workingDays)
+	if (props.remaining === null) {
+		return `${range} · ${days}`
+	}
+	// Days taken alone does not answer the question the list is scanned for.
+	const left = n('absence', '%n day left', '%n days left', Math.round(props.remaining * 10) / 10)
+	return `${range} · ${days} · ${left}`
+})
+
+/**
+ * Selecting a row opens the detail sidebar — it must not navigate.
+ *
+ * NcListItem always renders an anchor and defaults its href to "#", and it
+ * only calls preventDefault() itself when given a `to` (router-link) prop.
+ * Left alone, the browser follows that "#" — which under this app's hash
+ * history is the route "/", redirecting to My leave. So an HR user opening
+ * someone's absence was thrown back to their own overview.
+ *
+ * @param event the native click NcListItem forwards
+ */
+function select(event?: MouseEvent) {
+	event?.preventDefault?.()
+	emit('select', props.request.id)
 }
 </script>
 

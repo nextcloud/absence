@@ -101,49 +101,41 @@
 	</svg>
 </template>
 
-<script>
-import { store } from '../store.js'
-import { seasonOf } from '../utils/dates.js'
+<script setup lang="ts">
+import type { Season } from '../utils/dates.ts'
 
-export default {
-	name: 'PalmIllustration',
-	props: {
-		/** Force a season; by default it follows today's date and the user's country. */
-		season: {
-			type: String,
-			default: null,
-			validator: (v) => v === null || ['winter', 'spring', 'summer', 'autumn'].includes(v),
-		},
-	},
+import { computed } from 'vue'
+import { useSessionStore } from '../stores/session.ts'
+import { seasonOf } from '../utils/dates.ts'
 
-	data() {
-		return {
-			// Fixed rather than random so the illustration is identical on every render
-			// and in screenshots — the staggered delays supply the variety.
-			blossoms: [
-				{ x: 46, y: 62 },
-				{ x: 62, y: 55 },
-				{ x: 88, y: 50 },
-				{ x: 104, y: 58 },
-				{ x: 80, y: 44 },
-			],
+const props = withDefaults(defineProps<{
+	/** Force a season; by default it follows today's date and the user's country. */
+	season?: Season | null
+}>(), {
+	season: null,
+})
 
-			fallers: [
-				{ x: 40, delay: 0 },
-				{ x: 62, delay: 1.3 },
-				{ x: 84, delay: 2.6 },
-				{ x: 106, delay: 0.7 },
-				{ x: 128, delay: 2 },
-			],
-		}
-	},
+const sessionStore = useSessionStore()
 
-	computed: {
-		resolvedSeason() {
-			return this.season || seasonOf(new Date(), store.session.holidayCountry)
-		},
-	},
-}
+// Fixed rather than random so the illustration is identical on every render
+// and in screenshots — the staggered delays supply the variety.
+const blossoms = [
+	{ x: 46, y: 62 },
+	{ x: 62, y: 55 },
+	{ x: 88, y: 50 },
+	{ x: 104, y: 58 },
+	{ x: 80, y: 44 },
+]
+
+const fallers = [
+	{ x: 40, delay: 0 },
+	{ x: 62, delay: 1.3 },
+	{ x: 84, delay: 2.6 },
+	{ x: 106, delay: 0.7 },
+	{ x: 128, delay: 2 },
+]
+
+const resolvedSeason = computed<Season>(() => props.season || seasonOf(new Date(), sessionStore.session.holidayCountry))
 </script>
 
 <style scoped lang="scss">

@@ -76,107 +76,122 @@
 	</NcDialog>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { ButtonVariant } from '@nextcloud/vue/components/NcButton'
+import type { RegionReminder } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { imagePath } from '@nextcloud/router'
+import { computed, onMounted, ref } from 'vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import SkeletonList from './SkeletonList.vue'
-import api from '../api.js'
-import { locale } from '../utils/locale.js'
-import { regionFlag } from '../utils/regions.js'
+import api from '../services/api.ts'
+import { serverMessage } from '../utils/errors.ts'
+import { locale } from '../utils/locale.ts'
+import { regionFlag } from '../utils/regions.ts'
 
-export default {
-	name: 'RegionReminderDialog',
-	components: { NcAvatar, NcDialog, NcNoteCard, SkeletonList },
-	emits: ['close'],
+/** A notification as the people get it */
+interface NotificationPreview {
+	key: 'missing' | 'incomplete'
+	subject: string
+	message: string
+}
 
-	data() {
-		return {
-			plan: null,
-			sending: false,
-			appIcon: imagePath('absence', 'app-dark.svg'),
-		}
-	},
+/** A button of the dialog */
+interface DialogButton {
+	label: string
+	variant?: ButtonVariant
+	disabled?: boolean
+	callback: () => void
+}
 
-	computed: {
-		/** The notification texts the people in this round get, as the server words them */
-		previews() {
-			const people = this.plan.send.length ? this.plan.send : this.plan.recent
-			const previews = []
-			if (people.some((person) => !person.code)) {
-				previews.push({
-					key: 'missing',
-					subject: t('absence', 'Please set your holiday region code'),
-					message: t('absence', 'HR asks you to set it on your profile: it decides which public holidays are days off for you.'),
-				})
-			}
-			const incomplete = people.find((person) => person.code)
-			if (incomplete) {
-				previews.push({
-					key: 'incomplete',
-					subject: t('absence', 'Please complete your holiday region code'),
-					message: t('absence', 'HR asks you to add your region on your profile: {code} has regional holidays, so a code like {example} decides which days are off for you.', { code: incomplete.code, example: incomplete.example }),
-				})
-			}
-			return previews
+const emit = defineEmits<{
+	close: []
+}>()
+
+const plan = ref<RegionReminder | null>(null)
+const sending = ref(false)
+const appIcon = imagePath('absence', 'app-dark.svg')
+
+/** The notification texts the people in this round get, as the server words them */
+const previews = computed<NotificationPreview[]>(() => {
+	if (!plan.value) {
+		return []
+	}
+	const people = plan.value.send.length ? plan.value.send : plan.value.recent
+	const previews: NotificationPreview[] = []
+	if (people.some((person) => !person.code)) {
+		previews.push({
+			key: 'missing',
+			subject: t('absence', 'Please set your holiday region code'),
+			message: t('absence', 'HR asks you to set it on your profile: it decides which public holidays are days off for you.'),
+		})
+	}
+	const incomplete = people.find((person) => person.code)
+	if (incomplete) {
+		previews.push({
+			key: 'incomplete',
+			subject: t('absence', 'Please complete your holiday region code'),
+			message: t('absence', 'HR asks you to add your region on your profile: {code} has regional holidays, so a code like {example} decides which days are off for you.', { code: incomplete.code, example: incomplete.example ?? '' }),
+		})
+	}
+	return previews
+})
+
+const buttons = computed<DialogButton[]>(() => {
+	const count = plan.value?.send.length ?? 0
+	if (count === 0) {
+		return [{ label: t('absence', 'Close'), callback: () => {} }]
+	}
+	return [
+		{ label: t('absence', 'Cancel'), callback: () => {} },
+		{
+			label: n('absence', 'Remind {count} person', 'Remind {count} people', count, { count }),
+			variant: 'primary',
+			disabled: sending.value,
+			callback: () => send(),
 		},
+	]
+})
 
-		buttons() {
-			const count = this.plan?.send.length ?? 0
-			if (count === 0) {
-				return [{ label: t('absence', 'Close'), callback: () => {} }]
-			}
-			return [
-				{ label: t('absence', 'Cancel'), callback: () => {} },
-				{
-					label: n('absence', 'Remind {count} person', 'Remind {count} people', count, { count }),
-					variant: 'primary',
-					disabled: this.sending,
-					callback: () => this.send(),
-				},
-			]
-		},
-	},
+onMounted(async () => {
+	try {
+		plan.value = await api.remindMissingRegion(true)
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not load who to remind'))
+		emit('close')
+	}
+})
 
-	async mounted() {
-		try {
-			this.plan = await api.remindMissingRegion(true)
-		} catch (e) {
-			showError(e.response?.data?.message || t('absence', 'Could not load who to remind'))
-			this.$emit('close')
-		}
-	},
+/**
+ * "today", "yesterday", "3 days ago"
+ *
+ * @param iso when the person was reminded
+ */
+function ago(iso: string | null): string {
+	if (iso === null) {
+		return ''
+	}
+	const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+	return new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }).format(-days, 'day')
+}
 
-	methods: {
-		t,
-		n,
-		regionFlag,
-
-		/**
-		 * "today", "yesterday", "3 days ago"
-		 *
-		 * @param {string} iso when the person was reminded
-		 */
-		ago(iso) {
-			const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-			return new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }).format(-days, 'day')
-		},
-
-		async send() {
-			this.sending = true
-			try {
-				const sent = await api.remindMissingRegion(false)
-				showSuccess(n('absence', 'Reminder sent to {count} person', 'Reminder sent to {count} people', sent.send.length, { count: sent.send.length }))
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not send the reminders'))
-			} finally {
-				this.sending = false
-			}
-		},
-	},
+/**
+ * Sends the reminders of this round.
+ */
+async function send() {
+	sending.value = true
+	try {
+		const sent = await api.remindMissingRegion(false)
+		showSuccess(n('absence', 'Reminder sent to {count} person', 'Reminder sent to {count} people', sent.send.length, { count: sent.send.length }))
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not send the reminders'))
+	} finally {
+		sending.value = false
+	}
 }
 </script>
 

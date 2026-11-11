@@ -135,6 +135,9 @@ This file is generated from multiple sources. Included packages:
 - linkifyjs
 	- version: 4.4.0
 	- license: MIT
+- pinia
+	- version: 4.1.0
+	- license: MIT
 - semver
 	- version: 7.8.5
 	- license: ISC

@@ -17,20 +17,21 @@
 	</div>
 </template>
 
-<script>
-export default {
-	name: 'StatTile',
-	props: {
-		/** The figure itself, already formatted and localised by the caller. */
-		value: { type: [String, Number], required: true },
-		label: { type: String, required: true },
-		/** Optional second line, for context the label has no room for. */
-		caption: { type: String, default: '' },
-		/** Emoji, matching the leave-type icons used elsewhere. */
-		icon: { type: String, default: '' },
-		accent: { type: String, default: 'var(--color-primary-element)' },
-	},
-}
+<script setup lang="ts">
+withDefaults(defineProps<{
+	/** The figure itself, already formatted and localised by the caller. */
+	value: string | number
+	label: string
+	/** Optional second line, for context the label has no room for. */
+	caption?: string
+	/** Emoji, matching the leave-type icons used elsewhere. */
+	icon?: string
+	accent?: string
+}>(), {
+	caption: '',
+	icon: '',
+	accent: 'var(--color-primary-element)',
+})
 </script>
 
 <style scoped lang="scss">
