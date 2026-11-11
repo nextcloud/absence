@@ -112,4 +112,112 @@ class ExportServiceTest extends TestCase {
 
 		$this->service->balancesCsv(2026, 'team');
 	}
+
+	private function user(string $displayName, ?string $email): IUser {
+		$user = $this->createMock(IUser::class);
+		$user->method('getDisplayName')->willReturn($displayName);
+		$user->method('getEMailAddress')->willReturn($email);
+		return $user;
+	}
+
+	private function approvedRequest(int $id, string $employeeUid): LeaveRequest {
+		$request = new LeaveRequest();
+		$request->setId($id);
+		$request->setEmployeeUid($employeeUid);
+		$request->setTypeId(1);
+		$request->setStartDate('2026-01-05');
+		$request->setEndDate('2026-01-06');
+		$request->setWorkingDays(2.0);
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		return $request;
+	}
+
+	/** @return list<list<string>> the cells of every line */
+	private function cells(string $csv): array {
+		$lines = explode("\n", trim(substr($csv, 3)));
+		return array_map(static fn (string $line): array => str_getcsv($line, ',', '"', ''), $lines);
+	}
+
+	/** @return array<string,mixed> */
+	private function balanceRow(string $uid, string $displayName, string $typeLabel): array {
+		return [
+			'employeeUid' => $uid, 'displayName' => $displayName, 'year' => 2026, 'typeLabel' => $typeLabel,
+			'entitlement' => 30.0, 'baseDays' => 30.0, 'carryOverDays' => 0.0, 'manualAdjustment' => 0.0,
+			'used' => 2.0, 'pending' => 0.0, 'remaining' => 28.0, 'available' => 28.0,
+		];
+	}
+
+	public function testRequestsCsvTellsTwoPeopleWithTheSameNameApart(): void {
+		$this->leaveTypeMapper->method('findAll')->willReturn([]);
+		$this->requestMapper->method('findAllInRange')->willReturn([
+			$this->approvedRequest(1, 'jmiller'),
+			$this->approvedRequest(2, 'jmiller2'),
+		]);
+		$users = [
+			'jmiller' => $this->user('Jo Miller', 'jo.miller@example.com'),
+			'jmiller2' => $this->user('Jo Miller', 'jo.miller2@example.com'),
+		];
+		// One lookup per row, as before the columns were added.
+		$this->userManager->expects(self::exactly(2))->method('get')
+			->willReturnCallback(static fn (string $uid): ?IUser => $users[$uid] ?? null);
+
+		$rows = $this->cells($this->service->requestsCsv('2026-01-01', '2026-01-31')['content']);
+
+		self::assertSame(
+			['ID', 'Employee', 'Account ID', 'Email', 'Manager', 'Type', 'Start', 'End', 'Working days', 'Status', 'Decided by', 'Decided at'],
+			$rows[0],
+		);
+		self::assertSame(['1', 'Jo Miller', 'jmiller', 'jo.miller@example.com', '', '1', '2026-01-05', '2026-01-06', '2', 'APPROVED', '', ''], $rows[1]);
+		self::assertSame(['Jo Miller', 'jmiller2', 'jo.miller2@example.com'], array_slice($rows[2], 1, 3));
+	}
+
+	public function testRequestsCsvKeepsTheAccountIdOfADeletedAccount(): void {
+		$this->leaveTypeMapper->method('findAll')->willReturn([]);
+		$this->requestMapper->method('findAllInRange')->willReturn([$this->approvedRequest(1, 'gone')]);
+		$this->userManager->method('get')->willReturn(null);
+
+		$rows = $this->cells($this->service->requestsCsv('2026-01-01', '2026-01-31')['content']);
+
+		self::assertSame(['gone', 'gone', ''], array_slice($rows[1], 1, 3));
+	}
+
+	public function testRequestsCsvNeutralizesAFormulaInTheAccountIdAndTheEmail(): void {
+		$this->leaveTypeMapper->method('findAll')->willReturn([]);
+		$this->requestMapper->method('findAllInRange')->willReturn([$this->approvedRequest(1, '=cmd')]);
+		$this->userManager->method('get')->willReturn($this->user('Sam Okoro', '+sum(a1)@example.com'));
+
+		$rows = $this->cells($this->service->requestsCsv('2026-01-01', '2026-01-31')['content']);
+
+		self::assertSame(['Sam Okoro', "'=cmd", "'+sum(a1)@example.com"], array_slice($rows[1], 1, 3));
+	}
+
+	public function testBalancesCsvIdentifiesEachPersonAndLooksThemUpOnce(): void {
+		$this->reportService->method('balancesReport')->willReturn([
+			$this->balanceRow('jmiller', 'Jo Miller', 'Vacation'),
+			$this->balanceRow('jmiller', 'Jo Miller', 'Special leave'),
+			$this->balanceRow('jmiller2', 'Jo Miller', 'Vacation'),
+			$this->balanceRow('gone', 'gone', 'Vacation'),
+			$this->balanceRow('@evil', 'Sam Okoro', 'Vacation'),
+		]);
+		$users = [
+			'jmiller' => $this->user('Jo Miller', 'jo.miller@example.com'),
+			'jmiller2' => $this->user('Jo Miller', null),
+			'@evil' => $this->user('Sam Okoro', '=1+1@example.com'),
+		];
+		// Five rows, four people: nobody is looked up twice.
+		$this->userManager->expects(self::exactly(4))->method('get')
+			->willReturnCallback(static fn (string $uid): ?IUser => $users[$uid] ?? null);
+
+		$rows = $this->cells($this->service->balancesCsv(2026)['content']);
+
+		self::assertSame(
+			['Employee', 'Account ID', 'Email', 'Year', 'Type', 'Entitlement', 'Base', 'Carry-over', 'Adjustment', 'Used', 'Pending', 'Remaining', 'Available'],
+			$rows[0],
+		);
+		self::assertSame(['Jo Miller', 'jmiller', 'jo.miller@example.com', '2026', 'Vacation', '30', '30', '0', '0', '2', '0', '28', '28'], $rows[1]);
+		self::assertSame(['Jo Miller', 'jmiller', 'jo.miller@example.com', '2026', 'Special leave'], array_slice($rows[2], 0, 5));
+		self::assertSame(['Jo Miller', 'jmiller2', ''], array_slice($rows[3], 0, 3));
+		self::assertSame(['gone', 'gone', ''], array_slice($rows[4], 0, 3));
+		self::assertSame(['Sam Okoro', "'@evil", "'=1+1@example.com"], array_slice($rows[5], 0, 3));
+	}
 }
