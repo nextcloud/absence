@@ -66,7 +66,7 @@ class EntitlementHistoryTest extends TestCase {
 	protected function tearDown(): void {
 		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, $this->employeesGroup);
 		$db = Server::get(IDBConnection::class);
-		foreach (['absence_entitlements', 'absence_entitlement_events'] as $table) {
+		foreach (['absence_entitlements', 'absence_ent_events'] as $table) {
 			foreach ([self::ANA, self::BEN] as $uid) {
 				$qb = $db->getQueryBuilder();
 				$qb->delete($table)->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))->executeStatement();

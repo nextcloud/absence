@@ -119,7 +119,7 @@ class UserDeletedListener implements IEventListener {
 		// it goes with them (§17).
 		$this->deleteWhereEquals('absence_requests', 'employee_uid', $uid);
 		$this->deleteWhereEquals('absence_entitlements', 'employee_uid', $uid);
-		$this->deleteWhereEquals('absence_entitlement_events', 'employee_uid', $uid);
+		$this->deleteWhereEquals('absence_ent_events', 'employee_uid', $uid);
 		// Their contract data and its history go too (§6.4).
 		$this->employees->purge($uid);
 
@@ -141,9 +141,9 @@ class UserDeletedListener implements IEventListener {
 		// uploader, so that identity is removed: null where the column allows it, the
 		// sentinel where it is notnull. Mirrors the comment cleanup above (§17).
 		$this->anonymizeActor('absence_request_events', 'actor_uid', $uid, self::DELETED_ACTOR);
-		$this->anonymizeActor('absence_entitlement_events', 'actor_uid', $uid, self::DELETED_ACTOR);
+		$this->anonymizeActor('absence_ent_events', 'actor_uid', $uid, self::DELETED_ACTOR);
 		$this->anonymizeActor('absence_attachments', 'uploader_uid', $uid, self::DELETED_ACTOR);
-		$this->anonymizeActor('absence_employee_history', 'actor_uid', $uid, null);
+		$this->anonymizeActor('absence_emp_history', 'actor_uid', $uid, null);
 		$this->anonymizeActor('absence_requests', 'decided_by', $uid, null);
 		$this->anonymizeActor('absence_holidays', 'created_by', $uid, null);
 		$this->anonymizeActor('absence_holidays', 'updated_by', $uid, null);
