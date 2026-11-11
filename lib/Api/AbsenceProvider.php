@@ -73,14 +73,15 @@ class AbsenceProvider implements IAbsenceProvider {
 	}
 
 	#[\Override]
-	public function getPartTime(array $userIds): array {
+	public function getContracts(array $userIds): array {
 		$userIds = array_values(array_unique($userIds));
 		$this->employees->preload($userIds);
-		$periods = [];
+		$contracts = [];
 		foreach ($userIds as $userId) {
-			$periods[$userId] = $this->employees->getContract($userId)['periods'];
+			$contract = $this->employees->getContract($userId);
+			$contracts[$userId] = ['start' => $contract['start'], 'periods' => $contract['periods']];
 		}
-		return $periods;
+		return $contracts;
 	}
 
 	/**

@@ -71,14 +71,14 @@ interface IAbsenceProvider {
 	public function getPublicHolidays(array $regionCodes, string $from, string $to): array;
 
 	/**
-	 * The working pattern HR keeps for these people (§6.4): from which day on they
-	 * work which ISO weekdays (Monday = 1) at which contract percentage. Every
-	 * employee may know someone's part time; the start and end dates of the
-	 * contract are not part of it.
+	 * The contract HR keeps for these people (§6.4): their start date, and from
+	 * which day on they work which ISO weekdays (Monday = 1) at which percentage.
+	 * Every employee may know these. The end date is left out: it can tell that
+	 * someone leaves before it is announced.
 	 *
 	 * @param list<string> $userIds
-	 * @return array<string, list<array{from: string, weekdays: list<int>, percent: ?int}>> by user, oldest period first, empty while HR has entered none
+	 * @return array<string, array{start: ?string, periods: list<array{from: string, weekdays: list<int>, percent: ?int}>}> by user, periods oldest first; null start and no periods while HR has entered none
 	 * @since 1.0.0
 	 */
-	public function getPartTime(array $userIds): array;
+	public function getContracts(array $userIds): array;
 }
