@@ -44,7 +44,8 @@
 import type { BalanceRow } from '../types/index.ts'
 
 import { t } from '@nextcloud/l10n'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { countUp } from '../utils/countUp.ts'
 import { formatNumber } from '../utils/locale.ts'
 
 const props = defineProps<{
@@ -78,8 +79,10 @@ const remainingLabel = computed(() => format(tween.value))
 
 const ariaLabel = computed(() => `${props.row.typeLabel}: ${remainingLabel.value} ${t('absence', 'days left')}`)
 
+let stopCount: (() => void) | null = null
+
 onMounted(() => {
-	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+	if (reducedMotion()) {
 		animated.value = true
 		tween.value = targetValue.value
 		return
@@ -87,28 +90,33 @@ onMounted(() => {
 	requestAnimationFrame(() => {
 		animated.value = true
 	})
-	countUp()
+	showTarget()
 })
 
+// The same ring can get another row, such as another year of the same type
+watch(targetValue, () => showTarget())
+
+onBeforeUnmount(() => stopCount?.())
+
 /**
- * Count the figure in the ring up from zero to its value.
+ * Whether the person asked the system for less motion
  */
-function countUp() {
-	const target = targetValue.value
-	const duration = 900
-	const start = performance.now()
-	const step = (now: number) => {
-		const p = Math.min(1, (now - start) / duration)
-		// easeOutCubic
-		const eased = 1 - Math.pow(1 - p, 3)
-		tween.value = Math.round(target * eased * 10) / 10
-		if (p < 1) {
-			requestAnimationFrame(step)
-		} else {
-			tween.value = target
-		}
+function reducedMotion(): boolean {
+	return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/**
+ * Bring the figure in the ring to the row's value, counting from what it shows now
+ */
+function showTarget(): void {
+	stopCount?.()
+	if (reducedMotion()) {
+		tween.value = targetValue.value
+		return
 	}
-	requestAnimationFrame(step)
+	stopCount = countUp(tween.value, targetValue.value, (value) => {
+		tween.value = value
+	})
 }
 
 /**
