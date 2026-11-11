@@ -111,10 +111,13 @@ async function reload(): Promise<void> {
 	loading.value = true
 	loadError.value = false
 	try {
-		teamQueue.value = await api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') })
-		if (sessionStore.session.isHr) {
-			escalated.value = await api.listRequests({ scope: 'hr', status: 'ESCALATED' })
-		}
+		const [team, hr] = await Promise.all([
+			api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') }),
+			// Empty for anyone else, so the list of someone who stopped being HR goes away
+			sessionStore.session.isHr ? api.listRequests({ scope: 'hr', status: 'ESCALATED' }) : [],
+		])
+		teamQueue.value = team
+		escalated.value = hr
 	} catch {
 		// Without this a failed load leaves both lists empty and the
 		// "All caught up!" state renders — a manager with pending requests
