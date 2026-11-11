@@ -127,9 +127,13 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { LeaveRequest, LeaveType, RequestListParams, RequestStatus, UserRef } from '../../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -142,269 +146,275 @@ import RequestListItem from '../../components/RequestListItem.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../services/api.ts'
 import { statusMeta, store } from '../../store.ts'
+import { openRecordKey } from '../../utils/injectionKeys.ts'
+
+/** An entry of the status filter */
+interface StatusOption {
+	value: RequestStatus
+	label: string
+}
+
+/** An entry of the year filter: `value` is null for all years */
+interface YearOption {
+	value: number | null
+	label: string
+}
 
 const PAGE_SIZE = 100
 
-const STATUSES = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']
+const STATUSES: RequestStatus[] = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']
 
-export default {
-	name: 'HrAbsences',
-	components: {
-		NcButton,
-		NcEmptyContent,
-		NcLoadingIcon,
-		NcSelect,
-		CalendarSearch,
-		ClipboardPlusOutline,
-		LeaveImportDialog,
-		RequestListItem,
-		SkeletonList,
-		Upload,
-	},
+const openRecordForm = inject(openRecordKey)
 
-	inject: ['absence:openRecord'],
+// Preset the filters from the URL so other views can deep-link here (e.g. the
+// sick-leave report drilling into one employee). Done here rather than in a
+// lifecycle hook so the first load already carries them — otherwise the view
+// would fetch the unfiltered list first and immediately refetch.
+const q = useRoute().query
+const thisYear = new Date().getFullYear()
+const presetEmployee: UserRef | null = typeof q.employee === 'string' && q.employee
+	? { uid: q.employee, displayName: q.employee }
+	: null
+const presetYear = q.year ? Number(q.year) : thisYear
 
-	setup() {
-		// Expose the module-level reactive store to the template (Options API).
-		return { store }
-	},
+const loading = ref(true)
+const loadingMore = ref(false)
+const importing = ref(false)
+// Bumped on every reload; a fetch whose seq is stale on return is discarded.
+let reloadSeq = 0
+// employeeUid|typeId => remaining days, for the selected year.
+const balances = shallowRef<Record<string, number>>({})
+const rows = shallowRef<LeaveRequest[]>([])
+const hasMore = ref(false)
+const employee = shallowRef<UserRef | null>(presetEmployee)
+const employeeOptions = shallowRef<UserRef[]>(presetEmployee ? [presetEmployee] : [])
+const employeeLoading = ref(false)
+const type = ref<LeaveType | null>(q.type ? store.leaveTypes.find((lt) => lt.id === Number(q.type)) || null : null)
+const status = ref<StatusOption | null>(isStatus(q.status) ? { value: q.status, label: statusMeta(q.status).label } : null)
+const year = ref<YearOption>({ value: presetYear, label: String(presetYear) })
 
-	data() {
-		// Preset the filters from the URL so other views can deep-link here (e.g. the
-		// sick-leave report drilling into one employee). Done here rather than in a
-		// lifecycle hook so the first load already carries them — otherwise the view
-		// would fetch the unfiltered list first and immediately refetch.
-		const q = this.$route?.query || {}
-		const thisYear = new Date().getFullYear()
-		const employee = q.employee
-			? { uid: q.employee, displayName: q.employee }
-			: null
-		const year = q.year ? Number(q.year) : thisYear
-		return {
-			loading: true,
-			loadingMore: false,
-			importing: false,
-			// Bumped on every reload; a fetch whose seq is stale on return is discarded.
-			reloadSeq: 0,
-			// employeeUid|typeId => remaining days, for the selected year.
-			balances: {},
-			rows: [],
-			hasMore: false,
-			employee,
-			employeeOptions: employee ? [employee] : [],
-			employeeLoading: false,
-			type: q.type ? store.leaveTypes.find((lt) => lt.id === Number(q.type)) || null : null,
-			status: STATUSES.includes(q.status) ? { value: q.status, label: statusMeta(q.status).label } : null,
-			year: { value: year, label: String(year) },
+// Any type may show up in the history, including disabled ones, so filter
+// against the full list rather than the enabled subset.
+const typeOptions = computed(() => store.leaveTypes)
+
+const statusOptions = computed<StatusOption[]>(() => STATUSES.map((value) => ({ value, label: statusMeta(value).label })))
+
+const yearOptions = computed<YearOption[]>(() => {
+	const years: YearOption[] = []
+	for (let y = thisYear + 1; y >= thisYear - 4; y--) {
+		years.push({ value: y, label: String(y) })
+	}
+	return [...years, { value: null, label: t('absence', 'All years') }]
+})
+
+const filtersActive = computed(() => employee.value !== null
+	|| type.value !== null
+	|| status.value !== null
+	|| year.value.value !== null)
+
+/** The filter set as API query params (without paging). */
+const query = computed<RequestListParams>(() => {
+	const params: RequestListParams = { scope: 'hr' }
+	if (employee.value) {
+		params.employeeUid = employee.value.uid
+	}
+	if (type.value) {
+		params.typeId = type.value.id
+	}
+	if (status.value) {
+		params.status = status.value.value
+	}
+	if (year.value.value !== null) {
+		// The API matches on overlap (end >= from, start <= to), so leave
+		// spanning New Year shows up in both years.
+		params.from = `${year.value.value}-01-01`
+		params.to = `${year.value.value}-12-31`
+	}
+	return params
+})
+
+/** Serialised filters — watched so one change means exactly one fetch. */
+const queryKey = computed(() => JSON.stringify(query.value))
+
+// Any filter change restarts paging from the top; `immediate` covers the
+// initial load, so there is no separate fetch in mounted().
+watch(queryKey, () => {
+	reload()
+}, { immediate: true })
+
+onMounted(() => {
+	window.addEventListener('absence:refresh', reload)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('absence:refresh', reload)
+})
+
+/**
+ * Whether a value of the URL names a request status.
+ *
+ * @param value the query value
+ */
+function isStatus(value: unknown): value is RequestStatus {
+	return STATUSES.some((known) => known === value)
+}
+
+/**
+ * Empties every filter.
+ */
+function clearFilters(): void {
+	employee.value = null
+	type.value = null
+	status.value = null
+	year.value = { value: null, label: t('absence', 'All years') }
+}
+
+/**
+ * Opens the form HR records an absence with.
+ */
+function openRecord(): void {
+	openRecordForm?.()
+}
+
+/**
+ * Closes the import dialog and reloads the list.
+ */
+function onImported(): void {
+	importing.value = false
+	reload()
+}
+
+/**
+ * Searches the employees for the filter.
+ *
+ * @param search what was typed
+ */
+async function onEmployeeSearch(search: string): Promise<void> {
+	if (!search || search.length < 2) {
+		return
+	}
+	employeeLoading.value = true
+	try {
+		employeeOptions.value = await api.searchUsers(search)
+	} catch {
+		employeeOptions.value = []
+	} finally {
+		employeeLoading.value = false
+	}
+}
+
+/**
+ * Loads the first page of the filtered list, then the balances.
+ */
+async function reload(): Promise<void> {
+	// Guard against overlapping reloads (rapid filter changes): a slow earlier
+	// fetch must not overwrite the rows of a newer one that already resolved.
+	const seq = ++reloadSeq
+	loading.value = true
+	try {
+		const page = await fetchPage(0)
+		if (seq !== reloadSeq) {
+			return
 		}
-	},
+		rows.value = page
+		hasMore.value = page.length === PAGE_SIZE
+		// A link from the sick leave report carries the uid only: the name
+		// comes with the rows.
+		const first = page[0]
+		if (employee.value && employee.value.displayName === employee.value.uid && first) {
+			employee.value = { ...employee.value, displayName: first.employeeName }
+		}
+	} catch {
+		if (seq !== reloadSeq) {
+			return
+		}
+		rows.value = []
+		hasMore.value = false
+		showError(t('absence', 'Could not load the absences'))
+	} finally {
+		if (seq === reloadSeq) {
+			loading.value = false
+		}
+	}
+	if (seq === reloadSeq) {
+		await loadBalances()
+	}
+}
 
-	computed: {
-		typeOptions() {
-			// Any type may show up in the history, including disabled ones, so filter
-			// against the full list rather than the enabled subset.
-			return store.leaveTypes
-		},
-
-		statusOptions() {
-			return STATUSES.map((value) => ({ value, label: statusMeta(value).label }))
-		},
-
-		yearOptions() {
-			const thisYear = new Date().getFullYear()
-			const years = []
-			for (let y = thisYear + 1; y >= thisYear - 4; y--) {
-				years.push({ value: y, label: String(y) })
+/**
+ * Remaining days per employee and leave type, indexed for the rows above.
+ *
+ * One batched report rather than a lookup per row — the server computes every
+ * employee's balances in a fixed number of queries, which a request per
+ * visible absence would not be.
+ *
+ * Only for a single reporting year: "remaining" is a per-year figure, so with
+ * the filter on "All years" there is no one answer and the rows simply omit
+ * it. Silent on failure — the list is still perfectly usable without it.
+ */
+async function loadBalances(): Promise<void> {
+	balances.value = {}
+	if (year.value.value === null) {
+		return
+	}
+	const seq = reloadSeq
+	try {
+		const report = await api.reportBalances(year.value.value)
+		if (seq !== reloadSeq) {
+			return
+		}
+		const index: Record<string, number> = {}
+		for (const row of report) {
+			if (row.remaining !== null) {
+				index[`${row.employeeUid}|${row.typeId}`] = row.remaining
 			}
-			return [...years, { value: null, label: t('absence', 'All years') }]
-		},
+		}
+		balances.value = index
+	} catch {
+		if (seq === reloadSeq) {
+			balances.value = {}
+		}
+	}
+}
 
-		filtersActive() {
-			return this.employee !== null
-				|| this.type !== null
-				|| this.status !== null
-				|| this.year.value !== null
-		},
+/**
+ * The remaining days to show on a row, null when they are not known.
+ *
+ * @param request one absence row
+ */
+function remainingFor(request: LeaveRequest): number | null {
+	const value = balances.value[`${request.employeeUid}|${request.typeId}`]
+	return value === undefined ? null : value
+}
 
-		/** The filter set as API query params (without paging). */
-		query() {
-			const params = { scope: 'hr' }
-			if (this.employee) {
-				params.employeeUid = this.employee.uid
-			}
-			if (this.type) {
-				params.typeId = this.type.id
-			}
-			if (this.status) {
-				params.status = this.status.value
-			}
-			if (this.year.value !== null) {
-				// The API matches on overlap (end >= from, start <= to), so leave
-				// spanning New Year shows up in both years.
-				params.from = `${this.year.value}-01-01`
-				params.to = `${this.year.value}-12-31`
-			}
-			return params
-		},
+/**
+ * Appends the next page of the list.
+ */
+async function loadMore(): Promise<void> {
+	// A page asked for before the filters changed belongs to the old list.
+	const seq = reloadSeq
+	loadingMore.value = true
+	try {
+		const next = await fetchPage(rows.value.length)
+		if (seq !== reloadSeq) {
+			return
+		}
+		rows.value = [...rows.value, ...next]
+		hasMore.value = next.length === PAGE_SIZE
+	} catch {
+		showError(t('absence', 'Could not load more absences'))
+	} finally {
+		loadingMore.value = false
+	}
+}
 
-		/** Serialised filters — watched so one change means exactly one fetch. */
-		queryKey() {
-			return JSON.stringify(this.query)
-		},
-	},
-
-	watch: {
-		// Any filter change restarts paging from the top; `immediate` covers the
-		// initial load, so there is no separate fetch in mounted().
-		queryKey: {
-			handler() {
-				this.reload()
-			},
-
-			immediate: true,
-		},
-	},
-
-	mounted() {
-		window.addEventListener('absence:refresh', this.reload)
-	},
-
-	beforeUnmount() {
-		window.removeEventListener('absence:refresh', this.reload)
-	},
-
-	methods: {
-		t,
-		n,
-
-		clearFilters() {
-			this.employee = null
-			this.type = null
-			this.status = null
-			this.year = { value: null, label: t('absence', 'All years') }
-		},
-
-		openRecord() {
-			this['absence:openRecord']()
-		},
-
-		onImported() {
-			this.importing = false
-			this.reload()
-		},
-
-		async onEmployeeSearch(query) {
-			if (!query || query.length < 2) {
-				return
-			}
-			this.employeeLoading = true
-			try {
-				this.employeeOptions = await api.searchUsers(query)
-			} catch {
-				this.employeeOptions = []
-			} finally {
-				this.employeeLoading = false
-			}
-		},
-
-		async reload() {
-			// Guard against overlapping reloads (rapid filter changes): a slow earlier
-			// fetch must not overwrite the rows of a newer one that already resolved.
-			const seq = ++this.reloadSeq
-			this.loading = true
-			try {
-				const rows = await this.fetch(0)
-				if (seq !== this.reloadSeq) {
-					return
-				}
-				this.rows = rows
-				this.hasMore = rows.length === PAGE_SIZE
-				// A link from the sick leave report carries the uid only: the name
-				// comes with the rows.
-				if (this.employee && this.employee.displayName === this.employee.uid && rows.length) {
-					this.employee = { ...this.employee, displayName: rows[0].employeeName }
-				}
-			} catch {
-				if (seq !== this.reloadSeq) {
-					return
-				}
-				this.rows = []
-				this.hasMore = false
-				showError(t('absence', 'Could not load the absences'))
-			} finally {
-				if (seq === this.reloadSeq) {
-					this.loading = false
-				}
-			}
-			if (seq === this.reloadSeq) {
-				await this.loadBalances()
-			}
-		},
-
-		/**
-		 * Remaining days per employee and leave type, indexed for the rows above.
-		 *
-		 * One batched report rather than a lookup per row — the server computes every
-		 * employee's balances in a fixed number of queries, which a request per
-		 * visible absence would not be.
-		 *
-		 * Only for a single reporting year: "remaining" is a per-year figure, so with
-		 * the filter on "All years" there is no one answer and the rows simply omit
-		 * it. Silent on failure — the list is still perfectly usable without it.
-		 */
-		async loadBalances() {
-			this.balances = {}
-			if (this.year.value === null) {
-				return
-			}
-			const seq = this.reloadSeq
-			try {
-				const report = await api.reportBalances(this.year.value)
-				if (seq !== this.reloadSeq) {
-					return
-				}
-				const index = {}
-				for (const row of report) {
-					if (row.remaining !== null) {
-						index[`${row.employeeUid}|${row.typeId}`] = row.remaining
-					}
-				}
-				this.balances = index
-			} catch {
-				if (seq === this.reloadSeq) {
-					this.balances = {}
-				}
-			}
-		},
-
-		/** @param {object} request one absence row */
-		remainingFor(request) {
-			const value = this.balances[`${request.employeeUid}|${request.typeId}`]
-			return value === undefined ? null : value
-		},
-
-		async loadMore() {
-			// A page asked for before the filters changed belongs to the old list.
-			const seq = this.reloadSeq
-			this.loadingMore = true
-			try {
-				const next = await this.fetch(this.rows.length)
-				if (seq !== this.reloadSeq) {
-					return
-				}
-				this.rows = [...this.rows, ...next]
-				this.hasMore = next.length === PAGE_SIZE
-			} catch {
-				showError(t('absence', 'Could not load more absences'))
-			} finally {
-				this.loadingMore = false
-			}
-		},
-
-		fetch(offset) {
-			return api.listRequests({ ...this.query, limit: PAGE_SIZE, offset })
-		},
-	},
+/**
+ * Fetches one page of the filtered list.
+ *
+ * @param offset how many rows to skip
+ */
+function fetchPage(offset: number): Promise<LeaveRequest[]> {
+	return api.listRequests({ ...query.value, limit: PAGE_SIZE, offset })
 }
 </script>
 

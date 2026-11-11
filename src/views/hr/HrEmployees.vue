@@ -54,9 +54,10 @@
 
 		<div class="employees__filters">
 			<NcTextField
-				v-model="search"
+				:modelValue="search"
 				:label="t('absence', 'Search')"
-				class="page__search">
+				class="page__search"
+				@update:modelValue="search = String($event)">
 				<template #icon>
 					<Magnify :size="18" />
 				</template>
@@ -177,7 +178,7 @@
 								{{ fmt(row.sickDays) }}
 							</td>
 							<td>
-								<NcActions :aria-label="t('absence', 'Actions for {name}', { name: row.displayName }, undefined, { escape: false })">
+								<NcActions :ariaLabel="t('absence', 'Actions for {name}', { name: row.displayName }, undefined, { escape: false })">
 									<NcActionButton
 										v-for="balance in row.balances"
 										:key="balance.typeId"
@@ -228,10 +229,13 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { BalanceRow, EmployeeRow } from '../../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
@@ -252,10 +256,25 @@ import RegionReminderDialog from '../../components/RegionReminderDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../services/api.ts'
 import { formatDate } from '../../utils/dates.ts'
+import { serverMessage } from '../../utils/errors.ts'
 import { latestOnly } from '../../utils/latest.ts'
 import { formatNumber } from '../../utils/locale.ts'
 import { regionFlag } from '../../utils/regions.ts'
 import { formatWeekdays } from '../../utils/weekdays.ts'
+
+type FilterId = 'all' | 'missing' | 'partTime' | 'startsOrLeaves'
+
+/** A chip of the filter row */
+interface FilterOption {
+	id: FilterId
+	label: string
+}
+
+/** The balance row whose entitlement is being edited, and whose it is */
+interface EditedEntitlement {
+	row: EmployeeRow
+	balance: BalanceRow
+}
 
 /** Rows shown at first and added by "Load more" */
 const PAGE = 50
@@ -263,162 +282,141 @@ const PAGE = 50
 // Below this share of the entitlement, the days left are nearly spent.
 const LOW_BALANCE_RATIO = 0.2
 
-export default {
-	name: 'HrEmployees',
-	components: { AccountGroup, BellRingOutline, CodeBraces, Download, EmployeesJsonDialog, EntitlementDialog, Magnify, NcActionButton, NcActions, NcAvatar, NcButton, NcChip, NcEmptyContent, NcSelect, NcTextField, Pencil, RegionReminderDialog, SkeletonList },
-	data() {
-		const y = new Date().getFullYear()
-		return {
-			PAGE,
-			loading: true,
-			rows: [],
-			employeesGroup: '',
-			contacts: false,
-			search: '',
-			filter: 'all',
-			limit: PAGE,
-			year: y,
-			years: [y - 1, y, y + 1],
-			editing: null,
-			editingJson: false,
-			reminding: false,
+const matches: Record<FilterId, (row: EmployeeRow) => boolean> = {
+	all: () => true,
+	missing: (row) => row.missing.length > 0,
+	partTime: (row) => row.partTime,
+	startsOrLeaves: (row) => row.startsOrLeaves,
+}
+
+const currentYear = new Date().getFullYear()
+
+const loading = ref(true)
+const rows = shallowRef<EmployeeRow[]>([])
+const employeesGroup = ref('')
+const contacts = ref(false)
+const search = ref('')
+const filter = ref<FilterId>('all')
+const limit = ref(PAGE)
+const year = ref(currentYear)
+const years = [currentYear - 1, currentYear, currentYear + 1]
+const editing = ref<EditedEntitlement | null>(null)
+const editingJson = ref(false)
+const reminding = ref(false)
+
+// Changing the year twice quickly: only the year picked last may land.
+const startReload = latestOnly()
+
+const withoutRegion = computed(() => rows.value.filter((row) => row.missing.includes('region')).length)
+
+const filters = computed<FilterOption[]>(() => {
+	const count = (test: (row: EmployeeRow) => boolean) => rows.value.filter(test).length
+	return [
+		{ id: 'all', label: n('absence', 'All {count}', 'All {count}', rows.value.length, { count: rows.value.length }) },
+		{ id: 'missing', label: `⚠️ ${n('absence', 'Missing data {count}', 'Missing data {count}', count(matches.missing), { count: count(matches.missing) })}` },
+		{ id: 'partTime', label: n('absence', 'Part-time {count}', 'Part-time {count}', count(matches.partTime), { count: count(matches.partTime) }) },
+		{ id: 'startsOrLeaves', label: n('absence', 'Starts or leaves in {year} {count}', 'Starts or leaves in {year} {count}', count(matches.startsOrLeaves), { year: year.value, count: count(matches.startsOrLeaves) }) },
+	]
+})
+
+const filtered = computed(() => {
+	const q = search.value.trim().toLowerCase()
+	return rows.value.filter((row) => matches[filter.value](row)
+		&& (!q || row.displayName.toLowerCase().includes(q) || row.uid.toLowerCase().includes(q)))
+})
+
+const shown = computed(() => filtered.value.slice(0, limit.value))
+
+const exportUrl = computed(() => api.exportBalancesUrl(year.value))
+
+const contactsUrl = computed(() => generateUrl('/apps/contacts/'))
+
+watch(year, () => {
+	reload()
+})
+
+watch(search, () => {
+	limit.value = PAGE
+})
+
+watch(filter, () => {
+	limit.value = PAGE
+})
+
+onMounted(() => {
+	reload()
+})
+
+/**
+ * Formats a number of days, '' when there is none.
+ *
+ * @param v the number of days
+ */
+function fmt(v: number | null | undefined): string {
+	return v === null || v === undefined ? '' : formatNumber(v)
+}
+
+/**
+ * The year someone started, or the day when it is in the selected year.
+ *
+ * @param start YYYY-MM-DD
+ */
+function since(start: string | null): string {
+	if (!start) {
+		return ''
+	}
+	return Number(start.slice(0, 4)) === year.value ? formatDate(start) : start.slice(0, 4)
+}
+
+/**
+ * Red when overdrawn, amber when nearly spent.
+ *
+ * @param annual the annual balance row
+ */
+function leftClass(annual: BalanceRow | null): string {
+	if (!annual || annual.entitlement === null || !(annual.entitlement > 0)) {
+		return ''
+	}
+	// A missing figure compares like 0, as it always did
+	const remaining = annual.remaining ?? 0
+	if (remaining < 0) {
+		return 'neg'
+	}
+	return remaining < annual.entitlement * LOW_BALANCE_RATIO ? 'low' : ''
+}
+
+/**
+ * Loads the employees of the selected year.
+ */
+async function reload(): Promise<void> {
+	const isLatest = startReload()
+	loading.value = true
+	try {
+		const list = await api.listEmployees(year.value)
+		if (!isLatest()) {
+			return
 		}
-	},
+		rows.value = list.rows
+		employeesGroup.value = list.employeesGroup
+		contacts.value = list.contacts
+	} catch (e) {
+		if (isLatest()) {
+			showError(serverMessage(e) || t('absence', 'Could not load the employees'))
+		}
+	} finally {
+		if (isLatest()) {
+			loading.value = false
+		}
+	}
+}
 
-	computed: {
-		withoutRegion() {
-			return this.rows.filter((row) => row.missing.includes('region')).length
-		},
-
-		filters() {
-			const count = (test) => this.rows.filter(test).length
-			return [
-				{ id: 'all', label: n('absence', 'All {count}', 'All {count}', this.rows.length, { count: this.rows.length }) },
-				{ id: 'missing', label: `⚠️ ${n('absence', 'Missing data {count}', 'Missing data {count}', count(this.matches.missing), { count: count(this.matches.missing) })}` },
-				{ id: 'partTime', label: n('absence', 'Part-time {count}', 'Part-time {count}', count(this.matches.partTime), { count: count(this.matches.partTime) }) },
-				{ id: 'startsOrLeaves', label: n('absence', 'Starts or leaves in {year} {count}', 'Starts or leaves in {year} {count}', count(this.matches.startsOrLeaves), { year: this.year, count: count(this.matches.startsOrLeaves) }) },
-			]
-		},
-
-		matches() {
-			return {
-				all: () => true,
-				missing: (row) => row.missing.length > 0,
-				partTime: (row) => row.partTime,
-				startsOrLeaves: (row) => row.startsOrLeaves,
-			}
-		},
-
-		filtered() {
-			const q = this.search.trim().toLowerCase()
-			return this.rows.filter((row) => this.matches[this.filter](row)
-				&& (!q || row.displayName.toLowerCase().includes(q) || row.uid.toLowerCase().includes(q)))
-		},
-
-		shown() {
-			return this.filtered.slice(0, this.limit)
-		},
-
-		exportUrl() {
-			return api.exportBalancesUrl(this.year)
-		},
-
-		contactsUrl() {
-			return generateUrl('/apps/contacts/')
-		},
-	},
-
-	watch: {
-		year() {
-			this.reload()
-		},
-
-		search() {
-			this.limit = PAGE
-		},
-
-		filter() {
-			this.limit = PAGE
-		},
-	},
-
-	created() {
-		// Changing the year twice quickly: only the year picked last may land.
-		this.startReload = latestOnly()
-	},
-
-	mounted() {
-		this.reload()
-	},
-
-	methods: {
-		t,
-		n,
-		formatDate,
-		formatWeekdays,
-		regionFlag,
-
-		fmt(v) {
-			return v === null || v === undefined ? '' : formatNumber(v)
-		},
-
-		/**
-		 * The year someone started, or the day when it is in the selected year.
-		 *
-		 * @param {string|null} start YYYY-MM-DD
-		 * @return {string}
-		 */
-		since(start) {
-			if (!start) {
-				return ''
-			}
-			return Number(start.slice(0, 4)) === this.year ? formatDate(start) : start.slice(0, 4)
-		},
-
-		/**
-		 * Red when overdrawn, amber when nearly spent.
-		 *
-		 * @param {object|null} annual the annual balance row
-		 * @return {string}
-		 */
-		leftClass(annual) {
-			if (!annual || !(annual.entitlement > 0)) {
-				return ''
-			}
-			if (annual.remaining < 0) {
-				return 'neg'
-			}
-			return annual.remaining < annual.entitlement * LOW_BALANCE_RATIO ? 'low' : ''
-		},
-
-		async reload() {
-			const isLatest = this.startReload()
-			this.loading = true
-			try {
-				const list = await api.listEmployees(this.year)
-				if (!isLatest()) {
-					return
-				}
-				this.rows = list.rows
-				this.employeesGroup = list.employeesGroup
-				this.contacts = list.contacts
-			} catch (e) {
-				if (isLatest()) {
-					showError(e.response?.data?.message || t('absence', 'Could not load the employees'))
-				}
-			} finally {
-				if (isLatest()) {
-					this.loading = false
-				}
-			}
-		},
-
-		async onSaved() {
-			this.editing = null
-			this.editingJson = false
-			await this.reload()
-		},
-	},
+/**
+ * Closes the dialog that saved and reloads the list.
+ */
+async function onSaved(): Promise<void> {
+	editing.value = null
+	editingJson.value = false
+	await reload()
 }
 </script>
 

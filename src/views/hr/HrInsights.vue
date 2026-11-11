@@ -211,129 +211,146 @@
 	</div>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Insights, NeglectedRow } from '../../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../services/api.ts'
 import { formatNumber, locale } from '../../utils/locale.ts'
 
-export default {
-	name: 'HrInsights',
-	components: { MeterBar, SkeletonList, StatTile },
+const now = new Date().getFullYear()
 
-	data() {
-		const now = new Date().getFullYear()
-		return {
-			loading: true,
-			reloadSeq: 0,
-			year: now,
-			yearOptions: [now + 1, now, now - 1, now - 2, now - 3],
-			data: null,
+const loading = ref(true)
+let reloadSeq = 0
+const year = ref(now)
+const yearOptions = [now + 1, now, now - 1, now - 2, now - 3]
+const data = ref<Insights | null>(null)
+
+const bradfordMax = computed<number>(() => Math.max(1, ...(data.value?.bradford ?? []).map((r) => r.score)))
+
+const liabilityMax = computed<number>(() => Math.max(1, ...(data.value?.liability.perTeam ?? []).map((r) => r.outstanding)))
+
+const expiryCaption = computed<string>(() => {
+	const d = data.value?.liability.expiryDate
+	if (!d) {
+		return ''
+	}
+	const date = new Date(d + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
+	return t('absence', 'carry-over expires {date}', { date })
+})
+
+onMounted(() => {
+	reload()
+	window.addEventListener('absence:refresh', reload)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('absence:refresh', reload)
+})
+
+/**
+ * Loads the figures of the chosen year.
+ */
+async function reload(): Promise<void> {
+	// Guard overlapping loads (rapid year changes) — a slow earlier response
+	// must not overwrite a newer one already on screen.
+	const seq = ++reloadSeq
+	loading.value = true
+	try {
+		const insights = await api.reportInsights(year.value)
+		if (seq !== reloadSeq) {
+			return
 		}
-	},
+		data.value = insights
+	} catch {
+		if (seq === reloadSeq) {
+			showError(t('absence', 'Could not load insights'))
+		}
+	} finally {
+		if (seq === reloadSeq) {
+			loading.value = false
+		}
+	}
+}
 
-	computed: {
-		bradfordMax() {
-			return Math.max(1, ...this.data.bradford.map((r) => r.score))
-		},
+/**
+ * A duration in hours below two days, in days from there.
+ *
+ * @param h the hours, null when there is nothing to measure
+ */
+function fmtHours(h: number | null): string {
+	if (h === null || h === undefined) {
+		return '—'
+	}
+	if (h < 48) {
+		return n('absence', '%n hour', '%n hours', Math.round(h))
+	}
+	const days = Math.round(h / 24 * 10) / 10
+	return n('absence', '{days} day', '{days} days', days, { days: formatNumber(days) })
+}
 
-		liabilityMax() {
-			return Math.max(1, ...this.data.liability.perTeam.map((r) => r.outstanding))
-		},
+/**
+ * A share as a whole percentage.
+ *
+ * @param rate the share, 0..1
+ */
+function fmtPct(rate: number): string {
+	return Math.round((rate || 0) * 100) + '%'
+}
 
-		expiryCaption() {
-			const d = this.data?.liability.expiryDate
-			if (!d) {
-				return ''
-			}
-			const date = new Date(d + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
-			return t('absence', 'carry-over expires {date}', { date })
-		},
-	},
+/**
+ * A count of days.
+ *
+ * @param v the days
+ */
+function fmtDays(v: number): string {
+	return formatNumber(v || 0)
+}
 
-	mounted() {
-		this.reload()
-		window.addEventListener('absence:refresh', this.reload)
-	},
+/**
+ * How long somebody has not been off.
+ *
+ * @param p the person
+ */
+function neglectedLabel(p: NeglectedRow): string {
+	if (p.daysSince === null) {
+		return t('absence', 'not in the last year')
+	}
+	return n('absence', '%n day', '%n days', p.daysSince)
+}
 
-	beforeUnmount() {
-		window.removeEventListener('absence:refresh', this.reload)
-	},
+/**
+ * The colour of a Bradford score.
+ *
+ * @param score the score
+ */
+function scoreColor(score: number): string {
+	// The recognised Bradford thresholds: 500 = review, 900 = serious.
+	if (score >= 900) {
+		return 'var(--color-error, #d65a5a)'
+	}
+	if (score >= 500) {
+		return 'var(--color-warning, #c98a1e)'
+	}
+	return 'var(--color-primary-element)'
+}
 
-	methods: {
-		t,
-		n,
-
-		async reload() {
-			// Guard overlapping loads (rapid year changes) — a slow earlier response
-			// must not overwrite a newer one already on screen.
-			const seq = ++this.reloadSeq
-			this.loading = true
-			try {
-				const data = await api.reportInsights(this.year)
-				if (seq !== this.reloadSeq) {
-					return
-				}
-				this.data = data
-			} catch {
-				if (seq === this.reloadSeq) {
-					showError(t('absence', 'Could not load insights'))
-				}
-			} finally {
-				if (seq === this.reloadSeq) {
-					this.loading = false
-				}
-			}
-		},
-
-		fmtHours(h) {
-			if (h === null || h === undefined) {
-				return '—'
-			}
-			if (h < 48) {
-				return n('absence', '%n hour', '%n hours', Math.round(h))
-			}
-			const days = Math.round(h / 24 * 10) / 10
-			return n('absence', '{days} day', '{days} days', days, { days: formatNumber(days) })
-		},
-
-		fmtPct(rate) {
-			return Math.round((rate || 0) * 100) + '%'
-		},
-
-		fmtDays(v) {
-			return formatNumber(v || 0)
-		},
-
-		neglectedLabel(p) {
-			if (p.daysSince === null) {
-				return t('absence', 'not in the last year')
-			}
-			return n('absence', '%n day', '%n days', p.daysSince)
-		},
-
-		scoreColor(score) {
-			// The recognised Bradford thresholds: 500 = review, 900 = serious.
-			if (score >= 900) {
-				return 'var(--color-error, #d65a5a)'
-			}
-			if (score >= 500) {
-				return 'var(--color-warning, #c98a1e)'
-			}
-			return 'var(--color-primary-element)'
-		},
-
-		rateColor(rate) {
-			// Low utilisation is the thing to notice, so it reads warm.
-			if (rate < 0.4) {
-				return 'var(--color-warning, #c98a1e)'
-			}
-			return 'var(--color-success, #4caf50)'
-		},
-	},
+/**
+ * The colour of a utilisation rate.
+ *
+ * @param rate the share of leave taken, 0..1
+ */
+function rateColor(rate: number): string {
+	// Low utilisation is the thing to notice, so it reads warm.
+	if (rate < 0.4) {
+		return 'var(--color-warning, #c98a1e)'
+	}
+	return 'var(--color-success, #4caf50)'
 }
 </script>
 
