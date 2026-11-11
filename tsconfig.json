@@ -4,7 +4,6 @@
 	"compilerOptions": {
 		"lib": ["DOM", "DOM.Iterable", "ESNext"],
 		"rootDir": "src",
-		"allowJs": true,
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitOverride": true,
 		"noUncheckedIndexedAccess": true
