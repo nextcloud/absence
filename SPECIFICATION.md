@@ -39,7 +39,8 @@ activity entries, email, and CalDAV integration.
 - Time tracking / attendance / clock-in.
 - Integration with the built-in `user_status` out-of-office / auto-responder
   feature (deliberately kept independent — see §12).
-- Hour-level or half-day granularity (full days only — see §3.3).
+- Hours, or a morning/afternoon marker on a leave (it always covers whole dates; only
+  its day count goes in half-day steps, see §3.3).
 - Shift planning.
 
 ---
@@ -220,9 +221,12 @@ so existing installations receive them without touching HR customisations.
 
 ### 3.3 Granularity
 
-**Full days only.** No half-days or hours. `working_days` is therefore an integer
-in practice but stored as `decimal(5,1)` to leave room for a future half-day
-feature without a migration.
+**Whole dates, counted in half-day steps.** A leave runs from one date to another:
+there are no hours, and no morning or afternoon marker. Its `working_days` count is
+entered by hand in steps of 0.5 (`decimal(5,1)`), because half days are real: a half
+public holiday such as 24 or 31 December makes a 3.5-day week a correct count, and
+so does a single afternoon off. A half day takes 0.5 from the balance, while the
+calendar and the timeline show its whole date as absent.
 
 ### 3.4 `absence_entitlements`
 
@@ -1756,7 +1760,7 @@ synchronous on decision (§10), which is sufficient for phase 1.
 
 **Phase 2 (nice-to-have):** file attachments for doctor's notes (§3.8), ICS import
 for holidays, percentage-based coverage thresholds, department analytics dashboards,
-half-day support (schema already allows it), a richer custom-rendered Dashboard widget,
+a morning/afternoon marker for half days (the count already goes in halves, §3.3), a richer custom-rendered Dashboard widget,
 mobile-tuned views.
 
 ---
@@ -1776,7 +1780,7 @@ mobile-tuned views.
 | Holidays | A list HR maintains by region code, with a JSON import (§7.2); never used to recompute working days |
 | Working days | Entered manually by the employee, verified by the manager (no auto-calc, no region) |
 | Coverage | Team overlap view + conflict warnings for managers |
-| Granularity | Full days only (schema allows future half-days) |
+| Granularity | Whole dates; the day count goes in half-day steps (§3.3) |
 | HR reports | Per-employee balances, company trends/charts, CSV/Excel export, who's-off calendar |
 | Out-of-office | Independent — does NOT touch built-in user_status |
 | Lifecycle | Full edit workflow (edit/cancel/withdraw with re-approval + balance restore) |
