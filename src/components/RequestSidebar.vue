@@ -603,14 +603,15 @@ async function load() {
 	}
 	try {
 		detail.value = await api.getRequest(requestsStore.selectedId)
-		rejecting.value = false
-		rejectComment.value = ''
-		confirmingCancel.value = false
-		applyDecideIntent()
 	} catch {
 		showError(t('absence', 'Could not load the request'))
 		emit('close')
+		return
 	}
+	rejecting.value = false
+	rejectComment.value = ''
+	confirmingCancel.value = false
+	applyDecideIntent()
 }
 
 /**
@@ -783,62 +784,62 @@ async function postComment() {
 		font-weight: 400;
 	}
 
-	// hidden native input; the visible control is the NcButton
-	.attachments {
-		margin-top: 16px;
-
-		&__title {
-			margin: 0 0 6px;
-			font-size: 0.95rem;
-		}
-
-		&__hint {
-			font-weight: normal;
-			font-size: 0.75rem;
-			color: var(--color-text-maxcontrast);
-			margin-inline-start: 6px;
-		}
-
-		&__list {
-			list-style: none;
-			margin: 0 0 8px;
-			padding: 0;
-		}
-
-		&__row {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-		}
-
-		&__link {
-			text-decoration: none;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-
-			&:hover {
-				text-decoration: underline;
-			}
-		}
-
-		&__meta {
-			color: var(--color-text-maxcontrast);
-			font-size: 0.8rem;
-			flex-shrink: 0;
-		}
-
-		&__input {
-			display: none;
-		}
-	}
-
 	// The balance is three facts, not one sentence: stack them so the headline
 	// number stays the thing the eye lands on.
 	&__balance {
 		display: flex;
 		flex-direction: column;
 		gap: 1px;
+	}
+}
+
+// hidden native input; the visible control is the NcButton
+.attachments {
+	margin-top: 16px;
+
+	&__title {
+		margin: 0 0 6px;
+		font-size: 0.95rem;
+	}
+
+	&__hint {
+		font-weight: normal;
+		font-size: 0.75rem;
+		color: var(--color-text-maxcontrast);
+		margin-inline-start: 6px;
+	}
+
+	&__list {
+		list-style: none;
+		margin: 0 0 8px;
+		padding: 0;
+	}
+
+	&__row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	&__link {
+		text-decoration: none;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+
+	&__meta {
+		color: var(--color-text-maxcontrast);
+		font-size: 0.8rem;
+		flex-shrink: 0;
+	}
+
+	&__input {
+		display: none;
 	}
 }
 
