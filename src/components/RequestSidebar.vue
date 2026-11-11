@@ -114,7 +114,7 @@
 								v-if="canRemoveAttachment(a)"
 								variant="tertiary"
 								:aria-label="t('absence', 'Remove attachment')"
-								@click="removeAttachment(a)">
+								@click="removing = a">
 								<template #icon>
 									<Close :size="16" />
 								</template>
@@ -231,12 +231,12 @@
 						<p>{{ c.body }}</p>
 					</li>
 				</ul>
-				<NcEmptyContent v-else :name="t('absence', 'No comments yet')" :description="t('absence', 'Start the conversation below.')">
+				<NcEmptyContent v-else :name="t('absence', 'No comments yet')" :description="withheld ? undefined : t('absence', 'Start the conversation below.')">
 					<template #icon>
 						<CommentOutline :size="20" />
 					</template>
 				</NcEmptyContent>
-				<div class="comment-add">
+				<div v-if="!withheld" class="comment-add">
 					<NcTextArea v-model="newComment" :placeholder="t('absence', 'Add a comment…')" rows="2" />
 					<NcButton variant="secondary" :disabled="newComment.trim() === '' || busy" @click="postComment">
 						{{ t('absence', 'Send') }}
@@ -287,7 +287,29 @@
 				</NcEmptyContent>
 			</div>
 		</NcAppSidebarTab>
+
+		<NcDialog
+			v-if="removing"
+			:name="t('absence', 'Remove {name}?', { name: removing.name }, undefined, { escape: false })"
+			:open="true"
+			size="small"
+			@update:open="(open) => !open && !removingBusy && (removing = null)">
+			<p>{{ t('absence', 'The file is deleted and cannot be restored.') }}</p>
+			<template #actions>
+				<NcButton :disabled="removingBusy" @click="removing = null">
+					{{ t('absence', 'Cancel') }}
+				</NcButton>
+				<NcButton variant="error" :disabled="removingBusy" @click="removeAttachment">
+					{{ t('absence', 'Remove') }}
+				</NcButton>
+			</template>
+		</NcDialog>
 	</NcAppSidebar>
+	<NcAppSidebar
+		v-else
+		:name="t('absence', 'Loading…')"
+		loading
+		@close="$emit('close')" />
 </template>
 
 <script>
@@ -297,6 +319,7 @@ import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
@@ -326,6 +349,7 @@ export default {
 		NcAppSidebarTab,
 		NcAvatar,
 		NcButton,
+		NcDialog,
 		NcTextArea,
 		NcEmptyContent,
 		NcNoteCard,
@@ -353,6 +377,9 @@ export default {
 			rejectComment: '',
 			newComment: '',
 			uploading: false,
+			// The attachment whose removal is being confirmed
+			removing: null,
+			removingBusy: false,
 		}
 	},
 
@@ -404,6 +431,11 @@ export default {
 				return t('absence', 'The leave starts today, with none of the {period} days of notice expected.', { period: notice.noticePeriod })
 			}
 			return t('absence', 'The leave has already started, though {period} days of notice are expected.', { period: notice.noticePeriod })
+		},
+
+		/** A confidential absence seen by someone outside HR: no category, no thread. */
+		withheld() {
+			return this.detail.typeId === null
 		},
 
 		showStatus() {
@@ -489,6 +521,11 @@ export default {
 			if (!file) {
 				return
 			}
+			const limit = store.session.maxAttachmentBytes
+			if (limit && file.size > limit) {
+				showError(t('absence', 'Attachments can be up to {size} MB.', { size: limit / 1024 / 1024 }))
+				return
+			}
 			this.uploading = true
 			try {
 				await api.uploadAttachment(this.detail.id, file)
@@ -500,12 +537,16 @@ export default {
 			}
 		},
 
-		async removeAttachment(a) {
+		async removeAttachment() {
+			this.removingBusy = true
 			try {
-				await api.deleteAttachment(a.id)
+				await api.deleteAttachment(this.removing.id)
+				this.removing = null
 				await this.load()
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not remove the attachment'))
+			} finally {
+				this.removingBusy = false
 			}
 		},
 
