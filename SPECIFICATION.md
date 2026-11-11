@@ -286,7 +286,7 @@ happened and when. One row is written for every meaningful transition.
 |--------|------|-------|
 | `id` | bigint, PK | |
 | `request_id` | bigint FK, indexed | The request this event belongs to. |
-| `actor_uid` | string(64) | Who performed the action; the literal `system` for automated events (e.g. escalation). |
+| `actor_uid` | string(64), nullable | Who performed the action; the literal `system` for automated events (e.g. escalation), null for an import from occ. |
 | `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`, `request_imported` (§6.5). |
 | `detail` | text, nullable | Human-readable extra. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`. Recording only the resulting state cannot answer what anybody opens the history to ask — what changed and by how much — and a day count means nothing without the number it replaced. On creation it carries the type, dates, day count and the employee's reason, since the request itself only ever shows its *current* state. |
 | `created_at` | datetime | |
@@ -309,7 +309,7 @@ by the next adjustment.
 | `id` | bigint, PK | |
 | `entitlement_id` | bigint, indexed | The entitlement this change belongs to. |
 | `employee_uid` | string(64), indexed | Denormalised from the entitlement so the GDPR purge (§17) and per-person views need no join to a row that is about to be deleted. |
-| `actor_uid` | string(64) | Who made the change. |
+| `actor_uid` | string(64), nullable | Who made the change; null from occ. |
 | `field` | string(32) | `base_days`, `carry_over_days` or `manual_adjustment`. |
 | `old_value` / `new_value` | float | The figure before and after; the delta is derived. |
 | `note` | text, nullable | The reason given, attached to every figure that save touched. |
@@ -654,8 +654,12 @@ from. Columns (header required, order free): `user` (uid or e-mail),
 (key, default `annual`), `year` (default: `--year`). Comma or semicolon
 separated (German Excel), BOM tolerated. **All-or-nothing:** every broken
 row is reported and nothing is written — half an imported company is the
-worst outcome of a typo. Writes go through `EntitlementService`, so the
-entitlement history records the import like any HR edit.
+worst outcome of a typo. Quoted fields may span lines. A row with more or
+fewer fields than the header is broken, and so is a second row for the same
+user, type and year. The rows are listed with the name and uid of the account
+each resolved to, so HR sees who an e-mail address matched. Writes go through
+`EntitlementService`, so the entitlement history records the import like any
+HR edit.
 
 ### 6.5 Leave import (onboarding)
 
@@ -675,23 +679,26 @@ The file is a JSON list of entries:
 `type` is a leave-type key and defaults to `annual`; `note` is optional and
 becomes the request's reason.
 
-- **Review first, all-or-nothing.** The dry run returns, per person, the
+- **Review first, all-or-nothing.** The dry run returns, per person (name and
+  uid of the account the entries resolved to), the
   entries and working days to add and the entries skipped, plus every invalid
   entry with its 1-based position and user. While one entry is invalid nothing
   is written. An entry is valid when the user is an employee (§2.2, guests
-  excluded), the type exists and is enabled, `from` ≤ `to`, and `workingDays`
-  passes the same checks as a request (> 0, at most one per calendar day, §7).
-  There is no overlap check (§5.1): the old calendar is the record being copied.
+  excluded), the type exists and is enabled, `from` ≤ `to` within 2000 to 2100,
+  and `workingDays` passes the same checks as a request (> 0, at most one per
+  calendar day, §7). An entry that overlaps leave the person already has in
+  force (as in §5.1), or an earlier entry of the list, is invalid.
 - **Duplicates are skipped, not errors.** An entry whose person already has a
   request in force (not rejected or cancelled) with the same type and dates is
   counted as skipped, and so is a second copy within the file. Importing the
   same file twice adds nothing the second time.
 - **Booked like HR-recorded leave (§5.6)**: `APPROVED`, `decided_by` the HR
-  member (`system` from occ), the manager denormalized as at submission (§2.1),
+  member (nobody from occ), the manager denormalized as at submission (§2.1),
   one transaction for the whole file.
 - **No side effects.** The leave already sits in the old calendar and the
   people know about it: no notification, e-mail, activity, CalDAV event or
-  `LeaveRequestChangedEvent` (§14b). Each request gets one
+  `LeaveRequestChangedEvent` (§14b). Only imported leave that has not ended
+  yet gets calendar events, later, from `CalendarSyncJob` (§10). Each request gets one
   `request_imported` history event (§3.7) and the import as a whole one
   `leave_imported` server-log entry (§11) with the actor and the counts.
 
@@ -967,8 +974,10 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
 - Sick-leave / private types: allow admin to configure whether the event title on
   the shared calendar reveals the type or shows a neutral "Absent".
 - Events are written when the request is approved. `CalendarSyncJob` (every 15
-  minutes, time-insensitive) writes them for approved leave that has none: imported
-  leave, leave approved while calendar writing was off, and writes that failed. It
+  minutes, time-insensitive) writes them for approved leave that has none and
+  has not ended yet (end date today or later): imported leave, leave approved
+  while calendar writing was off, and writes that failed. Leave that is over
+  never gets events from the job. It
   takes 200 requests per run in id order and keeps its place
   (`calendar_sync_cursor`), so a request that keeps failing never holds the others
   back; it is tried again on the next pass. Nothing runs while both targets are off.

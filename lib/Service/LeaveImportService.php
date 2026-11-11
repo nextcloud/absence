@@ -31,13 +31,16 @@ use Psr\Log\LoggerInterface;
  * uid or an e-mail address as in the entitlement import (§6.3). Like that
  * import it is all-or-nothing: one invalid entry and nothing is written.
  * Leave already in the app (same person, type and dates, still in force) is
- * skipped, so the same file can be imported twice.
+ * skipped, so the same file can be imported twice. An entry that overlaps other
+ * leave of that person, in the app and still in force or earlier in the file,
+ * is invalid.
  *
  * The leave already sits in the old calendar and its owners know about it, so
  * the import has no side effects: no notification, e-mail, activity, CalDAV
  * write or {@see \OCA\Absence\Event\LeaveRequestChangedEvent}. Each request
  * gets a `request_imported` history event and the whole import one entry in
- * the server log.
+ * the server log. Imported leave that has not ended yet gets its calendar
+ * events later, from {@see \OCA\Absence\BackgroundJob\CalendarSyncJob}.
  */
 class LeaveImportService {
 	use DateRangeTrait;
@@ -45,6 +48,8 @@ class LeaveImportService {
 
 	public const MAX_ENTRIES = 5000;
 	private const MAX_NOTE_LENGTH = 2000;
+	private const EARLIEST = '2000-01-01';
+	private const LATEST = '2100-12-31';
 
 	public function __construct(
 		private EmployeeDirectory $employees,
@@ -87,8 +92,8 @@ class LeaveImportService {
 		$plan = [];
 		$errors = [];
 		$people = [];
-		/** @var array<string, array<string, true>> $existing uid => set of type/from/to already in force */
-		$existing = [];
+		/** @var array<string, list<array{key: string, from: string, to: string, entry: ?int}>> $booked uid => leave in force and, with their position, the entries before this one */
+		$booked = [];
 		foreach ($entries as $i => $entry) {
 			$user = is_array($entry) && is_scalar($entry['user'] ?? null) ? trim((string)$entry['user']) : '';
 			try {
@@ -98,22 +103,34 @@ class LeaveImportService {
 				continue;
 			}
 			$uid = $row['uid'];
-			if (!isset($existing[$uid])) {
-				$existing[$uid] = [];
+			if (!isset($booked[$uid])) {
+				$booked[$uid] = [];
 				foreach ($this->requestMapper->findAllForEmployee($uid) as $request) {
 					if (in_array($request->getStatus(), LeaveRequest::ACTIVE_STATUSES, true)) {
-						$existing[$uid][$this->key($request->getTypeId(), $request->getStartDate(), $request->getEndDate())] = true;
+						$booked[$uid][] = ['key' => $this->key($request->getTypeId(), $request->getStartDate(), $request->getEndDate()), 'from' => $request->getStartDate(), 'to' => $request->getEndDate(), 'entry' => null];
 					}
 				}
 				$people[$uid] = ['uid' => $uid, 'name' => $this->displayName($uid), 'entries' => 0, 'days' => 0.0, 'skipped' => 0];
 			}
 			$key = $this->key((int)$row['type']->getId(), $row['from'], $row['to']);
-			if (isset($existing[$uid][$key])) {
-				$people[$uid]['skipped']++;
+			$overlapped = null;
+			foreach ($booked[$uid] as $other) {
+				// The same leave again, in the app or earlier in this file, is a duplicate
+				if ($other['key'] === $key) {
+					$people[$uid]['skipped']++;
+					continue 2;
+				}
+				if ($other['from'] <= $row['to'] && $other['to'] >= $row['from']) {
+					$overlapped ??= $other;
+				}
+			}
+			if ($overlapped !== null) {
+				$errors[] = ['entry' => $i + 1, 'user' => $user, 'message' => $overlapped['entry'] === null
+					? $this->l->t('Overlaps leave already in the app (%1$s to %2$s)', [$overlapped['from'], $overlapped['to']])
+					: $this->l->t('Overlaps entry %d of this list', [$overlapped['entry']])];
 				continue;
 			}
-			// A later copy of the same entry in this file is a duplicate as well
-			$existing[$uid][$key] = true;
+			$booked[$uid][] = ['key' => $key, 'from' => $row['from'], 'to' => $row['to'], 'entry' => $i + 1];
 			$people[$uid]['entries']++;
 			$people[$uid]['days'] += $row['workingDays'];
 			$plan[] = $row;
@@ -133,11 +150,11 @@ class LeaveImportService {
 	/**
 	 * Book every valid entry as approved leave, in one transaction.
 	 *
-	 * @param string $actorUid the HR member importing, or `system` from occ
+	 * @param ?string $actorUid the HR member importing, null from occ
 	 * @return array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>} what was imported, as {@see preview()} reports it
 	 * @throws ValidationException if any entry is invalid; nothing is written then
 	 */
-	public function import(string $json, string $actorUid): array {
+	public function import(string $json, ?string $actorUid): array {
 		[$preview, $plan] = $this->analyse($json);
 		if ($preview['errors'] !== []) {
 			throw new ValidationException($this->l->n(
@@ -206,6 +223,9 @@ class LeaveImportService {
 	 * @throws ValidationException
 	 */
 	private function decode(string $json): array {
+		if (strlen($json) > EmployeeJsonService::SIZE_LIMIT) {
+			throw new ValidationException($this->l->t('The list is too large: at most %d MB', [EmployeeJsonService::SIZE_LIMIT / 1024 / 1024]));
+		}
 		try {
 			$entries = json_decode($json, true, 4, JSON_THROW_ON_ERROR);
 		} catch (\JsonException $e) {
@@ -248,6 +268,9 @@ class LeaveImportService {
 			is_string($entry['from'] ?? null) ? $entry['from'] : '',
 			is_string($entry['to'] ?? null) ? $entry['to'] : '',
 		);
+		if ($from < self::EARLIEST || $to > self::LATEST) {
+			throw new ValidationException($this->l->t('The dates must be between 2000 and 2100.'));
+		}
 		$workingDays = $this->normaliseWorkingDays($entry['workingDays'] ?? null);
 		$this->assertWorkingDaysFitRange($workingDays, $from, $to);
 

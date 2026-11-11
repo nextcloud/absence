@@ -12,6 +12,8 @@ namespace OCA\Absence\Tests\Integration;
 use OCA\Absence\Command\ImportEmployees;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\EmployeeController;
+use OCA\Absence\Db\EntitlementEvent;
+use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
@@ -264,6 +266,18 @@ class EmployeeJsonTest extends TestCase {
 		$response = $this->controller(self::HR)->importJson($json, false);
 		self::assertSame(Http::STATUS_OK, $response->getStatus());
 		self::assertSame('FR', Server::get(ConfigService::class)->getPersonalConfig(self::SAM)['holiday_country']);
+	}
+
+	public function testOccSetsVacationDaysWithoutAnActor(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-employees');
+		file_put_contents($file, $this->json([['user' => self::SAM, 'region' => null, 'start' => null, 'end' => null, 'contract' => [], 'vacation' => [(string)$this->year() => 24.5]]]));
+		$tester = new CommandTester(Server::get(ImportEmployees::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file]));
+		unlink($file);
+		$history = Server::get(EntitlementEventMapper::class)->findForEmployee(self::SAM);
+		self::assertSame([24.5], array_map(static fn (EntitlementEvent $e): float => $e->getNewValue(), $history));
+		self::assertNull($history[0]->getActorUid());
 	}
 
 	public function testOccDryRunWritesNothing(): void {

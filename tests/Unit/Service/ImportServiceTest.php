@@ -16,6 +16,7 @@ use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\ImportService;
 use OCP\IDBConnection;
+use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -54,6 +55,7 @@ class ImportServiceTest extends TestCase {
 			$leaveTypeMapper,
 			$employees,
 			$this->db,
+			$this->createMock(IUserManager::class),
 		);
 	}
 
@@ -107,13 +109,13 @@ class ImportServiceTest extends TestCase {
 		$csv = "user,base_days\nalice,28\n";
 		$plan = $this->service->plan($csv, 2026);
 		$this->entitlements->expects(self::once())->method('setForEmployee')
-			->with('import:cli', 'alice', 2026, 1, ['baseDays' => 28.0, 'adjustmentNote' => 'Imported from CSV']);
+			->with(null, 'alice', 2026, 1, ['baseDays' => 28.0, 'adjustmentNote' => 'Imported from CSV']);
 		// The whole batch is one transaction, committed once every row succeeded.
 		$this->db->expects(self::once())->method('beginTransaction');
 		$this->db->expects(self::once())->method('commit');
 		$this->db->expects(self::never())->method('rollBack');
 
-		self::assertSame(1, $this->service->apply($plan, 'import:cli'));
+		self::assertSame(1, $this->service->apply($plan, null));
 	}
 
 	public function testApplyRollsBackWhenARowFailsPartWay(): void {
@@ -135,6 +137,6 @@ class ImportServiceTest extends TestCase {
 		$this->db->expects(self::once())->method('rollBack');
 
 		$this->expectException(\RuntimeException::class);
-		$this->service->apply($plan, 'import:cli');
+		$this->service->apply($plan, null);
 	}
 }

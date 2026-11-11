@@ -17,8 +17,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setEmployeeUid(string $employeeUid)
  * @method int getEntitlementId()
  * @method void setEntitlementId(int $entitlementId)
- * @method string getActorUid()
- * @method void setActorUid(string $actorUid)
+ * @method ?string getActorUid()
+ * @method void setActorUid(?string $actorUid)
  * @method string getField()
  * @method void setField(string $field)
  * @method float getOldValue()
@@ -38,7 +38,7 @@ class EntitlementEvent extends Entity implements \JsonSerializable {
 
 	protected int $entitlementId = 0;
 	protected string $employeeUid = '';
-	protected string $actorUid = '';
+	protected ?string $actorUid = null;
 	protected string $field = '';
 	protected float $oldValue = 0.0;
 	protected float $newValue = 0.0;

@@ -363,17 +363,18 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Approved requests without calendar events, with an id above $afterId,
-	 * oldest first (§10).
+	 * Approved requests without calendar events that end on $today ('Y-m-d') or
+	 * later, with an id above $afterId, oldest first (§10).
 	 *
 	 * @return LeaveRequest[]
 	 */
-	public function findApprovedWithoutCalendarEvent(int $afterId, int $limit): array {
+	public function findApprovedWithoutCalendarEvent(int $afterId, int $limit, string $today): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from($this->getTableName())
 			->where($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_APPROVED)))
 			->andWhere($qb->expr()->isNull('calendar_event_uri'))
+			->andWhere($qb->expr()->gte('end_date', $qb->createNamedParameter($today)))
 			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
 			->orderBy('id', 'ASC')
 			->setMaxResults($limit);

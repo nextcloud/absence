@@ -57,6 +57,7 @@
 						<thead>
 							<tr>
 								<th>{{ t('absence', 'Name') }}</th>
+								<th>{{ t('absence', 'Account') }}</th>
 								<th>{{ t('absence', 'Entries') }}</th>
 								<th>{{ t('absence', 'Days') }}</th>
 								<th>{{ t('absence', 'Skipped') }}</th>
@@ -65,6 +66,7 @@
 						<tbody>
 							<tr v-for="person in preview.people" :key="person.uid">
 								<td>{{ person.name }}</td>
+								<td>{{ person.uid }}</td>
 								<td>{{ person.entries }}</td>
 								<td>{{ person.days }}</td>
 								<td>{{ person.skipped }}</td>
@@ -207,8 +209,9 @@ export default {
 			text-align: start;
 		}
 
-		th:not(:first-child),
-		td:not(:first-child) {
+		// The counts, after the name and the account
+		th:nth-child(n + 3),
+		td:nth-child(n + 3) {
 			text-align: end;
 		}
 	}

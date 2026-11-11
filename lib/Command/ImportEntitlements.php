@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Command;
 
-use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\ImportService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -49,7 +49,7 @@ class ImportEntitlements extends Command {
 
 		try {
 			$plan = $this->importService->plan($csv, (int)$input->getOption('year'));
-		} catch (ValidationException $e) {
+		} catch (AbsenceException $e) {
 			$output->writeln('<error>' . $e->getMessage() . '</error>');
 			return 1;
 		}
@@ -61,7 +61,7 @@ class ImportEntitlements extends Command {
 					$parts[] = $label . ' ' . $row['data'][$key];
 				}
 			}
-			$output->writeln(sprintf('  %-24s %d/type %d: %s', $row['uid'], $row['year'], $row['typeId'], implode(', ', $parts)));
+			$output->writeln(sprintf('  %s (%s) %d/type %d: %s', $row['name'], $row['uid'], $row['year'], $row['typeId'], implode(', ', $parts)));
 		}
 
 		if ($input->getOption('dry-run')) {
@@ -69,7 +69,12 @@ class ImportEntitlements extends Command {
 			return 0;
 		}
 
-		$applied = $this->importService->apply($plan, 'import:cli');
+		try {
+			$applied = $this->importService->apply($plan, null);
+		} catch (AbsenceException $e) {
+			$output->writeln('<error>' . $e->getMessage() . '</error>');
+			return 1;
+		}
 		$output->writeln(sprintf('<info>Imported %d entitlement rows.</info>', $applied));
 		return 0;
 	}

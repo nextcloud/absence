@@ -70,6 +70,7 @@
 						<thead>
 							<tr>
 								<th>{{ t('absence', 'Employee') }}</th>
+								<th>{{ t('absence', 'Account') }}</th>
 								<th>{{ t('absence', 'Field') }}</th>
 								<th>{{ t('absence', 'Now') }}</th>
 								<th>{{ t('absence', 'After') }}</th>
@@ -79,6 +80,7 @@
 							<template v-for="change in plan.changes" :key="change.user">
 								<tr v-for="(field, index) in change.fields" :key="change.user + field.field">
 									<td>{{ index === 0 ? change.name : '' }}</td>
+									<td>{{ index === 0 ? change.user : '' }}</td>
 									<td>{{ fieldLabel(field) }}</td>
 									<td class="json__now">
 										<span v-for="(line, i) in describe(field).now" :key="i" class="json__line">{{ line }}</span>

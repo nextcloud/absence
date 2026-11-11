@@ -34,8 +34,9 @@ use OCP\IUserManager;
 class EmployeeJsonService {
 	public const FIELDS = ['region', 'start', 'end', 'contract'];
 	private const IMPORT_LIMIT = 5000;
-	// A full list of IMPORT_LIMIT employees is far below this; refused before decoding
-	private const SIZE_LIMIT = 5 * 1024 * 1024;
+	// A full list of IMPORT_LIMIT employees is far below this; refused before decoding,
+	// as are the leave and holiday lists
+	public const SIZE_LIMIT = 5 * 1024 * 1024;
 	private const ANNUAL = 'annual';
 	// Years HR may set vacation days for, around the current one
 	private const PAST_YEARS = 2;
@@ -151,7 +152,7 @@ class EmployeeJsonService {
 					$this->employees->saveRegion($uid, $write['region'], $actor);
 				}
 				foreach ($write['vacation'] as $year => $days) {
-					$this->entitlements->setForEmployee($actor ?? 'import:cli', $uid, $year, $this->annualTypeId(), ['baseDays' => $days]);
+					$this->entitlements->setForEmployee($actor, $uid, $year, $this->annualTypeId(), ['baseDays' => $days]);
 				}
 			}
 			$this->db->commit();

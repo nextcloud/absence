@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\Command\ImportLeave;
 use OCA\Absence\Controller\ImportController;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
@@ -36,6 +37,7 @@ use OCP\Server;
 use OCP\User\Backend\ABackend;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Console\Tester\CommandTester;
 
 /**
  * The leave import (§6.5) against a real database and the real services:
@@ -234,6 +236,71 @@ class LeaveImportTest extends TestCase {
 		self::assertSame(1, $this->countFor(self::ROBIN));
 	}
 
+	public function testEntryOverlappingLeaveInForceIsRefused(): void {
+		$this->service->import(self::json(self::sampleEntries()), self::HR);
+		// The March week again, one day longer
+		$corrected = self::json([['user' => self::ROBIN, 'from' => '2025-03-03', 'to' => '2025-03-10', 'workingDays' => 6]]);
+
+		$preview = $this->service->preview($corrected);
+		self::assertSame(0, $preview['entries']);
+		self::assertSame([1], array_column($preview['errors'], 'entry'));
+		self::assertStringContainsString('2025-03-03 to 2025-03-07', $preview['errors'][0]['message']);
+
+		try {
+			$this->service->import($corrected, self::HR);
+			self::fail('An entry overlapping leave in force must be refused');
+		} catch (ValidationException) {
+		}
+		self::assertSame(2, $this->countFor(self::ROBIN));
+	}
+
+	public function testEntryOverlappingCancelledLeaveIsImported(): void {
+		$this->service->import(self::json(self::sampleEntries()), self::HR);
+		foreach ($this->requests->findAllForEmployee(self::ROBIN) as $request) {
+			$request->setStatus(LeaveRequest::STATUS_CANCELLED);
+			$this->requests->update($request);
+		}
+
+		$result = $this->service->import(self::json([['user' => self::ROBIN, 'from' => '2025-03-03', 'to' => '2025-03-10', 'workingDays' => 6]]), self::HR);
+
+		self::assertSame(1, $result['entries']);
+		self::assertSame([], $result['errors']);
+	}
+
+	public function testEntriesOverlappingEachOtherAreRefused(): void {
+		$json = self::json([
+			['user' => self::ROBIN, 'from' => '2025-03-03', 'to' => '2025-03-07', 'workingDays' => 5],
+			['user' => self::SAM, 'from' => '2025-03-05', 'to' => '2025-03-06', 'workingDays' => 2],
+			['user' => self::ROBIN_EMAIL, 'type' => 'sick', 'from' => '2025-03-07', 'to' => '2025-03-07', 'workingDays' => 1],
+		]);
+
+		$preview = $this->service->preview($json);
+		// Sam's days are his own; Robin's sick day falls in the week above
+		self::assertSame([3], array_column($preview['errors'], 'entry'));
+		self::assertStringContainsString('entry 1', $preview['errors'][0]['message']);
+
+		try {
+			$this->service->import($json, self::HR);
+			self::fail('Entries overlapping each other must be refused');
+		} catch (ValidationException) {
+		}
+		self::assertSame(0, $this->countFor(self::ROBIN));
+		self::assertSame(0, $this->countFor(self::SAM));
+	}
+
+	public function testDatesOutsideTheSupportedYearsAreRefused(): void {
+		$preview = $this->service->preview(self::json([
+			['user' => self::ROBIN, 'from' => '1999-12-30', 'to' => '2000-01-03', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2100-12-31', 'to' => '2101-01-01', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '0025-03-03', 'to' => '0025-03-03', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2000-01-01', 'to' => '2000-01-01', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2100-12-31', 'to' => '2100-12-31', 'workingDays' => 1],
+		]));
+
+		self::assertSame([1, 2, 3], array_column($preview['errors'], 'entry'));
+		self::assertSame(2, $preview['entries']);
+	}
+
 	public function testImportedLeaveCountsAsUsed(): void {
 		$this->service->import(self::json(self::sampleEntries()), self::HR);
 
@@ -255,6 +322,29 @@ class LeaveImportTest extends TestCase {
 		self::assertSame([2, 1], array_column($preview['people'], 'entries'));
 		self::assertSame(0, $this->countFor(self::ROBIN));
 		self::assertSame(0, $this->countFor(self::SAM));
+	}
+
+	public function testOccDryRunNamesTheAccountBehindAnAddress(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-leave');
+		file_put_contents($file, self::json([['user' => self::ROBIN_EMAIL, 'from' => '2025-04-14', 'to' => '2025-04-16', 'workingDays' => 3]]));
+		$tester = new CommandTester(Server::get(ImportLeave::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file, '--dry-run' => true]));
+		unlink($file);
+		self::assertStringContainsString('Robin Sample (' . self::ROBIN . ')', $tester->getDisplay());
+		self::assertSame(0, $this->countFor(self::ROBIN));
+	}
+
+	public function testOccImportBooksTheLeaveWithoutAnActor(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-leave');
+		file_put_contents($file, self::json([['user' => self::ROBIN, 'from' => '2025-04-14', 'to' => '2025-04-16', 'workingDays' => 3]]));
+		$tester = new CommandTester(Server::get(ImportLeave::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file]));
+		unlink($file);
+		$request = $this->requests->findAllForEmployee(self::ROBIN)[0];
+		self::assertNull($request->getDecidedBy());
+		self::assertNull(Server::get(RequestEventMapper::class)->findForRequest((int)$request->getId())[0]->getActorUid());
 	}
 
 	public function testImportHasNoSideEffects(): void {
@@ -295,6 +385,16 @@ class LeaveImportTest extends TestCase {
 		$import = $this->controller(self::HR)->leave($json, false);
 		self::assertSame(Http::STATUS_OK, $import->getStatus());
 		self::assertSame(2, $this->countFor(self::ROBIN));
+	}
+
+	public function testAnOversizedListIsRefusedBeforeReading(): void {
+		$json = '[' . str_repeat(' ', 5 * 1024 * 1024) . ']';
+
+		foreach ([true, false] as $dryRun) {
+			$response = $this->controller(self::HR)->leave($json, $dryRun);
+			self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+			self::assertSame(['message' => 'The list is too large: at most 5 MB'], $response->getData());
+		}
 	}
 
 	private function controller(string $uid): ImportController {

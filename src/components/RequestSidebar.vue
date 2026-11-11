@@ -254,9 +254,12 @@
 								<template v-if="ev.actorUid === 'system'">
 									{{ t('absence', 'Automatically') }}
 								</template>
-								<template v-else>
+								<template v-else-if="ev.actorUid">
 									<NcAvatar :user="ev.actorUid" :size="20" hideStatus />
 									{{ ev.actorUid }}
+								</template>
+								<template v-else>
+									{{ t('absence', 'An administrator') }}
 								</template>
 							</div>
 							<p v-if="ev.detail" class="timeline__detail">

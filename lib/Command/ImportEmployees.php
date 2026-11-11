@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Command;
 
-use OCA\Absence\Exception\ValidationException;
+use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\EmployeeJsonService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -47,7 +47,12 @@ class ImportEmployees extends Command {
 			return 1;
 		}
 		$dryRun = (bool)$input->getOption('dry-run');
-		$plan = $this->service->plan($json);
+		try {
+			$plan = $this->service->plan($json);
+		} catch (AbsenceException $e) {
+			$output->writeln('<error>' . $e->getMessage() . '</error>');
+			return 1;
+		}
 		foreach ($plan['errors'] as $error) {
 			$where = $error['line'] !== null ? 'Line ' . $error['line'] : ($error['entry'] !== null ? 'Entry ' . $error['entry'] : 'File');
 			$output->writeln("<error>$where: {$error['message']}</error>");
@@ -59,7 +64,7 @@ class ImportEmployees extends Command {
 		if (!$dryRun) {
 			try {
 				$plan = $this->service->import($json, null);
-			} catch (ValidationException $e) {
+			} catch (AbsenceException $e) {
 				$output->writeln('<error>' . $e->getMessage() . '</error>');
 				return 1;
 			}
