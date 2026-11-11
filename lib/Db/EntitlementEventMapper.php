@@ -58,6 +58,29 @@ class EntitlementEventMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
+	/**
+	 * The entitlements of a year whose carry-over was changed by anyone other
+	 * than the given actor.
+	 *
+	 * @return array<int,true> keyed by entitlement id
+	 */
+	public function findIdsWithCarryOverNotSetBy(int $year, string $actorUid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('e.entitlement_id')
+			->from($this->getTableName(), 'e')
+			->innerJoin('e', 'absence_entitlements', 't', $qb->expr()->eq('e.entitlement_id', 't.id'))
+			->where($qb->expr()->eq('t.year', $qb->createNamedParameter($year, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('e.field', $qb->createNamedParameter(EntitlementEvent::FIELD_CARRY_OVER_DAYS)))
+			->andWhere($qb->expr()->neq('e.actor_uid', $qb->createNamedParameter($actorUid)));
+		$result = $qb->executeQuery();
+		$ids = [];
+		while ($row = $result->fetch()) {
+			$ids[(int)$row['entitlement_id']] = true;
+		}
+		$result->closeCursor();
+		return $ids;
+	}
+
 	/** Used by the GDPR purge when an account is deleted (§17). */
 	public function deleteForEmployee(string $employeeUid): void {
 		$qb = $this->db->getQueryBuilder();

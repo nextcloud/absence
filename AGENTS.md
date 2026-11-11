@@ -57,7 +57,7 @@ Key services and their responsibilities:
 - `ConfigService` + `ConfigLexicon`: typed app config; HR and admins edit it on the in-app Settings page (`SettingsService`, `src/views/hr/HrSettings.vue`).
 - `ClockService` — injectable clock; unit tests mock time via `tests/Unit/ClockMockTrait.php`.
 
-Background jobs (`lib/BackgroundJob/`): `ReminderJob` (nudge managers), `EscalationJob` (auto-escalate stale PENDING requests to HR), `YearRolloverJob` (carry-over; only for employees/types that already had an entitlement). Requests with no resolvable manager are created with `manager_uid = NULL` and treated as immediately escalated to HR.
+Background jobs (`lib/BackgroundJob/`): `ReminderJob` (nudge managers), `EscalationJob` (auto-escalate stale PENDING requests to HR), `YearRolloverJob` (carry-over; for employees/types that already had an entitlement, and the annual type of employees on the default). Requests with no resolvable manager are created with `manager_uid = NULL` and treated as immediately escalated to HR.
 
 Leave-type semantics worth knowing: types carry `requires_approval` and `employee_requestable` flags. Sick leave is `requires_approval = false` + `employee_requestable = false`, so it is only ever recorded by HR on an employee's behalf (via `employeeUid` on create) and skips the approval flow. Working days are entered manually by the employee (validated > 0) — there is no automatic holiday/region calculation server-side.
 

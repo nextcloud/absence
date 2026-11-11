@@ -12,6 +12,7 @@ use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
+use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
@@ -56,6 +57,7 @@ class EntitlementServiceTest extends TestCase {
 		$this->service = new EntitlementService(
 			$this->entitlementMapper,
 			$this->eventMapper,
+			$this->createMock(LeaveRequestMapper::class),
 			$this->leaveTypeMapper,
 			$this->balanceService,
 			$this->config,
@@ -83,76 +85,76 @@ class EntitlementServiceTest extends TestCase {
 		return $prior;
 	}
 
+	/**
+	 * Run the 2026 rollover for bob and return the 2027 row it wrote.
+	 */
+	private function rollOverBob(Entitlement $prior, float $remaining, ?Entitlement $existing = null): Entitlement {
+		$this->entitlementMapper->method('findForYear')->willReturnMap([
+			[2026, [$prior]],
+			[2027, $existing === null ? [] : [$existing]],
+		]);
+		$this->balanceService->method('getBalancesForEmployees')->with(['bob'], 2026)
+			->willReturn(['bob' => [['typeId' => 1, 'remaining' => $remaining]]]);
+		$written = null;
+		$capture = static function (Entitlement $e) use (&$written) {
+			$written = $e;
+			return $e;
+		};
+		$this->entitlementMapper->expects($existing === null ? $this->once() : $this->never())->method('insert')->willReturnCallback($capture);
+		$this->entitlementMapper->expects($existing === null ? $this->never() : $this->once())->method('update')->willReturnCallback($capture);
+
+		$this->assertSame(['affected' => 1, 'skipped' => 0, 'failed' => 0], $this->service->rollover(2026));
+
+		$this->assertNotNull($written);
+		return $written;
+	}
+
 	public function testRolloverCarriesPriorBaseNotGlobalDefault(): void {
 		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_UNLIMITED);
 		$this->config->expects($this->never())->method('getDefaultEntitlement');
-		$this->entitlementMapper->method('findForYear')->with(2026)->willReturn([$this->priorEntitlement(5.0)]);
-		$this->entitlementMapper->method('findFor')->with('bob', 2027, 1)->willThrowException(new DoesNotExistException(''));
-		$this->balanceService->method('getBalance')->with('bob', 2026)
-			->willReturn(['balances' => [['typeId' => 1, 'remaining' => 2.0]]]);
 		$this->balanceService->expects($this->never())->method('ensureEntitlement');
-		$this->entitlementMapper->method('insert')->willReturnArgument(0);
-		$updated = null;
-		$this->entitlementMapper->method('update')->willReturnCallback(static function (Entitlement $e) use (&$updated) {
-			$updated = $e;
-			return $e;
-		});
 
-		$this->assertSame(1, $this->service->rollover(2026));
+		$written = $this->rollOverBob($this->priorEntitlement(5.0), 2.0);
 
-		$this->assertNotNull($updated);
 		// HR granted 5 days in 2026; 2027 must continue that base, not the 25-day default.
-		$this->assertSame(5.0, $updated->getBaseDays());
-		$this->assertSame(2.0, $updated->getCarryOverDays());
-		$this->assertSame(2027, $updated->getYear());
+		$this->assertSame(5.0, $written->getBaseDays());
+		$this->assertSame(2.0, $written->getCarryOverDays());
+		$this->assertSame(2027, $written->getYear());
 	}
 
 	public function testRolloverKeepsExistingNextYearBase(): void {
 		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_UNLIMITED);
-		$this->entitlementMapper->method('findForYear')->with(2026)->willReturn([$this->priorEntitlement(5.0)]);
 		$existing = new Entitlement();
 		$existing->setId(2);
 		$existing->setEmployeeUid('bob');
 		$existing->setYear(2027);
 		$existing->setTypeId(1);
 		$existing->setBaseDays(12.0);
-		$this->entitlementMapper->method('findFor')->with('bob', 2027, 1)->willReturn($existing);
-		$this->balanceService->method('getBalance')->with('bob', 2026)
-			->willReturn(['balances' => [['typeId' => 1, 'remaining' => 2.0]]]);
-		$this->entitlementMapper->expects($this->never())->method('insert');
-		$updated = null;
-		$this->entitlementMapper->method('update')->willReturnCallback(static function (Entitlement $e) use (&$updated) {
-			$updated = $e;
-			return $e;
-		});
 
-		$this->service->rollover(2026);
+		$written = $this->rollOverBob($this->priorEntitlement(5.0), 2.0, $existing);
 
-		$this->assertNotNull($updated);
 		// A base HR already set for the new year is never touched; only carry-over is.
-		$this->assertSame(12.0, $updated->getBaseDays());
-		$this->assertSame(2.0, $updated->getCarryOverDays());
+		$this->assertSame(12.0, $written->getBaseDays());
+		$this->assertSame(2.0, $written->getCarryOverDays());
 	}
 
 	public function testRolloverWithCappedPolicyCapsCarryOver(): void {
 		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_CAPPED);
 		$this->config->method('getCarryOverCap')->willReturn(10.0);
-		$this->entitlementMapper->method('findForYear')->with(2026)->willReturn([$this->priorEntitlement(30.0)]);
-		$this->entitlementMapper->method('findFor')->with('bob', 2027, 1)->willThrowException(new DoesNotExistException(''));
-		$this->balanceService->method('getBalance')->with('bob', 2026)
-			->willReturn(['balances' => [['typeId' => 1, 'remaining' => 14.0]]]);
-		$this->entitlementMapper->method('insert')->willReturnArgument(0);
-		$updated = null;
-		$this->entitlementMapper->method('update')->willReturnCallback(static function (Entitlement $e) use (&$updated) {
-			$updated = $e;
-			return $e;
-		});
 
-		$this->service->rollover(2026);
+		$written = $this->rollOverBob($this->priorEntitlement(30.0), 14.0);
 
-		$this->assertNotNull($updated);
-		$this->assertSame(30.0, $updated->getBaseDays());
-		$this->assertSame(10.0, $updated->getCarryOverDays());
+		$this->assertSame(30.0, $written->getBaseDays());
+		$this->assertSame(10.0, $written->getCarryOverDays());
+	}
+
+	public function testRolloverReportsTheRowsThatFailed(): void {
+		$this->config->method('getCarryOverPolicy')->willReturn(ConfigService::CARRYOVER_UNLIMITED);
+		$this->entitlementMapper->method('findForYear')->willReturnMap([[2026, [$this->priorEntitlement(5.0)]], [2027, []]]);
+		$this->balanceService->method('getBalancesForEmployees')->willReturn(['bob' => [['typeId' => 1, 'remaining' => 2.0]]]);
+		$this->entitlementMapper->method('insert')->willThrowException(new \RuntimeException('database is away'));
+
+		$this->assertSame(['affected' => 0, 'skipped' => 0, 'failed' => 1], $this->service->rollover(2026));
 	}
 
 	/**

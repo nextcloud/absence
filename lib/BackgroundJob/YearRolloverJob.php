@@ -37,10 +37,10 @@ class YearRolloverJob extends TimedJob {
 		// no user is running this: the server's calendar year
 		$currentYear = $this->clock->serverYear();
 
-		// Carry-over from last year into this year — run once per year.
+		// Carry-over from last year into this year, once per year. A run with failed
+		// rows is not recorded, so the next day tries again.
 		$lastRollover = $this->appConfig->getValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_LAST_ROLLOVER_YEAR);
-		if ($lastRollover < $currentYear) {
-			$this->entitlementService->rollover($currentYear - 1);
+		if ($lastRollover < $currentYear && $this->entitlementService->rollover($currentYear - 1)['failed'] === 0) {
 			$this->appConfig->setValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_LAST_ROLLOVER_YEAR, $currentYear);
 		}
 

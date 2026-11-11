@@ -708,9 +708,15 @@ becomes the request's reason.
   the new year's entitlement row.
 - Carry-over policy is configurable (admin setting): `none`, `unlimited`, or
   `capped` at N days, with an optional **expiry date** (e.g. carried days expire
-  end of Q1). Expired carry-over is zeroed by the rollover/expiry job.
-- The rollover creates the next year's `absence_entitlements` rows using the default
-  `base_days` + computed `carry_over_days`.
+  end of Q1). On that date the job removes the carry-over that was not used: what
+  stays is the part covered by taken leave starting on or before the date.
+- The rollover creates the next year's `absence_entitlements` rows with the prior
+  year's `base_days` (the configured default for employees without a row, annual
+  type only) + computed `carry_over_days`. A carry-over somebody already set by hand
+  for the new year is left alone.
+- Rollover and expiry are recorded in the entitlement history (§3.7b) with the actor
+  `system`. A rollover with failed rows is tried again the next day, and
+  `occ absence:rollover <year>` recomputes it by hand.
 
 ---
 
@@ -942,7 +948,7 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    cut-off it last processed, so a second run on the same day sends nothing and a
    missed day is caught up on the next run (at most 7 days back).
 3. **YearRolloverJob** (daily, acts once per year / idempotent): computes carry-over
-   and seeds next-year entitlements (§6.2); zeroes expired carry-over.
+   and seeds next-year entitlements (§6.2); expires unused carry-over.
 4. **CalendarSyncJob** (optional, if async sync chosen): reconciles approved leave
    with the CalDAV target calendar (§10).
 
@@ -1755,8 +1761,8 @@ Recorded during the build so the spec matches the code:
   surfaces — settings, notifications, activity).
 - **Default entitlement** falls back to the configured default only for the `annual`
   type; other counting types start at zero until HR grants an entitlement, and
-  carry-over rollover only processes employees/types that already had an entitlement
-  (avoids fabricating balances).
+  carry-over rollover only processes employees/types that already had an entitlement,
+  plus the annual type of employees on the default (avoids fabricating balances).
 - **Frontend build**: standalone per-app `@nextcloud/vite-config` with
   `inlineCSS: { relativeCSSInjection: true }`, so a single `Util::addScript` styles the
   whole app (no separate stylesheet to enqueue). Output: `js/absence-*.mjs`.
