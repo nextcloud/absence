@@ -18,51 +18,54 @@
 	</ol>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { RequestStatus } from '../types/index.ts'
+
 import { t } from '@nextcloud/l10n'
+import { computed } from 'vue'
 
-export default {
-	name: 'RequestStepper',
-	props: {
-		status: { type: String, required: true },
-	},
-
-	computed: {
-		steps() {
-			const s = this.status
-			const requested = { label: t('absence', 'Requested'), state: 'done', tone: 'default', icon: '📝' }
-
-			let review
-			if (['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(s)) {
-				review = { label: s === 'ESCALATED' ? t('absence', 'With HR') : t('absence', 'In review'), state: 'current', tone: 'default', icon: '⏳' }
-			} else {
-				review = { label: t('absence', 'Reviewed'), state: 'done', tone: 'default', icon: '👀' }
-			}
-
-			let outcome
-			switch (s) {
-				case 'APPROVED':
-					outcome = { label: t('absence', 'Approved'), state: 'done', tone: 'success', icon: '✅' }
-					break
-				case 'REJECTED':
-					outcome = { label: t('absence', 'Declined'), state: 'done', tone: 'error', icon: '✋' }
-					break
-				case 'CANCELLED':
-					outcome = { label: t('absence', 'Cancelled'), state: 'done', tone: 'muted', icon: '🚫' }
-					break
-				case 'WITHDRAWAL_PENDING':
-					outcome = { label: t('absence', 'Withdrawing'), state: 'current', tone: 'default', icon: '↩️' }
-					break
-				default:
-					outcome = { label: t('absence', 'Decision'), state: 'future', tone: 'default', icon: '•' }
-			}
-
-			return [requested, review, outcome]
-		},
-	},
-
-	methods: { t },
+interface Step {
+	label: string
+	state: 'done' | 'current' | 'future'
+	tone: 'default' | 'success' | 'error' | 'muted'
+	icon: string
 }
+
+const props = defineProps<{
+	status: RequestStatus
+}>()
+
+const steps = computed<Step[]>(() => {
+	const s = props.status
+	const requested: Step = { label: t('absence', 'Requested'), state: 'done', tone: 'default', icon: '📝' }
+
+	let review: Step
+	if (['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(s)) {
+		review = { label: s === 'ESCALATED' ? t('absence', 'With HR') : t('absence', 'In review'), state: 'current', tone: 'default', icon: '⏳' }
+	} else {
+		review = { label: t('absence', 'Reviewed'), state: 'done', tone: 'default', icon: '👀' }
+	}
+
+	let outcome: Step
+	switch (s) {
+		case 'APPROVED':
+			outcome = { label: t('absence', 'Approved'), state: 'done', tone: 'success', icon: '✅' }
+			break
+		case 'REJECTED':
+			outcome = { label: t('absence', 'Declined'), state: 'done', tone: 'error', icon: '✋' }
+			break
+		case 'CANCELLED':
+			outcome = { label: t('absence', 'Cancelled'), state: 'done', tone: 'muted', icon: '🚫' }
+			break
+		case 'WITHDRAWAL_PENDING':
+			outcome = { label: t('absence', 'Withdrawing'), state: 'current', tone: 'default', icon: '↩️' }
+			break
+		default:
+			outcome = { label: t('absence', 'Decision'), state: 'future', tone: 'default', icon: '•' }
+	}
+
+	return [requested, review, outcome]
+})
 </script>
 
 <style scoped lang="scss">
