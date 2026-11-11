@@ -100,6 +100,28 @@ class EntitlementController extends Controller {
 		});
 	}
 
+	/**
+	 * How many employees have this many days as base this year: the ones a
+	 * changed default can be handed on to (§6.1).
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function onDefault(float $days): DataResponse {
+		return $this->handle(function () use ($days) {
+			$this->permission->assertCanManageSettings((string)$this->userId);
+			return $this->service->countOnDefault($days);
+		});
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
+	public function applyDefault(float $from, float $to): DataResponse {
+		return $this->handle(function () use ($from, $to) {
+			$this->permission->assertCanManageSettings((string)$this->userId);
+			return ['affected' => $this->service->applyDefault((string)$this->userId, $from, $to)];
+		});
+	}
+
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function bulk(int $year, int $typeId, float $baseDays, ?string $group = null): DataResponse {

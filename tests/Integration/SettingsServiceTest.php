@@ -15,6 +15,7 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
@@ -387,7 +388,7 @@ class SettingsServiceTest extends TestCase {
 	private function controller(string $uid): SettingsController {
 		$l = Server::get(IFactory::class)->get('absence');
 		$directory = new EmployeeDirectory(Server::get(IUserManager::class), Server::get(IGroupManager::class), $this->config(), Server::get(LoggerInterface::class));
-		$service = new SettingsService($this->config(), Server::get(PermissionService::class), Server::get(HolidayService::class), $directory, Server::get(IGroupManager::class), Server::get(CalendarService::class), Server::get(IUserManager::class), $l, Server::get(LoggerInterface::class), Server::get(IEventDispatcher::class));
+		$service = new SettingsService($this->config(), Server::get(PermissionService::class), Server::get(HolidayService::class), $directory, Server::get(IGroupManager::class), Server::get(CalendarService::class), Server::get(EntitlementService::class), Server::get(IUserManager::class), $l, Server::get(LoggerInterface::class), Server::get(IEventDispatcher::class));
 		return new SettingsController('absence', Server::get(IRequest::class), $uid, $service, $l, Server::get(LoggerInterface::class));
 	}
 }

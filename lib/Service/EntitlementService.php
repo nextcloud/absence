@@ -216,6 +216,114 @@ class EntitlementService {
 	}
 
 	/**
+	 * The employees whose annual entitlement of the running year has $days as
+	 * base: the ones a new default could be handed on to (§6.1).
+	 *
+	 * @return Entitlement[]
+	 */
+	private function onDefault(float $days): array {
+		$annualTypeId = $this->annualTypeId();
+		if ($annualTypeId === null) {
+			return [];
+		}
+		$employees = array_fill_keys($this->employees->listAll(), true);
+		return array_values(array_filter(
+			$this->entitlementMapper->findForYear($this->clock->serverYear()),
+			static fn (Entitlement $ent): bool => $ent->getTypeId() === $annualTypeId
+				&& isset($employees[$ent->getEmployeeUid()])
+				&& abs($ent->getBaseDays() - $days) < 0.001,
+		));
+	}
+
+	/**
+	 * @return array{year: int, count: int} how many employees have $days as base this year
+	 */
+	public function countOnDefault(float $days): array {
+		return ['year' => $this->clock->serverYear(), 'count' => count($this->onDefault($days))];
+	}
+
+	/**
+	 * Hands a changed default on to the employees who had the old one as their
+	 * base this year (§6.1). Somebody with a base of their own keeps it. All or
+	 * nothing, and recorded in each entitlement history.
+	 *
+	 * @return int the entitlements changed
+	 * @throws ValidationException
+	 */
+	public function applyDefault(string $actorUid, float $from, float $to): int {
+		$this->validator->assertFigures(['baseDays' => $to]);
+		$note = $this->l->t('Default entitlement changed from %1$s to %2$s days', [$this->days($from), $this->days($to)]);
+		$rows = $this->onDefault($from);
+		$this->db->beginTransaction();
+		try {
+			foreach ($rows as $ent) {
+				$before = [
+					EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
+					EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),
+					EntitlementEvent::FIELD_MANUAL_ADJUSTMENT => $ent->getManualAdjustment(),
+				];
+				$ent->setBaseDays($to);
+				$ent->setUpdatedAt($this->clock->now());
+				$this->recordChanges($actorUid, $this->entitlementMapper->update($ent), $before, $note);
+			}
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
+		$this->logger->info('Absence action: entitlement_default_applied', [
+			'app' => 'absence',
+			'action' => 'entitlement_default_applied',
+			'actor' => $actorUid,
+			'from' => $from,
+			'to' => $to,
+			'affected' => count($rows),
+		]);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Absence default entitlement change from %s to %s applied to %s people', [$this->days($from), $this->days($to), (string)count($rows)],
+		));
+		return count($rows);
+	}
+
+	/**
+	 * Writes down the default as it stands for every past year an employee has
+	 * no annual entitlement for, so that a new default does not rewrite the
+	 * past (§6.1). Call it before the default changes. No balance moves, so
+	 * nothing goes to the history.
+	 *
+	 * @return int the entitlements created
+	 */
+	public function freezePastDefault(): int {
+		$annualTypeId = $this->annualTypeId();
+		if ($annualTypeId === null) {
+			return 0;
+		}
+		// Before the first entitlement and the first leave there is no past to keep
+		$firstLeave = $this->requestMapper->firstStartDate();
+		$first = min(
+			$this->entitlementMapper->firstYear() ?? PHP_INT_MAX,
+			$firstLeave === null ? PHP_INT_MAX : (int)substr($firstLeave, 0, 4),
+		);
+		$employees = $this->employees->listAll();
+		$created = 0;
+		for ($year = $first; $year < $this->clock->serverYear(); $year++) {
+			$has = [];
+			foreach ($this->entitlementMapper->findForYear($year) as $ent) {
+				if ($ent->getTypeId() === $annualTypeId) {
+					$has[$ent->getEmployeeUid()] = true;
+				}
+			}
+			foreach ($employees as $uid) {
+				if (!isset($has[$uid])) {
+					$this->balanceService->ensureEntitlement($uid, $year, $annualTypeId);
+					$created++;
+				}
+			}
+		}
+		return $created;
+	}
+
+	/**
 	 * Carry-over rollover from $fromYear into $fromYear + 1 (§6.2). Recomputed from
 	 * $fromYear on every run, so running it again is safe.
 	 *

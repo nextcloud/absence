@@ -33,6 +33,7 @@ class SettingsService {
 		private EmployeeDirectory $employees,
 		private IGroupManager $groupManager,
 		private CalendarService $calendar,
+		private EntitlementService $entitlements,
 		private IUserManager $userManager,
 		private IL10N $l,
 		private LoggerInterface $logger,
@@ -84,6 +85,10 @@ class SettingsService {
 		);
 		if ($changed === []) {
 			return $this->get($actorUid);
+		}
+		if (array_key_exists(ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, $changed)) {
+			// While the old default still applies: the past keeps it (§6.1)
+			$this->entitlements->freezePastDefault();
 		}
 		$everyoneEditsHolidays = $changed[ConfigLexicon::KEY_HOLIDAYS_EVERYONE] ?? null;
 		$this->config->setAdminValues(array_diff_key($changed, [ConfigLexicon::KEY_HOLIDAYS_EVERYONE => true]));

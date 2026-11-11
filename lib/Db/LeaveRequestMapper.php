@@ -547,4 +547,14 @@ class LeaveRequestMapper extends QBMapper {
 			->orderBy('start_date', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/**
+	 * The start of the earliest leave on record, 'YYYY-MM-DD', null without any.
+	 */
+	public function firstStartDate(): ?string {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->min('start_date'))->from($this->getTableName());
+		$date = $qb->executeQuery()->fetchOne();
+		return is_string($date) && $date !== '' ? substr($date, 0, 10) : null;
+	}
 }

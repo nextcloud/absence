@@ -43,6 +43,8 @@ return [
 		['name' => 'entitlement#create', 'url' => '/api/entitlements', 'verb' => 'POST'],
 		['name' => 'entitlement#update', 'url' => '/api/entitlements/{id}', 'verb' => 'PUT'],
 		['name' => 'entitlement#bulk', 'url' => '/api/entitlements/bulk', 'verb' => 'POST'],
+		['name' => 'entitlement#onDefault', 'url' => '/api/entitlements/on-default', 'verb' => 'GET'],
+		['name' => 'entitlement#applyDefault', 'url' => '/api/entitlements/apply-default', 'verb' => 'POST'],
 		['name' => 'entitlement#history', 'url' => '/api/entitlements/{id}/history', 'verb' => 'GET'],
 		['name' => 'import#leave', 'url' => '/api/import/leave', 'verb' => 'POST'],
 
