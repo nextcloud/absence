@@ -82,8 +82,11 @@
 							v-for="d in days"
 							:key="'c' + row.uid + d.day"
 							class="gantt__col"
-							:class="{ 'gantt__col--weekend': d.weekend }"
-							:style="{ left: d.index * dayWidth + 'px' }" />
+							:class="{ 'gantt__col--weekend': d.weekend, 'gantt__col--holiday': row.holidays.has(d.iso) }"
+							:title="row.holidays.get(d.iso)"
+							:style="{ left: d.index * dayWidth + 'px' }">
+							<span v-if="row.holidays.has(d.iso)" class="hidden-visually">{{ holidayLabel(row, d.iso) }}</span>
+						</span>
 						<span v-if="todayIndex >= 0" class="gantt__today" :style="{ left: (todayIndex * dayWidth) + 'px' }" />
 						<component
 							:is="selectable ? 'button' : 'span'"
@@ -123,12 +126,15 @@
 			<span class="legend__item legend__item--muted">
 				<span class="legend__swatch legend__swatch--pending" />{{ t('absence', 'Pending / not yet approved') }}
 			</span>
+			<span v-if="hasHolidays" class="legend__item legend__item--muted">
+				<span class="legend__swatch legend__swatch--holiday" />{{ t('absence', 'Public holiday for this person') }}
+			</span>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import type { CoverageEvent, CoverageScope } from '../types/index.ts'
+import type { CoverageEvent, CoverageScope, JsonMap, PersonHoliday } from '../types/index.ts'
 
 import { t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
@@ -144,7 +150,8 @@ import api from '../services/api.ts'
 import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { useRequestsStore } from '../stores/requests.ts'
 import { readableTextColor } from '../utils/colors.ts'
-import { formatRange, toIso } from '../utils/dates.ts'
+import { formatDate, formatRange, toIso } from '../utils/dates.ts'
+import { labelsByDate } from '../utils/holidays.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { locale } from '../utils/locale.ts'
 import { statusMeta } from '../utils/status.ts'
@@ -191,6 +198,8 @@ interface TimelineRow {
 	uid: string
 	name: string
 	segments: TimelineSegment[]
+	/** Their own public holidays of the month: 'YYYY-MM-DD' to its name */
+	holidays: Map<string, string>
 }
 
 const DAY_MS = 86400000
@@ -201,6 +210,7 @@ const today = new Date()
 const year = ref(today.getFullYear())
 const month = ref(today.getMonth())
 const events = shallowRef<CoverageEvent[]>([])
+const holidays = shallowRef<JsonMap<PersonHoliday[]>>([])
 const loading = ref(true)
 const loadError = ref(false)
 
@@ -235,8 +245,14 @@ const rows = computed(() => {
 	const byUid: Record<string, TimelineRow> = {}
 	const monthStart = firstDay.value.getTime()
 	const lastIndex = lastDay.value.getDate() - 1
+	const holidaysByUid = Array.isArray(holidays.value) ? {} : holidays.value
 	for (const ev of events.value) {
-		const row = byUid[ev.employeeUid] ??= { uid: ev.employeeUid, name: ev.displayName, segments: [] }
+		const row = byUid[ev.employeeUid] ??= {
+			uid: ev.employeeUid,
+			name: ev.displayName,
+			segments: [],
+			holidays: labelsByDate(holidaysByUid[ev.employeeUid] ?? []),
+		}
 		const startIdx = Math.max(0, Math.round((new Date(ev.start + 'T00:00:00').getTime() - monthStart) / DAY_MS))
 		const endIdx = Math.min(lastIndex, Math.round((new Date(ev.end + 'T00:00:00').getTime() - monthStart) / DAY_MS))
 		if (endIdx < 0 || startIdx > lastIndex) {
@@ -260,6 +276,8 @@ const rows = computed(() => {
 	}
 	return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))
 })
+
+const hasHolidays = computed(() => rows.value.some((row) => row.holidays.size > 0))
 
 const legendTypes = computed(() => {
 	const ids = new Set(events.value.map((e) => e.typeId))
@@ -288,13 +306,15 @@ async function load() {
 	loading.value = true
 	loadError.value = false
 	try {
-		const { events: fetched } = await api.getCalendar(toIso(firstDay.value), toIso(lastDay.value), props.scope)
+		const fetched = await api.getCalendar(toIso(firstDay.value), toIso(lastDay.value), props.scope)
 		if (isLatest()) {
-			events.value = fetched
+			events.value = fetched.events
+			holidays.value = fetched.holidays
 		}
 	} catch {
 		if (isLatest()) {
 			events.value = []
+			holidays.value = []
 			loadError.value = true
 		}
 	} finally {
@@ -302,6 +322,16 @@ async function load() {
 			loading.value = false
 		}
 	}
+}
+
+/**
+ * What a screen reader gets for a shaded day.
+ *
+ * @param row the person
+ * @param iso the day, 'YYYY-MM-DD'
+ */
+function holidayLabel(row: TimelineRow, iso: string): string {
+	return t('absence', 'Public holiday on {date}: {name}', { date: formatDate(iso), name: row.holidays.get(iso) ?? '' }, undefined, { escape: false })
 }
 
 /**
@@ -453,6 +483,8 @@ $name-w: 180px;
 		width: var(--day-w);
 
 		&--weekend { background: var(--color-background-dark); }
+		// After the weekend so a holiday on a Saturday still shows as one
+		&--holiday { background: var(--color-primary-element-light); }
 	}
 
 	&__today {
@@ -540,6 +572,8 @@ $name-w: 180px;
 		width: 14px;
 		height: 14px;
 		border-radius: 4px;
+
+		&--holiday { background: var(--color-primary-element-light); }
 
 		&--pending {
 			background: repeating-linear-gradient(45deg, var(--color-text-maxcontrast), var(--color-text-maxcontrast) 3px, transparent 3px, transparent 6px);

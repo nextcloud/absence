@@ -926,6 +926,11 @@ admins' to fill, so they remind nobody.
 - **Team calendar / who's-off:** managers see their direct reports; HR sees the
   whole company; every employee sees their own team (peers who share the same
   `manager_uid`). A month/timeline view rendered from approved + pending requests.
+  - **Each person's public holidays are shaded on their row** (§7.2), from the region
+    code they set, so a team spread over several regions reads correctly. Whoever
+    sees a person on the timeline sees these days, and so can tell where that
+    person's holidays come from. People without a code get the days that apply
+    everywhere.
   - **Whose leave type is shown.** The type travels with an event when the admin set
     the shared-calendar visibility to `reveal`, or when the viewer is somebody who
     could open that request and read the type off it anyway — its owner, their line
@@ -1320,7 +1325,8 @@ the SPA). All list endpoints paginate and accept filters.
 
 **Coverage & calendar**
 - `GET  /api/coverage?from&to&scope=team|company` — overlaps + conflict count (§8).
-- `GET  /api/calendar?from&to&scope` — events for the in-app calendar/timeline.
+- `GET  /api/calendar?from&to&scope` — events for the in-app calendar/timeline, and
+  the public holidays of the people in them (`holidays`, by uid).
 
 **Reference data**
 - `GET  /api/leave-types`.
@@ -1511,7 +1517,7 @@ NcContent(app-name="absence")
   comment; a successful approve updates the list quietly (no toast or confetti).
 - **Team / Who's off** — a **Gantt-style month timeline** (`TeamTimeline`, §15.7):
   a sticky avatar rail with continuous rounded leave **pills** (colored by type, hatched
-  while pending), weekend shading, a "today" line, month navigation + a "Today" jump,
+  while pending), weekend shading, each person's public holidays, a "today" line, month navigation + a "Today" jump,
   and a legend. `scope="team"` for managers, `scope="company"` for HR. With
   `selectable` the pills become buttons that open the request in the sidebar; only
   *Who's off* sets it, because HR may read every request the org-wide calendar shows
@@ -1629,7 +1635,8 @@ Signature components built on top of `@nextcloud/vue`:
   breakdown ledger (base + carry-over ± adjustment = entitlement, − used − pending
   → available, right-aligned beside the ring).
 - **`TeamTimeline`** — Gantt-style month view: sticky avatar rail, continuous rounded
-  leave pills (hatched while pending), weekend shading, "today" line, month nav.
+  leave pills (hatched while pending), weekend and public holiday shading, "today"
+  line, month nav.
 - **`RequestStepper`** — horizontal progress stepper (Requested → Review/With HR →
   Approved/Declined/Cancelled/Withdrawing) shown atop the sidebar Details tab.
 - **`RequestSidebar`** — master-detail sidebar with Details (stepper + facts + actions),

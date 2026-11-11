@@ -96,3 +96,18 @@ export function groupByYear<T extends Dated>(days: T[]): { year: string, days: T
 	}
 	return [...years].map(([year, list]) => ({ year, days: list }))
 }
+
+/**
+ * The names of someone's days off by date. Two on the same date (one for
+ * everywhere, one for the region) share the entry.
+ *
+ * @param days their days off
+ */
+export function labelsByDate(days: { date: string, label: string }[]): Map<string, string> {
+	const labels = new Map<string, string>()
+	for (const { date, label } of days) {
+		const known = labels.get(date)
+		labels.set(date, known === undefined ? label : `${known}, ${label}`)
+	}
+	return labels
+}
