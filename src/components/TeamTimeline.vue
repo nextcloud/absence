@@ -93,7 +93,7 @@
 							:class="{
 								'gantt__pill--pending': seg.pending,
 								'gantt__pill--clickable': selectable,
-								'gantt__pill--active': selectable && store.selectedId === seg.requestId,
+								'gantt__pill--active': selectable && requestsStore.selectedId === seg.requestId,
 							}"
 							:type="selectable ? 'button' : null"
 							:style="{ left: seg.left + 'px', width: seg.width + 'px', '--pill': seg.color, '--pill-text': seg.textColor }"
@@ -141,11 +141,29 @@ import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import SkeletonList from './SkeletonList.vue'
 import api from '../services/api.ts'
-import { statusMeta, store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
 import { readableTextColor } from '../utils/colors.ts'
 import { formatRange, toIso } from '../utils/dates.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { locale } from '../utils/locale.ts'
+import { statusMeta } from '../utils/status.ts'
+
+const props = withDefaults(defineProps<{
+	scope?: CoverageScope
+	// Turn the pills into buttons that open the request. Only set it where the
+	// viewer may actually read every request in the timeline (HR's "Who's off") —
+	// elsewhere the calendar can include leave whose detail the API would refuse.
+	selectable?: boolean
+}>(), {
+	scope: 'team',
+	selectable: false,
+})
+defineEmits<{
+	select: [requestId: number]
+}>()
+const requestsStore = useRequestsStore()
+const leaveTypesStore = useLeaveTypesStore()
 
 /** One day column of the month */
 interface TimelineDay {
@@ -174,21 +192,6 @@ interface TimelineRow {
 	name: string
 	segments: TimelineSegment[]
 }
-
-const props = withDefaults(defineProps<{
-	scope?: CoverageScope
-	// Turn the pills into buttons that open the request. Only set it where the
-	// viewer may actually read every request in the timeline (HR's "Who's off") —
-	// elsewhere the calendar can include leave whose detail the API would refuse.
-	selectable?: boolean
-}>(), {
-	scope: 'team',
-	selectable: false,
-})
-
-defineEmits<{
-	select: [requestId: number]
-}>()
 
 const DAY_MS = 86400000
 
@@ -239,7 +242,7 @@ const rows = computed(() => {
 		if (endIdx < 0 || startIdx > lastIndex) {
 			continue
 		}
-		const type = store.leaveType(ev.typeId)
+		const type = leaveTypesStore.leaveType(ev.typeId)
 		const dates = formatRange(ev.start, ev.end)
 		const status = statusMeta(ev.status).label
 		row.segments.push({
@@ -260,7 +263,7 @@ const rows = computed(() => {
 
 const legendTypes = computed(() => {
 	const ids = new Set(events.value.map((e) => e.typeId))
-	return store.leaveTypes.filter((lt) => ids.has(lt.id))
+	return leaveTypesStore.leaveTypes.filter((lt) => ids.has(lt.id))
 })
 
 watch(() => props.scope, () => {

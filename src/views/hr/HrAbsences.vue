@@ -16,7 +16,7 @@
 				{{ t('absence', 'Absences') }}
 			</h2>
 			<div class="page__tools">
-				<NcButton v-if="store.session.isHr" @click="importing = true">
+				<NcButton v-if="sessionStore.session.isHr" @click="importing = true">
 					<template #icon>
 						<Upload :size="20" />
 					</template>
@@ -93,8 +93,8 @@
 					:request="r"
 					:showEmployee="true"
 					:remaining="remainingFor(r)"
-					:active="store.selectedId === r.id"
-					@select="store.select($event)" />
+					:active="requestsStore.selectedId === r.id"
+					@select="requestsStore.select($event)" />
 			</TransitionGroup>
 
 			<div v-if="hasMore" class="more">
@@ -145,8 +145,15 @@ import LeaveImportDialog from '../../components/LeaveImportDialog.vue'
 import RequestListItem from '../../components/RequestListItem.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../services/api.ts'
-import { statusMeta, store } from '../../store.ts'
+import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
+import { useRequestsStore } from '../../stores/requests.ts'
+import { useSessionStore } from '../../stores/session.ts'
 import { openRecordKey } from '../../utils/injectionKeys.ts'
+import { statusMeta } from '../../utils/status.ts'
+
+const sessionStore = useSessionStore()
+const requestsStore = useRequestsStore()
+const leaveTypesStore = useLeaveTypesStore()
 
 /** An entry of the status filter */
 interface StatusOption {
@@ -189,13 +196,13 @@ const hasMore = ref(false)
 const employee = shallowRef<UserRef | null>(presetEmployee)
 const employeeOptions = shallowRef<UserRef[]>(presetEmployee ? [presetEmployee] : [])
 const employeeLoading = ref(false)
-const type = ref<LeaveType | null>(q.type ? store.leaveTypes.find((lt) => lt.id === Number(q.type)) || null : null)
+const type = ref<LeaveType | null>(q.type ? leaveTypesStore.leaveTypes.find((lt) => lt.id === Number(q.type)) || null : null)
 const status = ref<StatusOption | null>(isStatus(q.status) ? { value: q.status, label: statusMeta(q.status).label } : null)
 const year = ref<YearOption>({ value: presetYear, label: String(presetYear) })
 
 // Any type may show up in the history, including disabled ones, so filter
 // against the full list rather than the enabled subset.
-const typeOptions = computed(() => store.leaveTypes)
+const typeOptions = computed(() => leaveTypesStore.leaveTypes)
 
 const statusOptions = computed<StatusOption[]>(() => STATUSES.map((value) => ({ value, label: statusMeta(value).label })))
 

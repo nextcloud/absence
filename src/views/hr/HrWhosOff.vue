@@ -15,12 +15,14 @@
 		<TeamTimeline
 			scope="company"
 			:selectable="true"
-			@select="store.select($event)" />
+			@select="requestsStore.select($event)" />
 	</div>
 </template>
 
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 import TeamTimeline from '../../components/TeamTimeline.vue'
-import { store } from '../../store.ts'
+import { useRequestsStore } from '../../stores/requests.ts'
+
+const requestsStore = useRequestsStore()
 </script>

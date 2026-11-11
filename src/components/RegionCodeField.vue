@@ -87,12 +87,23 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useSessionStore } from '../stores/session.ts'
 import { parseWeekdays } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.ts'
 import { locale } from '../utils/locale.ts'
 import { regionCountryName, regionFlag } from '../utils/regions.ts'
+
+const props = defineProps<{
+	/** The saved code, e.g. `DE-BY`, empty when none */
+	savedCode: string
+}>()
+
+const emit = defineEmits<{
+	saved: [code: string]
+}>()
+
+const sessionStore = useSessionStore()
 
 /** What moving from the saved code to the typed one changes */
 interface RegionChange {
@@ -119,15 +130,6 @@ interface DialogButton {
 	callback: () => void
 }
 
-const props = defineProps<{
-	/** The saved code, e.g. `DE-BY`, empty when none */
-	savedCode: string
-}>()
-
-const emit = defineEmits<{
-	saved: [code: string]
-}>()
-
 const code = ref(props.savedCode)
 const knownCodes = ref<string[]>([])
 // What a changed code would change, shown before saving it
@@ -148,7 +150,7 @@ const changeColumns = computed<ChangeColumn[]>(() => {
 	]
 })
 
-const workingWeekdays = computed(() => parseWeekdays(store.session.workWeekdays))
+const workingWeekdays = computed(() => parseWeekdays(sessionStore.session.workWeekdays))
 
 const changeButtons = computed<DialogButton[]>(() => [
 	{ label: t('absence', 'Cancel'), callback: () => {} },

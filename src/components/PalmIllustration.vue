@@ -105,7 +105,7 @@
 import type { Season } from '../utils/dates.ts'
 
 import { computed } from 'vue'
-import { store } from '../store.ts'
+import { useSessionStore } from '../stores/session.ts'
 import { seasonOf } from '../utils/dates.ts'
 
 const props = withDefaults(defineProps<{
@@ -114,6 +114,8 @@ const props = withDefaults(defineProps<{
 }>(), {
 	season: null,
 })
+
+const sessionStore = useSessionStore()
 
 // Fixed rather than random so the illustration is identical on every render
 // and in screenshots — the staggered delays supply the variety.
@@ -133,7 +135,7 @@ const fallers = [
 	{ x: 128, delay: 2 },
 ]
 
-const resolvedSeason = computed<Season>(() => props.season || seasonOf(new Date(), store.session.holidayCountry))
+const resolvedSeason = computed<Season>(() => props.season || seasonOf(new Date(), sessionStore.session.holidayCountry))
 </script>
 
 <style scoped lang="scss">

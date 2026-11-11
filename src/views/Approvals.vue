@@ -37,8 +37,8 @@
 						:key="r.id"
 						:request="r"
 						:showEmployee="true"
-						:active="store.selectedId === r.id"
-						@select="store.select($event)" />
+						:active="requestsStore.selectedId === r.id"
+						@select="requestsStore.select($event)" />
 				</TransitionGroup>
 			</section>
 
@@ -52,8 +52,8 @@
 						:key="r.id"
 						:request="r"
 						:showEmployee="true"
-						:active="store.selectedId === r.id"
-						@select="store.select($event)" />
+						:active="requestsStore.selectedId === r.id"
+						@select="requestsStore.select($event)" />
 				</TransitionGroup>
 			</section>
 
@@ -82,7 +82,11 @@ import CheckAll from 'vue-material-design-icons/CheckAll.vue'
 import RequestListItem from '../components/RequestListItem.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useRequestsStore } from '../stores/requests.ts'
+import { useSessionStore } from '../stores/session.ts'
+
+const requestsStore = useRequestsStore()
+const sessionStore = useSessionStore()
 
 const ACTIONABLE: RequestStatus[] = ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING']
 
@@ -108,7 +112,7 @@ async function reload(): Promise<void> {
 	loadError.value = false
 	try {
 		teamQueue.value = await api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') })
-		if (store.session.isHr) {
+		if (sessionStore.session.isHr) {
 			escalated.value = await api.listRequests({ scope: 'hr', status: 'ESCALATED' })
 		}
 	} catch {

@@ -13,7 +13,7 @@
 import type { RequestStatus } from '../types/index.ts'
 
 import { computed } from 'vue'
-import { statusMeta } from '../store.ts'
+import { statusMeta } from '../utils/status.ts'
 
 const props = defineProps<{
 	status: RequestStatus

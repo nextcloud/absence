@@ -264,12 +264,14 @@ import Delete from 'vue-material-design-icons/TrashCanOutline.vue'
 import Upload from 'vue-material-design-icons/Upload.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useSessionStore } from '../stores/session.ts'
 import { formatDate, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { locale } from '../utils/locale.ts'
 import { EVERYWHERE, regionFlag } from '../utils/regions.ts'
+
+const sessionStore = useSessionStore()
 
 /** An entry of the region filter: `id` is the region code, '' for all of them */
 interface RegionOption {
@@ -312,9 +314,9 @@ const example = JSON.stringify([
 // Changing the year twice quickly: only the year picked last may land.
 const startLoad = latestOnly()
 
-const session = computed(() => store.session)
+const session = computed(() => sessionStore.session)
 
-const canEdit = computed(() => store.session.canEditHolidays)
+const canEdit = computed(() => sessionStore.session.canEditHolidays)
 
 const regionOptions = computed<RegionOption[]>(() => {
 	const codes = [...new Set(holidays.value.map((h) => h.region))].sort()

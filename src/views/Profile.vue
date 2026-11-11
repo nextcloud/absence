@@ -9,7 +9,7 @@
 	<div class="page page--narrow page--roomy">
 		<header class="page__header page__header--center">
 			<div class="profile__who">
-				<NcAvatar :user="uid" :size="44" :disableMenu="true" />
+				<NcAvatar :user="profileUid" :size="44" :disableMenu="true" />
 				<div>
 					<h2 class="page__title">
 						{{ profile ? profile.displayName : '' }}
@@ -38,7 +38,7 @@
 
 		<EntitlementDialog
 			v-if="editingDays && profile"
-			:uid="uid"
+			:uid="profileUid"
 			:displayName="profile.displayName"
 			:row="editingDays"
 			:year="year"
@@ -88,7 +88,7 @@
 				<ContractEditor
 					v-if="profile.canEditContract"
 					:key="contractKey"
-					:uid="uid"
+					:uid="profileUid"
 					:contract="profile.contract"
 					@saved="onContractSaved" />
 				<template v-else>
@@ -156,19 +156,22 @@ import EntitlementDialog from '../components/EntitlementDialog.vue'
 import RegionCodeField from '../components/RegionCodeField.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useSessionStore } from '../stores/session.ts'
 import { formatDate, formatRange, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { regionFlag } from '../utils/regions.ts'
 import { dayNames } from '../utils/weekdays.ts'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
 	/** Someone else's profile; the viewer's own without it */
 	uid?: string
-}>(), {
-	uid: () => store.session.uid ?? '',
-})
+}>()
+
+const sessionStore = useSessionStore()
+
+/** Whose profile this is */
+const profileUid = computed(() => props.uid ?? sessionStore.session.uid ?? '')
 
 // Going from one profile to the next: the answer for the previous person
 // must not land on the current one.
@@ -182,7 +185,7 @@ const contractKey = ref(0)
 const editingDays = ref<BalanceRow | null>(null)
 const year = new Date().getFullYear()
 
-const contactsUrl = computed(() => generateUrl('/apps/contacts/u/{uid}', { uid: props.uid }))
+const contactsUrl = computed(() => generateUrl('/apps/contacts/u/{uid}', { uid: profileUid.value }))
 
 const settingsUrl = computed(() => generateUrl('/settings/user'))
 
@@ -195,7 +198,7 @@ const current = computed<ContractPeriod | null>(() => {
 	return [...profile.value.contract.periods].reverse().find((period) => period.from <= today) ?? null
 })
 
-watch(() => props.uid, () => load())
+watch(profileUid, () => load())
 
 onMounted(() => {
 	load()
@@ -210,8 +213,8 @@ async function load(): Promise<void> {
 	error.value = null
 	try {
 		const [loaded, balance] = await Promise.all([
-			api.getProfile(props.uid),
-			api.getEmployeeBalance(props.uid, year),
+			api.getProfile(profileUid.value),
+			api.getEmployeeBalance(profileUid.value, year),
 		])
 		if (!isLatest()) {
 			return
@@ -263,8 +266,8 @@ function describe(change: ProfileChange): string {
  */
 function onRegionSaved(code: string): void {
 	load()
-	store.session.holidayCountry = code.split('-')[0] ?? ''
-	store.session.holidayRegion = code.split('-')[1] ?? ''
+	sessionStore.session.holidayCountry = code.split('-')[0] ?? ''
+	sessionStore.session.holidayRegion = code.split('-')[1] ?? ''
 }
 
 /**

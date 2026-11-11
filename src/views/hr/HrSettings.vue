@@ -296,9 +296,13 @@ import LeaveTypesDialog from '../../components/LeaveTypesDialog.vue'
 import SavedCheck from '../../components/SavedCheck.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../services/api.ts'
-import { store } from '../../store.ts'
+import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
+import { useSessionStore } from '../../stores/session.ts'
 import { serverMessage } from '../../utils/errors.ts'
 import { keepUnsaved } from '../../utils/unsaved.ts'
+
+const sessionStore = useSessionStore()
+const leaveTypesStore = useLeaveTypesStore()
 
 /** The sections of the page */
 type Section = 'who' | 'vacation' | 'approvals' | 'calendar' | 'holidays' | 'handbooks'
@@ -374,7 +378,7 @@ const approvalFields: ApprovalField[] = [
 	{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), hint: t('absence', '0 switches the warning off.') },
 ]
 
-const session = computed(() => store.session)
+const session = computed(() => sessionStore.session)
 
 const hrGroupOption = computed<Group>(() => groupOption(form.value?.hr_group ?? ''))
 
@@ -385,7 +389,7 @@ const employeesGroupOption = computed<Group | null>(() => {
 
 const carryOverOption = computed<CarryOverOption | undefined>(() => carryOverOptions.find((option) => option.id === form.value?.carryover_policy))
 
-const enabledTypes = computed<LeaveType[]>(() => [...store.enabledLeaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
+const enabledTypes = computed<LeaveType[]>(() => [...leaveTypesStore.enabledLeaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
 
 onMounted(() => {
 	load()
@@ -459,7 +463,7 @@ async function createGroup(kind: SettingsGroupKind): Promise<void> {
 		apply(await api.createSettingsGroup(kind), [`${kind}_group`])
 		savedAt.value.who = Date.now()
 		// The session carries whether the app is open and this user is HR
-		await store.refreshSession()
+		await sessionStore.refreshSession()
 	} catch (e) {
 		showError(serverMessage(e) || t('absence', 'Could not create the group'))
 	} finally {
@@ -516,7 +520,7 @@ async function save(patch: SettingsPatch): Promise<boolean> {
 		}
 		if (['hr_group', 'employees_group', 'holidays_everyone_edits', 'handbook_url', 'hr_handbook_url'].some((key) => key in patch)) {
 			// The session carries whether the app is open, this user still is HR, may edit holidays, and the handbook links.
-			await store.refreshSession()
+			await sessionStore.refreshSession()
 		}
 		return true
 	} catch (e) {

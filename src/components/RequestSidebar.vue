@@ -342,22 +342,27 @@ import LeaveTypeChip from './LeaveTypeChip.vue'
 import RequestStepper from './RequestStepper.vue'
 import StatusChip from './StatusChip.vue'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
+import { useSessionStore } from '../stores/session.ts'
 import { formatRange } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { locale } from '../utils/locale.ts'
-
-/** How a history entry shows */
-interface EventMeta {
-	label: string
-	icon: string
-}
 
 const emit = defineEmits<{
 	close: []
 	edit: [request: LeaveRequestDetail]
 	changed: []
 }>()
+const leaveTypesStore = useLeaveTypesStore()
+const sessionStore = useSessionStore()
+const requestsStore = useRequestsStore()
+
+/** How a history entry shows */
+interface EventMeta {
+	label: string
+	icon: string
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -375,7 +380,7 @@ const uploading = ref(false)
 const removing = ref<Attachment | null>(null)
 const removingBusy = ref(false)
 
-const type = computed(() => store.leaveType(detail.value?.typeId))
+const type = computed(() => leaveTypesStore.leaveType(detail.value?.typeId))
 
 const rangeLabel = computed(() => detail.value ? formatRange(detail.value.startDate, detail.value.endDate) : '')
 
@@ -388,7 +393,7 @@ const employeeName = computed(() => detail.value?.employeeName || detail.value?.
  * yourself just crowds out the dates.
  */
 const subLabel = computed(() => {
-	if (!detail.value || detail.value.employeeUid === store.session.uid) {
+	if (!detail.value || detail.value.employeeUid === sessionStore.session.uid) {
 		return rangeLabel.value
 	}
 	return `${employeeName.value} · ${rangeLabel.value}`
@@ -419,7 +424,7 @@ const shortNoticeLabel = computed(() => {
 /** A confidential absence seen by someone outside HR: no category, no thread. */
 const withheld = computed(() => detail.value?.typeId === null)
 
-const showStatus = computed(() => detail.value ? store.statusVisible(detail.value) : true)
+const showStatus = computed(() => detail.value ? leaveTypesStore.statusVisible(detail.value) : true)
 
 const isDecidable = computed(() => detail.value !== null && ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(detail.value.status))
 
@@ -438,9 +443,9 @@ const decideLabelReject = computed(() => isWithdrawal.value ? t('absence', 'Keep
  * takes effect immediately, with no withdrawal-approval step (§5.6). Mirrors
  * the same condition in `RequestService::cancel`.
  */
-const hrOverride = computed(() => !!store.session.isHr
+const hrOverride = computed(() => !!sessionStore.session.isHr
 	&& detail.value !== null
-	&& (detail.value.employeeUid !== store.session.uid || store.isHrRecorded(detail.value)))
+	&& (detail.value.employeeUid !== sessionStore.session.uid || leaveTypesStore.isHrRecorded(detail.value)))
 
 const cancelLabel = computed(() => {
 	if (detail.value?.status === 'APPROVED' && !hrOverride.value) {
@@ -450,7 +455,7 @@ const cancelLabel = computed(() => {
 })
 
 onMounted(() => {
-	// App.vue remounts this component (via :key="store.selectedId") whenever the
+	// App.vue remounts this component (via :key="requestsStore.selectedId") whenever the
 	// selection changes, so loading once on mount always reflects the current id.
 	load()
 })
@@ -470,7 +475,7 @@ function attachmentUrl(id: number): string {
  * @param a the attachment
  */
 function canRemoveAttachment(a: Attachment): boolean {
-	return store.session.isHr || a.uploaderUid === store.session.uid
+	return sessionStore.session.isHr || a.uploaderUid === sessionStore.session.uid
 }
 
 /**
@@ -510,7 +515,7 @@ async function onAttachmentPicked(event: Event) {
 	if (!file || !detail.value) {
 		return
 	}
-	const limit = store.session.maxAttachmentBytes
+	const limit = sessionStore.session.maxAttachmentBytes
 	if (limit && file.size > limit) {
 		showError(t('absence', 'Attachments can be up to {size} MB.', { size: limit / 1024 / 1024 }))
 		return
@@ -592,12 +597,12 @@ function formatDateTime(iso: string | null): string {
  * Loads the selected request and resets the decline and cancel forms.
  */
 async function load() {
-	if (!store.selectedId) {
+	if (!requestsStore.selectedId) {
 		detail.value = null
 		return
 	}
 	try {
-		detail.value = await api.getRequest(store.selectedId)
+		detail.value = await api.getRequest(requestsStore.selectedId)
 		rejecting.value = false
 		rejectComment.value = ''
 		confirmingCancel.value = false
@@ -629,7 +634,7 @@ async function approve() {
 	}
 	busy.value = true
 	try {
-		await store.approveRequest(detail.value.id, undefined, detail.value.updatedAt)
+		await requestsStore.approveRequest(detail.value.id, undefined, detail.value.updatedAt)
 		emit('changed')
 	} catch (e) {
 		showError(serverMessage(e) || t('absence', 'Could not approve'))
@@ -682,7 +687,7 @@ async function reject() {
 	}
 	busy.value = true
 	try {
-		await store.rejectRequest(detail.value.id, rejectComment.value, detail.value.updatedAt)
+		await requestsStore.rejectRequest(detail.value.id, rejectComment.value, detail.value.updatedAt)
 		emit('changed')
 	} catch (e) {
 		showError(serverMessage(e) || t('absence', 'Could not decline'))
@@ -714,7 +719,7 @@ async function cancel() {
 	}
 	busy.value = true
 	try {
-		await store.cancelRequest(detail.value.id)
+		await requestsStore.cancelRequest(detail.value.id)
 		emit('changed')
 	} catch (e) {
 		showError(serverMessage(e) || t('absence', 'Could not cancel'))

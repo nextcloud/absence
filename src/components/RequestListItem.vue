@@ -29,7 +29,7 @@ import { n } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import StatusChip from './StatusChip.vue'
-import { store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { formatRange } from '../utils/dates.ts'
 
 const props = withDefaults(defineProps<{
@@ -50,9 +50,11 @@ const emit = defineEmits<{
 	select: [id: number]
 }>()
 
-const type = computed(() => store.leaveType(props.request.typeId))
+const leaveTypesStore = useLeaveTypesStore()
 
-const showStatus = computed(() => store.statusVisible(props.request))
+const type = computed(() => leaveTypesStore.leaveType(props.request.typeId))
+
+const showStatus = computed(() => leaveTypesStore.statusVisible(props.request))
 
 const colorSoft = computed(() => `color-mix(in srgb, ${type.value.color} 18%, transparent)`)
 

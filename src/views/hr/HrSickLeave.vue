@@ -203,8 +203,10 @@ import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../services/api.ts'
-import { store } from '../../store.ts'
+import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
 import { formatNumber, locale } from '../../utils/locale.ts'
+
+const leaveTypesStore = useLeaveTypesStore()
 
 const router = useRouter()
 
@@ -227,7 +229,7 @@ const years = [y - 2, y - 1, y, y + 1]
 
 // A disabled type can still have history worth reporting on, so offer the
 // full list rather than the enabled subset — same reasoning as HrAbsences.
-const typeOptions = computed<LeaveType[]>(() => store.leaveTypes)
+const typeOptions = computed<LeaveType[]>(() => leaveTypesStore.leaveTypes)
 
 /**
  * What the page is actually counting, in the report's own words. Taken from

@@ -18,7 +18,7 @@ import HrWhosOff from './views/hr/HrWhosOff.vue'
 import MyLeave from './views/MyLeave.vue'
 import Profile from './views/Profile.vue'
 import Team from './views/Team.vue'
-import { store } from './store.ts'
+import { useSessionStore } from './stores/session.ts'
 import { canOpenRoute } from './utils/access.ts'
 
 declare module 'vue-router' {
@@ -57,6 +57,7 @@ const router = createRouter({
 	routes,
 })
 
-router.beforeEach((to) => canOpenRoute(to.meta, store.session) || { name: 'my' })
+// The session store needs the app's Pinia, which main.ts installs before this router.
+router.beforeEach((to) => canOpenRoute(to.meta, useSessionStore().session) || { name: 'my' })
 
 export default router

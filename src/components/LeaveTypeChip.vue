@@ -11,14 +11,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 
 const props = defineProps<{
 	/** Null when the server withheld the type */
 	typeId: number | null
 }>()
 
-const type = computed(() => store.leaveType(props.typeId))
+const leaveTypesStore = useLeaveTypesStore()
+
+const type = computed(() => leaveTypesStore.leaveType(props.typeId))
 </script>
 
 <style scoped lang="scss">

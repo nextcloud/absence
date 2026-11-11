@@ -38,9 +38,16 @@
 <script setup lang="ts">
 import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
-import { store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
 import { addWorkingDaysByMonth } from '../utils/dates.ts'
 import { formatNumber, locale } from '../utils/locale.ts'
+
+const props = defineProps<{
+	year: number
+}>()
+const requestsStore = useRequestsStore()
+const leaveTypesStore = useLeaveTypesStore()
 
 /** The figures of the card */
 interface YearStats {
@@ -50,17 +57,13 @@ interface YearStats {
 	favouriteMonth: string | null
 }
 
-const props = defineProps<{
-	year: number
-}>()
-
 /**
  * Summary of this year's approved, balance-counting leave (holidays and the
  * like — not sick leave, which is not a "trip"). Null when there is nothing
  * to celebrate yet, so the card stays hidden.
  */
 const stats = computed<YearStats | null>(() => {
-	const mine = store.requests.filter((r) => {
+	const mine = requestsStore.requests.filter((r) => {
 		if (r.status !== 'APPROVED') {
 			return false
 		}
@@ -69,7 +72,7 @@ const stats = computed<YearStats | null>(() => {
 		}
 		// Genuine, balance-counting leave only — not sick leave, and not a
 		// withheld confidential absence (whose type is null on this view).
-		const type = store.leaveType(r.typeId)
+		const type = leaveTypesStore.leaveType(r.typeId)
 		return type.countsAgainstBalance === true && type.key && type.key !== 'sick'
 	})
 	if (!mine.length) {

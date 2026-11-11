@@ -229,7 +229,9 @@ import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Send from 'vue-material-design-icons/Send.vue'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
+import { useRequestsStore } from '../stores/requests.ts'
+import { useSessionStore } from '../stores/session.ts'
 import { weekdaysOn } from '../utils/contract.ts'
 import { parseWeekdays, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
@@ -239,13 +241,6 @@ import { formatNumber } from '../utils/locale.ts'
 import { namesAndMore } from '../utils/people.ts'
 import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.ts'
 
-/** An entry of the category picker under sick leave: a null id is plain sick leave */
-interface SickCategoryOption {
-	id: number | null
-	icon: string
-	label: string
-}
-
 const props = withDefaults(defineProps<{
 	request?: LeaveRequest | null
 	// HR "record absence for an employee" mode (e.g. sick leave).
@@ -254,11 +249,20 @@ const props = withDefaults(defineProps<{
 	request: null,
 	hrMode: false,
 })
-
 const emit = defineEmits<{
 	close: []
 	saved: []
 }>()
+const leaveTypesStore = useLeaveTypesStore()
+const sessionStore = useSessionStore()
+const requestsStore = useRequestsStore()
+
+/** An entry of the category picker under sick leave: a null id is plain sick leave */
+interface SickCategoryOption {
+	id: number | null
+	icon: string
+	label: string
+}
 
 const selectedType = ref<LeaveType | null>(null)
 const sickCategory = ref<SickCategoryOption | null>(null)
@@ -307,26 +311,26 @@ const submitLabel = computed(() => {
 })
 
 /** The type keyed 'sick' that the confidential categories nest under. */
-const sickType = computed<LeaveType | null>(() => store.enabledLeaveTypes.find((type) => type.key === 'sick' && type.enabled) || null)
+const sickType = computed<LeaveType | null>(() => leaveTypesStore.enabledLeaveTypes.find((type) => type.key === 'sick' && type.enabled) || null)
 
 const typeOptions = computed<LeaveType[]>(() => {
 	// HR may record any enabled type (incl. sick); employees only self-requestable ones.
 	// HR correcting an existing record needs the same full list — otherwise the
 	// record's own type (sick) is missing from the picker it is preselected in.
-	if (props.hrMode || (isEdit.value && store.session.isHr)) {
+	if (props.hrMode || (isEdit.value && sessionStore.session.isHr)) {
 		// Confidential categories (hrOnly) are picked as a sub-option of sick
 		// leave, not as top-level types — unless no sick type exists to hang
 		// them off, in which case they stay listed directly.
-		return store.enabledLeaveTypes.filter((type) => !type.hrOnly || !sickType.value)
+		return leaveTypesStore.enabledLeaveTypes.filter((type) => !type.hrOnly || !sickType.value)
 	}
-	return store.requestableLeaveTypes
+	return leaveTypesStore.requestableLeaveTypes
 })
 
 /** Confidential (HR-only) types — the server only sends these to HR. */
-const confidentialCategories = computed<LeaveType[]>(() => store.enabledLeaveTypes.filter((type) => type.hrOnly))
+const confidentialCategories = computed<LeaveType[]>(() => leaveTypesStore.enabledLeaveTypes.filter((type) => type.hrOnly))
 
 const showSickCategories = computed<boolean>(() => {
-	return (props.hrMode || (isEdit.value && store.session.isHr === true))
+	return (props.hrMode || (isEdit.value && sessionStore.session.isHr === true))
 		&& confidentialCategories.value.length > 0
 		&& selectedType.value !== null
 		&& sickType.value !== null
@@ -338,7 +342,7 @@ const showSickCategories = computed<boolean>(() => {
  * the additional statutory entitlement it marks is annual leave.
  */
 const showDisability = computed<boolean>(() => {
-	return (props.hrMode || (isEdit.value && store.session.isHr === true))
+	return (props.hrMode || (isEdit.value && sessionStore.session.isHr === true))
 		&& selectedType.value !== null
 		&& selectedType.value.key === 'annual'
 })
@@ -358,11 +362,11 @@ const needsReplacement = computed(() => selectedType.value ? selectedType.value.
 
 const subjectUid = computed<string | null>(() => {
 	// Whose leave this is — that person can't be their own replacement.
-	return props.hrMode ? (selectedEmployee.value && selectedEmployee.value.uid) : (props.request ? props.request.employeeUid : store.session.uid)
+	return props.hrMode ? (selectedEmployee.value && selectedEmployee.value.uid) : (props.request ? props.request.employeeUid : sessionStore.session.uid)
 })
 
 /** Whether this dialog is about the signed-in user's own leave. */
-const isOwnLeave = computed(() => subjectUid.value === store.session.uid)
+const isOwnLeave = computed(() => subjectUid.value === sessionStore.session.uid)
 
 /**
  * Whose absence this is, for wording aimed at somebody else's record.
@@ -436,7 +440,7 @@ const workingDaysNum = computed(() => {
  */
 const subjectWeekdays = computed<Set<number> | null>(() => {
 	return isOwnLeave.value
-		? parseWeekdays(store.session.workWeekdays || '1,2,3,4,5')
+		? parseWeekdays(sessionStore.session.workWeekdays || '1,2,3,4,5')
 		: weekdaysOn(subjectPeriods.value, startIso.value)
 })
 
@@ -462,7 +466,7 @@ const balanceRow = computed<BalanceRow | null>(() => {
 		return null
 	}
 	const year = parseInt(startIso.value.slice(0, 4), 10)
-	return store.balance.balances.find((b) => b.typeId === type.id && b.year === year && b.entitlement !== null) || null
+	return requestsStore.balance.balances.find((b) => b.typeId === type.id && b.year === year && b.entitlement !== null) || null
 })
 
 const projectedAvailable = computed<number | null>(() => {
@@ -493,14 +497,14 @@ const availablePct = computed(() => {
  * else would otherwise be shown their own colleagues, which is worse than
  * showing nothing.
  */
-const coverageApplies = computed(() => !props.hrMode && subjectUid.value === store.session.uid)
+const coverageApplies = computed(() => !props.hrMode && subjectUid.value === sessionStore.session.uid)
 
 /** Colleagues off during the picked dates — excluding me and this very request. */
 const overlaps = computed<CoverageEvent[]>(() => {
 	if (!coverage.value) {
 		return []
 	}
-	return coverage.value.events.filter((ev) => ev.employeeUid !== store.session.uid
+	return coverage.value.events.filter((ev) => ev.employeeUid !== sessionStore.session.uid
 		&& !(props.request && ev.requestId === props.request.id))
 })
 
@@ -573,9 +577,9 @@ onBeforeUnmount(() => {
 onMounted(async () => {
 	await initFromProps()
 	loadSubject()
-	if (!props.hrMode && !store.balance.balances.length) {
+	if (!props.hrMode && !requestsStore.balance.balances.length) {
 		// No year on purpose: the server then answers every year, which balanceRow needs for leave booked in another year
-		await store.loadMyBalance()
+		await requestsStore.loadMyBalance()
 	}
 })
 
@@ -648,7 +652,7 @@ async function loadSubject() {
 	if (!uid) {
 		return
 	}
-	let code = formatRegionCode(store.session.holidayCountry ?? '', store.session.holidayRegion ?? '')
+	let code = formatRegionCode(sessionStore.session.holidayCountry ?? '', sessionStore.session.holidayRegion ?? '')
 	if (!isOwnLeave.value) {
 		try {
 			const profile = await api.getProfile(uid)
@@ -696,7 +700,7 @@ async function initFromProps() {
 	const types = typeOptions.value
 	const request = props.request
 	if (request) {
-		const requestType = store.enabledLeaveTypes.find((x) => x.id === request.typeId) || null
+		const requestType = leaveTypesStore.enabledLeaveTypes.find((x) => x.id === request.typeId) || null
 		if (requestType && requestType.hrOnly && sickType.value) {
 			// A confidential record edits as "Sick leave" + its category.
 			selectedType.value = sickType.value
@@ -740,8 +744,8 @@ async function initFromProps() {
 function pastReplacements(): UserRef[] {
 	const seen = new Set<string>()
 	const list: UserRef[] = []
-	const own = store.requests
-		.filter((r) => r.employeeUid === store.session.uid && r.replacementUid)
+	const own = requestsStore.requests
+		.filter((r) => r.employeeUid === sessionStore.session.uid && r.replacementUid)
 		.sort((a, b) => b.id - a.id)
 	for (const r of own) {
 		const uid = r.replacementUid
@@ -824,9 +828,9 @@ async function submit() {
 	}
 	try {
 		if (props.request) {
-			await store.updateRequest(props.request.id, payload)
+			await requestsStore.updateRequest(props.request.id, payload)
 		} else {
-			await store.createRequest(payload)
+			await requestsStore.createRequest(payload)
 		}
 		emit('saved')
 	} catch (e) {

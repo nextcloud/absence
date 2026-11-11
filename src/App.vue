@@ -153,9 +153,9 @@
 		</NcAppContent>
 
 		<RequestSidebar
-			v-if="store.selectedId"
-			:key="store.selectedId"
-			@close="store.select(null)"
+			v-if="requestsStore.selectedId"
+			:key="requestsStore.selectedId"
+			@close="requestsStore.select(null)"
 			@edit="openEditRequest"
 			@changed="onChanged" />
 
@@ -209,8 +209,12 @@ import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import Confetti from './components/Confetti.vue'
 import RequestDialog from './components/RequestDialog.vue'
 import RequestSidebar from './components/RequestSidebar.vue'
-import { store } from './store.ts'
+import { useRequestsStore } from './stores/requests.ts'
+import { useSessionStore } from './stores/session.ts'
 import { openEditKey, openNewKey, openRecordKey } from './utils/injectionKeys.ts'
+
+const requestsStore = useRequestsStore()
+const sessionStore = useSessionStore()
 
 /** What the page shows instead of the views while the app is closed to the user */
 interface ClosedState {
@@ -230,13 +234,13 @@ const showDialog = ref(false)
 const editRequest = ref<LeaveRequest | null>(null)
 const recordMode = ref(false)
 
-const session = computed(() => store.session)
+const session = computed(() => sessionStore.session)
 
-const canOpenSettings = computed(() => store.session.isAdmin || store.session.isHr)
+const canOpenSettings = computed(() => sessionStore.session.isAdmin || sessionStore.session.isHr)
 
 /** Why the app is closed to this user, or null. HR keeps its pages outside the employees group. */
 const closed = computed<ClosedState | null>(() => {
-	if (!store.session.configured) {
+	if (!sessionStore.session.configured) {
 		return {
 			name: t('absence', 'Absence isn\'t set up yet'),
 			// Only those who can fix it are told why
@@ -245,7 +249,7 @@ const closed = computed<ClosedState | null>(() => {
 			icon: CogOutline,
 		}
 	}
-	if (!store.session.isEmployee && !store.session.isHr) {
+	if (!sessionStore.session.isEmployee && !sessionStore.session.isHr) {
 		return {
 			name: t('absence', 'You are not in the employees group'),
 			description: canOpenSettings.value
@@ -258,9 +262,9 @@ const closed = computed<ClosedState | null>(() => {
 	return null
 })
 
-const pendingCount = computed(() => store.session.pendingApprovals || 0)
+const pendingCount = computed(() => sessionStore.session.pendingApprovals || 0)
 
-const escalatedCount = computed(() => store.session.escalatedCount ?? 0)
+const escalatedCount = computed(() => sessionStore.session.escalatedCount ?? 0)
 
 onMounted(() => {
 	window.addEventListener('absence:open-new', openNewRequest)
@@ -320,7 +324,7 @@ function openEditRequest(request: LeaveRequest): void {
 	editRequest.value = request
 	recordMode.value = false
 	showDialog.value = true
-	store.select(null)
+	requestsStore.select(null)
 }
 
 /**
@@ -338,7 +342,7 @@ function closeDialog(): void {
 function onChanged(): void {
 	closeDialog()
 	// Close the detail sidebar so it can't show a stale (pre-decision) state.
-	store.select(null)
+	requestsStore.select(null)
 	window.dispatchEvent(new CustomEvent('absence:refresh'))
 }
 </script>

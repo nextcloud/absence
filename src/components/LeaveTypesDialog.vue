@@ -98,8 +98,14 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import api from '../services/api.ts'
-import { store } from '../store.ts'
+import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { serverMessage } from '../utils/errors.ts'
+
+defineEmits<{
+	close: []
+}>()
+
+const leaveTypesStore = useLeaveTypesStore()
 
 /** A leave type while it is edited: a new one has no id yet, and is enabled by the server */
 interface LeaveTypeForm extends Omit<LeaveType, 'id' | 'enabled'> {
@@ -113,10 +119,6 @@ interface Flag {
 	label: string
 }
 
-defineEmits<{
-	close: []
-}>()
-
 const form = ref<LeaveTypeForm | null>(null)
 const saving = ref(false)
 const flags: Flag[] = [
@@ -128,7 +130,7 @@ const flags: Flag[] = [
 	{ key: 'hrOnly', label: t('absence', 'Confidential: only HR sees the type') },
 ]
 
-const types = computed(() => [...store.leaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
+const types = computed(() => [...leaveTypesStore.leaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
 
 /**
  * @param type the leave type to edit, null to add one
@@ -155,7 +157,7 @@ async function save() {
 		} else {
 			form.value = { ...await api.createLeaveType(edited) }
 		}
-		await store.loadLeaveTypes()
+		await leaveTypesStore.loadLeaveTypes()
 		showSuccess(t('absence', 'Leave type saved'))
 	} catch (e) {
 		showError(serverMessage(e) || t('absence', 'Could not save the leave type'))

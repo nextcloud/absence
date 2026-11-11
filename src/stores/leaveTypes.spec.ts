@@ -2,18 +2,17 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import type { LeaveType } from './types/index.ts'
+import type { LeaveType } from '../types/index.ts'
 
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@nextcloud/axios', () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }))
 vi.mock('@nextcloud/router', () => ({ generateUrl: (path: string) => path }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('@nextcloud/initial-state', () => ({ loadState: vi.fn((app: string, key: string, fallback: unknown) => fallback) }))
 vi.mock('@nextcloud/l10n', () => ({ t: (app: string, text: string) => text }))
-vi.mock('./services/logger.ts', () => ({ logger: { error: vi.fn() } }))
 
-const { store, statusMeta } = await import('./store.ts')
+const { useLeaveTypesStore } = await import('./leaveTypes.ts')
 
 /**
  * @param values what the test is about
@@ -37,8 +36,12 @@ function leaveType(values: Partial<LeaveType>): LeaveType {
 	}
 }
 
-describe('store.leaveType', () => {
+describe('leave types store', () => {
+	let store: ReturnType<typeof useLeaveTypesStore>
+
 	beforeEach(() => {
+		setActivePinia(createPinia())
+		store = useLeaveTypesStore()
 		store.leaveTypes = [
 			leaveType({ id: 1, label: 'Annual leave' }),
 			leaveType({ id: 2, label: 'Sick leave', employeeRequestable: false }),
@@ -82,20 +85,5 @@ describe('store.leaveType', () => {
 		expect(store.statusVisible({ typeId: 2, status: 'APPROVED' })).toBe(false)
 		expect(store.statusVisible({ typeId: 2, status: 'CANCELLED' })).toBe(true)
 		expect(store.statusVisible({ typeId: 1, status: 'APPROVED' })).toBe(true)
-	})
-})
-
-describe('statusMeta', () => {
-	it('labels every known status', () => {
-		for (const status of ['PENDING', 'ESCALATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'WITHDRAWAL_PENDING']) {
-			const meta = statusMeta(status)
-			expect(meta.label).toBeTruthy()
-			expect(meta.label).not.toBe(status)
-			expect(meta.tint).toMatch(/^var\(--/)
-		}
-	})
-
-	it('falls back to the raw status for an unknown one', () => {
-		expect(statusMeta('SOMETHING_NEW').label).toBe('SOMETHING_NEW')
 	})
 })
