@@ -503,6 +503,7 @@ export default {
 				request_updated: { label: t('absence', 'Edited'), icon: '✏️' },
 				request_edited_superseding: { label: t('absence', 'Edited (needs re-approval)'), icon: '✏️' },
 				request_hr_edited: { label: t('absence', 'Adjusted by HR'), icon: '🛠️' },
+				disability_changed: { label: t('absence', 'Disability flag changed'), icon: '♿' },
 				withdrawal_requested: { label: t('absence', 'Withdrawal requested'), icon: '↩️' },
 				request_cancelled: { label: t('absence', 'Cancelled'), icon: '🚫' },
 				withdrawal_approved: { label: t('absence', 'Withdrawal approved'), icon: '↩️' },

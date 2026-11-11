@@ -73,6 +73,8 @@ class RequestService {
 	private const MAX_SPAN_DAYS = 366;
 	/** HR records long leave too (parental leave); the coverage view reads this much. */
 	private const MAX_HR_SPAN_DAYS = 3660;
+	/** History entry for a change of the disability flag, shown to HR only (§5.8) */
+	private const EVENT_DISABILITY = 'disability_changed';
 
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
@@ -282,7 +284,11 @@ class RequestService {
 		);
 		$detail['history'] = array_map(
 			static fn (RequestEvent $e) => $e->jsonSerialize(),
-			$this->eventMapper->findForRequest($id),
+			array_values(array_filter(
+				$this->eventMapper->findForRequest($id),
+				// The disability flag and its changes are for HR alone (§5.8)
+				static fn (RequestEvent $e): bool => $viewerIsHr || $e->getEventType() !== self::EVENT_DISABILITY,
+			)),
 		);
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
 		$detail['canModify'] = $this->permission->canModify($actorUid, $request);
@@ -608,6 +614,9 @@ class RequestService {
 			'detail' => $this->createdDetail($request, $type, $onBehalf),
 			'reason' => $request->getReason(),
 		]);
+		if ($request->getDisability()) {
+			$this->recordDisability($request, $actorUid);
+		}
 		return $request;
 	}
 
@@ -922,6 +931,7 @@ class RequestService {
 		}
 		// HR-only flag (§5.8). Not part of describeChanges(): the history timeline
 		// is visible to the employee and manager, and the flag is not.
+		$hadDisability = $request->getDisability();
 		if (array_key_exists('disability', $data) && $data['disability'] !== null) {
 			$request->setDisability((bool)$data['disability']);
 		}
@@ -940,6 +950,9 @@ class RequestService {
 		}
 		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
 		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request), 'disability' => $request->getDisability()], $before);
+		if ($request->getDisability() !== $hadDisability) {
+			$this->recordDisability($request, $actorUid);
+		}
 		return $request;
 	}
 
@@ -1253,6 +1266,25 @@ class RequestService {
 	}
 
 	// --------------------------------------------------------------- helpers ----
+
+	/**
+	 * The disability flag (§5.8) was set or cleared: an entry in the request's
+	 * history that only HR is shown, like the flag itself.
+	 */
+	private function recordDisability(LeaveRequest $request, string $actorUid): void {
+		try {
+			$event = new RequestEvent();
+			$event->setRequestId((int)$request->getId());
+			$event->setActorUid($actorUid);
+			$event->setEventType(self::EVENT_DISABILITY);
+			$event->setDetail($request->getDisability() ? 'Set' : 'Cleared');
+			$event->setCreatedAt($this->clock->now());
+			$this->eventMapper->insert($event);
+		} catch (\Throwable $e) {
+			// History is best-effort: never let it break the workflow.
+			$this->logger->warning('Absence: could not record history event', ['exception' => $e]);
+		}
+	}
 
 	/**
 	 * Record an important action: (1) a line in the Nextcloud server log and an
