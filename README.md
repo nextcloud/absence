@@ -207,7 +207,7 @@ semicolon-separated, straight out of Excel.
 
 ### Balances and entitlements
 
-![HR balances table](screenshots/hr-balances.png)
+![HR employees list](screenshots/hr-employees.png)
 
 Per-employee entitlement, used, pending, remaining and available, per year and type,
 filterable by group. Set entitlements individually or **in bulk for a whole group**.
@@ -268,7 +268,7 @@ an external HR system.
 
 ## For administrators
 
-![Admin settings](screenshots/admin-settings.png)
+![Settings page inside the app](screenshots/hr-settings.png)
 
 Everything is configured on the **Settings** page inside the app, at the bottom of
 its navigation. HR and Nextcloud admins can open it. Only admins can change the HR
