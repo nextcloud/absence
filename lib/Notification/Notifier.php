@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Notification;
 
+use OCA\Absence\Service\CarryOverReminderService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
@@ -53,6 +54,17 @@ class Notifier implements INotifier {
 					: $l->t('HR asks you to set it on your profile: it decides which public holidays are days off for you.'))
 				->setIcon($this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(ConfigService::APP_ID, 'app-dark.svg')))
 				->setLink($this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/profile');
+		}
+		if ($notification->getSubject() === NotificationService::SUBJECT_CARRYOVER_EXPIRING) {
+			$days = (float)($notification->getSubjectParameters()['days'] ?? 0.0);
+			$date = (string)($notification->getSubjectParameters()['date'] ?? '');
+			if ($days <= 0.0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+				throw new UnknownNotificationException('Incomplete carry-over reminder');
+			}
+			return $notification->setParsedSubject(CarryOverReminderService::sentence($l, $days, $date))
+				->setParsedMessage(CarryOverReminderService::hint($l))
+				->setIcon($this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(ConfigService::APP_ID, 'app-dark.svg')))
+				->setLink($this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/my');
 		}
 		$params = $notification->getSubjectParameters();
 		$employee = $this->displayName((string)($params['employee'] ?? ''));
@@ -106,6 +118,10 @@ class Notifier implements INotifier {
 			NotificationService::SUBJECT_REPLACEMENT_CANCELLED => [
 				$l->t('No longer covering for %s', [$employee]),
 				$l->t('Their leave was cancelled.'),
+			],
+			NotificationService::SUBJECT_ABSENCE_RECORDED => [
+				$this->absentSubject($l, $employee, (string)($params['start'] ?? ''), (string)($params['end'] ?? '')),
+				$l->t('HR recorded this absence.'),
 			],
 			NotificationService::SUBJECT_COMMENT => [
 				$noteAuthor !== ''
@@ -195,6 +211,20 @@ class Notifier implements INotifier {
 			->setLink($link, 'WEB')
 			->setPrimary(false);
 		$notification->addParsedAction($open);
+	}
+
+	private function absentSubject(IL10N $l, string $employee, string $start, string $end): string {
+		if ($start === '' || $end === '') {
+			return $l->t('%s is absent', [$employee]);
+		}
+		if ($start === $end) {
+			return $l->t('%1$s is absent on %2$s', [$employee, $this->formatDate($l, $start)]);
+		}
+		return $l->t('%1$s is absent from %2$s to %3$s', [$employee, $this->formatDate($l, $start), $this->formatDate($l, $end)]);
+	}
+
+	private function formatDate(IL10N $l, string $date): string {
+		return (string)$l->l('date', new \DateTime($date), ['width' => 'medium']);
 	}
 
 	private function displayName(string $uid): string {

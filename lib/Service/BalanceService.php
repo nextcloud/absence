@@ -111,10 +111,78 @@ class BalanceService {
 			$entitlements[$ent->getYear()][$ent->getTypeId()] = $ent;
 		}
 
+		$usedByExpiry = null;
 		return [
 			'employeeUid' => $employeeUid,
-			'balances' => $this->assembleRows($employeeUid, $year, $usage, $types, $entitlements),
+			'balances' => $this->withExpiringCarryOver(
+				$employeeUid,
+				$this->assembleRows($employeeUid, $year, $usage, $types, $entitlements),
+				$usedByExpiry,
+				$employeeUid,
+			),
 		];
+	}
+
+	/**
+	 * The date the carry-over held in $year expires on (§6.2), or null when HR
+	 * set no expiry.
+	 */
+	public function carryOverExpiryDate(int $year): ?string {
+		$expiry = $this->config->getCarryOverExpiry(); // 'MM-DD' or ''
+		return $expiry === '' ? null : sprintf('%04d-%s', $year, $expiry);
+	}
+
+	/**
+	 * Working days of taken leave that count against the carry-over of $year:
+	 * leave starting from 1 January up to and including the expiry date.
+	 *
+	 * @param ?string $employeeUid only this employee, null for everyone
+	 * @return array<string,array<int,float>> [employeeUid][typeId] => days
+	 */
+	public function usedDaysByCarryOverExpiry(int $year, string $expiryDate, ?string $employeeUid = null): array {
+		return $this->requestMapper->sumUsedDaysStartingBetween(sprintf('%04d-01-01', $year), $expiryDate, $employeeUid);
+	}
+
+	/**
+	 * The part of a carry-over that survives its expiry date (§6.2). Taken leave
+	 * is set against the carried-over days first, so what stays is the part
+	 * covered by the leave of {@see usedDaysByCarryOverExpiry()}; the rest is lost.
+	 */
+	public function carryOverKept(float $carryOverDays, float $usedByExpiry): float {
+		return round(min($carryOverDays, $usedByExpiry), 1);
+	}
+
+	/**
+	 * Fill in, on the rows of the year running now, the carried-over days that
+	 * the expiry (§6.2) would remove as things stand, and its date. Rows keep 0
+	 * and null when no expiry is set, the date has passed, nothing was carried
+	 * over or taken leave already covers it.
+	 *
+	 * @param list<array<string,mixed>> $rows one employee's balance rows
+	 * @param ?array<string,array<int,float>> $usedByExpiry loaded on first need, kept between employees
+	 * @param ?string $onlyUid the employee to load the usage of, null to load everyone's in one query
+	 * @return list<array<string,mixed>>
+	 */
+	private function withExpiringCarryOver(string $employeeUid, array $rows, ?array &$usedByExpiry, ?string $onlyUid): array {
+		// the expiry is run by a background job on the server's date
+		$year = $this->clock->serverYear();
+		$expiryDate = $this->carryOverExpiryDate($year);
+		if ($expiryDate === null || $this->clock->serverToday() > $expiryDate) {
+			return $rows;
+		}
+		foreach ($rows as $i => $row) {
+			// only a stored entitlement can hold a carry-over
+			if ($row['year'] !== $year || $row['entitlementId'] === null || $row['carryOverDays'] <= 0.0) {
+				continue;
+			}
+			$usedByExpiry ??= $this->usedDaysByCarryOverExpiry($year, $expiryDate, $onlyUid);
+			$expiring = round($row['carryOverDays'] - $this->carryOverKept($row['carryOverDays'], $usedByExpiry[$employeeUid][$row['typeId']] ?? 0.0), 1);
+			if ($expiring > 0.0) {
+				$rows[$i]['carryOverExpiring'] = $expiring;
+				$rows[$i]['carryOverExpiryDate'] = $expiryDate;
+			}
+		}
+		return $rows;
 	}
 
 	/**
@@ -142,8 +210,14 @@ class BalanceService {
 		}
 
 		$result = [];
+		$usedByExpiry = null;
 		foreach ($employeeUids as $uid) {
-			$result[$uid] = $this->assembleRows($uid, $year, $usageByEmployee[$uid] ?? [], $types, $entitlementsByEmployee[$uid] ?? []);
+			$result[$uid] = $this->withExpiringCarryOver(
+				$uid,
+				$this->assembleRows($uid, $year, $usageByEmployee[$uid] ?? [], $types, $entitlementsByEmployee[$uid] ?? []),
+				$usedByExpiry,
+				null,
+			);
 		}
 		return $result;
 	}
@@ -312,6 +386,9 @@ class BalanceService {
 			'pending' => round($pending, 1),
 			'remaining' => $remaining,
 			'available' => $available,
+			// see withExpiringCarryOver()
+			'carryOverExpiring' => 0.0,
+			'carryOverExpiryDate' => null,
 		];
 	}
 

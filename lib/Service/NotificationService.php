@@ -33,8 +33,11 @@ class NotificationService {
 	public const SUBJECT_REPLACEMENT_ASSIGNED = 'replacement_assigned';
 	public const SUBJECT_REPLACEMENT_CANCELLED = 'replacement_cancelled';
 	public const SUBJECT_COMMENT = 'comment_added';
+	public const SUBJECT_ABSENCE_RECORDED = 'absence_recorded';
 	public const SUBJECT_MISSING_REGION = 'missing_region';
+	public const SUBJECT_CARRYOVER_EXPIRING = 'carryover_expiring';
 	private const OBJECT_REGION = 'absence_region';
+	private const OBJECT_CARRYOVER = 'absence_carryover';
 
 	/**
 	 * How much of a note survives into a Nextcloud notification. The free text is
@@ -144,6 +147,16 @@ class NotificationService {
 	}
 
 	/**
+	 * Tell the line manager that HR recorded an absence for one of their reports
+	 * (§5.6). Who and when only, for every leave type: that is what the team
+	 * timeline shows them, and saying more for some types would give away which
+	 * ones are confidential (§5.7).
+	 */
+	public function notifyAbsenceRecorded(LeaveRequest $request, string $managerUid): void {
+		$this->send($managerUid, self::SUBJECT_ABSENCE_RECORDED, $request, false);
+	}
+
+	/**
 	 * @param ?string $note free text written by a person that the recipient would
 	 *                      otherwise only find by opening the request: the
 	 *                      applicant's reason, a decision comment, or a comment
@@ -176,6 +189,8 @@ class NotificationService {
 				->setSubject($subject, [
 					'employee' => $request->getEmployeeUid(),
 					'requestId' => (string)$request->getId(),
+					'start' => $request->getStartDate(),
+					'end' => $request->getEndDate(),
 					'actionable' => $actionable,
 					'note' => $this->preview($note),
 					'noteAuthor' => (string)$noteAuthorUid,
@@ -310,6 +325,10 @@ class NotificationService {
 				$l->t('No longer covering for %s', [$employee]),
 				$l->t('%1$s\'s leave for %2$s was cancelled — you no longer need to cover.', [$employee, $range]),
 			],
+			self::SUBJECT_ABSENCE_RECORDED => [
+				$l->t('%s is absent', [$employee]),
+				$l->t('HR recorded an absence for %1$s for %2$s.', [$employee, $range]),
+			],
 			self::SUBJECT_COMMENT => [
 				$author !== '' ? $l->t('New comment from %s', [$author]) : $l->t('New comment on a leave request'),
 				$l->t('There is a new comment on the leave request of %1$s for %2$s.', [$employee, $range]),
@@ -354,6 +373,56 @@ class NotificationService {
 			$this->notificationManager->markProcessed($notification);
 		} catch (\Throwable $e) {
 			$this->logger->debug('Absence: could not dismiss notifications', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Tells an employee how many of their carried-over days are about to expire
+	 * (§6.2), by notification and by email.
+	 *
+	 * @param string $expiryDate 'YYYY-MM-DD'
+	 */
+	public function notifyCarryOverExpiring(string $uid, float $days, string $expiryDate): void {
+		$user = $this->userManager->get($uid);
+		// A disabled account cannot act on any of this.
+		if ($user?->isEnabled() === false) {
+			return;
+		}
+		try {
+			$notification = $this->notificationManager->createNotification();
+			$notification->setApp(ConfigService::APP_ID)
+				->setUser($uid)
+				->setDateTime(new \DateTime())
+				->setObject(self::OBJECT_CARRYOVER, $expiryDate)
+				->setSubject(self::SUBJECT_CARRYOVER_EXPIRING, ['days' => $days, 'date' => $expiryDate]);
+			$this->notificationManager->notify($notification);
+		} catch (\Throwable $e) {
+			$this->logger->warning('Absence: notification failed', ['exception' => $e]);
+		}
+		$email = $user->getEMailAddress();
+		if (!$user instanceof IUser || !$email) {
+			return;
+		}
+		try {
+			$l = $this->l10nFactory->get(ConfigService::APP_ID, $this->l10nFactory->getUserLanguage($user));
+			$heading = $l->t('Carried-over days are about to expire');
+			$template = $this->mailer->createEMailTemplate('absence.' . self::SUBJECT_CARRYOVER_EXPIRING);
+			$template->setSubject($heading);
+			$template->addHeader();
+			$template->addHeading($heading);
+			$template->addBodyText(CarryOverReminderService::sentence($l, $days, $expiryDate) . ' ' . CarryOverReminderService::hint($l));
+			$template->addBodyButton(
+				$l->t('Open Absence'),
+				$this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/my',
+			);
+			$template->addFooter();
+
+			$message = $this->mailer->createMessage();
+			$message->setTo([$email => $user->getDisplayName()]);
+			$message->useTemplate($template);
+			$this->mailer->send($message);
+		} catch (\Throwable $e) {
+			$this->logger->warning('Absence: email failed', ['exception' => $e]);
 		}
 	}
 

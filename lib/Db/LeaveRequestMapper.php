@@ -464,9 +464,10 @@ class LeaveRequestMapper extends QBMapper {
 	 * dates, per employee and type. Like the balances, the whole request counts
 	 * for the day it starts on.
 	 *
+	 * @param ?string $employeeUid only this employee, null for everyone
 	 * @return array<string,array<int,float>> [employeeUid][typeId] => days
 	 */
-	public function sumUsedDaysStartingBetween(string $from, string $to): array {
+	public function sumUsedDaysStartingBetween(string $from, string $to, ?string $employeeUid = null): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('employee_uid', 'type_id')
 			->selectAlias($qb->func()->sum('working_days'), 'days')
@@ -476,6 +477,9 @@ class LeaveRequestMapper extends QBMapper {
 			->andWhere($qb->expr()->gte('start_date', $qb->createNamedParameter($from)))
 			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter($to)))
 			->groupBy('employee_uid', 'type_id');
+		if ($employeeUid !== null) {
+			$qb->andWhere($qb->expr()->eq('employee_uid', $qb->createNamedParameter($employeeUid)));
+		}
 		$result = $qb->executeQuery();
 		$days = [];
 		while ($row = $result->fetch()) {

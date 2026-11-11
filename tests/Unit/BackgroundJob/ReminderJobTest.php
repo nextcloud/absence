@@ -11,12 +11,14 @@ namespace OCA\Absence\Tests\Unit\BackgroundJob;
 use OCA\Absence\BackgroundJob\ReminderJob;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Service\CarryOverReminderService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
@@ -33,6 +35,7 @@ class ReminderJobTest extends TestCase {
 	private array $pending = [];
 	/** @var int[] ids of the reminded requests, in order */
 	private array $reminded = [];
+	private CarryOverReminderService&MockObject $carryOverReminder;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -76,7 +79,21 @@ class ReminderJobTest extends TestCase {
 			$appConfig,
 			$this->createMock(LoggerInterface::class),
 			$managers,
+			$this->carryOverReminder = $this->createMock(CarryOverReminderService::class),
 		);
+	}
+
+	public function testCarryOverReminderRunsEveryDayAndItsFailureKeepsTheManagerReminders(): void {
+		// Saturday, Sunday, Tuesday: its own dates decide, not the working week
+		$this->carryOverReminder->expects(self::exactly(3))->method('remind')
+			->willThrowException(new \RuntimeException('no balances today'));
+		$this->pendingSince(1, '2026-03-05');
+
+		$this->runOn('2026-03-07');
+		$this->runOn('2026-03-08');
+		$this->runOn('2026-03-10');
+
+		self::assertSame([1], $this->reminded);
 	}
 
 	public function testSecondRunOnTheSameDayRemindsNobodyAgain(): void {

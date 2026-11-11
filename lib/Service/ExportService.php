@@ -43,15 +43,19 @@ class ExportService {
 			: null;
 		$types = $this->typeLabels();
 		$rows = [[
-			'ID', 'Employee', 'Manager', 'Type', 'Start', 'End', 'Working days', 'Status', 'Decided by', 'Decided at',
+			'ID', 'Employee', 'Account ID', 'Email', 'Manager', 'Type', 'Start', 'End', 'Working days', 'Status', 'Decided by', 'Decided at',
 		]];
 		foreach ($this->requestMapper->findAllInRange($from, $to) as $r) {
 			if ($memberUids !== null && !isset($memberUids[$r->getEmployeeUid()])) {
 				continue;
 			}
+			// One lookup serves the name and the address.
+			$employee = $this->userManager->get($r->getEmployeeUid());
 			$rows[] = [
 				(string)$r->getId(),
-				$this->displayName($r->getEmployeeUid()),
+				$employee !== null ? $employee->getDisplayName() : $r->getEmployeeUid(),
+				$r->getEmployeeUid(),
+				(string)$employee?->getEMailAddress(),
 				$r->getManagerUid() !== null ? $this->displayName($r->getManagerUid()) : '',
 				$types[$r->getTypeId()] ?? (string)$r->getTypeId(),
 				$r->getStartDate(),
@@ -72,11 +76,17 @@ class ExportService {
 	public function balancesCsv(int $year, ?string $group = null): array {
 		$report = $this->reportService->balancesReport($year, $group);
 		$rows = [[
-			'Employee', 'Year', 'Type', 'Entitlement', 'Base', 'Carry-over', 'Adjustment', 'Used', 'Pending', 'Remaining', 'Available',
+			'Employee', 'Account ID', 'Email', 'Year', 'Type', 'Entitlement', 'Base', 'Carry-over', 'Adjustment', 'Used', 'Pending', 'Remaining', 'Available',
 		]];
+		// The report has one row per leave type: look each person up once.
+		$emails = [];
 		foreach ($report as $entry) {
+			$uid = (string)$entry['employeeUid'];
+			$emails[$uid] ??= (string)$this->userManager->get($uid)?->getEMailAddress();
 			$rows[] = [
 				$entry['displayName'],
+				$uid,
+				$emails[$uid],
 				(string)$entry['year'],
 				$entry['typeLabel'],
 				(string)($entry['entitlement'] ?? ''),
@@ -121,8 +131,8 @@ class ExportService {
 	/**
 	 * Neutralize spreadsheet formula injection: a cell that begins with a formula
 	 * trigger (=, +, -, @, tab or CR) is evaluated by Excel/LibreOffice/Sheets when
-	 * the export is opened. Employee display names and leave-type labels are
-	 * attacker-influenced free text, so prefix any such value with an apostrophe,
+	 * the export is opened. Employee display names, account ids, e-mail addresses
+	 * and leave-type labels are attacker-influenced free text, so prefix any such value with an apostrophe,
 	 * which forces the client to treat the whole cell as literal text.
 	 */
 	private function sanitizeCell(string $value): string {

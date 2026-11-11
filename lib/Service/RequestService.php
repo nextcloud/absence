@@ -624,6 +624,11 @@ class RequestService {
 		if ($request->getStatus() === LeaveRequest::STATUS_APPROVED) {
 			$this->applyCalendar($request);
 			$this->notifications->notifyReplacementAssigned($request);
+			// HR recorded it for somebody else (§5.6): their line manager was never
+			// asked, so tell them. Not when the manager is the one who recorded it.
+			if ($onBehalf && $managerUid !== null && $managerUid !== $actorUid) {
+				$this->notifications->notifyAbsenceRecorded($request, $managerUid);
+			}
 			$this->activity->publish(ActivityPublisher::SUBJECT_CREATED, $this->activityParams($request), [$employeeUid, $actorUid], $request);
 		} elseif ($request->getStatus() === LeaveRequest::STATUS_ESCALATED) {
 			$hrUids = $this->permission->getHrUids();

@@ -19,7 +19,7 @@ trait WorkingDaysGuardTrait {
 
 	/**
 	 * The employee enters the working-day count manually (§7). Validate it is a
-	 * positive, sane number (allowing halves for a future half-day feature).
+	 * positive, sane number. Halves are allowed (§3.3).
 	 *
 	 * @throws ValidationException
 	 */

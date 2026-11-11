@@ -43,6 +43,10 @@ class NotifierTest extends TestCase {
 				return $parameters === [] ? $text : vsprintf($text, $parameters);
 			},
 		);
+		// Dates stay recognisable without depending on the locale data of the machine.
+		$l->method('l')->willReturnCallback(
+			static fn (string $type, \DateTime $date): string => $date->format('Y-m-d'),
+		);
 		$l10nFactory = $this->createMock(IFactory::class);
 		$l10nFactory->method('get')->willReturn($l);
 
@@ -127,6 +131,16 @@ class NotifierTest extends TestCase {
 		);
 
 		$this->notifier->prepare($notification, 'en');
+	}
+
+	public function testCarryOverReminderSaysHowManyDaysAndWhen(): void {
+		$this->prepare(NotificationService::SUBJECT_CARRYOVER_EXPIRING, ['days' => 2.5, 'date' => '2032-03-31']);
+		self::assertSame('2.5 carried-over days expire on 2032-03-31.', $this->parsedSubject);
+		self::assertSame('Leave that starts on or before that date uses them up first.', $this->parsedMessage);
+		self::assertSame([], $this->actions);
+
+		$this->prepare(NotificationService::SUBJECT_CARRYOVER_EXPIRING, ['days' => 1, 'date' => '2032-03-31']);
+		self::assertSame('1 carried-over day expires on 2032-03-31.', $this->parsedSubject);
 	}
 
 	public function testShortNoticeSaysSoInTheSubjectLine(): void {
@@ -259,5 +273,34 @@ class NotifierTest extends TestCase {
 
 		$this->prepare(NotificationService::SUBJECT_COMMENT, ['employee' => 'emp', 'requestId' => '7']);
 		self::assertSame([], $this->actions);
+	}
+
+	public function testAnAbsenceRecordedByHrSaysWhoAndWhenOnly(): void {
+		// Everything the service stores for it, see NotificationServiceTest: there is
+		// no type or reason to print, whatever the leave type.
+		$this->prepare(NotificationService::SUBJECT_ABSENCE_RECORDED, [
+			'employee' => 'emp',
+			'requestId' => '7',
+			'start' => '2026-02-10',
+			'end' => '2026-02-12',
+			'actionable' => false,
+			'note' => '',
+			'noteAuthor' => '',
+		]);
+
+		self::assertSame('Emp is absent from 2026-02-10 to 2026-02-12', $this->parsedSubject);
+		self::assertSame('HR recorded this absence.', $this->parsedMessage);
+		self::assertSame([], $this->actions);
+	}
+
+	public function testAOneDayAbsenceRecordedByHrNamesTheDayOnce(): void {
+		$this->prepare(NotificationService::SUBJECT_ABSENCE_RECORDED, [
+			'employee' => 'emp',
+			'requestId' => '7',
+			'start' => '2026-02-10',
+			'end' => '2026-02-10',
+		]);
+
+		self::assertSame('Emp is absent on 2026-02-10', $this->parsedSubject);
 	}
 }

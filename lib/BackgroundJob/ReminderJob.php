@@ -10,6 +10,7 @@ namespace OCA\Absence\BackgroundJob;
 
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Service\CarryOverReminderService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\ManagerResolver;
@@ -21,7 +22,8 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Reminds managers about pending requests that are approaching the escalation
- * window (spec §9). Runs daily.
+ * window (spec §9), and employees about carried-over days about to expire
+ * (§6.2). Runs daily.
  */
 class ReminderJob extends TimedJob {
 	use WorkingDaysTrait;
@@ -38,6 +40,7 @@ class ReminderJob extends TimedJob {
 		private IAppConfig $appConfig,
 		private LoggerInterface $logger,
 		private ManagerResolver $managerResolver,
+		private CarryOverReminderService $carryOverReminder,
 	) {
 		parent::__construct($time);
 		$this->setInterval(24 * 3600);
@@ -46,6 +49,15 @@ class ReminderJob extends TimedJob {
 
 	#[\Override]
 	protected function run($argument): void {
+		// Its own once-a-year marker and its own dates (§6.2), so it comes before
+		// the weekend and cut-off exits below. A failure must not cost the managers
+		// their reminders.
+		try {
+			$this->carryOverReminder->remind();
+		} catch (\Throwable $e) {
+			$this->logger->error('Absence: carry-over reminder failed', ['app' => 'absence', 'exception' => $e]);
+		}
+
 		$window = max(1, $this->config->getEscalationWindowDays());
 		$lead = max(0, $this->config->getReminderLeadDays());
 		$reminderThreshold = max(1, $window - $lead);
