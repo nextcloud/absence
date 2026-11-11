@@ -347,4 +347,53 @@ class NotificationServiceTest extends TestCase {
 
 		self::assertCount(1, $this->pushed);
 	}
+
+	public function testTheLineManagerIsToldWhoIsAbsentAndWhenAndNothingElse(): void {
+		// The same message for every leave type: a confidential one (§5.7) must not
+		// stand out, and its type and reason must not be stored for the manager.
+		$this->withUsers('emp', 'boss');
+		$this->mailer->expects(self::once())->method('send');
+		$request = $this->request();
+		$request->setTypeId(9);
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		$request->setReason('Parental leave, second child.');
+		$request->setAttachmentNote('Certificate handed in.');
+
+		$this->service->notifyAbsenceRecorded($request, 'boss');
+
+		self::assertCount(1, $this->pushed);
+		self::assertSame('emp', $this->pushed[0]['employee']);
+		self::assertSame('2026-02-10', $this->pushed[0]['start']);
+		self::assertSame('2026-02-12', $this->pushed[0]['end']);
+		self::assertFalse($this->pushed[0]['actionable']);
+		self::assertSame('', $this->pushed[0]['note']);
+		self::assertArrayNotHasKey('typeId', $this->pushed[0]);
+		$stored = json_encode($this->pushed[0], JSON_THROW_ON_ERROR);
+		self::assertStringNotContainsString('Parental', $stored);
+		self::assertStringNotContainsString('Certificate', $stored);
+
+		self::assertSame('Emp is absent', $this->emailSubject);
+		self::assertSame(['HR recorded an absence for Emp for 2026-02-10 – 2026-02-12.'], $this->emailBody);
+		self::assertSame([], $this->emailNotes);
+	}
+
+	public function testCarryOverReminderGoesOutAsNotificationAndEmail(): void {
+		$this->withUsers('robin');
+		$this->mailer->expects(self::once())->method('send');
+
+		$this->service->notifyCarryOverExpiring('robin', 3.0, '2032-03-31');
+
+		self::assertSame([['days' => 3.0, 'date' => '2032-03-31']], $this->pushed);
+		self::assertSame('Carried-over days are about to expire', $this->emailSubject);
+		self::assertStringStartsWith('3 carried-over days expire on ', $this->emailBody[0]);
+	}
+
+	public function testCarryOverReminderSkipsADisabledAccount(): void {
+		$this->withUsers('robin-disabled');
+		$this->mailer->expects(self::never())->method('send');
+
+		$this->service->notifyCarryOverExpiring('robin-disabled', 3.0, '2032-03-31');
+
+		self::assertSame([], $this->pushed);
+	}
 }

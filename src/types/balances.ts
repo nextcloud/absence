@@ -27,6 +27,10 @@ export interface BalanceRow {
 	pending: number
 	remaining: number | null
 	available: number | null
+	/** Carried-over days the expiry would remove as things stand (§6.2); 0 when nothing is at risk, and on every year but the running one. */
+	carryOverExpiring: number
+	/** 'YYYY-MM-DD', null whenever carryOverExpiring is 0. */
+	carryOverExpiryDate: string | null
 }
 
 /** GET /api/balance and GET /api/employees/{uid}/balance. */

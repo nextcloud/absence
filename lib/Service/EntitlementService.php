@@ -348,11 +348,10 @@ class EntitlementService {
 	 * @return int rows reduced
 	 */
 	public function expireCarryOver(int $year): int {
-		$expiry = $this->config->getCarryOverExpiry(); // 'MM-DD' or ''
-		if ($expiry === '') {
+		$expiryDate = $this->balanceService->carryOverExpiryDate($year);
+		if ($expiryDate === null) {
 			return 0;
 		}
-		$expiryDate = sprintf('%04d-%s', $year, $expiry);
 		// company policy, run from a background job: the server's today
 		if ($this->clock->serverToday() < $expiryDate) {
 			return 0;
@@ -364,8 +363,8 @@ class EntitlementService {
 			if ($carry <= 0.0) {
 				continue;
 			}
-			$used ??= $this->requestMapper->sumUsedDaysStartingBetween(sprintf('%04d-01-01', $year), $expiryDate);
-			$kept = round(min($carry, $used[$ent->getEmployeeUid()][$ent->getTypeId()] ?? 0.0), 1);
+			$used ??= $this->balanceService->usedDaysByCarryOverExpiry($year, $expiryDate);
+			$kept = $this->balanceService->carryOverKept($carry, $used[$ent->getEmployeeUid()][$ent->getTypeId()] ?? 0.0);
 			if ($carry - $kept < 0.001) {
 				continue;
 			}

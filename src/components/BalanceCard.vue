@@ -38,6 +38,9 @@
 				<dd>{{ format(row.available) }}</dd>
 			</div>
 		</dl>
+		<p v-if="expiryNotice" class="card__notice">
+			{{ expiryNotice }}
+		</p>
 	</div>
 </template>
 
@@ -45,12 +48,16 @@
 import type { BalanceRow } from '../types/index.ts'
 
 import { t } from '@nextcloud/l10n'
+import { computed } from 'vue'
 import BalanceRing from './BalanceRing.vue'
+import { carryOverExpiryNotice } from '../utils/carryOver.ts'
 import { formatNumber } from '../utils/locale.ts'
 
-defineProps<{
+const props = defineProps<{
 	row: BalanceRow
 }>()
+
+const expiryNotice = computed(() => carryOverExpiryNotice(props.row))
 
 /**
  * A number of days in the account's locale.
@@ -100,6 +107,15 @@ function signed(v: number): string {
 	:deep(.ring__unit) {
 		font-size: 12px;
 	}
+}
+
+// A line of its own under the ring and the ledger, in the tone of "Pending approval".
+.card__notice {
+	flex-basis: 100%;
+	margin: 0;
+	font-size: 0.85rem;
+	text-align: end;
+	color: var(--color-warning-text, var(--color-warning));
 }
 
 .ledger {

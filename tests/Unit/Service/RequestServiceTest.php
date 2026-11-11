@@ -1564,4 +1564,61 @@ class RequestServiceTest extends TestCase {
 
 		self::assertSame('', $edit->getReason());
 	}
+
+	/** HR records leave of the given type for `emp`, whose line manager is $managerUid. */
+	private function hrRecordsFor(?string $managerUid, LeaveType $type): LeaveRequest {
+		$this->leaveTypeMapper->method('find')->willReturn($type);
+		$this->permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => $uid === 'hr');
+		$this->managerResolver->method('getManagerUid')->with('emp')->willReturn($managerUid);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+		$this->rebuildService();
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		return $this->service->create('hr', [
+			'typeId' => $type->getId(),
+			'employeeUid' => 'emp',
+			'startDate' => $start,
+			'endDate' => $start,
+			'workingDays' => 1.0,
+			'reason' => 'Flu.',
+		]);
+	}
+
+	public function testHrRecordingForSomeoneTellsTheirLineManagerOnce(): void {
+		// Nobody asked the manager: without this they find out from the timeline.
+		$this->notifications->expects(self::once())->method('notifyAbsenceRecorded')
+			->with(self::callback(static fn (LeaveRequest $r): bool => $r->getEmployeeUid() === 'emp'), 'boss');
+
+		$this->hrRecordsFor('boss', $this->type(2, false));
+	}
+
+	public function testHrRecordingForSomeoneWithoutALineManagerTellsNobody(): void {
+		$this->notifications->expects(self::never())->method('notifyAbsenceRecorded');
+
+		$this->hrRecordsFor(null, $this->type(2, false));
+	}
+
+	public function testALineManagerWhoRecordsTheAbsenceThemselvesIsNotTold(): void {
+		$this->notifications->expects(self::never())->method('notifyAbsenceRecorded');
+
+		$this->hrRecordsFor('hr', $this->type(2, false));
+	}
+
+	public function testBookingOwnAutoApprovedLeaveSendsNoAbsenceRecordedNotification(): void {
+		// That message is about what HR did for somebody else.
+		$type = $this->type(1, true);
+		$type->setRequiresApproval(false);
+		$this->leaveTypeMapper->method('find')->willReturn($type);
+		$this->managerResolver->method('getManagerUid')->willReturn('boss');
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+		$this->notifications->expects(self::never())->method('notifyAbsenceRecorded');
+		$this->rebuildService();
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$created = $this->service->create('emp', ['typeId' => 1, 'startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+
+		self::assertSame(LeaveRequest::STATUS_APPROVED, $created->getStatus());
+	}
 }

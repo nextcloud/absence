@@ -17,15 +17,20 @@ use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Event\LeaveRequestChangedEvent;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\BalanceService;
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\LeaveImportService;
+use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\RequestService;
 use OCP\Activity\IConsumer;
 use OCP\Activity\IEvent;
 use OCP\Activity\IManager as IActivityManager;
 use OCP\AppFramework\Http;
+use OCP\Config\IUserConfig;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -367,6 +372,24 @@ class LeaveImportTest extends TestCase {
 		self::assertNotSame([], SpyNotificationApp::$received);
 		self::assertNotSame([], SpyActivityConsumer::$received);
 		self::assertSame(['request_created'], $this->changeEvents);
+	}
+
+	public function testImportDoesNotTellTheLineManager(): void {
+		// A normal HR booking tells the line manager (§5.6); bulk past leave must not.
+		Server::get(INotificationManager::class)->registerApp(SpyNotificationApp::class);
+		$this->users->get(self::SAM)?->setManagerUids([self::ROBIN]);
+		// The shared resolver may remember Sam from an earlier test, without a manager.
+		$directory = Server::get(EmployeeDirectory::class);
+		$resolver = new ManagerResolver($this->users, Server::get(IUserConfig::class), $directory, Server::get(LoggerInterface::class));
+		$service = new LeaveImportService($directory, Server::get(LeaveTypeMapper::class), $this->requests,
+			Server::get(RequestEventMapper::class), $resolver, $this->users, Server::get(ClockService::class),
+			Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class), Server::get(IDBConnection::class),
+			Server::get(IEventDispatcher::class));
+
+		$service->import(self::json(self::sampleEntries()), self::HR);
+
+		self::assertSame(self::ROBIN, $this->requests->findAllForEmployee(self::SAM)[0]->getManagerUid());
+		self::assertSame([], SpyNotificationApp::$received);
 	}
 
 	public function testEndpointIsHrOnly(): void {

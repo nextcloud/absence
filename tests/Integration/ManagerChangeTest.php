@@ -24,6 +24,7 @@ use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\CalendarService;
+use OCA\Absence\Service\CarryOverReminderService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
@@ -173,7 +174,7 @@ class ManagerChangeTest extends TestCase {
 		$appConfig = Server::get(IAppConfig::class);
 		$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF);
 		$job = new ReminderJob(Server::get(ITimeFactory::class), $clock, $this->mapper, Server::get(NotificationService::class),
-			$config, $appConfig, Server::get(LoggerInterface::class), $this->resolver());
+			$config, $appConfig, Server::get(LoggerInterface::class), $this->resolver(), Server::get(CarryOverReminderService::class));
 		(new \ReflectionMethod($job, 'run'))->invoke($job, null);
 		$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF);
 
