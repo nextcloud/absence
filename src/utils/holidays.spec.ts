@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { compareHolidays, groupByYear, hasHolidays, makeHolidayChecker, parseRegionCode } from './holidays.ts'
+import { compareHolidays, groupByYear, hasHolidays, labelsByDate, makeHolidayChecker, parseRegionCode } from './holidays.ts'
 
 describe('parseRegionCode', () => {
 	it('splits and uppercases a code', () => {
@@ -65,5 +65,16 @@ describe('groupByYear', () => {
 			{ year: '2026', days: [{ date: '2026-01-06', label: 'Epiphany' }, { date: '2026-08-15', label: 'Assumption Day' }] },
 			{ year: '2027', days: [{ date: '2027-01-06', label: 'Epiphany' }] },
 		])
+	})
+})
+
+describe('labelsByDate', () => {
+	it('keeps both names when two days off fall on the same date', () => {
+		const labels = labelsByDate([
+			{ date: '2027-01-01', label: 'New Year' },
+			{ date: '2027-01-06', label: 'Epiphany' },
+			{ date: '2027-01-06', label: 'Company day' },
+		])
+		expect([...labels]).toEqual([['2027-01-01', 'New Year'], ['2027-01-06', 'Epiphany, Company day']])
 	})
 })

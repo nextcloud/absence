@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\CoverageService;
+use OCA\Absence\Service\HolidayService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -28,6 +29,7 @@ class CalendarController extends Controller {
 		IRequest $request,
 		private ?string $userId,
 		private CoverageService $service,
+		private HolidayService $holidays,
 		private IL10N $l,
 		private LoggerInterface $logger,
 	) {
@@ -40,7 +42,13 @@ class CalendarController extends Controller {
 		return $this->handle(function () use ($from, $to, $scope) {
 			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope);
 			$coverage = $this->service->getCoverage($uids, $from, $to, null, (string)$this->userId);
-			return ['events' => $coverage['events']];
+			// The people on show are the ones with an absence: their own public
+			// holidays are shaded on their row (§15.2).
+			$shown = array_values(array_unique(array_column($coverage['events'], 'employeeUid')));
+			return [
+				'events' => $coverage['events'],
+				'holidays' => $this->holidays->forPeople($shown, $from, $to),
+			];
 		});
 	}
 }

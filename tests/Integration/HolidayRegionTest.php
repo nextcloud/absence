@@ -72,6 +72,29 @@ class HolidayRegionTest extends TestCase {
 		$config->setPersonalValue(self::UID, ConfigLexicon::KEY_HOLIDAY_COUNTRY, 'Germany');
 	}
 
+	public function testEachPersonGetsTheDaysOfTheirOwnCode(): void {
+		$service = Server::get(HolidayService::class);
+		$service->create('2027-01-01', 'ZZ', 'itest Country day');
+		$service->create('2027-01-06', 'ZZ-T1', 'itest Region day');
+		$config = Server::get(ConfigService::class);
+		$config->setPersonalValue(self::UID, ConfigLexicon::KEY_HOLIDAY_COUNTRY, 'zz');
+		$config->setPersonalValue(self::UID, ConfigLexicon::KEY_HOLIDAY_REGION, 't1');
+		$everywhere = array_map(
+			static fn ($h): array => ['date' => $h->getDate(), 'label' => $h->getLabel()],
+			$service->forRegions([], '2027-01-01', '2027-01-31'),
+		);
+
+		$days = $service->forPeople([self::UID, 'itest-region-nobody'], '2027-01-01', '2027-01-31');
+
+		$own = array_values(array_filter($days[self::UID], static fn (array $day): bool => str_starts_with($day['label'], 'itest ')));
+		self::assertSame([
+			['date' => '2027-01-01', 'label' => 'itest Country day'],
+			['date' => '2027-01-06', 'label' => 'itest Region day'],
+		], $own);
+		// Without a code: the days that apply everywhere, and no row at all without any
+		self::assertSame($everywhere, $days['itest-region-nobody'] ?? []);
+	}
+
 	public function testRegionsListsTheCodesThatHaveHolidays(): void {
 		$service = Server::get(HolidayService::class);
 		$service->create('2027-01-01', 'ZZ', 'itest Country day');

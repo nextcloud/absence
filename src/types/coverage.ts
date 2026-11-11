@@ -49,7 +49,16 @@ export interface CoverageParams {
 	scope?: CoverageScope
 }
 
+/** A public holiday of someone on the timeline. */
+export interface PersonHoliday {
+	/** 'YYYY-MM-DD'. */
+	date: string
+	label: string
+}
+
 /** GET /api/calendar. */
 export interface CalendarResponse {
 	events: CoverageEvent[]
+	/** By uid, for the people in the events who have any in the range. */
+	holidays: JsonMap<PersonHoliday[]>
 }

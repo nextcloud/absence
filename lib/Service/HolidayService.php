@@ -96,6 +96,30 @@ class HolidayService {
 	}
 
 	/**
+	 * The days off of each of these people, by the region code they set (§7.2).
+	 * Someone without a code gets the days that apply everywhere.
+	 *
+	 * @param list<string> $uids
+	 * @return array<string, list<array{date: string, label: string}>> uid => days in date order, people without any are left out
+	 */
+	public function forPeople(array $uids, string $from, string $to): array {
+		$codes = $this->config->getRegionCodes();
+		$byCode = [];
+		$days = [];
+		foreach ($uids as $uid) {
+			$code = $codes[$uid] ?? '';
+			$byCode[$code] ??= array_map(
+				static fn (Holiday $h): array => ['date' => $h->getDate(), 'label' => $h->getLabel()],
+				$this->forRegions($code === '' ? [] : [$code], $from, $to),
+			);
+			if ($byCode[$code] !== []) {
+				$days[$uid] = $byCode[$code];
+			}
+		}
+		return $days;
+	}
+
+	/**
 	 * @return list<string> the region codes that have holidays, `*` included
 	 */
 	public function regions(): array {
