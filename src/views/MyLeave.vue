@@ -247,8 +247,8 @@ export default {
 		 * whose type matches. Months without leave stay at zero so the chart is
 		 * always visible.
 		 *
-		 * @param typeMatches
-		 * @param color
+		 * @param {(type: object) => boolean} typeMatches which leave types to count
+		 * @param {string} color the colour of the bars
 		 */
 		monthChart(typeMatches, color) {
 			const buckets = new Array(12).fill(0)

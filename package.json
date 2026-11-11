@@ -14,6 +14,8 @@
 		"stylelint:fix": "stylelint src/**/*.scss src/**/*.vue --fix",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"ts:check": "vue-tsc --noEmit",
+		"typecheck": "npm run ts:check",
 		"watch": "vite --mode development build --watch"
 	},
 	"browserslist": [
@@ -25,8 +27,10 @@
 		"@nextcloud/dialogs": "^8.0.0",
 		"@nextcloud/initial-state": "^3.0.0",
 		"@nextcloud/l10n": "^3.4.1",
+		"@nextcloud/logger": "^3.0.3",
 		"@nextcloud/router": "^3.2.0",
 		"@nextcloud/vue": "^9.14.0",
+		"pinia": "^4.1.0",
 		"vue": "^3.5.44",
 		"vue-material-design-icons": "^5.4.0",
 		"vue-router": "^5.4.0"
@@ -36,9 +40,12 @@
 		"@nextcloud/eslint-config": "^9.0.1",
 		"@nextcloud/stylelint-config": "^3.2.2",
 		"@nextcloud/vite-config": "^2.5.2",
+		"@vue/tsconfig": "^0.9.1",
 		"sass": "^1.106.1",
+		"typescript": "^6.0.3",
 		"vite": "^7.3.7",
-		"vitest": "^5.0.5"
+		"vitest": "^5.0.5",
+		"vue-tsc": "^3.3.14"
 	},
 	"engines": {
 		"node": "^24.0.0",
