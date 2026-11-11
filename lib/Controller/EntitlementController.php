@@ -10,6 +10,7 @@ namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Service\ProRataService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -27,6 +28,7 @@ class EntitlementController extends Controller {
 		IRequest $request,
 		private ?string $userId,
 		private EntitlementService $service,
+		private ProRataService $proRata,
 		private PermissionService $permission,
 		private IL10N $l,
 		private LoggerInterface $logger,
@@ -119,6 +121,19 @@ class EntitlementController extends Controller {
 		return $this->handle(function () use ($from, $to) {
 			$this->permission->assertCanManageSettings((string)$this->userId);
 			return ['affected' => $this->service->applyDefault((string)$this->userId, $from, $to)];
+		});
+	}
+
+	/**
+	 * What the contract of this employee would give them for the year (§6.6),
+	 * for HR to take over or not.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function proRata(string $employeeUid, int $year): DataResponse {
+		return $this->handle(function () use ($employeeUid, $year) {
+			$this->permission->assertHr((string)$this->userId);
+			return $this->proRata->suggest($employeeUid, $year);
 		});
 	}
 

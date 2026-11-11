@@ -124,6 +124,7 @@ class AccessMatrixTest extends TestCase {
 			// days nobody has: the calls change nothing
 			'entitlement#onDefault' => [[self::HR, self::ADMIN], ['days' => 987.5]],
 			'entitlement#applyDefault' => [[self::HR, self::ADMIN], ['from' => 987.5, 'to' => 986.5]],
+			'entitlement#proRata' => [$hr, ['employeeUid' => '{owner}', 'year' => 2028]],
 			'entitlement#history' => [$hr, ['id' => '{entitlement}']],
 
 			'coverage#index' => [self::LOGGED_IN, $from],

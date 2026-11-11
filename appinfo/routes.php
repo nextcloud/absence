@@ -45,6 +45,7 @@ return [
 		['name' => 'entitlement#bulk', 'url' => '/api/entitlements/bulk', 'verb' => 'POST'],
 		['name' => 'entitlement#onDefault', 'url' => '/api/entitlements/on-default', 'verb' => 'GET'],
 		['name' => 'entitlement#applyDefault', 'url' => '/api/entitlements/apply-default', 'verb' => 'POST'],
+		['name' => 'entitlement#proRata', 'url' => '/api/entitlements/pro-rata', 'verb' => 'GET'],
 		['name' => 'entitlement#history', 'url' => '/api/entitlements/{id}/history', 'verb' => 'GET'],
 		['name' => 'import#leave', 'url' => '/api/import/leave', 'verb' => 'POST'],
 

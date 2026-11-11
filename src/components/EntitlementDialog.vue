@@ -7,6 +7,16 @@
 		<div class="edit">
 			<h3>{{ displayName }} · {{ row.typeLabel }} · {{ year }}</h3>
 			<NcTextField v-model="form.baseDays" type="number" :label="t('absence', 'Base days')" />
+			<!-- What the contract would give. Never applied by itself: HR takes it over or not. -->
+			<div v-if="proRata" class="edit__prorata">
+				<p>
+					<strong>{{ t('absence', 'Pro rata: {days} days', { days: fmt(proRata.days) }) }}</strong>
+					<span class="edit__prorata-why">{{ proRataReason }}</span>
+				</p>
+				<NcButton @click="form.baseDays = proRata.days">
+					{{ t('absence', 'Use {days}', { days: fmt(proRata.days) }) }}
+				</NcButton>
+			</div>
 			<NcTextField
 				v-model="form.adjustmentDelta"
 				type="number"
@@ -65,12 +75,12 @@
 </template>
 
 <script setup lang="ts">
-import type { BalanceRow, EntitlementEvent, EntitlementField } from '../types/index.ts'
+import type { BalanceRow, EntitlementEvent, EntitlementField, ProRataSuggestion } from '../types/index.ts'
 import type { EntitlementForm } from '../utils/entitlement.ts'
 
 import { showError, showSuccess } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
-import { onMounted, reactive, ref } from 'vue'
+import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, reactive, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
@@ -108,6 +118,22 @@ const storedBaseDays = ref(props.row.baseDays)
 const currentAdjustment = ref(props.row.manualAdjustment || 0)
 const history = ref<EntitlementEvent[]>([])
 const historyLoading = ref(false)
+const suggestion = ref<ProRataSuggestion | null>(null)
+
+// Shown only when it would change the field: for most people it is the default they already have.
+const proRata = computed(() => suggestion.value !== null && suggestion.value.days !== Number(form.baseDays) ? suggestion.value : null)
+
+const proRataReason = computed(() => {
+	if (!proRata.value) {
+		return ''
+	}
+	const { fullDays, months, daysPerWeek } = proRata.value
+	return [
+		t('absence', 'of {days} days a year', { days: fmt(fullDays) }),
+		n('absence', 'employed {months} month of 12', 'employed {months} months of 12', months, { months }),
+		n('absence', '{days} day a week', '{days} days a week', daysPerWeek, { days: fmt(daysPerWeek) }),
+	].join(' · ')
+})
 
 onMounted(async () => {
 	// Ensure an entitlement row exists to edit; fetch current values.
@@ -122,6 +148,12 @@ onMounted(async () => {
 		}
 	} catch {
 		// The values of the balance row stay in the form.
+	}
+	if (props.row.typeKey === 'annual') {
+		// A hint only: the editor works without it.
+		api.proRataEntitlement(props.uid, props.year).then((answer) => {
+			suggestion.value = answer
+		}).catch(() => {})
 	}
 	await loadHistory()
 })
@@ -225,6 +257,27 @@ async function save() {
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 8px;
+	}
+
+	&__prorata {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 8px 12px;
+		border-radius: var(--border-radius-large);
+		background: var(--color-background-hover);
+
+		p {
+			margin: 0;
+			display: flex;
+			flex-direction: column;
+		}
+	}
+
+	&__prorata-why {
+		font-size: 0.85rem;
+		color: var(--color-text-maxcontrast);
 	}
 
 	&__hint {
