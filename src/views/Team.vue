@@ -71,6 +71,7 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import TeamTimeline from '../components/TeamTimeline.vue'
@@ -93,6 +94,7 @@ export default {
 		} catch {
 			// The timeline stands on its own; a failed balances call costs the
 			// table, not the page.
+			showError(t('absence', 'Could not load the balances of your team'))
 		}
 	},
 

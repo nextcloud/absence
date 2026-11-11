@@ -80,6 +80,20 @@ class LeaveRequestMapperTest extends TestCase {
 		self::assertArrayNotHasKey(LeaveRequest::STATUS_REJECTED, $byStatus);
 	}
 
+	public function testFindFilteredKeepsOnlyTheStatusesAskedFor(): void {
+		$pending = $this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-04-06', '2026-04-08', 3.0);
+		$withdrawal = $this->seed(self::UID, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2026-03-02', '2026-03-03', 2.0);
+		$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-05-04', '2026-05-08', 5.0);
+		$this->seed(self::UID, LeaveRequest::STATUS_REJECTED, '2026-06-01', '2026-06-05', 5.0);
+
+		$rows = $this->mapper->findFiltered([
+			'managerUid' => self::MANAGER,
+			'status' => [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_WITHDRAWAL_PENDING],
+		]);
+
+		self::assertSame([$pending->getId(), $withdrawal->getId()], array_map(static fn (LeaveRequest $r): int => $r->getId(), $rows));
+	}
+
 	public function testMarkEscalatedFlipsExactlyOncePerPendingRequest(): void {
 		$pending = $this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-09-07', '2026-09-11', 5.0);
 		$approved = $this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2026-10-05', '2026-10-09', 5.0);

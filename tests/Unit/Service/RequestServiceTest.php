@@ -781,6 +781,22 @@ class RequestServiceTest extends TestCase {
 		self::assertTrue($request->getEscalated());
 	}
 
+	public function testAListCanBeNarrowedToSeveralStatuses(): void {
+		$this->managerResolver->method('getDirectReports')->willReturn(['emp']);
+		$this->requestMapper->expects(self::once())->method('findFiltered')
+			->with(['status' => ['PENDING', 'WITHDRAWAL_PENDING'], 'employeeUids' => ['emp']], 200, 0)
+			->willReturn([]);
+
+		$this->service->list('mgr', ['scope' => 'reports', 'status' => 'PENDING, WITHDRAWAL_PENDING'], 200, 0);
+	}
+
+	public function testAListRefusesAStatusItDoesNotKnow(): void {
+		$this->requestMapper->expects(self::never())->method('findFiltered');
+
+		$this->expectException(ValidationException::class);
+		$this->service->list('mgr', ['scope' => 'reports', 'status' => 'PENDING,DONE'], 200, 0);
+	}
+
 	public function testAConfidentialAbsenceIsWithheldFromItsOwnEmployee(): void {
 		// §5.7: the employee sees that the absence exists — dates and status —
 		// but not the category, the reason or anything HR wrote about it.

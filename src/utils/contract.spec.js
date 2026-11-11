@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { contractDiff, describePeriod } from './contract.js'
+import { contractDiff, describePeriod, weekdaysOn } from './contract.js'
 
 const fullTime = { from: '2024-03-01', weekdays: [1, 2, 3, 4, 5], percent: 100 }
 const fourDays = { from: '2026-07-01', weekdays: [1, 2, 3, 4], percent: 80 }
@@ -13,6 +13,19 @@ describe('describePeriod', () => {
 	it('names the days and the percentage when there is one', () => {
 		expect(describePeriod(fourDays)).toBe('Mon–Thu, 80%')
 		expect(describePeriod({ ...fourDays, percent: null })).toBe('Mon–Thu')
+	})
+})
+
+describe('weekdaysOn', () => {
+	it('takes the period in force on that day', () => {
+		expect(weekdaysOn([fullTime, fourDays], '2026-06-30')).toEqual(new Set([1, 2, 3, 4, 5]))
+		expect(weekdaysOn([fullTime, fourDays], '2026-07-01')).toEqual(new Set([1, 2, 3, 4]))
+	})
+
+	it('knows nothing before the first period, or without a contract', () => {
+		expect(weekdaysOn([fullTime], '2024-02-29')).toBeNull()
+		expect(weekdaysOn([], '2026-07-01')).toBeNull()
+		expect(weekdaysOn(null, '2026-07-01')).toBeNull()
 	})
 })
 

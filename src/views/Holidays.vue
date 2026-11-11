@@ -91,7 +91,7 @@
 									<Pencil :size="18" />
 								</template>
 							</NcButton>
-							<NcButton variant="tertiary" :aria-label="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false })" @click="remove(holiday)">
+							<NcButton variant="tertiary" :aria-label="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false })" @click="deleting = holiday">
 								<template #icon>
 									<Delete :size="18" />
 								</template>
@@ -137,6 +137,27 @@
 				</div>
 			</form>
 		</NcModal>
+
+		<NcDialog
+			v-if="deleting"
+			:name="t('absence', 'Delete {name}?', { name: deleting.label }, undefined, { escape: false })"
+			:open="true"
+			size="small"
+			@update:open="(open) => !open && !removing && (deleting = null)">
+			<p>
+				{{ deleting.recurring
+					? t('absence', 'This is a recurring entry: it is deleted from every year, not only from {year}.', { year })
+					: t('absence', 'This deletes the entry of {date}. It is not a recurring entry.', { date: formatDate(deleting.date) }) }}
+			</p>
+			<template #actions>
+				<NcButton :disabled="removing" @click="deleting = null">
+					{{ t('absence', 'Cancel') }}
+				</NcButton>
+				<NcButton variant="error" :disabled="removing" @click="remove">
+					{{ deleting.recurring ? t('absence', 'Delete from every year') : t('absence', 'Delete') }}
+				</NcButton>
+			</template>
+		</NcDialog>
 
 		<NcModal
 			v-if="importing"
@@ -220,6 +241,7 @@ import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
@@ -236,11 +258,12 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../api.js'
 import { store } from '../store.js'
 import { formatDate, toIso } from '../utils/dates.js'
+import { latestOnly } from '../utils/latest.js'
 import { EVERYWHERE, regionFlag } from '../utils/regions.js'
 
 export default {
 	name: 'Holidays',
-	components: { NcButton, NcCheckboxRadioSwitch, NcDateTimePickerNative, NcEmptyContent, NcModal, NcSelect, NcTextArea, NcTextField, Delete, Download, History, PartyPopper, Pencil, Plus, Upload, SkeletonList },
+	components: { NcButton, NcCheckboxRadioSwitch, NcDateTimePickerNative, NcDialog, NcEmptyContent, NcModal, NcSelect, NcTextArea, NcTextField, Delete, Download, History, PartyPopper, Pencil, Plus, Upload, SkeletonList },
 	data() {
 		const y = new Date().getFullYear()
 		const all = { id: '', label: t('absence', 'All regions') }
@@ -253,6 +276,9 @@ export default {
 			region: all,
 			form: null,
 			saving: false,
+			// The holiday whose deletion waits for a confirmation
+			deleting: null,
+			removing: false,
 			importing: false,
 			json: '',
 			plan: null,
@@ -290,6 +316,11 @@ export default {
 		},
 	},
 
+	created() {
+		// Changing the year twice quickly: only the year picked last may land.
+		this.startLoad = latestOnly()
+	},
+
 	mounted() {
 		this.load()
 	},
@@ -304,13 +335,21 @@ export default {
 		},
 
 		async load() {
+			const isLatest = this.startLoad()
 			this.loading = true
 			try {
-				this.holidays = await api.listHolidays(this.year)
+				const holidays = await api.listHolidays(this.year)
+				if (isLatest()) {
+					this.holidays = holidays
+				}
 			} catch {
-				showError(t('absence', 'Could not load the public holidays'))
+				if (isLatest()) {
+					showError(t('absence', 'Could not load the public holidays'))
+				}
 			} finally {
-				this.loading = false
+				if (isLatest()) {
+					this.loading = false
+				}
 			}
 		},
 
@@ -322,8 +361,8 @@ export default {
 
 		async save() {
 			this.saving = true
-			const data = { date: toIso(this.form.date), region: this.form.region, label: this.form.label, recurring: this.form.recurring }
 			try {
+				const data = { date: toIso(this.form.date), region: this.form.region, label: this.form.label, recurring: this.form.recurring }
 				await (this.form.id ? api.updateHoliday(this.form.id, data) : api.createHoliday(data))
 				showSuccess(t('absence', 'Holiday saved'))
 				this.form = null
@@ -335,15 +374,20 @@ export default {
 			}
 		},
 
-		async remove(holiday) {
+		async remove() {
+			const holiday = this.deleting
+			this.removing = true
 			try {
 				await api.deleteHoliday(holiday.id)
 				showSuccess(holiday.recurring
 					? t('absence', '{name} deleted from every year', { name: holiday.label }, undefined, { escape: false })
 					: t('absence', '{name} deleted', { name: holiday.label }, undefined, { escape: false }))
+				this.deleting = null
 				await this.load()
 			} catch (e) {
 				showError(e.response?.data?.message || t('absence', 'Could not delete the holiday'))
+			} finally {
+				this.removing = false
 			}
 		},
 

@@ -16,6 +16,18 @@ export function describePeriod(period) {
 	return period.percent === null ? days : t('absence', '{days}, {percent}%', { days, percent: period.percent })
 }
 
+/**
+ * The weekdays someone works on a day, or null when HR entered none for it.
+ *
+ * @param {Array<{from: string, weekdays: number[]}>|null} periods the contract periods, by date
+ * @param {string|null} iso 'YYYY-MM-DD'
+ * @return {Set<number>|null} ISO weekdays, Mon=1
+ */
+export function weekdaysOn(periods, iso) {
+	const period = [...(periods ?? [])].reverse().find((candidate) => candidate.from <= iso)
+	return period ? new Set(period.weekdays) : null
+}
+
 const same = (a, b) => a.from === b.from && a.percent === b.percent && a.weekdays.join() === b.weekdays.join()
 
 /**

@@ -28,7 +28,7 @@
 						:aria-label-combobox="t('absence', 'Group')" />
 				</div>
 				<a :href="requestsUrl" class="dl">
-					<NcButton variant="primary">
+					<NcButton variant="primary" :disabled="!requestsUrl">
 						<template #icon><Download :size="20" /></template>
 						{{ t('absence', 'Download requests CSV') }}
 					</NcButton>
@@ -64,6 +64,7 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
@@ -95,7 +96,11 @@ export default {
 			return [this.everyone, ...this.groups]
 		},
 
+		/** Null while a date is cleared: there is no range to export then. */
 		requestsUrl() {
+			if (!this.from || !this.to) {
+				return null
+			}
 			return api.exportRequestsUrl(toIso(this.from), toIso(this.to), this.requestsGroup?.id || '')
 		},
 
@@ -108,7 +113,8 @@ export default {
 		try {
 			this.groups = await api.listGroups()
 		} catch {
-			// The filter simply stays at "All employees" — the export works without it.
+			// The filter stays at "All employees": the export works without it.
+			showError(t('absence', 'Could not load the groups to filter by'))
 		}
 	},
 

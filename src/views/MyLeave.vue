@@ -202,12 +202,22 @@ export default {
 		},
 	},
 
+	watch: {
+		// Immediate, and watched: a link to /requests/:id followed while this page
+		// is already open changes the id without mounting the page again.
+		id: {
+			immediate: true,
+			handler(id) {
+				if (id) {
+					store.select(Number(id))
+				}
+			},
+		},
+	},
+
 	mounted() {
 		this.reload()
 		window.addEventListener('absence:refresh', this.reload)
-		if (this.id) {
-			store.select(Number(this.id))
-		}
 		this.clock = setInterval(this.tick, 1000)
 	},
 

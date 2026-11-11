@@ -302,10 +302,6 @@ export default {
 		window.addEventListener('absence:open-new', this.openNewRequest)
 		window.addEventListener('absence:open-record', this.openRecord)
 		window.addEventListener('absence:open-edit', this.onOpenEditEvent)
-		// Deep link: /requests/:id opens the sidebar.
-		if (this.$route.params.id) {
-			store.select(Number(this.$route.params.id))
-		}
 	},
 
 	beforeUnmount() {

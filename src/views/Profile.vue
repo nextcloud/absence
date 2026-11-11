@@ -14,7 +14,7 @@
 					<h2 class="page__title">
 						{{ profile ? profile.displayName : '' }}
 					</h2>
-					<p v-if="profile" class="profile__sub">
+					<p v-if="profile && !error" class="profile__sub">
 						<template v-if="profile.manager">
 							{{ t('absence', 'Reports to {name}', { name: profile.manager.displayName }, undefined, { escape: false }) }}
 						</template>
@@ -155,6 +155,7 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../api.js'
 import { store } from '../store.js'
 import { formatDate, formatRange, toIso } from '../utils/dates.js'
+import { latestOnly } from '../utils/latest.js'
 import { regionFlag } from '../utils/regions.js'
 import { dayNames } from '../utils/weekdays.js'
 
@@ -198,6 +199,12 @@ export default {
 		uid: 'load',
 	},
 
+	created() {
+		// Going from one profile to the next: the answer for the previous person
+		// must not land on the current one.
+		this.startLoad = latestOnly()
+	},
+
 	mounted() {
 		this.load()
 	},
@@ -210,6 +217,7 @@ export default {
 		regionFlag,
 
 		async load() {
+			const isLatest = this.startLoad()
 			this.profile = null
 			this.error = null
 			try {
@@ -217,9 +225,15 @@ export default {
 					api.getProfile(this.uid),
 					api.getEmployeeBalance(this.uid, this.year),
 				])
+				if (!isLatest()) {
+					return
+				}
 				this.balances = balance.balances.filter((row) => row.countsAgainstBalance && row.typeKey === 'annual')
 				this.profile = profile
 			} catch (e) {
+				if (!isLatest()) {
+					return
+				}
 				this.error = e.response?.data?.message || t('absence', 'Could not load this profile')
 				this.profile = {}
 			}
