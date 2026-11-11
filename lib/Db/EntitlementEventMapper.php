@@ -17,7 +17,7 @@ use OCP\IDBConnection;
  */
 class EntitlementEventMapper extends QBMapper {
 	public function __construct(IDBConnection $db) {
-		parent::__construct($db, 'absence_entitlement_events', EntitlementEvent::class);
+		parent::__construct($db, 'absence_ent_events', EntitlementEvent::class);
 	}
 
 	/**

@@ -17,7 +17,7 @@ use OCP\IDBConnection;
  */
 class ContractPeriodMapper extends QBMapper {
 	public function __construct(IDBConnection $db) {
-		parent::__construct($db, 'absence_contract_periods', ContractPeriod::class);
+		parent::__construct($db, 'absence_periods', ContractPeriod::class);
 	}
 
 	/**

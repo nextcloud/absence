@@ -295,7 +295,7 @@ Events are written by the same `audit()` path that emits the server-log entry (�
 so history, server log and activity stay in sync from a single call site. History
 writes are best-effort — a failure never blocks the workflow.
 
-### 3.7b `absence_entitlement_events` (entitlement history)
+### 3.7b `absence_ent_events` (entitlement history)
 
 The same idea for entitlements, which had no timeline at all: §3.7 is keyed on
 `request_id`, and an entitlement belongs to no request, so an adjustment left only a
@@ -728,7 +728,7 @@ becomes the request's reason.
 
 HR keeps, per employee, the start date, the end date once known, and the working
 pattern: the ISO weekdays someone works and their contract percentage, **from a date
-on** (`absence_employments`, `absence_contract_periods`). A change of pattern is a new
+on** (`absence_employments`, `absence_periods`). A change of pattern is a new
 period with its own date, so the past keeps the pattern it had; someone can work 5 days
 at 70%. Only HR edits it (`PUT /api/profiles/{uid}/contract`, the whole contract at
 once); the person, their manager and HR read it. The start date and the working
@@ -736,7 +736,7 @@ pattern are not confidential: every employee may know when someone started and t
 part time, and other apps get them through `getContracts()` (§14b). The end date stays
 with the person, their manager and HR: it can tell that someone leaves before it is
 announced. Every change goes to the person's
-history (`absence_employee_history`, with the values before and after and the author)
+history (`absence_emp_history`, with the values before and after and the author)
 and to the admin audit log; the region code people set themselves (§7.2) goes to the
 same history. The weekdays drive the working-days prefill (§7.1); the percentage is
 not used for leave yet.

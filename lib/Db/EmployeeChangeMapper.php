@@ -16,7 +16,7 @@ use OCP\IDBConnection;
  */
 class EmployeeChangeMapper extends QBMapper {
 	public function __construct(IDBConnection $db) {
-		parent::__construct($db, 'absence_employee_history', EmployeeChange::class);
+		parent::__construct($db, 'absence_emp_history', EmployeeChange::class);
 	}
 
 	/**

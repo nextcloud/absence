@@ -38,6 +38,8 @@ class UserDeletedPurgeTest extends TestCase {
 	private const GONE = 'itest-purge-gone';
 	private const OTHER = 'itest-purge-other';
 	private const REGION = 'ZZ-ITEST-PURGE';
+	/** Marks this test's row of the holiday history: Oracle cannot filter on its text column */
+	private const HISTORY_ACTION = 'itest_purge';
 	private static bool $registered = false;
 
 	private IDBConnection $db;
@@ -60,8 +62,8 @@ class UserDeletedPurgeTest extends TestCase {
 		$this->decided = $this->request(self::OTHER, self::GONE);
 		$this->insert('absence_comments', ['request_id' => $this->own->getId(), 'author_uid' => self::OTHER, 'body' => 'itest', 'created_at' => '2026-03-01 09:00:00']);
 		$this->insert('absence_holidays', ['region' => self::REGION, 'date' => '2026-05-01', 'label' => 'itest', 'created_by' => self::GONE, 'updated_by' => self::GONE]);
-		$this->insert('absence_holiday_history', ['action' => 'added', 'actor_uid' => self::GONE, 'detail' => '{"region":"' . self::REGION . '"}', 'created_at' => '2026-03-01 09:00:00']);
-		$this->insert('absence_employee_history', ['employee_uid' => self::OTHER, 'actor_uid' => self::GONE, 'field' => 'contract', 'detail' => '{}', 'created_at' => '2026-03-01 09:00:00']);
+		$this->insert('absence_holiday_history', ['action' => self::HISTORY_ACTION, 'actor_uid' => self::GONE, 'detail' => '{"region":"' . self::REGION . '"}', 'created_at' => '2026-03-01 09:00:00']);
+		$this->insert('absence_emp_history', ['employee_uid' => self::OTHER, 'actor_uid' => self::GONE, 'field' => 'contract', 'detail' => '{}', 'created_at' => '2026-03-01 09:00:00']);
 	}
 
 	protected function tearDown(): void {
@@ -73,8 +75,8 @@ class UserDeletedPurgeTest extends TestCase {
 		$this->deleteWhere('absence_requests', 'id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_comments', 'request_id', [$this->own->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_holidays', 'region', [self::REGION], IQueryBuilder::PARAM_STR_ARRAY);
-		$this->deleteWhere('absence_holiday_history', 'detail', ['{"region":"' . self::REGION . '"}'], IQueryBuilder::PARAM_STR_ARRAY);
-		$this->deleteWhere('absence_employee_history', 'employee_uid', [self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
+		$this->deleteWhere('absence_holiday_history', 'action', [self::HISTORY_ACTION], IQueryBuilder::PARAM_STR_ARRAY);
+		$this->deleteWhere('absence_emp_history', 'employee_uid', [self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
 		parent::tearDown();
 	}
 
@@ -84,8 +86,8 @@ class UserDeletedPurgeTest extends TestCase {
 		self::assertSame([null], $this->column('absence_requests', 'decided_by', 'id', $this->decided->getId()));
 		self::assertSame([null], $this->column('absence_holidays', 'created_by', 'region', self::REGION));
 		self::assertSame([null], $this->column('absence_holidays', 'updated_by', 'region', self::REGION));
-		self::assertSame([null], $this->column('absence_holiday_history', 'actor_uid', 'detail', '{"region":"' . self::REGION . '"}'));
-		self::assertSame([null], $this->column('absence_employee_history', 'actor_uid', 'employee_uid', self::OTHER));
+		self::assertSame([null], $this->column('absence_holiday_history', 'actor_uid', 'action', self::HISTORY_ACTION));
+		self::assertSame([null], $this->column('absence_emp_history', 'actor_uid', 'employee_uid', self::OTHER));
 	}
 
 	public function testNotificationsAboutTheirRequestsAreTakenBackFromEveryone(): void {

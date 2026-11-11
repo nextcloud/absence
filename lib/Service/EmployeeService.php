@@ -86,7 +86,7 @@ class EmployeeService {
 	 */
 	public function purge(string $uid): void {
 		unset($this->contracts[$uid]);
-		foreach (['absence_employments', 'absence_contract_periods', 'absence_employee_history'] as $table) {
+		foreach (['absence_employments', 'absence_periods', 'absence_emp_history'] as $table) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete($table)->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))->executeStatement();
 		}
