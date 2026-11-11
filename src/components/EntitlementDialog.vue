@@ -19,9 +19,10 @@
 				{{ t('absence', 'Adjustments so far: {total} · leaving the field empty changes nothing', { total: signed(currentAdjustment) }) }}
 			</p>
 			<NcTextField
-				v-model="form.adjustmentNote"
+				:modelValue="form.adjustmentNote"
 				:label="t('absence', 'Adjustment note')"
-				:placeholder="t('absence', 'Why is this being adjusted?')" />
+				:placeholder="t('absence', 'Why is this being adjusted?')"
+				@update:modelValue="form.adjustmentNote = String($event)" />
 			<div class="edit__actions">
 				<NcButton variant="tertiary" @click="$emit('close')">
 					{{ t('absence', 'Cancel') }}
@@ -63,138 +64,152 @@
 	</NcModal>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { BalanceRow, EntitlementEvent, EntitlementField } from '../types/index.ts'
+import type { EntitlementForm } from '../utils/entitlement.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { onMounted, reactive, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import api from '../services/api.ts'
 import { entitlementPayload } from '../utils/entitlement.ts'
+import { serverMessage } from '../utils/errors.ts'
 import { formatNumber, locale } from '../utils/locale.ts'
 
 /**
  * HR's editor for one entitlement of one employee and year, with its change
  * history.
  */
-export default {
-	name: 'EntitlementDialog',
-	components: { NcButton, NcModal, NcTextField },
-	props: {
-		uid: { type: String, required: true },
-		displayName: { type: String, required: true },
-		/** The balance row of the leave type to edit */
-		row: { type: Object, required: true },
-		year: { type: Number, required: true },
-	},
 
-	emits: ['close', 'saved'],
+/** The fields as typed, and the stored entitlement they belong to: null while none is stored */
+interface EntitlementDialogForm extends EntitlementForm {
+	entitlementId: number | null
+}
 
-	data() {
-		return {
-			saving: false,
-			form: { baseDays: this.row.baseDays, adjustmentDelta: '', adjustmentNote: '', entitlementId: this.row.entitlementId },
-			storedBaseDays: this.row.baseDays,
-			currentAdjustment: this.row.manualAdjustment || 0,
-			history: [],
-			historyLoading: false,
+const props = defineProps<{
+	uid: string
+	displayName: string
+	/** The balance row of the leave type to edit */
+	row: BalanceRow
+	year: number
+}>()
+
+const emit = defineEmits<{
+	close: []
+	saved: []
+}>()
+
+const saving = ref(false)
+const form = reactive<EntitlementDialogForm>({ baseDays: props.row.baseDays, adjustmentDelta: '', adjustmentNote: '', entitlementId: props.row.entitlementId })
+const storedBaseDays = ref(props.row.baseDays)
+const currentAdjustment = ref(props.row.manualAdjustment || 0)
+const history = ref<EntitlementEvent[]>([])
+const historyLoading = ref(false)
+
+onMounted(async () => {
+	// Ensure an entitlement row exists to edit; fetch current values.
+	try {
+		const list = await api.listEntitlements(props.uid, props.year)
+		const ent = list.find((e) => e.typeId === props.row.typeId)
+		if (ent) {
+			currentAdjustment.value = ent.manualAdjustment
+			form.baseDays = ent.baseDays
+			storedBaseDays.value = ent.baseDays
+			form.entitlementId = ent.id
 		}
-	},
+	} catch {
+		// The values of the balance row stay in the form.
+	}
+	await loadHistory()
+})
 
-	async mounted() {
-		// Ensure an entitlement row exists to edit; fetch current values.
-		try {
-			const list = await api.listEntitlements(this.uid, this.year)
-			const ent = list.find((e) => e.typeId === this.row.typeId)
-			if (ent) {
-				this.currentAdjustment = ent.manualAdjustment
-				this.form.baseDays = ent.baseDays
-				this.storedBaseDays = ent.baseDays
-				this.form.entitlementId = ent.id
-			}
-		} catch {
-			// The values of the balance row stay in the form.
+/**
+ * @param v a day count, null or undefined for none
+ */
+function fmt(v: number | null | undefined): string {
+	return v === null || v === undefined ? '—' : formatNumber(v)
+}
+
+/**
+ * The change log for the entitlement being edited. Newest first, because the
+ * most recent change is the one that explains the number on screen. Silent on
+ * failure: history is context, and losing it must not block the edit itself.
+ */
+async function loadHistory() {
+	if (!form.entitlementId) {
+		// Nothing saved yet, so there is nothing to have changed.
+		return
+	}
+	historyLoading.value = true
+	try {
+		const events = await api.entitlementHistory(form.entitlementId)
+		history.value = events.reverse()
+	} catch {
+		history.value = []
+	} finally {
+		historyLoading.value = false
+	}
+}
+
+/**
+ * A signed day count, so "+2" and "−2" read as corrections rather than totals.
+ *
+ * @param value the accumulated adjustment
+ */
+function signed(value: number): string {
+	const n = Number(value) || 0
+	return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n))
+}
+
+/**
+ * @param field the figure of the entitlement that changed
+ */
+function fieldLabel(field: EntitlementField): string {
+	return {
+		base_days: t('absence', 'Base days'),
+		carry_over_days: t('absence', 'Carry-over'),
+		manual_adjustment: t('absence', 'Adjustment'),
+	}[field] || field
+}
+
+/**
+ * @param iso an ISO 8601 timestamp, null for none
+ */
+function formatDateTime(iso: string | null): string {
+	return iso ? new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : ''
+}
+
+/**
+ * Updates the stored entitlement, or creates it when there is none yet.
+ */
+async function save() {
+	const data = entitlementPayload(form, storedBaseDays.value)
+	if (data === null) {
+		showError(t('absence', 'Enter the base days as a number.'))
+		return
+	}
+	saving.value = true
+	try {
+		if (form.entitlementId) {
+			await api.updateEntitlement(form.entitlementId, data)
+		} else {
+			await api.createEntitlement({
+				employeeUid: props.uid,
+				year: props.year,
+				typeId: props.row.typeId,
+				...data,
+			})
 		}
-		await this.loadHistory()
-	},
-
-	methods: {
-		t,
-		fmt(v) {
-			return v === null || v === undefined ? '—' : formatNumber(v)
-		},
-
-		/**
-		 * The change log for the entitlement being edited. Newest first, because the
-		 * most recent change is the one that explains the number on screen. Silent on
-		 * failure: history is context, and losing it must not block the edit itself.
-		 */
-		async loadHistory() {
-			if (!this.form.entitlementId) {
-				// Nothing saved yet, so there is nothing to have changed.
-				return
-			}
-			this.historyLoading = true
-			try {
-				const events = await api.entitlementHistory(this.form.entitlementId)
-				this.history = events.reverse()
-			} catch {
-				this.history = []
-			} finally {
-				this.historyLoading = false
-			}
-		},
-
-		/**
-		 * A signed day count, so "+2" and "−2" read as corrections rather than totals.
-		 *
-		 * @param {number} value the accumulated adjustment
-		 * @return {string}
-		 */
-		signed(value) {
-			const n = Number(value) || 0
-			return (n > 0 ? '+' : n < 0 ? '−' : '') + this.fmt(Math.abs(n))
-		},
-
-		fieldLabel(field) {
-			return {
-				base_days: t('absence', 'Base days'),
-				carry_over_days: t('absence', 'Carry-over'),
-				manual_adjustment: t('absence', 'Adjustment'),
-			}[field] || field
-		},
-
-		formatDateTime(iso) {
-			return iso ? new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : ''
-		},
-
-		async save() {
-			const data = entitlementPayload(this.form, this.storedBaseDays)
-			if (data === null) {
-				showError(t('absence', 'Enter the base days as a number.'))
-				return
-			}
-			this.saving = true
-			try {
-				if (this.form.entitlementId) {
-					await api.updateEntitlement(this.form.entitlementId, data)
-				} else {
-					await api.createEntitlement({
-						employeeUid: this.uid,
-						year: this.year,
-						typeId: this.row.typeId,
-						...data,
-					})
-				}
-				showSuccess(t('absence', 'Entitlement updated'))
-				this.$emit('saved')
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not update entitlement'))
-			} finally {
-				this.saving = false
-			}
-		},
-	},
+		showSuccess(t('absence', 'Entitlement updated'))
+		emit('saved')
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not update entitlement'))
+	} finally {
+		saving.value = false
+	}
 }
 </script>
 

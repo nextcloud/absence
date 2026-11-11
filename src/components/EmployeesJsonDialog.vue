@@ -106,9 +106,12 @@
 	</NcModal>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { ContractPeriod, EmployeeJsonFieldChange, EmployeeJsonProblem, EmployeesJsonPlan } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
@@ -117,135 +120,144 @@ import SkeletonList from './SkeletonList.vue'
 import api from '../services/api.ts'
 import { contractDiff, describePeriod } from '../utils/contract.ts'
 import { formatDate } from '../utils/dates.ts'
+import { serverMessage } from '../utils/errors.ts'
 import { regionFlag } from '../utils/regions.ts'
 
-export default {
-	name: 'EmployeesJsonDialog',
-	components: { Download, NcButton, NcModal, NcNoteCard, SkeletonList },
-	emits: ['close', 'saved'],
+const emit = defineEmits<{
+	close: []
+	saved: []
+}>()
 
-	data() {
-		return {
-			loading: true,
-			busy: false,
-			json: '',
-			count: 0,
-			plan: null,
-			errors: [],
-		}
-	},
+const loading = ref(true)
+const busy = ref(false)
+const json = ref('')
+const count = ref(0)
+const plan = ref<EmployeesJsonPlan | null>(null)
+const errors = ref<EmployeeJsonProblem[]>([])
 
-	computed: {
-		lineCount() {
-			return this.json.split('\n').length
-		},
+const gutter = useTemplateRef<HTMLOListElement>('gutter')
 
-		errorLines() {
-			return new Set(this.errors.map((error) => error.line).filter((line) => line !== null))
-		},
-	},
+const lineCount = computed(() => json.value.split('\n').length)
 
-	async mounted() {
-		try {
-			const exported = await api.exportEmployeesJson()
-			this.json = exported.json
-			this.count = exported.count
-		} catch (e) {
-			showError(e.response?.data?.message || t('absence', 'Could not load the employees'))
-		} finally {
-			this.loading = false
-		}
-	},
+const errorLines = computed(() => new Set(errors.value.map((error) => error.line).filter((line) => line !== null)))
 
-	methods: {
-		t,
-		n,
+onMounted(async () => {
+	try {
+		const exported = await api.exportEmployeesJson()
+		json.value = exported.json
+		count.value = exported.count
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not load the employees'))
+	} finally {
+		loading.value = false
+	}
+})
 
-		where(error) {
-			if (error.line !== null) {
-				return t('absence', 'Line {line}: ', { line: error.line })
-			}
-			return error.entry !== null ? t('absence', 'Entry {entry}: ', { entry: error.entry }) : ''
-		},
+/**
+ * @param error a problem with the list
+ * @return where it is, as the start of its line of text
+ */
+function where(error: EmployeeJsonProblem): string {
+	if (error.line !== null) {
+		return t('absence', 'Line {line}: ', { line: error.line })
+	}
+	return error.entry !== null ? t('absence', 'Entry {entry}: ', { entry: error.entry }) : ''
+}
 
-		/**
-		 * @param {{field: string, year?: number}} change a changed field
-		 */
-		fieldLabel(change) {
-			return {
-				region: t('absence', 'Region'),
-				start: t('absence', 'Start'),
-				end: t('absence', 'End'),
-				contract: t('absence', 'Contract'),
-				vacation: t('absence', 'Vacation days {year}', { year: change.year }),
-			}[change.field] ?? change.field
-		},
+/**
+ * @param change a changed field
+ */
+function fieldLabel(change: EmployeeJsonFieldChange): string {
+	if (change.field === 'vacation') {
+		return t('absence', 'Vacation days {year}', { year: change.year })
+	}
+	const labels: Record<string, string> = {
+		region: t('absence', 'Region'),
+		start: t('absence', 'Start'),
+		end: t('absence', 'End'),
+		contract: t('absence', 'Contract'),
+	}
+	return labels[change.field] ?? change.field
+}
 
-		/**
-		 * The two sides of a changed field, as lines of text.
-		 *
-		 * @param {{field: string, before: (string|number|object[]|null), after: (string|number|object[]|null)}} change a changed field
-		 * @return {{now: string[], after: string[]}}
-		 */
-		describe(change) {
-			const none = t('absence', 'none')
-			if (change.field === 'vacation') {
-				return { now: [String(change.before)], after: [String(change.after)] }
-			}
-			if (change.field === 'region') {
-				const code = (value) => value ? `${regionFlag(value)} ${value}` : none
-				return { now: [code(change.before)], after: [code(change.after)] }
-			}
-			if (change.field !== 'contract') {
-				return { now: [change.before ? formatDate(change.before) : none], after: [change.after ? formatDate(change.after) : none] }
-			}
-			const { removed, added, kept } = contractDiff(change.before, change.after)
-			const from = (period) => t('absence', '{pattern} from {date}', { pattern: describePeriod(period), date: formatDate(period.from) })
-			const since = (period) => t('absence', '{pattern} since {date}', { pattern: describePeriod(period), date: formatDate(period.from) })
-			return {
-				now: removed.length ? removed.map(from) : (kept.length ? kept.map(since) : [none]),
-				after: added.length ? added.map(from) : [t('absence', 'removed')],
-			}
-		},
+/**
+ * The two sides of a changed field, as lines of text.
+ *
+ * @param change a changed field
+ */
+function describe(change: EmployeeJsonFieldChange): { now: string[], after: string[] } {
+	const none = t('absence', 'none')
+	if (change.field === 'vacation') {
+		return { now: [String(change.before)], after: [String(change.after)] }
+	}
+	if (change.field === 'region') {
+		const code = (value: string | null) => (value ? `${regionFlag(value)} ${value}` : none)
+		return { now: [code(change.before)], after: [code(change.after)] }
+	}
+	if (change.field !== 'contract') {
+		return { now: [change.before ? formatDate(change.before) : none], after: [change.after ? formatDate(change.after) : none] }
+	}
+	const { removed, added, kept } = contractDiff(change.before, change.after)
+	const from = (period: ContractPeriod) => t('absence', '{pattern} from {date}', { pattern: describePeriod(period), date: formatDate(period.from) })
+	const since = (period: ContractPeriod) => t('absence', '{pattern} since {date}', { pattern: describePeriod(period), date: formatDate(period.from) })
+	return {
+		now: removed.length ? removed.map(from) : (kept.length ? kept.map(since) : [none]),
+		after: added.length ? added.map(from) : [t('absence', 'removed')],
+	}
+}
 
-		syncGutter(event) {
-			this.$refs.gutter.scrollTop = event.target.scrollTop
-		},
+/**
+ * Keeps the line numbers beside their lines.
+ *
+ * @param event the scroll of the text
+ */
+function syncGutter(event: Event) {
+	if (gutter.value && event.target instanceof HTMLTextAreaElement) {
+		gutter.value.scrollTop = event.target.scrollTop
+	}
+}
 
-		download() {
-			const link = document.createElement('a')
-			link.href = URL.createObjectURL(new Blob([this.json], { type: 'application/json' }))
-			link.download = 'employees.json'
-			link.click()
-			URL.revokeObjectURL(link.href)
-		},
+/**
+ * Saves the text as it stands as employees.json.
+ */
+function download() {
+	const link = document.createElement('a')
+	link.href = URL.createObjectURL(new Blob([json.value], { type: 'application/json' }))
+	link.download = 'employees.json'
+	link.click()
+	URL.revokeObjectURL(link.href)
+}
 
-		async review() {
-			this.busy = true
-			try {
-				const plan = await api.importEmployeesJson(this.json, true)
-				this.errors = plan.errors
-				this.plan = plan.errors.length ? null : plan
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not check the list'))
-			} finally {
-				this.busy = false
-			}
-		},
+/**
+ * Asks the server what the list would change, or what is wrong with it.
+ */
+async function review() {
+	busy.value = true
+	try {
+		const checked = await api.importEmployeesJson(json.value, true)
+		errors.value = checked.errors
+		plan.value = checked.errors.length ? null : checked
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not check the list'))
+	} finally {
+		busy.value = false
+	}
+}
 
-		async apply() {
-			this.busy = true
-			try {
-				const result = await api.importEmployeesJson(this.json, false)
-				showSuccess(n('absence', '{count} employee updated', '{count} employees updated', result.changes.length, { count: result.changes.length }))
-				this.$emit('saved')
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not save the list'))
-			} finally {
-				this.busy = false
-			}
-		},
-	},
+/**
+ * Saves the reviewed list.
+ */
+async function apply() {
+	busy.value = true
+	try {
+		const result = await api.importEmployeesJson(json.value, false)
+		showSuccess(n('absence', '{count} employee updated', '{count} employees updated', result.changes.length, { count: result.changes.length }))
+		emit('saved')
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not save the list'))
+	} finally {
+		busy.value = false
+	}
 }
 </script>
 

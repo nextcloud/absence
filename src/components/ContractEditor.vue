@@ -89,99 +89,118 @@
 	</form>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { Contract } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import api from '../services/api.ts'
 import { toIso } from '../utils/dates.ts'
+import { serverMessage } from '../utils/errors.ts'
+
+/** A working pattern while it is edited: its date can be cleared, and the percentage is what the field holds */
+interface EditedPeriod {
+	from: string | null
+	weekdays: number[]
+	percent: number | string
+	key: number
+}
+
+const props = defineProps<{
+	uid: string
+	contract: Contract
+}>()
+
+const emit = defineEmits<{
+	saved: [contract: Contract]
+}>()
 
 let nextKey = 0
 
-export default {
-	name: 'ContractEditor',
-	components: { NcButton, NcDateTimePickerNative, NcTextField, Plus },
-	props: {
-		uid: { type: String, required: true },
-		contract: { type: Object, required: true },
-	},
+const start = ref(props.contract.start)
+const end = ref(props.contract.end)
+// Newest first, like the history
+const periods = ref<EditedPeriod[]>(props.contract.periods
+	.map((period) => ({ ...period, weekdays: [...period.weekdays], percent: period.percent ?? '', key: nextKey++ }))
+	.reverse())
 
-	emits: ['saved'],
+const weekdays = [
+	{ iso: 1, short: t('absence', 'Mon'), label: t('absence', 'Monday') },
+	{ iso: 2, short: t('absence', 'Tue'), label: t('absence', 'Tuesday') },
+	{ iso: 3, short: t('absence', 'Wed'), label: t('absence', 'Wednesday') },
+	{ iso: 4, short: t('absence', 'Thu'), label: t('absence', 'Thursday') },
+	{ iso: 5, short: t('absence', 'Fri'), label: t('absence', 'Friday') },
+	{ iso: 6, short: t('absence', 'Sat'), label: t('absence', 'Saturday') },
+	{ iso: 7, short: t('absence', 'Sun'), label: t('absence', 'Sunday') },
+]
 
-	data() {
-		return {
-			start: this.contract.start,
-			end: this.contract.end,
-			// Newest first, like the history
-			periods: this.contract.periods
-				.map((period) => ({ ...period, weekdays: [...period.weekdays], percent: period.percent ?? '', key: nextKey++ }))
-				.reverse(),
+const saving = ref(false)
 
-			weekdays: [
-				{ iso: 1, short: t('absence', 'Mon'), label: t('absence', 'Monday') },
-				{ iso: 2, short: t('absence', 'Tue'), label: t('absence', 'Tuesday') },
-				{ iso: 3, short: t('absence', 'Wed'), label: t('absence', 'Wednesday') },
-				{ iso: 4, short: t('absence', 'Thu'), label: t('absence', 'Thursday') },
-				{ iso: 5, short: t('absence', 'Fri'), label: t('absence', 'Friday') },
-				{ iso: 6, short: t('absence', 'Sat'), label: t('absence', 'Saturday') },
-				{ iso: 7, short: t('absence', 'Sun'), label: t('absence', 'Sunday') },
-			],
+/**
+ * @param iso 'YYYY-MM-DD', or null for no date
+ */
+function toDate(iso: string | null): Date | null {
+	return iso ? new Date(iso + 'T00:00:00') : null
+}
 
-			saving: false,
-		}
-	},
+/**
+ * @param date what the date picker holds, null when cleared
+ */
+function fromDate(date: Date | null): string | null {
+	return date ? toIso(date) : null
+}
 
-	methods: {
-		t,
+/**
+ * @param period the pattern to change
+ * @param iso the ISO weekday, Mon=1
+ * @param on whether the person works on that day
+ */
+function toggle(period: EditedPeriod, iso: number, on: boolean) {
+	period.weekdays = on
+		? [...period.weekdays, iso].sort()
+		: period.weekdays.filter((day) => day !== iso)
+}
 
-		toDate(iso) {
-			return iso ? new Date(iso + 'T00:00:00') : null
-		},
+/**
+ * Adds a pattern that starts today, as a copy of the newest one.
+ */
+function addPeriod() {
+	const latest = periods.value[0]
+	periods.value.unshift({
+		from: toIso(new Date()),
+		weekdays: latest ? [...latest.weekdays] : [1, 2, 3, 4, 5],
+		percent: latest ? latest.percent : 100,
+		key: nextKey++,
+	})
+}
 
-		fromDate(date) {
-			return date ? toIso(date) : null
-		},
-
-		toggle(period, iso, on) {
-			period.weekdays = on
-				? [...period.weekdays, iso].sort()
-				: period.weekdays.filter((day) => day !== iso)
-		},
-
-		addPeriod() {
-			const latest = this.periods[0]
-			this.periods.unshift({
-				from: toIso(new Date()),
-				weekdays: latest ? [...latest.weekdays] : [1, 2, 3, 4, 5],
-				percent: latest ? latest.percent : 100,
-				key: nextKey++,
-			})
-		},
-
-		async save() {
-			this.saving = true
-			try {
-				const contract = await api.updateContract(this.uid, {
-					start: this.start,
-					end: this.end,
-					periods: this.periods.map((period) => ({
-						from: period.from,
-						weekdays: period.weekdays,
-						percent: period.percent === '' ? null : Number(period.percent),
-					})),
-				})
-				this.$emit('saved', contract)
-				showSuccess(t('absence', 'Contract saved'))
-			} catch (e) {
-				showError(e.response?.data?.message || t('absence', 'Could not save the contract'))
-			} finally {
-				this.saving = false
-			}
-		},
-	},
+/**
+ * Saves the dates and the patterns, which replace the stored contract.
+ */
+async function save() {
+	saving.value = true
+	try {
+		const contract = await api.updateContract(props.uid, {
+			start: start.value,
+			end: end.value,
+			periods: periods.value.map((period) => ({
+				from: period.from,
+				weekdays: period.weekdays,
+				percent: period.percent === '' ? null : Number(period.percent),
+			})),
+		})
+		emit('saved', contract)
+		showSuccess(t('absence', 'Contract saved'))
+	} catch (e) {
+		showError(serverMessage(e) || t('absence', 'Could not save the contract'))
+	} finally {
+		saving.value = false
+	}
 }
 </script>
 

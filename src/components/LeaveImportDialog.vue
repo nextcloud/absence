@@ -17,7 +17,7 @@
 					accept=".json,application/json"
 					class="leave-import__file"
 					@change="onFilePicked">
-				<NcButton variant="secondary" @click="$refs.fileInput.click()">
+				<NcButton variant="secondary" @click="fileInput?.click()">
 					<template #icon>
 						<FileUpload :size="20" />
 					</template>
@@ -99,76 +99,87 @@
 	</NcModal>
 </template>
 
-<script>
+<script setup lang="ts">
+import type { LeaveImportResult } from '../types/index.ts'
+
 import { showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
+import { ref, useTemplateRef } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import FileUpload from 'vue-material-design-icons/FileUploadOutline.vue'
 import api from '../services/api.ts'
+import { serverMessage } from '../utils/errors.ts'
 
-export default {
-	name: 'LeaveImportDialog',
-	components: { NcButton, NcModal, NcNoteCard, NcTextArea, FileUpload },
-	emits: ['close', 'imported'],
+const emit = defineEmits<{
+	close: []
+	imported: []
+}>()
 
-	data() {
-		return {
-			json: '',
-			preview: null,
-			error: '',
-			busy: false,
-			example: JSON.stringify([
-				{ user: 'robin', type: 'annual', from: '2025-03-03', to: '2025-03-07', workingDays: 5, note: 'Ski trip' },
-			], null, 2),
-		}
-	},
+const json = ref('')
+const preview = ref<LeaveImportResult | null>(null)
+const error = ref('')
+const busy = ref(false)
+const example = JSON.stringify([
+	{ user: 'robin', type: 'annual', from: '2025-03-03', to: '2025-03-07', workingDays: 5, note: 'Ski trip' },
+], null, 2)
 
-	methods: {
-		t,
-		n,
+const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 
-		async onFilePicked(event) {
-			const file = event.target.files?.[0]
-			event.target.value = ''
-			if (!file) {
-				return
-			}
-			this.json = await file.text()
-			this.preview = null
-			this.error = ''
-		},
+/**
+ * Puts the text of the picked file in the field, to review like a pasted list.
+ *
+ * @param event the change of the file input
+ */
+async function onFilePicked(event: Event) {
+	const input = event.target
+	if (!(input instanceof HTMLInputElement)) {
+		return
+	}
+	const file = input.files?.[0]
+	input.value = ''
+	if (!file) {
+		return
+	}
+	json.value = await file.text()
+	preview.value = null
+	error.value = ''
+}
 
-		async review() {
-			this.busy = true
-			this.error = ''
-			try {
-				this.preview = await api.importLeave(this.json, true)
-			} catch (e) {
-				this.preview = null
-				this.error = e.response?.data?.message || t('absence', 'Could not read the list')
-			} finally {
-				this.busy = false
-			}
-		},
+/**
+ * Asks the server what the list would add, or what is wrong with it.
+ */
+async function review() {
+	busy.value = true
+	error.value = ''
+	try {
+		preview.value = await api.importLeave(json.value, true)
+	} catch (e) {
+		preview.value = null
+		error.value = serverMessage(e) || t('absence', 'Could not read the list')
+	} finally {
+		busy.value = false
+	}
+}
 
-		async runImport() {
-			this.busy = true
-			this.error = ''
-			try {
-				const result = await api.importLeave(this.json, false)
-				showSuccess(n('absence', '{count} entry imported', '{count} entries imported', result.entries, { count: result.entries }))
-				this.$emit('imported')
-			} catch (e) {
-				this.preview = null
-				this.error = e.response?.data?.message || t('absence', 'Could not import the list')
-			} finally {
-				this.busy = false
-			}
-		},
-	},
+/**
+ * Books the reviewed list as approved leave.
+ */
+async function runImport() {
+	busy.value = true
+	error.value = ''
+	try {
+		const result = await api.importLeave(json.value, false)
+		showSuccess(n('absence', '{count} entry imported', '{count} entries imported', result.entries, { count: result.entries }))
+		emit('imported')
+	} catch (e) {
+		preview.value = null
+		error.value = serverMessage(e) || t('absence', 'Could not import the list')
+	} finally {
+		busy.value = false
+	}
 }
 </script>
 
