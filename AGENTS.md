@@ -31,7 +31,7 @@ PHP (via composer scripts):
 
 **PHP tests require a Nextcloud server checkout**: `tests/bootstrap.php` requires `../../../lib/base.php`, i.e. the repo must sit at `apps/absence/` inside a Nextcloud server tree. Vitest, ESLint, psalm, and php-cs-fixer run standalone.
 
-`make appstore` builds the signed App Store tarball (needs signing certs; rarely needed in development).
+`krankerl package` builds the App Store tarball in `build/artifacts/`, leaving out what `.nextcloudignore` lists. Releases are built, signed and uploaded by the workflow on nextcloud-releases, so this is rarely needed in development.
 
 ## Repo conventions
 
