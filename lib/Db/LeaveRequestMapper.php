@@ -400,23 +400,6 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Requests of any status that hold a calendar reference, with an id above
-	 * $afterId, in id order.
-	 *
-	 * @return LeaveRequest[]
-	 */
-	public function findWithCalendarEventUri(int $afterId, int $limit): array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')
-			->from($this->getTableName())
-			->where($qb->expr()->isNotNull('calendar_event_uri'))
-			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
-			->orderBy('id', 'ASC')
-			->setMaxResults($limit);
-		return $this->findEntities($qb);
-	}
-
-	/**
 	 * Store the calendar reference of a request if it is still approved. Returns
 	 * whether it was stored.
 	 *

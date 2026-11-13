@@ -30,11 +30,8 @@ use Sabre\VObject\Component\VCalendar;
  * builds it read-only from the leave in force, with {@see personalEvents()}.
  */
 class CalendarService {
-	private const STORED_PERSONAL_CALENDAR_URI = 'absence';
 	private const SHARED_CALENDAR_URI = 'absence-team';
 	private const SHARED_PRINCIPAL = 'principals/system/absence';
-	private const USER_PRINCIPAL_PREFIX = 'principals/users/';
-	private const CLEANUP_BATCH_SIZE = 500;
 
 	public function __construct(
 		private ContainerInterface $container,
@@ -113,60 +110,6 @@ class CalendarService {
 	}
 
 	/**
-	 * Remove the personal calendar events earlier versions stored in each
-	 * employee's own "absence" calendar, and that calendar once nothing else is
-	 * in it. Their references go from the requests; the team calendar's stay.
-	 * Safe to run again.
-	 */
-	public function removeStoredPersonalEvents(): void {
-		$backend = $this->backend();
-		if ($backend === null) {
-			return;
-		}
-		$teamCalendarId = $backend->getCalendarByUri(self::SHARED_PRINCIPAL, self::SHARED_CALENDAR_URI)['id'] ?? null;
-		$personalCalendarIds = [];
-		$afterId = 0;
-		do {
-			$requests = $this->requestMapper->findWithCalendarEventUri($afterId, self::CLEANUP_BATCH_SIZE);
-			foreach ($requests as $request) {
-				$afterId = $request->getId();
-				$kept = [];
-				$removed = [];
-				foreach (explode(';', (string)$request->getCalendarEventUri()) as $entry) {
-					[$calendarId] = explode(':', $entry, 2);
-					if ($teamCalendarId !== null && (int)$calendarId === (int)$teamCalendarId) {
-						$kept[] = $entry;
-					} else {
-						$removed[] = $entry;
-						$personalCalendarIds[(int)$calendarId] = true;
-					}
-				}
-				if ($removed !== []) {
-					$this->deleteEvents($backend, implode(';', $removed), true);
-					$request->setCalendarEventUri($kept === [] ? null : implode(';', $kept));
-					$this->requestMapper->update($request);
-				}
-			}
-		} while (count($requests) === self::CLEANUP_BATCH_SIZE);
-
-		foreach (array_keys($personalCalendarIds) as $calendarId) {
-			try {
-				$calendar = $backend->getCalendarById($calendarId);
-				if ($calendar === null
-					|| $calendar['uri'] !== self::STORED_PERSONAL_CALENDAR_URI
-					|| !str_starts_with((string)$calendar['principaluri'], self::USER_PRINCIPAL_PREFIX)
-					// Events the owner added are theirs to keep, and so is the calendar
-					|| $backend->getCalendarObjects($calendarId) !== []) {
-					continue;
-				}
-				$backend->deleteCalendar($calendarId, true);
-			} catch (\Throwable $e) {
-				$this->logger->warning('Absence: removing a stored personal calendar failed', ['exception' => $e]);
-			}
-		}
-	}
-
-	/**
 	 * Shares the team calendar read-only with the employees group and the HR
 	 * group, and with nobody else (§10), creating the calendar if needed. Safe
 	 * to run again; does nothing while the team calendar is off or the app is
@@ -211,14 +154,14 @@ class CalendarService {
 		$this->deleteEvents($backend, $ref);
 	}
 
-	private function deleteEvents($backend, string $ref, bool $permanently = false): void {
+	private function deleteEvents($backend, string $ref): void {
 		foreach (explode(';', $ref) as $entry) {
 			[$calendarId, $objectUri] = array_pad(explode(':', $entry, 2), 2, null);
 			if ($calendarId === null || $objectUri === null) {
 				continue;
 			}
 			try {
-				$backend->deleteCalendarObject((int)$calendarId, $objectUri, \OCA\DAV\CalDAV\CalDavBackend::CALENDAR_TYPE_CALENDAR, $permanently);
+				$backend->deleteCalendarObject((int)$calendarId, $objectUri, \OCA\DAV\CalDAV\CalDavBackend::CALENDAR_TYPE_CALENDAR);
 			} catch (\Throwable $e) {
 				$this->logger->debug('Absence: calendar delete failed', ['exception' => $e]);
 			}

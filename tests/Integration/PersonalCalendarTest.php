@@ -17,12 +17,9 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
-use OCA\Absence\Migration\RemoveStoredPersonalCalendars;
 use OCA\Absence\Service\ConfigService;
-use OCA\DAV\CalDAV\CalDavBackend;
 use OCP\IAppConfig;
 use OCP\IUserManager;
-use OCP\Migration\IOutput;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 use Sabre\DAV\Exception\Forbidden;
@@ -34,27 +31,20 @@ use Sabre\VObject\Reader;
  */
 class PersonalCalendarTest extends TestCase {
 	private const EMPLOYEE = 'itest-personalcal-emp';
-	private const OTHER = 'itest-personalcal-other';
 	private const PRINCIPAL = 'principals/users/' . self::EMPLOYEE;
 
 	private LeaveRequestMapper $mapper;
 	private IAppConfig $appConfig;
-	private CalDavBackend $backend;
 	/** @var LeaveRequest[] */
 	private array $requests = [];
 	/** @var array<string, bool> */
 	private array $calDav = [];
-	/** @var list<array{int, string}> */
-	private array $teamEvents = [];
 
 	protected function setUp(): void {
 		parent::setUp();
-		foreach ([self::EMPLOYEE, self::OTHER] as $uid) {
-			Server::get(IUserManager::class)->createUser($uid, 'Itest-Password-personalcal-1');
-		}
+		Server::get(IUserManager::class)->createUser(self::EMPLOYEE, 'Itest-Password-personalcal-1');
 		$this->mapper = Server::get(LeaveRequestMapper::class);
 		$this->appConfig = Server::get(IAppConfig::class);
-		$this->backend = Server::get(CalDavBackend::class);
 		foreach ([ConfigLexicon::KEY_CALDAV_PERSONAL, ConfigLexicon::KEY_CALDAV_SHARED] as $key) {
 			$this->calDav[$key] = $this->appConfig->getValueBool(ConfigService::APP_ID, $key, true);
 		}
@@ -62,18 +52,13 @@ class PersonalCalendarTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		foreach ($this->teamEvents as [$calendarId, $objectUri]) {
-			$this->backend->deleteCalendarObject($calendarId, $objectUri, CalDavBackend::CALENDAR_TYPE_CALENDAR, true);
-		}
 		foreach ($this->requests as $request) {
 			$this->mapper->delete($request);
 		}
 		foreach ($this->calDav as $key => $value) {
 			$this->appConfig->setValueBool(ConfigService::APP_ID, $key, $value);
 		}
-		foreach ([self::EMPLOYEE, self::OTHER] as $uid) {
-			Server::get(IUserManager::class)->get($uid)?->delete();
-		}
+		Server::get(IUserManager::class)->get(self::EMPLOYEE)?->delete();
 		parent::tearDown();
 	}
 
@@ -186,43 +171,15 @@ class PersonalCalendarTest extends TestCase {
 		self::assertSame('Absence', $summary);
 	}
 
-	public function testStoredPersonalEventsAreRemoved(): void {
-		$this->appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, true);
-		$teamCalendarId = $this->teamCalendarId();
-		// Leave whose events an earlier version stored in each person's own calendar
-		$mine = $this->leave('2026-07-06', '2026-07-10', LeaveRequest::STATUS_APPROVED);
-		$theirs = $this->leave('2026-07-13', '2026-07-14', LeaveRequest::STATUS_CANCELLED, 1, self::OTHER);
-		$myCalendarId = $this->storedPersonalCalendar(self::EMPLOYEE);
-		$theirCalendarId = $this->storedPersonalCalendar(self::OTHER);
-		$this->storeEvent($myCalendarId, 'absence-' . $mine->getId() . '-aaaaaaaa.ics');
-		$this->storeEvent($theirCalendarId, 'absence-' . $theirs->getId() . '-bbbbbbbb.ics');
-		$this->storeEvent($theirCalendarId, 'their-own.ics');
-		$teamUri = 'absence-' . $mine->getId() . '-cccccccc.ics';
-		$this->storeEvent($teamCalendarId, $teamUri);
-		$this->teamEvents[] = [$teamCalendarId, $teamUri];
-		$this->setRef($mine, $myCalendarId . ':absence-' . $mine->getId() . '-aaaaaaaa.ics;' . $teamCalendarId . ':' . $teamUri);
-		$this->setRef($theirs, $theirCalendarId . ':absence-' . $theirs->getId() . '-bbbbbbbb.ics');
-
-		$step = Server::get(RemoveStoredPersonalCalendars::class);
-		$step->run($this->createMock(IOutput::class));
-		$step->run($this->createMock(IOutput::class));
-
-		self::assertNull($this->backend->getCalendarById($myCalendarId));
-		self::assertSame(['their-own.ics'], array_column($this->backend->getCalendarObjects($theirCalendarId), 'uri'));
-		self::assertSame($teamCalendarId . ':' . $teamUri, $this->mapper->find($mine->getId())->getCalendarEventUri());
-		self::assertNull($this->mapper->find($theirs->getId())->getCalendarEventUri());
-		self::assertNotNull($this->backend->getCalendarObject($teamCalendarId, $teamUri));
-	}
-
 	private function calendar(): PersonalCalendar {
 		$calendar = Server::get(CalendarPlugin::class)->getCalendarInCalendarHome(self::PRINCIPAL, CalendarPlugin::CALENDAR_URI);
 		self::assertInstanceOf(PersonalCalendar::class, $calendar);
 		return $calendar;
 	}
 
-	private function leave(string $start, string $end, string $status, int $typeId = 1, string $uid = self::EMPLOYEE): LeaveRequest {
+	private function leave(string $start, string $end, string $status, int $typeId = 1): LeaveRequest {
 		$request = new LeaveRequest();
-		$request->setEmployeeUid($uid);
+		$request->setEmployeeUid(self::EMPLOYEE);
 		$request->setTypeId($typeId);
 		$request->setStartDate($start);
 		$request->setEndDate($end);
@@ -231,25 +188,5 @@ class PersonalCalendarTest extends TestCase {
 		$request->setCreatedAt(new \DateTime('2026-06-01 09:00:00'));
 		$request->setUpdatedAt(new \DateTime('2026-06-01 09:00:00'));
 		return $this->requests[] = $this->mapper->insert($request);
-	}
-
-	private function setRef(LeaveRequest $request, string $ref): void {
-		$request->setCalendarEventUri($ref);
-		$this->mapper->update($request);
-	}
-
-	private function storedPersonalCalendar(string $uid): int {
-		return (int)$this->backend->createCalendar('principals/users/' . $uid, 'absence', ['{DAV:}displayname' => 'Absence']);
-	}
-
-	private function teamCalendarId(): int {
-		$calendar = $this->backend->getCalendarByUri('principals/system/absence', 'absence-team');
-		return $calendar !== null
-			? (int)$calendar['id']
-			: (int)$this->backend->createCalendar('principals/system/absence', 'absence-team', ['{DAV:}displayname' => 'Team absences']);
-	}
-
-	private function storeEvent(int $calendarId, string $objectUri): void {
-		$this->backend->createCalendarObject($calendarId, $objectUri, "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//itest//EN\r\nBEGIN:VEVENT\r\nUID:" . $objectUri . "\r\nDTSTAMP:20260601T000000Z\r\nDTSTART;VALUE=DATE:20260706\r\nDTEND;VALUE=DATE:20260707\r\nSUMMARY:Leave\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
 	}
 }

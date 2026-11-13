@@ -92,7 +92,6 @@ properly. Every rule and design decision is documented in the
 			<step>OCA\Absence\Migration\RemoveAuditLogCondition</step>
 			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
 			<step>OCA\Absence\Migration\ShareTeamCalendar</step>
-			<step>OCA\Absence\Migration\RemoveStoredPersonalCalendars</step>
 		</post-migration>
 		<install>
 			<step>OCA\Absence\Migration\SeedLeaveTypes</step>

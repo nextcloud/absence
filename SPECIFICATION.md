@@ -1075,11 +1075,6 @@ Approved leave appears in Nextcloud Calendar via CalDAV.
   takes 200 requests per run in id order and keeps its place
   (`calendar_sync_cursor`), so a request that keeps failing never holds the others
   back; it is tried again on the next pass. Nothing runs while the team calendar is off.
-- Earlier versions stored the personal events in an ordinary calendar the employee
-  owned, which they could edit. The `RemoveStoredPersonalCalendars` repair step deletes
-  those events, drops their references from the requests, and deletes the calendar
-  once nothing else is in it; a calendar the employee added events of their own to
-  stays, as theirs.
 
 ---
 
@@ -1971,8 +1966,7 @@ Recorded during the build so the spec matches the code:
 - **Read-only personal calendar** (§10): the personal events were first written into
   an ordinary calendar owned by the employee, who could then edit, move or delete
   them, or add their own. The personal calendar is now built from the leave on every
-  read by a DAV calendar plugin and is read-only; a repair step removes the stored
-  calendars. The public `OCP\Calendar\ICalendarProvider` route was not used: the
+  read by a DAV calendar plugin and is read-only. The public `OCP\Calendar\ICalendarProvider` route was not used: the
   dav app's wrapper for it expects `search()` to return Sabre components, while
   `OCP\Calendar\IManager` consumers expect arrays. Calendar-based user status
   (`OCA\DAV\CalDAV\Status\StatusService`) only reads calendars the dav app stores,
