@@ -7,147 +7,98 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## 1.0.12 – 2026-08-10
+## [Unreleased] – 1.0.0-beta.1
 
-### Added
-- Leave requests can be **approved straight from the notification**. The four
-  notifications that ask for a decision — a new request, an escalation to HR, the
-  overdue reminder and a withdrawal — now carry Approve, Decline and Review
-  buttons; approving is a single click and never opens the app. Declining is
-  deliberately not a one-click verdict, because a decline requires a reason: its
-  button opens the request with the reason box already unfolded. A withdrawal
-  asks the opposite question, so its buttons read *Approve withdrawal* and *Keep
-  leave*. The overdue reminder previously carried no buttons at all, which is
-  exactly the notification where an answer is most overdue
-- The request dialog names the **colleagues already off** during the dates being
-  picked, and warns when booking would take the team to the concurrent-absence
-  limit. Managers have always seen this when reviewing; now the person choosing
-  the dates sees it while they can still cheaply choose others. It never blocks
-  the request, and it is only shown for your own leave — the overlap query
-  answers for your team, so HR recording an absence for somebody else would
-  otherwise be shown the wrong names
-- The *next break* hero counts down **second by second over the final 48 hours**
-  instead of rounding to "1 day to go", which is a poor description of an
-  afternoon. The empty-state palm illustration now **follows the seasons** —
-  blossom, full sun, falling leaves, snow — flipped for the southern hemisphere
-  from the country already chosen for public holidays. All motion still stops
-  under `prefers-reduced-motion`
+First public beta of Absence, a self-service leave-management app: employees
+apply for leave, line managers approve, and HR gets the company-wide overview.
+Employees are your Nextcloud users, HR is a Nextcloud group, and line managers
+come from the `manager` account property your LDAP or Active Directory already
+fills in.
 
-### Fixed
-- *My leave* left open overnight no longer freezes on yesterday: the day count
-  and the reported year were captured once at render, so a tab open across
-  midnight — or New Year — kept showing the previous day's numbers
+### For employees
+- Apply for annual, sick, unpaid or special leave, or any leave type HR
+  defines, with a reason, a replacement colleague and attachments
+- The working-day count is prefilled from your contract and the public
+  holidays of your region, counts in half days, and stays editable
+- A live balance preview before sending, and a warning (never a block) when
+  the request goes past your balance
+- The colleagues already off during the dates you pick, and a warning when
+  booking would leave the team short
+- A leave across New Year can be split at 31 December from the form
+- **My leave**: a *next break* countdown, one balance ring per leave type with
+  its full breakdown (base, carry-over, adjustment, used, pending, available),
+  monthly charts and your request history
+- Edit or cancel a pending request; withdrawing approved leave asks your
+  manager first
+- A profile page with your vacation, next leave, region code and this year's
+  holidays, contract and sick days
+- A warning before carried-over days expire
+- A dashboard widget with your balance and upcoming leave, plus pending
+  decisions for managers and escalations for HR
 
-## 1.0.11 – 2026-08-10
+### For line managers
+- Approve, decline or review straight from the notification, without opening
+  the app. Declining always asks for a reason
+- Each request shows who else on the team is off, a short-notice warning, the
+  reason, a comment thread and the full history
+- A Gantt-style **team timeline** of your reports, with weekends and each
+  person's public holidays shaded, and a team balances table
+- Requests you leave open are reminded, then escalated to HR. When you are on
+  leave yourself they go to HR right away
+- You hear about absences HR records for your reports, with the dates only
 
-### Added
-- **Expected notice period** (admin setting, default 14 calendar days, `0`
-  disables). A request whose leave starts sooner is flagged as short notice to
-  the line manager and to HR — on the request's Details tab, in the notification
-  and in the subject line of the email asking for a decision, including the
-  escalation and the pending reminder, by which point the notice given has shrunk
-  further. It informs a decision and blocks nothing. Calendar days, not working
-  days: "two weeks' notice" is a fortnight on the wall calendar. Never shown for
-  leave with no approval step — nobody can give notice of falling ill
+### For HR
+- Every absence, filterable by employee, type, status and year, and
+  correctable or cancellable. Cancelled records are kept for the audit trail
+- **Record absences** such as sick leave directly, with no approval step
+- **Confidential categories** (maternity leave, parental leave, child sick
+  leave, medical work prohibition, doctor's note) that only HR sees. Everyone
+  else, the employee included, sees a neutral "Absent". An HR-only disability
+  flag on annual leave for the extra statutory entitlement
+- **Attachments** such as doctor's notes, seen by HR and the employee only,
+  never the manager
+- An **Employees** page with everyone's region code, working days, contract,
+  start date, manager and this year's days, flagging missing data. Contract
+  data and vacation days can be edited per person or for everyone at once as
+  JSON, with a review step
+- Entitlements per person or in bulk for a group, each change with a note and
+  a history. A pro rata suggestion for people who start mid-year or work part
+  time
+- **Public holidays** kept as a list per region code (`DE`, `DE-BY`), edited
+  on a page or imported per year. HR can let everyone edit single holidays,
+  with a full history, and remind people whose region code is missing
+- **Statistics**: leave and sick days over time and by type, the busiest
+  month, and who has the most vacation still to take
+- **Insights**: approval times and escalations per manager, the Bradford
+  Factor for sick leave, leave taken per team with a "not off in a while"
+  watchlist, outstanding leave and carry-over at risk
+- A sick-leave overview and a company-wide **who's off** timeline
+- **CSV exports** of requests and balances for payroll, filtered by date range
+  and group, with account id and e-mail
+- **Import past leave** from a shared calendar or another tool as JSON, with a
+  review before anything is written
+- Links to your own handbooks, for example Collectives pages, in the app
+  navigation
 
-### Fixed
-- Day boundaries are no longer computed in UTC. Nextcloud pins PHP's timezone to
-  UTC for the whole request, so "today" answered in UTC wherever you are: at
-  09:00 on 2 January in Auckland an employee booking leave for that day was told
-  it was "entirely in the past", and Berlin had the same fault for the last hour
-  of every day. Dates an employee is judged against now resolve in **their own**
-  timezone, while company-wide policy and background jobs — short-notice
-  measurement, carry-over expiry, the year rollover — use the **server's**, so
-  one request gets the same answer for the employee, the manager and HR. Stored
-  timestamps stay UTC, which is what a timestamp means
-
-## 1.0.10 – 2026-08-10
-
-### Fixed
-- The bottom row of the *Who's off* / *Team* timeline is no longer clipped by the
-  horizontal scrollbar. Overlay scrollbars (the macOS default) are painted over
-  the content instead of taking space of their own, and the leave pills sat only
-  8px clear of the track's bottom edge, so the last row's pill — and its
-  selection ring — was sliced in half
-
-## 1.0.9 – 2026-08-10
-
-### Fixed
-- Selecting a leave request no longer navigates away. The list row's underlying
-  anchor fell through to `#`, which this app's hash routing resolves to *My
-  leave* — so opening somebody's absence threw you back to your own overview
-  instead of showing their record. Affected the HR absence list and Approvals
-
-### Changed
-- Requests now identify people by name instead of user id: the absence list, and
-  the detail sidebar's Employee row (with avatar). Viewing somebody else's leave
-  names them under the sidebar title, so it is clear whose record is open
-
-## 1.0.8 – 2026-08-10
-
-### Changed
-- Guest accounts are no longer treated as employees. They have no entitlement
-  and take no leave, so they no longer appear in balances, statistics, the
-  sick-leave overview, exports, the who's-off calendar, the HR absence list or
-  any employee picker, and they can no longer be nominated as a replacement or
-  resolved as a line manager. Leave cannot be recorded for a guest, not even by
-  HR. Instances without the Guests app are unaffected
-
-## 1.0.7 – 2026-08-10
-
-### Added
-- **Absences** — a new HR view listing every recorded absence, filterable by
-  employee, leave type, status and year. Selecting one opens the usual detail
-  sidebar, so HR can now correct or cancel any vacation or sick day, not just
-  record new ones. HR could always do this through the API; there was simply no
-  screen that made an individual record reachable
-- Absences in HR's *Who's off* timeline can be selected to open their details
-- The *Sick leave* overview drills down: selecting an employee opens their
-  individual sick days for that year
-
-### Fixed
-- HR editing an HR-recorded absence (e.g. sick leave) can now pick that type in
-  the leave-type picker; previously the preselected type was missing from the
-  list and could not be chosen again once changed
-
-## 1.0.6 – 2026-07-19
-
-### Fixed
-- The nominated replacement is now notified that they no longer need to cover
-  when approved leave is withdrawn or cancelled during withdrawal
-- Only one edit of an approved request can be in flight at a time — previously
-  two parallel edits could both be approved and overlap, double-counting the
-  balance
-- Declining a withdrawal now sends a dedicated "withdrawal declined"
-  notification instead of a misleading "your leave was approved"
-- Stale "needs a decision" notifications are dismissed once a request is
-  approved or rejected
-- HR members can edit and cancel their own HR-recorded leave (e.g. sick days)
-- Escalation and reminder windows now count working days (Mon–Fri) instead of
-  calendar days
-- CSV exports no longer corrupt negative balance adjustments
-- Deleting a user now also removes their events from the shared team calendar
-  and detaches them as replacement
-- Creating a leave type with a duplicate key returns a clean validation error
-- The balance preview in the request dialog uses the year the leave starts in
-
-## 1.0.5 – 2026-07-18
-
-### Changed
-- Admin settings migrated to declarative settings
-- Security hardening across the app
-
-## 1.0.4 – 2026-07-13
-
-Initial public release:
-
-- Leave requests with manager approval, HR escalation and override
-- Full balance tracking with entitlements, carry-over and manual adjustments
-- HR-recorded leave types (sick leave is recorded by HR, not self-requested)
-- Mandatory replacement colleague for annual, unpaid and special leave
-- Manually entered, manager-verified working-day counts with a client-side
-  prefill from availability and public-holiday data
-- Team coverage view and conflict warnings
-- Approved leave synced to Nextcloud Calendar (personal + shared team calendar)
-- Notifications, email, activity stream and an always-on audit log
-- HR statistics, CSV export and a role-aware dashboard widget
+### For administrators
+- All settings on a Settings page inside the app, open to HR and admins: HR
+  and employees groups, default entitlement, escalation and reminder windows,
+  carry-over policy, cap and expiry, notice period, coverage threshold,
+  calendar options and leave types with their colours and rules
+- Approved leave written to the employee's calendar and to a shared team
+  calendar over CalDAV. The team calendar is shared read-only with the
+  employees and HR groups, and shows a neutral "Absent" unless you choose
+  otherwise
+- Notifications, e-mail and Activity for every step
+- Every action recorded in the admin audit log
+- Background jobs for escalation, reminders, the year rollover with
+  carry-over, and missing calendar events
+- `occ` commands: `absence:import-entitlements`, `absence:import-employees`,
+  `absence:export-employees`, `absence:import-holidays`,
+  `absence:export-holidays`, `absence:import-leave` and `absence:rollover`
+- An API for other apps: who is away, working days, contracts and public
+  holidays through `IAbsenceProvider`, and `LeaveRequestChangedEvent` on every
+  change. Confidential types stay hidden
+- Permissions enforced on every endpoint, rate limiting, and GDPR handling
+  when an account is deleted
+- MySQL/MariaDB, PostgreSQL, SQLite and Oracle
