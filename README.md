@@ -74,7 +74,7 @@ Absence puts it on infrastructure you already run and already trust:
 | ⏰ **Nothing gets stuck** | Ignored requests are reminded, then escalated to HR — immediately when the app knows the manager is on leave themselves |
 | 📎 **Attachments** | Doctor's notes and other documents on the request — visible to HR and the employee, never the manager |
 | 👥 **Coverage warnings** | Both the employee booking and the manager approving are told who else is already off |
-| 📅 **Calendar sync** | Approved leave written to the employee's personal calendar and a shared team calendar over CalDAV |
+| 📅 **Calendar sync** | Approved leave in a read-only personal calendar for each employee and a shared team calendar over CalDAV |
 | 🔔 **Four channels** | Notification, email, Activity feed and audit log — carrying what people actually wrote |
 | 📊 **HR overview** | Company-wide balances, statistics, sick-leave ranking, who's-off timeline and CSV export |
 | 🔁 **Year rollover** | Carry-over computed automatically, with a cap and an optional expiry date |
@@ -286,7 +286,7 @@ group, so on a fresh install an admin picks it first.
 | Carry-over expiry | none | Optional date (e.g. 31 March) after which carried days are zeroed |
 | Max concurrent team absences | 2 | The coverage-warning threshold |
 | Expected notice period | 14 calendar days | Short-notice threshold; `0` switches it off |
-| CalDAV: personal events | on | Write approved leave to the employee's own calendar |
+| CalDAV: personal events | on | Show approved leave in a read-only Absence calendar of the employee's own |
 | CalDAV: shared team calendar | on | Write approved leave to a shared company calendar |
 | Shared calendar type-visibility | neutral | Whether colleagues see *"Absent"* or *"Sick leave"* |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |

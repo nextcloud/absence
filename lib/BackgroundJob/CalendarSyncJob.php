@@ -17,9 +17,9 @@ use OCP\BackgroundJob\TimedJob;
 use OCP\IAppConfig;
 
 /**
- * Writes the calendar events of approved leave that has none and has not ended
- * yet (§10): imported leave, leave approved while calendar writing was off, and
- * writes that failed.
+ * Writes the team calendar events of approved leave that has none and has not
+ * ended yet (§10): imported leave, leave approved while the team calendar was
+ * off, and writes that failed.
  * A batch per run, in id order, so a request that keeps failing never holds
  * the others back; it is tried again on the next pass.
  */
@@ -40,7 +40,7 @@ class CalendarSyncJob extends TimedJob {
 
 	#[\Override]
 	protected function run($argument): void {
-		if (!$this->config->isCalDavPersonalEnabled() && !$this->config->isCalDavSharedEnabled()) {
+		if (!$this->config->isCalDavSharedEnabled()) {
 			return;
 		}
 		$cursor = $this->appConfig->getValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_CALENDAR_SYNC_CURSOR);

@@ -20,7 +20,8 @@ class FailingOnceCalDavBackend {
 
 	/**
 	 * @param int $failOnWrite the write (1 = first) that throws, 0 for none
-	 * @param ?\Closure(): void $onWrite called after each write that went through
+	 * @param ?\Closure(int, string): void $onWrite called with the calendar id and
+	 *                                              object uri after each write that went through
 	 */
 	public function __construct(
 		private CalDavBackend $backend,
@@ -35,7 +36,7 @@ class FailingOnceCalDavBackend {
 		}
 		$etag = $this->backend->createCalendarObject(...$arguments);
 		if ($this->onWrite !== null) {
-			($this->onWrite)();
+			($this->onWrite)((int)$arguments[0], (string)$arguments[1]);
 		}
 		return $etag;
 	}

@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Service;
 
 use OCA\Absence\Db\LeaveRequest;
+use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IUserManager;
@@ -18,20 +19,27 @@ use Psr\Log\LoggerInterface;
 use Sabre\VObject\Component\VCalendar;
 
 /**
- * Writes approved leave into Nextcloud Calendar via the CalDAV backend (spec §10).
+ * Approved leave in Nextcloud Calendar (spec §10).
  *
- * Everything here is best-effort and lazily resolved: the dav app's CalDavBackend is
- * fetched from the container inside try/catch so a calendar problem can never block
- * an approval or cancellation.
+ * The shared team calendar is written via the CalDAV backend. Everything there is
+ * best-effort and lazily resolved: the dav app's CalDavBackend is fetched from the
+ * container inside try/catch so a calendar problem can never block an approval or
+ * cancellation.
+ *
+ * The personal calendar is not stored: {@see \OCA\Absence\DAV\PersonalCalendar}
+ * builds it read-only from the leave in force, with {@see personalEvents()}.
  */
 class CalendarService {
-	private const PERSONAL_CALENDAR_URI = 'absence';
+	private const STORED_PERSONAL_CALENDAR_URI = 'absence';
 	private const SHARED_CALENDAR_URI = 'absence-team';
 	private const SHARED_PRINCIPAL = 'principals/system/absence';
+	private const USER_PRINCIPAL_PREFIX = 'principals/users/';
+	private const CLEANUP_BATCH_SIZE = 500;
 
 	public function __construct(
 		private ContainerInterface $container,
 		private ConfigService $config,
+		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private IUserManager $userManager,
 		private IFactory $l10nFactory,
@@ -40,56 +48,122 @@ class CalendarService {
 	}
 
 	/**
-	 * Create calendar events for an approved request and return the stored reference
-	 * ("calendarId:objectUri;calendarId:objectUri"), or null when disabled/unavailable.
-	 * All enabled calendars or none: the reference marks a request as done, so when
-	 * one write fails the other event is taken back and the caller tries again later.
+	 * Create the team calendar event for an approved request and return the stored
+	 * reference ("calendarId:objectUri"), or null when disabled/unavailable. Without
+	 * a reference the calendar sync job tries again later.
 	 */
 	public function onApproved(LeaveRequest $request): ?string {
+		if (!$this->config->isCalDavSharedEnabled()) {
+			return null;
+		}
 		$backend = $this->backend();
 		if ($backend === null) {
 			return null;
 		}
-		$refs = [];
-		$wanted = 0;
 		try {
-			if ($this->config->isCalDavPersonalEnabled()) {
-				$wanted++;
-				$ref = $this->writeEvent(
-					$backend,
-					'principals/users/' . $request->getEmployeeUid(),
-					self::PERSONAL_CALENDAR_URI,
-					'Absence',
-					$request,
-					$this->personalTitle($request),
-				);
-				if ($ref !== null) {
-					$refs[] = $ref;
-				}
-			}
-			if ($this->config->isCalDavSharedEnabled()) {
-				$wanted++;
-				$ref = $this->writeEvent(
-					$backend,
-					self::SHARED_PRINCIPAL,
-					self::SHARED_CALENDAR_URI,
-					$this->sharedL10n()->t('Team absences'),
-					$request,
-					$this->sharedTitle($request),
-				);
-				if ($ref !== null) {
-					$refs[] = $ref;
-				}
-			}
+			return $this->writeEvent(
+				$backend,
+				self::SHARED_PRINCIPAL,
+				self::SHARED_CALENDAR_URI,
+				$this->sharedL10n()->t('Team absences'),
+				$request,
+				$this->sharedTitle($request),
+			);
 		} catch (\Throwable $e) {
 			$this->logger->warning('Absence: calendar write failed', ['exception' => $e]);
-		}
-		if (count($refs) < $wanted) {
-			// For good, not into the calendar's trash bin: the event comes back
-			$this->deleteEvents($backend, implode(';', $refs), true);
 			return null;
 		}
-		return $refs === [] ? null : implode(';', $refs);
+	}
+
+	/**
+	 * Whether the employee gets a personal Absence calendar: while it is switched
+	 * on and they have leave in force.
+	 */
+	public function hasPersonalCalendar(string $uid): bool {
+		return $this->config->isCalDavPersonalEnabled()
+			&& $this->requestMapper->findInForceForEmployee($uid, 1) !== [];
+	}
+
+	/**
+	 * Display name of the personal calendar, in the employee's language.
+	 */
+	public function personalCalendarName(string $uid): string {
+		return $this->personalL10n($uid)->t('Absence');
+	}
+
+	/**
+	 * The events of the employee's personal calendar, one all-day event per
+	 * leave in force, by object name.
+	 *
+	 * @return array<string, array{ics: string, lastModified: int|null}>
+	 */
+	public function personalEvents(string $uid): array {
+		if (!$this->config->isCalDavPersonalEnabled()) {
+			return [];
+		}
+		$events = [];
+		foreach ($this->requestMapper->findInForceForEmployee($uid) as $request) {
+			$eventUid = 'absence-' . $request->getId();
+			$events[$eventUid . '.ics'] = [
+				'ics' => $this->buildIcs($request, $eventUid, $this->personalTitle($request)),
+				'lastModified' => $request->getUpdatedAt()?->getTimestamp(),
+			];
+		}
+		return $events;
+	}
+
+	/**
+	 * Remove the personal calendar events earlier versions stored in each
+	 * employee's own "absence" calendar, and that calendar once nothing else is
+	 * in it. Their references go from the requests; the team calendar's stay.
+	 * Safe to run again.
+	 */
+	public function removeStoredPersonalEvents(): void {
+		$backend = $this->backend();
+		if ($backend === null) {
+			return;
+		}
+		$teamCalendarId = $backend->getCalendarByUri(self::SHARED_PRINCIPAL, self::SHARED_CALENDAR_URI)['id'] ?? null;
+		$personalCalendarIds = [];
+		$afterId = 0;
+		do {
+			$requests = $this->requestMapper->findWithCalendarEventUri($afterId, self::CLEANUP_BATCH_SIZE);
+			foreach ($requests as $request) {
+				$afterId = $request->getId();
+				$kept = [];
+				$removed = [];
+				foreach (explode(';', (string)$request->getCalendarEventUri()) as $entry) {
+					[$calendarId] = explode(':', $entry, 2);
+					if ($teamCalendarId !== null && (int)$calendarId === (int)$teamCalendarId) {
+						$kept[] = $entry;
+					} else {
+						$removed[] = $entry;
+						$personalCalendarIds[(int)$calendarId] = true;
+					}
+				}
+				if ($removed !== []) {
+					$this->deleteEvents($backend, implode(';', $removed), true);
+					$request->setCalendarEventUri($kept === [] ? null : implode(';', $kept));
+					$this->requestMapper->update($request);
+				}
+			}
+		} while (count($requests) === self::CLEANUP_BATCH_SIZE);
+
+		foreach (array_keys($personalCalendarIds) as $calendarId) {
+			try {
+				$calendar = $backend->getCalendarById($calendarId);
+				if ($calendar === null
+					|| $calendar['uri'] !== self::STORED_PERSONAL_CALENDAR_URI
+					|| !str_starts_with((string)$calendar['principaluri'], self::USER_PRINCIPAL_PREFIX)
+					// Events the owner added are theirs to keep, and so is the calendar
+					|| $backend->getCalendarObjects($calendarId) !== []) {
+					continue;
+				}
+				$backend->deleteCalendar($calendarId, true);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: removing a stored personal calendar failed', ['exception' => $e]);
+			}
+		}
 	}
 
 	/**
@@ -183,11 +257,16 @@ class CalendarService {
 		$vcalendar = new VCalendar();
 		// All-day event: DTEND is exclusive, so add one day to the inclusive end date.
 		$end = (new \DateTimeImmutable($request->getEndDate()))->modify('+1 day');
-		$vevent = $vcalendar->add('VEVENT', [
+		$properties = [
 			'UID' => $uid,
 			'SUMMARY' => $title,
 			'TRANSP' => 'OPAQUE',
-		]);
+		];
+		// A stable stamp keeps the event, and so its ETag, the same until the leave changes
+		if ($request->getUpdatedAt() !== null) {
+			$properties['DTSTAMP'] = \DateTimeImmutable::createFromMutable($request->getUpdatedAt())->setTimezone(new \DateTimeZone('UTC'));
+		}
+		$vevent = $vcalendar->add('VEVENT', $properties);
 		$vevent->add('DTSTART', new \DateTimeImmutable($request->getStartDate()), ['VALUE' => 'DATE']);
 		$vevent->add('DTEND', $end, ['VALUE' => 'DATE']);
 		return $vcalendar->serialize();
