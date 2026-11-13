@@ -52,7 +52,7 @@ Key services and their responsibilities:
 - `PermissionService` — server-side role checks. Four roles: employee (any non-guest user), line manager (from `IUser::getManagerUids()`, resolved by `ManagerResolver` and denormalized onto each request as `manager_uid` at submission), HR (configurable Nextcloud group, default `hr`), admin.
 - `EmployeeDirectory` — the **only** component that enumerates users; it excludes Guests-app accounts (backend class `Guests`). Report/entitlement/coverage/manager code must go through it, never `IUserManager` directly.
 - `BalanceService` / `EntitlementService` — entitlement, used, pending, remaining, carry-over accounting. Pending-ish statuses reduce `available`; APPROVED reduces `remaining`; rejection/cancellation restores days. Entitlement changes are recorded as `EntitlementEvent` history.
-- `CalendarService` — synchronous CalDAV writes (personal + shared team calendar) on approve/cancel; there is no sync background job.
+- `CalendarService` — synchronous CalDAV writes to the shared team calendar on approve/cancel, retried by `CalendarSyncJob`; it also builds the events of the read-only personal calendar that `lib/DAV/` serves through a DAV calendar plugin.
 - `NotificationService` / `NoticeService` / `ActivityPublisher` — Nextcloud notifications (with approve-from-notification actions), email, and Activity for every step.
 - `ConfigService` + `ConfigLexicon`: typed app config; HR and admins edit it on the in-app Settings page (`SettingsService`, `src/views/hr/HrSettings.vue`).
 - `ClockService` — injectable clock; unit tests mock time via `tests/Unit/ClockMockTrait.php`.

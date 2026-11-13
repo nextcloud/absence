@@ -178,7 +178,7 @@ The central table: one row per leave request.
 | `decision_comment` | text, nullable | Rejection reason / approval note. |
 | `escalated` | boolean, default false | True once auto-escalated to HR (§5.4). |
 | `supersedes_id` | bigint, nullable | For the edit workflow: points to the request this one replaces (§5.3). |
-| `calendar_event_uri` | string(255), nullable | Reference(s) to the CalDAV event(s) created on approval, for cleanup (§10). |
+| `calendar_event_uri` | string(255), nullable | Reference to the team calendar event created on approval, for cleanup (§10). |
 | `created_at` | datetime | |
 | `updated_at` | datetime | |
 
@@ -724,7 +724,8 @@ becomes the request's reason.
 - **No side effects.** The leave already sits in the old calendar and the
   people know about it: no notification, e-mail, activity, CalDAV event or
   `LeaveRequestChangedEvent` (§14b). Only imported leave that has not ended
-  yet gets calendar events, later, from `CalendarSyncJob` (§10). Each request gets one
+  yet gets team calendar events, later, from `CalendarSyncJob` (§10); the
+  personal calendar shows all of it at once. Each request gets one
   `request_imported` history event (§3.7) and the import as a whole one
   `leave_imported` server-log entry (§11) with the actor and the counts.
 
@@ -1037,17 +1038,21 @@ All jobs must be idempotent and safe to run repeatedly.
 
 ## 10. Calendar Integration (CalDAV)
 
-Approved leave is written into Nextcloud Calendar via CalDAV.
+Approved leave appears in Nextcloud Calendar via CalDAV.
 
-- Use the `dav`/`calendar` server APIs — `OCA\DAV\CalDAV\CalDavBackend` /
-  `OCP\Calendar\ICalendarProvider` & `OCP\Calendar\IManager` for reading, and the
-  CalDAV backend for writing events. Prefer the public `OCP\Calendar` interfaces
-  where write support is available; otherwise write `VEVENT` objects to the target
-  calendar via the DAV backend.
 - **Two targets (both configurable, either can be disabled on the Settings page, §12):**
-  1. **Personal:** an all-day `VEVENT` on the employee's own calendar (auto-created
-     "Absence" calendar or a configured one) marked as busy/out-of-office
-     (`X-NC-... busy` / `TRANSP: OPAQUE`).
+  1. **Personal:** a read-only "Absence" calendar in each employee's calendar home,
+     with an all-day `VEVENT` (`TRANSP: OPAQUE`, so it counts as busy) per leave in
+     force (`APPROVED` or `WITHDRAWAL_PENDING`). It is not stored: the app registers a
+     DAV calendar plugin (`<sabre><calendar-plugins>` in `info.xml`,
+     `OCA\Absence\DAV\CalendarPlugin`) that builds the calendar from the requests on
+     every read, so it always matches the app and needs no write, clean-up or sync.
+     Its ACL grants the owner and their calendar delegates read access and the owner
+     `write-properties` (colour, visibility); creating, changing, moving or deleting
+     events and deleting the calendar are refused. It is offered for every user
+     principal with leave in force, so free/busy lookups by colleagues see it, while
+     the ACL keeps everyone else out. Event titles follow the employee's language and
+     never name a confidential type (§5.7).
   2. **Shared team "Absences" calendar:** a company/team calendar showing everyone's
      approved leave (all-day events titled with employee + leave type, colored by
      type). Auto-provisioned under `principals/system/absence` and shared read-only
@@ -1055,20 +1060,21 @@ Approved leave is written into Nextcloud Calendar via CalDAV.
      when either group or the *Keep a shared team calendar* switch changes in the
      settings, and the `ShareTeamCalendar` repair step shares calendars created
      before (`CalendarService::shareTeamCalendar()`).
-- **Lifecycle:** create the event on approval; delete/update it on
+- **Lifecycle (team calendar):** create the event on approval; delete/update it on
   cancellation/withdrawal/edit. Store the created event's URI/UID on the request
   (add nullable `calendar_event_uri` column to `absence_requests`) so it can be
-  cleaned up.
+  cleaned up. It is written with the CalDAV backend
+  (`OCA\DAV\CalDAV\CalDavBackend`).
 - Sick-leave / private types: allow admin to configure whether the event title on
   the shared calendar reveals the type or shows a neutral "Absent".
-- Events are written when the request is approved. `CalendarSyncJob` (every 15
-  minutes, time-insensitive) writes them for approved leave that has none and
-  has not ended yet (end date today or later): imported leave, leave approved
-  while calendar writing was off, and writes that failed. Leave that is over
+- Team calendar events are written when the request is approved. `CalendarSyncJob`
+  (every 15 minutes, time-insensitive) writes them for approved leave that has none
+  and has not ended yet (end date today or later): imported leave, leave approved
+  while the team calendar was off, and writes that failed. Leave that is over
   never gets events from the job. It
   takes 200 requests per run in id order and keeps its place
   (`calendar_sync_cursor`), so a request that keeps failing never holds the others
-  back; it is tried again on the next pass. Nothing runs while both targets are off.
+  back; it is tried again on the next pass. Nothing runs while the team calendar is off.
 
 ---
 
@@ -1180,7 +1186,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Approvals | Reminder lead time | 1 day before escalation | For ReminderJob. |
 | Approvals | Max concurrent team absences | 2 | Conflict threshold (§8). |
 | Approvals | Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
-| Calendar | CalDAV: write personal events | true | §10. |
+| Calendar | CalDAV: personal read-only Absence calendar | true | §10. |
 | Calendar | CalDAV: write shared team calendar | true | §10. |
 | Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal. |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
@@ -1957,5 +1963,13 @@ Recorded during the build so the spec matches the code:
 - **Leave import** (§6.5): HR imports past leave as JSON (HR → Absences, or
   `occ absence:import-leave`), booked as approved HR-recorded leave without
   notifications, activity, CalDAV writes or change events.
+- **Read-only personal calendar** (§10): the personal events were first written into
+  an ordinary calendar owned by the employee, who could then edit, move or delete
+  them, or add their own. The personal calendar is now built from the leave on every
+  read by a DAV calendar plugin and is read-only. The public `OCP\Calendar\ICalendarProvider` route was not used: the
+  dav app's wrapper for it expects `search()` to return Sabre components, while
+  `OCP\Calendar\IManager` consumers expect arrays. Calendar-based user status
+  (`OCA\DAV\CalDAV\Status\StatusService`) only reads calendars the dav app stores,
+  so it no longer sees personal leave; scheduling free/busy does.
 - **Handbooks are links** (§13.1): the built-in handbook pages and their 8.7 MB of
   screenshots are gone; HR links handbooks kept elsewhere (Collectives) in the settings.

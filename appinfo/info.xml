@@ -60,6 +60,9 @@ properly. Every rule and design decision is documented in the
 	<licence>AGPL-3.0-or-later</licence>
 	<author mail="frank@nextcloud.com">Frank Karlitschek</author>
 	<namespace>Absence</namespace>
+	<types>
+		<dav/>
+	</types>
 	<category>organization</category>
 	<category>tools</category>
 	<website>https://github.com/nextcloud/absence</website>
@@ -121,4 +124,9 @@ properly. Every rule and design decision is documented in the
 			<order>80</order>
 		</navigation>
 	</navigations>
+	<sabre>
+		<calendar-plugins>
+			<plugin>OCA\Absence\DAV\CalendarPlugin</plugin>
+		</calendar-plugins>
+	</sabre>
 </info>

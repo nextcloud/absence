@@ -85,10 +85,10 @@ fills in.
   and employees groups, default entitlement, escalation and reminder windows,
   carry-over policy, cap and expiry, notice period, coverage threshold,
   calendar options and leave types with their colours and rules
-- Approved leave written to the employee's calendar and to a shared team
-  calendar over CalDAV. The team calendar is shared read-only with the
-  employees and HR groups, and shows a neutral "Absent" unless you choose
-  otherwise
+- Approved leave shown in a read-only Absence calendar of each employee, and
+  written to a shared team calendar over CalDAV. The team calendar is shared
+  read-only with the employees and HR groups, and shows a neutral "Absent"
+  unless you choose otherwise
 - Notifications, e-mail and Activity for every step
 - Every action recorded in the admin audit log
 - Background jobs for escalation, reminders, the year rollover with

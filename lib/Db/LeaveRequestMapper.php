@@ -382,6 +382,24 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * The employee's leave in force (approved, or with a withdrawal still
+	 * pending), by start date.
+	 *
+	 * @return LeaveRequest[]
+	 */
+	public function findInForceForEmployee(string $employeeUid, ?int $limit = null): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($employeeUid)))
+			->andWhere($qb->expr()->in('status', $qb->createNamedParameter(LeaveRequest::USED_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+			->orderBy('start_date', 'ASC')
+			->addOrderBy('id', 'ASC')
+			->setMaxResults($limit);
+		return $this->findEntities($qb);
+	}
+
+	/**
 	 * Store the calendar reference of a request if it is still approved. Returns
 	 * whether it was stored.
 	 *

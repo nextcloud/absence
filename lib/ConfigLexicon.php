@@ -81,7 +81,7 @@ class ConfigLexicon implements ILexicon {
 			new Entry(self::KEY_NOTICE_PERIOD, ValueType::INT, 14,
 				'Calendar days of advance notice expected for a leave request; one starting sooner is flagged as short notice to the manager and HR (0 disables the warning)', lazy: true),
 			new Entry(self::KEY_CALDAV_PERSONAL, ValueType::BOOL, true,
-				'Write approved leave to the employee\'s personal calendar', lazy: true),
+				'Show approved leave in a read-only personal calendar of each employee', lazy: true),
 			new Entry(self::KEY_CALDAV_SHARED, ValueType::BOOL, true,
 				'Write approved leave to the shared team calendar', lazy: true),
 			new Entry(self::KEY_HOLIDAYS_EVERYONE, ValueType::BOOL, false,
