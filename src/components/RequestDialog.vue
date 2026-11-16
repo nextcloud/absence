@@ -9,7 +9,7 @@
 		:name="dialogTitle"
 		size="normal"
 		@close="$emit('close')">
-		<div class="dialog">
+		<form class="dialog" @submit.prevent="submit">
 			<h2 class="dialog__title">
 				{{ dialogTitle }}
 			</h2>
@@ -33,6 +33,7 @@
 					label="displayName"
 					:filterable="false"
 					:placeholder="t('absence', 'Search for an employee…')"
+					required
 					:aria-label-combobox="t('absence', 'Employee')"
 					@search="onEmployeeSearch" />
 				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
@@ -45,6 +46,7 @@
 					:options="typeOptions"
 					label="label"
 					:clearable="false"
+					required
 					:aria-label-combobox="t('absence', 'Leave type')">
 					<template #option="{ icon, label }">
 						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
@@ -98,6 +100,7 @@
 					label="displayName"
 					:filterable="false"
 					:placeholder="replacementPlaceholder"
+					:required="replacementRequired"
 					:aria-label-combobox="t('absence', 'Replacement')"
 					@search="onReplacementSearch" />
 				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
@@ -108,12 +111,19 @@
 
 			<div class="dialog__row">
 				<div class="dialog__field">
-					<label class="dialog__label">{{ t('absence', 'From') }}</label>
-					<NcDateTimePickerNative v-model="startDate" type="date" />
+					<NcDateTimePickerNative
+						v-model="startDate"
+						type="date"
+						:label="t('absence', 'From')"
+						required />
 				</div>
 				<div class="dialog__field">
-					<label class="dialog__label">{{ t('absence', 'To') }}</label>
-					<NcDateTimePickerNative v-model="endDate" type="date" />
+					<NcDateTimePickerNative
+						v-model="endDate"
+						type="date"
+						:label="t('absence', 'To')"
+						:min="startDate"
+						required />
 				</div>
 			</div>
 
@@ -139,8 +149,10 @@
 				<NcTextField
 					:modelValue="workingDays"
 					type="number"
-					min="0"
+					min="0.5"
+					:max="calendarDays || undefined"
 					step="0.5"
+					required
 					:label="t('absence', 'Working days')"
 					:labelVisible="false"
 					@update:modelValue="onWorkingDaysInput" />
@@ -202,14 +214,15 @@
 					v-model="reason"
 					:placeholder="t('absence', 'Optional note for your manager')"
 					resize="vertical"
-					rows="2" />
+					rows="2"
+					:required="requiresNote" />
 			</div>
 
 			<div class="dialog__actions">
 				<NcButton variant="tertiary" @click="$emit('close')">
 					{{ t('absence', 'Cancel') }}
 				</NcButton>
-				<NcButton variant="primary" :disabled="!canSubmit || submitting" @click="submit">
+				<NcButton variant="primary" type="submit" :disabled="submitting">
 					<template #icon>
 						<NcLoadingIcon v-if="submitting" :size="20" />
 						<Send v-else :size="20" />
@@ -217,7 +230,7 @@
 					{{ submitLabel }}
 				</NcButton>
 			</div>
-		</div>
+		</form>
 	</NcModal>
 </template>
 
@@ -255,7 +268,7 @@ import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { useRequestsStore } from '../stores/requests.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { weekdaysOn } from '../utils/contract.ts'
-import { formatRange, parseWeekdays, toIso } from '../utils/dates.ts'
+import { countWorkingDays, formatRange, parseWeekdays, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
 import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.ts'
 import { missingYears } from '../utils/holidayYears.ts'
@@ -458,6 +471,14 @@ const endDate = computed<Date | null>({
 		endIso.value = v ? toIso(v) : null
 	},
 })
+
+/**
+ * Calendar days in the range: the most working days it can hold, one per day.
+ * Zero while a date is missing or the end is before the start.
+ */
+const calendarDays = computed(() => startIso.value && endIso.value
+	? countWorkingDays(startIso.value, endIso.value, new Set([1, 2, 3, 4, 5, 6, 7]))
+	: 0)
 
 const workingDaysNum = computed(() => {
 	const v = parseFloat(String(workingDays.value))
