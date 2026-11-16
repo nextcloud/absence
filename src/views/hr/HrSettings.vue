@@ -43,12 +43,6 @@
 							label="displayName"
 							:inputLabel="t('absence', 'HR group')"
 							@update:modelValue="(group) => save({ hr_group: group.id })" />
-						<div v-if="session.isAdmin && missing(form.hr_group)" class="settings__missing">
-							<span>{{ missingText(form.hr_group) }}</span>
-							<NcButton :disabled="saving" @click="createGroup('hr')">
-								{{ t('absence', 'Create the HR group') }}
-							</NcButton>
-						</div>
 						<NcTextField
 							v-else
 							:modelValue="hrGroupOption.displayName"
@@ -59,6 +53,12 @@
 								<Lock :size="18" />
 							</template>
 						</NcTextField>
+						<div v-if="session.isAdmin && missing(form.hr_group)" class="settings__missing">
+							<span>{{ missingText(form.hr_group) }}</span>
+							<NcButton :disabled="saving" @click="createGroup('hr')">
+								{{ t('absence', 'Create the HR group') }}
+							</NcButton>
+						</div>
 					</div>
 					<div class="settings__field settings__field--wide">
 						<NcSelect
