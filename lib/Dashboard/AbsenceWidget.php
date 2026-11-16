@@ -95,7 +95,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 		$items = $this->buildItems($userId, $limit);
 		return new WidgetItems(
 			$items,
-			$this->l->t('Nothing booked yet — time to plan a break? 🌴'),
+			$this->l->t('Nothing booked yet. Time to plan a break? 🌴'),
 		);
 	}
 
@@ -166,7 +166,7 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 			foreach ($this->requestMapper->findEscalated() as $r) {
 				$items[] = new WidgetItem(
 					$this->displayName($r->getEmployeeUid()) . ' · ' . $this->typeLabel($r, $types, $hrOnlyIds),
-					$this->l->t('Escalated — needs HR · %s', [$this->range($r)]),
+					$this->l->t('Escalated, needs HR · %s', [$this->range($r)]),
 					$base . '#/requests/' . $r->getId(),
 					$appIcon,
 					'hr-' . $r->getId(),

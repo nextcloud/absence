@@ -73,7 +73,7 @@
 					</template>
 				</NcSelect>
 				<p class="dialog__hint">
-					{{ t('absence', 'Only HR ever sees this category — everyone else, including the employee, sees a neutral absence.') }}
+					{{ t('absence', 'Only HR ever sees this category. Everyone else, including the employee, sees a neutral absence.') }}
 				</p>
 			</div>
 
@@ -173,7 +173,7 @@
 							class="dialog__link">{{ t('absence', 'Check your working days') }}</a>
 					</template>
 					<template v-else>
-						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays) — this is only an estimate: always check the number and adjust it manually if it is off.') }}
+						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays). This is only an estimate: always check the number and adjust it manually if it is off.') }}
 						<template v-if="!hrMode">
 							{{ t('absence', 'Your manager will verify it.') }}
 						</template>
@@ -192,7 +192,7 @@
 			</div>
 
 			<NcNoteCard v-if="wouldGoNegative" type="warning">
-				{{ t('absence', 'Heads up: this goes beyond your available balance. You can still submit — HR may approve it.') }}
+				{{ t('absence', 'Heads up: this goes beyond your available balance. You can still submit, HR may approve it.') }}
 			</NcNoteCard>
 
 			<NcNoteCard v-if="overlapCount" :type="coverageTight ? 'warning' : 'info'">
@@ -803,7 +803,7 @@ async function loadHolidays() {
  */
 function formatDays(v: number | null | undefined): string {
 	if (v === null || v === undefined) {
-		return '—'
+		return '–'
 	}
 	return formatNumber(v)
 }

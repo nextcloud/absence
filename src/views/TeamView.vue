@@ -100,7 +100,7 @@ onMounted(async () => {
  * @param v the figure
  */
 function fmt(v: number | null | undefined): string {
-	return v === null || v === undefined ? '—' : formatNumber(v)
+	return v === null || v === undefined ? '–' : formatNumber(v)
 }
 
 /**

@@ -186,7 +186,7 @@ class PermissionService {
 		$groupId = $this->config->getHrGroup();
 		$group = $this->groupManager->get($groupId);
 		if ($group === null) {
-			$this->logger->error('Absence: the configured HR group does not exist — escalated leave requests will reach nobody', [
+			$this->logger->error('Absence: the configured HR group does not exist, escalated leave requests will reach nobody', [
 				'app' => 'absence',
 				'hrGroup' => $groupId,
 			]);
@@ -194,7 +194,7 @@ class PermissionService {
 		}
 		$uids = array_map(static fn ($user) => $user->getUID(), $group->getUsers());
 		if ($uids === []) {
-			$this->logger->error('Absence: the configured HR group is empty — escalated leave requests will reach nobody', [
+			$this->logger->error('Absence: the configured HR group is empty, escalated leave requests will reach nobody', [
 				'app' => 'absence',
 				'hrGroup' => $groupId,
 			]);

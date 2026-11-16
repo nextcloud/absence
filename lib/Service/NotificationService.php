@@ -106,7 +106,7 @@ class NotificationService {
 	}
 
 	/**
-	 * Tell the employee their withdrawal was declined — the leave stays approved.
+	 * Tell the employee their withdrawal was declined. The leave stays approved.
 	 * The reason lives in a comment rather than on the request (see
 	 * {@see RequestService::reject()}), so the caller has to hand it over.
 	 */
@@ -315,7 +315,7 @@ class NotificationService {
 				// decision_comment (that still holds the original approval note) — it
 				// is passed in as the note and quoted below, so there is no need to
 				// send the employee looking for it.
-				$l->t('Your request to withdraw the leave for %s was declined — the leave stays approved.', [$range]),
+				$l->t('Your request to withdraw the leave for %s was declined. The leave stays approved.', [$range]),
 			],
 			self::SUBJECT_REPLACEMENT_ASSIGNED => [
 				$l->t('You are covering for %s', [$employee]),
@@ -323,7 +323,7 @@ class NotificationService {
 			],
 			self::SUBJECT_REPLACEMENT_CANCELLED => [
 				$l->t('No longer covering for %s', [$employee]),
-				$l->t('%1$s\'s leave for %2$s was cancelled — you no longer need to cover.', [$employee, $range]),
+				$l->t('%1$s\'s leave for %2$s was cancelled. You no longer need to cover.', [$employee, $range]),
 			],
 			self::SUBJECT_ABSENCE_RECORDED => [
 				$l->t('%s is absent', [$employee]),
