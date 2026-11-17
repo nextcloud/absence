@@ -47,7 +47,7 @@
 				class="gantt__grid"
 				role="list"
 				:aria-label="t('absence', 'Absences in {month}', { month: monthLabel })"
-				:style="{ '--day-w': dayWidth + 'px', '--days': days.length }">
+				:style="{ '--days': days.length }">
 				<!-- header -->
 				<div class="gantt__row gantt__row--head" aria-hidden="true">
 					<div class="gantt__name gantt__name--head">
@@ -58,8 +58,8 @@
 							v-for="d in days"
 							:key="'h' + d.day"
 							class="gantt__daynum"
-							:class="{ 'gantt__daynum--weekend': d.weekend, 'gantt__daynum--today': d.index === todayIndex }"
-							:style="{ left: d.index * dayWidth + 'px' }">{{ d.day }}</span>
+							:class="{ 'gantt__daynum--today': d.index === todayIndex }"
+							:style="{ '--day': d.index }">{{ d.day }}</span>
 					</div>
 				</div>
 
@@ -84,10 +84,10 @@
 							class="gantt__col"
 							:class="{ 'gantt__col--weekend': d.weekend, 'gantt__col--holiday': row.holidays.has(d.iso) }"
 							:title="row.holidays.get(d.iso)"
-							:style="{ left: d.index * dayWidth + 'px' }">
+							:style="{ '--day': d.index }">
 							<span v-if="row.holidays.has(d.iso)" class="hidden-visually">{{ holidayLabel(row, d.iso) }}</span>
 						</span>
-						<span v-if="todayIndex >= 0" class="gantt__today" :style="{ left: (todayIndex * dayWidth) + 'px' }" />
+						<span v-if="todayIndex >= 0" class="gantt__today" :style="{ '--day': todayIndex }" />
 						<component
 							:is="selectable ? 'button' : 'span'"
 							v-for="(seg, i) in row.segments"
@@ -99,7 +99,7 @@
 								'gantt__pill--active': selectable && requestsStore.selectedId === seg.requestId,
 							}"
 							:type="selectable ? 'button' : null"
-							:style="{ left: seg.left + 'px', width: seg.width + 'px', '--pill': seg.color, '--pill-text': seg.textColor }"
+							:style="{ '--day': seg.first, '--length': seg.length, '--pill': seg.color, '--pill-text': seg.textColor }"
 							:title="seg.title"
 							@click="selectable && $emit('select', seg.requestId)">
 							<span class="gantt__pill-icon" aria-hidden="true">{{ seg.icon }}</span>
@@ -120,8 +120,8 @@
 		</div>
 
 		<div class="legend">
-			<span v-for="lt in legendTypes" :key="lt.id" class="legend__item">
-				<span class="legend__swatch" :style="{ background: lt.color }" />{{ lt.icon }} {{ lt.label }}
+			<span v-for="item in legend" :key="item.key" class="legend__item">
+				<span class="legend__swatch" :style="{ background: item.color }" />{{ item.icon }} {{ item.label }}
 			</span>
 			<span class="legend__item legend__item--muted">
 				<span class="legend__swatch legend__swatch--pending" />{{ t('absence', 'Pending / not yet approved') }}
@@ -135,6 +135,7 @@
 
 <script setup lang="ts">
 import type { CoverageEvent, CoverageScope, JsonMap, PersonHoliday } from '../types/index.ts'
+import type { TimelineRow } from '../utils/timeline.ts'
 
 import { t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
@@ -149,12 +150,10 @@ import SkeletonList from './SkeletonList.vue'
 import api from '../services/api.ts'
 import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { useRequestsStore } from '../stores/requests.ts'
-import { readableTextColor } from '../utils/colors.ts'
-import { formatDate, formatRange, toIso } from '../utils/dates.ts'
-import { labelsByDate } from '../utils/holidays.ts'
+import { formatDate, toIso } from '../utils/dates.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { locale } from '../utils/locale.ts'
-import { statusMeta } from '../utils/status.ts'
+import { timelineLegend, timelineRows } from '../utils/timeline.ts'
 
 const props = withDefaults(defineProps<{
 	scope?: CoverageScope
@@ -179,32 +178,6 @@ interface TimelineDay {
 	weekend: boolean
 	iso: string
 }
-
-/** One absence pill on a person's track */
-interface TimelineSegment {
-	requestId: number
-	left: number
-	width: number
-	color: string
-	textColor: string
-	icon: string
-	pending: boolean
-	title: string
-	label: string
-}
-
-/** One person with their absences of the month */
-interface TimelineRow {
-	uid: string
-	name: string
-	segments: TimelineSegment[]
-	/** Their own public holidays of the month: 'YYYY-MM-DD' to its name */
-	holidays: Map<string, string>
-}
-
-const DAY_MS = 86400000
-
-const dayWidth = 30
 
 const today = new Date()
 const year = ref(today.getFullYear())
@@ -241,48 +214,11 @@ const todayIndex = computed(() => {
 	return -1
 })
 
-const rows = computed(() => {
-	const byUid: Record<string, TimelineRow> = {}
-	const monthStart = firstDay.value.getTime()
-	const lastIndex = lastDay.value.getDate() - 1
-	const holidaysByUid = Array.isArray(holidays.value) ? {} : holidays.value
-	for (const ev of events.value) {
-		const row = byUid[ev.employeeUid] ??= {
-			uid: ev.employeeUid,
-			name: ev.displayName,
-			segments: [],
-			holidays: labelsByDate(holidaysByUid[ev.employeeUid] ?? []),
-		}
-		const startIdx = Math.max(0, Math.round((new Date(ev.start + 'T00:00:00').getTime() - monthStart) / DAY_MS))
-		const endIdx = Math.min(lastIndex, Math.round((new Date(ev.end + 'T00:00:00').getTime() - monthStart) / DAY_MS))
-		if (endIdx < 0 || startIdx > lastIndex) {
-			continue
-		}
-		const type = leaveTypesStore.leaveType(ev.typeId)
-		const dates = formatRange(ev.start, ev.end)
-		const status = statusMeta(ev.status).label
-		row.segments.push({
-			requestId: ev.requestId,
-			left: startIdx * dayWidth + 2,
-			width: (endIdx - startIdx + 1) * dayWidth - 4,
-			color: type.color,
-			textColor: readableTextColor(type.color),
-			icon: type.icon,
-			pending: ev.status !== 'APPROVED',
-			title: `${type.label} · ${dates}${ev.status !== 'APPROVED' ? ' (' + status + ')' : ''}`,
-			// What a screen reader gets instead of position, colour and stripes
-			label: t('absence', '{person}: {type}, {dates}, {status}', { person: ev.displayName, type: type.label, dates, status }, undefined, { escape: false }),
-		})
-	}
-	return Object.values(byUid).sort((a, b) => a.name.localeCompare(b.name))
-})
+const rows = computed(() => timelineRows(events.value, holidays.value, year.value, month.value, leaveTypesStore.leaveType))
 
 const hasHolidays = computed(() => rows.value.some((row) => row.holidays.size > 0))
 
-const legendTypes = computed(() => {
-	const ids = new Set(events.value.map((e) => e.typeId))
-	return leaveTypesStore.leaveTypes.filter((lt) => ids.has(lt.id))
-})
+const legend = computed(() => timelineLegend(events.value, leaveTypesStore.leaveTypes, leaveTypesStore.leaveType))
 
 watch(() => props.scope, () => {
 	load()
@@ -331,7 +267,7 @@ async function load() {
  * @param iso the day, 'YYYY-MM-DD'
  */
 function holidayLabel(row: TimelineRow, iso: string): string {
-	return t('absence', 'Public holiday on {date}: {name}', { date: formatDate(iso), name: row.holidays.get(iso) ?? '' }, undefined, { escape: false })
+	return t('absence', 'Public holiday on {date}: {name}', { date: formatDate(iso), name: row.holidays.get(iso) ?? '' }, undefined, { escape: false, sanitize: false })
 }
 
 /**
@@ -368,6 +304,8 @@ function goToday() {
 
 <style scoped lang="scss">
 $name-w: 180px;
+// Below this width per day the day area scrolls sideways instead of shrinking
+$day-min-w: 24px;
 
 .gantt {
 	display: flex;
@@ -454,20 +392,31 @@ $name-w: 180px;
 	&__track {
 		position: relative;
 		height: 42px;
-		width: calc(var(--days) * var(--day-w));
-		flex: 0 0 auto;
+		flex: 1 1 auto;
+		min-width: calc(var(--days) * #{$day-min-w});
+	}
+
+	// Day columns, the today line and the pills sit at a share of the track
+	// width, so the whole month fits whatever the width.
+	&__daynum,
+	&__col,
+	&__today {
+		inset-inline-start: calc(var(--day) * 100% / var(--days));
+	}
+
+	&__daynum,
+	&__col {
+		width: calc(100% / var(--days));
 	}
 
 	&__daynum {
 		position: absolute;
 		top: 50%;
 		transform: translateY(-50%);
-		width: var(--day-w);
 		text-align: center;
 		font-size: 0.72rem;
 		color: var(--color-text-maxcontrast);
 
-		&--weekend { color: var(--color-primary-element); }
 		&--today {
 			color: var(--color-primary-element-text, #fff);
 			background: var(--color-primary-element);
@@ -480,7 +429,6 @@ $name-w: 180px;
 		position: absolute;
 		top: 0;
 		bottom: 0;
-		width: var(--day-w);
 
 		&--weekend { background: var(--color-background-dark); }
 		// After the weekend so a holiday on a Saturday still shows as one
@@ -500,6 +448,8 @@ $name-w: 180px;
 	&__pill {
 		position: absolute;
 		top: 8px;
+		inset-inline-start: calc(var(--day) * 100% / var(--days) + 2px);
+		width: calc(var(--length) * 100% / var(--days) - 4px);
 		height: 26px;
 		display: flex;
 		align-items: center;
