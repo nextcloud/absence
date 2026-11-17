@@ -21,12 +21,22 @@
 		</NcEmptyContent>
 
 		<template v-else>
+			<nav class="sections" :aria-label="t('absence', 'Sections')">
+				<ul class="sections__list">
+					<li v-for="section in sections" :key="section.id">
+						<a
+							class="sections__link"
+							:href="sectionHref(section.id)"
+							@click.prevent="jumpTo(section.id)">{{ section.label }}</a>
+					</li>
+				</ul>
+			</nav>
 			<NcNoteCard v-if="missing(form.hr_group) || missing(form.employees_group)" type="warning">
 				{{ t('absence', 'Absence stays closed until the HR group and the employees group are chosen.') }}
 			</NcNoteCard>
-			<section class="settings">
+			<section id="settings-who" class="settings">
 				<div class="settings__intro">
-					<h3 class="settings__title">
+					<h3 class="settings__title" tabindex="-1">
 						{{ t('absence', 'Who is who') }}
 						<SavedCheck :savedAt="savedAt.who" />
 					</h3>
@@ -90,9 +100,9 @@
 				</div>
 			</section>
 
-			<section class="settings">
+			<section id="settings-vacation" class="settings">
 				<div class="settings__intro">
-					<h3 class="settings__title">
+					<h3 class="settings__title" tabindex="-1">
 						{{ t('absence', 'Vacation') }}
 						<SavedCheck :savedAt="savedAt.vacation" />
 					</h3>
@@ -139,9 +149,9 @@
 				</div>
 			</section>
 
-			<section class="settings">
+			<section id="settings-approvals" class="settings">
 				<div class="settings__intro">
-					<h3 class="settings__title">
+					<h3 class="settings__title" tabindex="-1">
 						{{ t('absence', 'Approvals') }}
 						<SavedCheck :savedAt="savedAt.approvals" />
 					</h3>
@@ -163,9 +173,9 @@
 				</div>
 			</section>
 
-			<section class="settings">
+			<section id="settings-calendar" class="settings">
 				<div class="settings__intro">
-					<h3 class="settings__title">
+					<h3 class="settings__title" tabindex="-1">
 						{{ t('absence', 'Calendar') }}
 						<SavedCheck :savedAt="savedAt.calendar" />
 					</h3>
@@ -196,9 +206,9 @@
 				</div>
 			</section>
 
-			<section class="settings">
+			<section id="settings-holidays" class="settings">
 				<div class="settings__intro">
-					<h3 class="settings__title">
+					<h3 class="settings__title" tabindex="-1">
 						{{ t('absence', 'Public holidays') }}
 						<SavedCheck :savedAt="savedAt.holidays" />
 					</h3>
@@ -215,9 +225,9 @@
 				</div>
 			</section>
 
-			<section class="settings">
+			<section id="settings-handbooks" class="settings">
 				<div class="settings__intro">
-					<h3 class="settings__title">
+					<h3 class="settings__title" tabindex="-1">
 						{{ t('absence', 'Handbooks') }}
 						<SavedCheck :savedAt="savedAt.handbooks" />
 					</h3>
@@ -241,9 +251,11 @@
 				</div>
 			</section>
 
-			<section class="settings">
+			<section id="settings-leave-types" class="settings">
 				<div class="settings__intro">
-					<h3>{{ t('absence', 'Leave types') }}</h3>
+					<h3 tabindex="-1">
+						{{ t('absence', 'Leave types') }}
+					</h3>
 				</div>
 				<div v-if="session.isHr" class="settings__fields settings__fields--chips">
 					<LeaveTypeChip
@@ -287,10 +299,12 @@ import type {
 	SettingsKey,
 	SettingsValues,
 } from '../../types/index.ts'
+import type { SettingsSection } from '../../utils/settingsSections.ts'
 
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -310,13 +324,22 @@ import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
 import { useSessionStore } from '../../stores/session.ts'
 import { serverMessage } from '../../utils/errors.ts'
 import { isNumeric } from '../../utils/numbers.ts'
+import { sectionFromQuery } from '../../utils/settingsSections.ts'
 import { keepUnsaved } from '../../utils/unsaved.ts'
 
 const sessionStore = useSessionStore()
 const leaveTypesStore = useLeaveTypesStore()
+const route = useRoute()
+const router = useRouter()
 
-/** The sections of the page */
-type Section = 'who' | 'vacation' | 'approvals' | 'calendar' | 'holidays' | 'handbooks'
+/** The sections that hold settings saved from the page */
+type Section = Exclude<SettingsSection, 'leave-types'>
+
+/** A link of the list of sections */
+interface SectionLink {
+	id: SettingsSection
+	label: string
+}
 
 /** The settings a text field edits */
 type TextKey = 'default_entitlement' | 'carryover_cap' | 'carryover_expiry' | 'handbook_url' | 'hr_handbook_url' | ApprovalField['key']
@@ -391,6 +414,16 @@ const approvalFields: ApprovalField[] = [
 	{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), max: 365, hint: t('absence', '0 switches the warning off.') },
 ]
 
+const sections: SectionLink[] = [
+	{ id: 'who', label: t('absence', 'Who is who') },
+	{ id: 'vacation', label: t('absence', 'Vacation') },
+	{ id: 'approvals', label: t('absence', 'Approvals') },
+	{ id: 'calendar', label: t('absence', 'Calendar') },
+	{ id: 'holidays', label: t('absence', 'Public holidays') },
+	{ id: 'handbooks', label: t('absence', 'Handbooks') },
+	{ id: 'leave-types', label: t('absence', 'Leave types') },
+]
+
 const session = computed(() => sessionStore.session)
 
 const hrGroupOption = computed<Group>(() => groupOption(form.value?.hr_group ?? ''))
@@ -404,9 +437,40 @@ const carryOverOption = computed<CarryOverOption | undefined>(() => carryOverOpt
 
 const enabledTypes = computed<LeaveType[]>(() => [...leaveTypesStore.enabledLeaveTypes].sort((a, b) => a.sortOrder - b.sortOrder))
 
-onMounted(() => {
-	load()
+onMounted(async () => {
+	await load()
+	const section = sectionFromQuery(route.query.section)
+	if (section) {
+		await nextTick()
+		jumpTo(section)
+	}
 })
+
+/**
+ * The link to a section: the settings route with the section in its query, so
+ * the link also works when opened on its own.
+ *
+ * @param section the section
+ */
+function sectionHref(section: SettingsSection): string {
+	return router.resolve({ name: 'hr-settings', query: { section } }).href
+}
+
+/**
+ * Scrolls to a section and moves the focus to its heading, without touching
+ * the URL: the hash holds the app's route.
+ *
+ * @param section the section
+ */
+function jumpTo(section: SettingsSection): void {
+	const element = document.getElementById(`settings-${section}`)
+	if (!element) {
+		return
+	}
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+	element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+	element.querySelector<HTMLElement>('h3')?.focus({ preventScroll: true })
+}
 
 /**
  * Whether a string names a setting.
@@ -607,12 +671,35 @@ async function changeEmployeesGroup(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+.sections {
+	margin-bottom: calc(var(--default-grid-baseline) * 4);
+
+	&__list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: calc(var(--default-grid-baseline) * 1) calc(var(--default-grid-baseline) * 4);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	&__link {
+		color: var(--color-primary-element);
+
+		&:hover,
+		&:focus-visible {
+			text-decoration: underline;
+		}
+	}
+}
+
 .settings {
 	display: grid;
 	grid-template-columns: minmax(180px, 1fr) 2.5fr;
 	gap: 16px 24px;
 	padding-block: 20px;
 	border-top: 1px solid var(--color-border);
+	scroll-margin-top: calc(var(--default-grid-baseline) * 4);
 
 	&:first-of-type {
 		border-top: none;
