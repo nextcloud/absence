@@ -29,3 +29,14 @@ export function canOpenRoute(meta: RouteAccess, session: AccessRoles): boolean {
 	}
 	return !!session.isHr || (!!meta.admin && !!session.isAdmin)
 }
+
+/**
+ * Whether this session may change someone's entitlement: HR may, except their
+ * own, which somebody else from HR changes (§5.5).
+ *
+ * @param session the current session
+ * @param uid whose entitlement it is
+ */
+export function canEditEntitlementOf(session: AccessRoles, uid: string): boolean {
+	return !!session.isHr && session.uid !== uid
+}

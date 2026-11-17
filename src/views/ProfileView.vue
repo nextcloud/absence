@@ -77,15 +77,20 @@
 				<template v-else>
 					<BalanceCard v-for="row in balances" :key="row.typeId" :row="row" />
 				</template>
-				<NcButton
-					v-if="profile.canEditContract && balances.length"
-					class="profile__edit"
-					@click="editingDays = balances[0] ?? null">
-					<template #icon>
-						<Pencil :size="20" />
-					</template>
-					{{ t('absence', 'Edit vacation days') }}
-				</NcButton>
+				<template v-if="profile.canEditContract && balances.length">
+					<NcButton
+						v-if="canEditEntitlementOf(sessionStore.session, profileUid)"
+						class="profile__edit"
+						@click="editingDays = balances[0] ?? null">
+						<template #icon>
+							<Pencil :size="20" />
+						</template>
+						{{ t('absence', 'Edit vacation days') }}
+					</NcButton>
+					<p v-else class="profile__note">
+						{{ t('absence', 'Somebody else from HR changes your own days.') }}
+					</p>
+				</template>
 				<p v-if="profile.nextLeave" class="profile__note">
 					{{ n('absence', 'Next leave: {range}, {count} working day', 'Next leave: {range}, {count} working days', profile.nextLeave.workingDays, { range: formatRange(profile.nextLeave.startDate, profile.nextLeave.endDate), count: profile.nextLeave.workingDays }) }}
 				</p>
@@ -184,6 +189,7 @@ import RegionCodeField from '../components/RegionCodeField.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
 import { useSessionStore } from '../stores/session.ts'
+import { canEditEntitlementOf } from '../utils/access.ts'
 import { patternSince } from '../utils/contract.ts'
 import { formatDate, formatRange, toIso } from '../utils/dates.ts'
 import { displayNameOf } from '../utils/displayName.ts'

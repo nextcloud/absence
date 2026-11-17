@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { canOpenRoute } from './access.ts'
+import { canEditEntitlementOf, canOpenRoute } from './access.ts'
 
 describe('canOpenRoute', () => {
 	it('opens ordinary pages to everyone', () => {
@@ -20,5 +20,20 @@ describe('canOpenRoute', () => {
 		const admin = { isHr: false, isAdmin: true }
 		expect(canOpenRoute({ hr: true, admin: true }, admin)).toBe(true)
 		expect(canOpenRoute({ hr: true }, admin)).toBe(false)
+	})
+})
+
+describe('canEditEntitlementOf', () => {
+	it('lets HR change somebody else\'s days', () => {
+		expect(canEditEntitlementOf({ uid: 'alice', isHr: true }, 'bob')).toBe(true)
+	})
+
+	it('leaves the days of an HR member to somebody else from HR', () => {
+		expect(canEditEntitlementOf({ uid: 'alice', isHr: true }, 'alice')).toBe(false)
+	})
+
+	it('never lets anybody else change days', () => {
+		expect(canEditEntitlementOf({ uid: 'alice', isHr: false }, 'bob')).toBe(false)
+		expect(canEditEntitlementOf({ uid: null }, 'bob')).toBe(false)
 	})
 })

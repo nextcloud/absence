@@ -187,15 +187,23 @@
 							</td>
 							<td>
 								<NcActions :ariaLabel="t('absence', 'Actions for {name}', { name: row.displayName }, undefined, { escape: false, sanitize: false })">
-									<NcActionButton
-										v-for="balance in row.balances"
-										:key="balance.typeId"
-										@click="editing = { row, balance }">
+									<template v-if="canEditEntitlementOf(sessionStore.session, row.uid)">
+										<NcActionButton
+											v-for="balance in row.balances"
+											:key="balance.typeId"
+											@click="editing = { row, balance }">
+											<template #icon>
+												<Pencil :size="20" />
+											</template>
+											{{ t('absence', 'Edit entitlement: {type}', { type: balance.typeLabel }, undefined, { escape: false, sanitize: false }) }}
+										</NcActionButton>
+									</template>
+									<NcActionText v-else>
 										<template #icon>
-											<Pencil :size="20" />
+											<InformationOutline :size="20" />
 										</template>
-										{{ t('absence', 'Edit entitlement: {type}', { type: balance.typeLabel }, undefined, { escape: false, sanitize: false }) }}
-									</NcActionButton>
+										{{ t('absence', 'Somebody else from HR changes your own days.') }}
+									</NcActionText>
 								</NcActions>
 							</td>
 						</tr>
@@ -246,6 +254,7 @@ import { generateUrl } from '@nextcloud/router'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionText from '@nextcloud/vue/components/NcActionText'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcChip from '@nextcloud/vue/components/NcChip'
@@ -256,6 +265,7 @@ import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import BellRingOutline from 'vue-material-design-icons/BellRingOutline.vue'
 import CodeBraces from 'vue-material-design-icons/CodeBraces.vue'
 import Download from 'vue-material-design-icons/Download.vue'
+import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import EmployeesJsonDialog from '../../components/EmployeesJsonDialog.vue'
@@ -263,6 +273,8 @@ import EntitlementDialog from '../../components/EntitlementDialog.vue'
 import RegionReminderDialog from '../../components/RegionReminderDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../services/api.ts'
+import { useSessionStore } from '../../stores/session.ts'
+import { canEditEntitlementOf } from '../../utils/access.ts'
 import { balanceTone } from '../../utils/balance.ts'
 import { formatDate } from '../../utils/dates.ts'
 import { serverMessage } from '../../utils/errors.ts'
@@ -306,6 +318,7 @@ const filter = ref<FilterId>('all')
 const limit = ref(PAGE)
 const year = ref(currentYear)
 const years = [currentYear - 1, currentYear, currentYear + 1]
+const sessionStore = useSessionStore()
 const editing = ref<EditedEntitlement | null>(null)
 const editingJson = ref(false)
 const reminding = ref(false)
