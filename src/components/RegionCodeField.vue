@@ -19,7 +19,7 @@
 			</NcButton>
 		</div>
 		<p v-if="knownCodes.length" class="region-code__hint">
-			{{ t('absence', 'Codes with holidays: {codes}', { codes: knownCodes.map((known) => `${regionFlag(known)} ${known}`).join(', ') }, undefined, { escape: false }) }}
+			{{ t('absence', 'Codes with holidays: {codes}', { codes: knownCodes.map((known) => `${regionFlag(known)} ${known}`).join(', ') }, undefined, { escape: false, sanitize: false }) }}
 		</p>
 
 		<NcDialog

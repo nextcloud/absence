@@ -86,12 +86,12 @@
 							</div>
 						</td>
 						<td v-if="canEdit" class="holidays__actions">
-							<NcButton variant="tertiary" :ariaLabel="t('absence', 'Edit {name}', { name: holiday.label }, undefined, { escape: false })" @click="edit(holiday)">
+							<NcButton variant="tertiary" :ariaLabel="t('absence', 'Edit {name}', { name: holiday.label }, undefined, { escape: false, sanitize: false })" @click="edit(holiday)">
 								<template #icon>
 									<Pencil :size="18" />
 								</template>
 							</NcButton>
-							<NcButton variant="tertiary" :ariaLabel="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false })" @click="deleting = holiday">
+							<NcButton variant="tertiary" :ariaLabel="t('absence', 'Delete {name}', { name: holiday.label }, undefined, { escape: false, sanitize: false })" @click="deleting = holiday">
 								<template #icon>
 									<Delete :size="18" />
 								</template>
@@ -145,7 +145,7 @@
 
 		<NcDialog
 			v-if="deleting"
-			:name="t('absence', 'Delete {name}?', { name: deleting.label }, undefined, { escape: false })"
+			:name="t('absence', 'Delete {name}?', { name: deleting.label }, undefined, { escape: false, sanitize: false })"
 			:open="true"
 			size="small"
 			@update:open="(open) => !open && !removing && (deleting = null)">
@@ -408,8 +408,8 @@ async function remove(): Promise<void> {
 		}
 		await api.deleteHoliday(holiday.id)
 		showSuccess(holiday.recurring
-			? t('absence', '{name} deleted from every year', { name: holiday.label }, undefined, { escape: false })
-			: t('absence', '{name} deleted', { name: holiday.label }, undefined, { escape: false }))
+			? t('absence', '{name} deleted from every year', { name: holiday.label }, undefined, { escape: false, sanitize: false })
+			: t('absence', '{name} deleted', { name: holiday.label }, undefined, { escape: false, sanitize: false }))
 		deleting.value = null
 		await load()
 	} catch (e) {
@@ -468,12 +468,12 @@ async function runImport(): Promise<void> {
  */
 function byline(holiday: Holiday): string {
 	if (holiday.createdByName && holiday.updatedByName) {
-		return t('absence', 'Added by {added} · changed by {changed}', { added: holiday.createdByName, changed: holiday.updatedByName }, undefined, { escape: false })
+		return t('absence', 'Added by {added} · changed by {changed}', { added: holiday.createdByName, changed: holiday.updatedByName }, undefined, { escape: false, sanitize: false })
 	}
 	if (holiday.createdByName) {
-		return t('absence', 'Added by {name}', { name: holiday.createdByName }, undefined, { escape: false })
+		return t('absence', 'Added by {name}', { name: holiday.createdByName }, undefined, { escape: false, sanitize: false })
 	}
-	return holiday.updatedByName ? t('absence', 'Changed by {name}', { name: holiday.updatedByName }, undefined, { escape: false }) : ''
+	return holiday.updatedByName ? t('absence', 'Changed by {name}', { name: holiday.updatedByName }, undefined, { escape: false, sanitize: false }) : ''
 }
 
 /**
@@ -508,17 +508,17 @@ function describeChange(change: HolidayChange): string {
 	const action: string = change.action
 	switch (change.action) {
 		case 'added':
-			return t('absence', '{who} added {day}', { who, day: day(change.detail) }, undefined, { escape: false })
+			return t('absence', '{who} added {day}', { who, day: day(change.detail) }, undefined, { escape: false, sanitize: false })
 		case 'deleted':
-			return t('absence', '{who} deleted {day}', { who, day: day(change.detail) }, undefined, { escape: false })
+			return t('absence', '{who} deleted {day}', { who, day: day(change.detail) }, undefined, { escape: false, sanitize: false })
 		case 'changed':
-			return t('absence', '{who} changed {before} to {after}', { who, before: day(change.detail.before), after: day(change.detail.after) }, undefined, { escape: false })
+			return t('absence', '{who} changed {before} to {after}', { who, before: day(change.detail.before), after: day(change.detail.after) }, undefined, { escape: false, sanitize: false })
 		case 'imported':
-			return n('absence', '{who} imported {count} holiday', '{who} imported {count} holidays', change.detail.count, { who, count: change.detail.count }, { escape: false })
+			return n('absence', '{who} imported {count} holiday', '{who} imported {count} holidays', change.detail.count, { who, count: change.detail.count }, { escape: false, sanitize: false })
 		case 'everyone_edits':
-			return t('absence', '{who} let everyone edit public holidays', { who }, undefined, { escape: false })
+			return t('absence', '{who} let everyone edit public holidays', { who }, undefined, { escape: false, sanitize: false })
 		case 'hr_edits':
-			return t('absence', '{who} made public holidays editable by HR only', { who }, undefined, { escape: false })
+			return t('absence', '{who} made public holidays editable by HR only', { who }, undefined, { escape: false, sanitize: false })
 		default:
 			return action
 	}

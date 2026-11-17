@@ -173,8 +173,8 @@
 				v-if="!filtered.length"
 				:name="search ? t('absence', 'No matches') : t('absence', 'Nothing recorded')"
 				:description="search
-					? t('absence', 'No employee matches “{query}”.', { query: search })
-					: t('absence', 'No days recorded in {year} ({type}).', { type: countedLabel, year })">
+					? t('absence', 'No employee matches “{query}”.', { query: search }, { escape: false, sanitize: false })
+					: t('absence', 'No days recorded in {year} ({type}).', { type: countedLabel, year }, { escape: false, sanitize: false })">
 				<template #icon>
 					<Thermometer :size="20" />
 				</template>
