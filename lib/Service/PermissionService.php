@@ -27,11 +27,20 @@ class PermissionService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private EmployeeDirectory $employees,
 	) {
 	}
 
 	public function isHr(string $uid): bool {
 		return $this->groupManager->isInGroup($uid, $this->config->getHrGroup());
+	}
+
+	/**
+	 * Whether the app is open to this account (§2.2): employees, and HR, who keep
+	 * their pages outside the employees group.
+	 */
+	public function isEmployeeOrHr(string $uid): bool {
+		return $this->isHr($uid) || $this->employees->isEmployee($uid);
 	}
 
 	public function isAdmin(string $uid): bool {
@@ -143,10 +152,10 @@ class PermissionService {
 	}
 
 	/**
-	 * Public holidays (§7.2): HR always, everyone else when HR or an admin allows it.
+	 * Public holidays (§7.2): HR always, the employees when HR or an admin allows it.
 	 */
 	public function canEditHolidays(string $uid): bool {
-		return $this->isHr($uid) || ($uid !== '' && $this->config->canEveryoneEditHolidays());
+		return $this->isHr($uid) || ($this->config->canEveryoneEditHolidays() && $this->employees->isEmployee($uid));
 	}
 
 	/**

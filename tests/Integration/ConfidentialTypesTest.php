@@ -236,7 +236,7 @@ class ConfidentialTypesTest extends TestCase {
 			Server::get(ClockService::class),
 			$types,
 			Server::get(BalanceService::class),
-			new PermissionService(Server::get(IGroupManager::class), $resolver, Server::get(ConfigService::class), $types, $l, $logger),
+			new PermissionService(Server::get(IGroupManager::class), $resolver, Server::get(ConfigService::class), $types, $l, $logger, Server::get(EmployeeDirectory::class)),
 			$resolver,
 		);
 	}

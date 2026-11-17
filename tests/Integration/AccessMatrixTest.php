@@ -16,6 +16,7 @@ use OC\Security\CSRF\CsrfTokenManager;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\EntitlementMapper;
+use OCA\Absence\Db\Holiday;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
@@ -108,7 +109,7 @@ class AccessMatrixTest extends TestCase {
 			'attachment#destroy' => [[self::OWNER, self::HR], ['id' => '{attachment}']],
 
 			'employee#index' => [$hr, []],
-			'employee#search' => [self::LOGGED_IN, ['search' => 'itest']],
+			'employee#search' => [[self::COLLEAGUE, self::OWNER, self::MANAGER, self::HR], ['search' => 'itest'], 'empty'],
 			'employee#exportJson' => [$hr, []],
 			'employee#importJson' => [$hr, ['json' => '[]', 'dryRun' => true]],
 			'employee#remind' => [$hr, ['dryRun' => true]],
@@ -348,6 +349,82 @@ class AccessMatrixTest extends TestCase {
 			};
 		}
 		self::assertSame($expected, $got, $name);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function teamViews(): array {
+		return ['coverage#index' => ['coverage#index'], 'calendar#index' => ['calendar#index']];
+	}
+
+	/**
+	 * Outside the employees group nobody's absences are listed, whoever the
+	 * manager of the account is. A colleague with that manager gets the
+	 * owner's request.
+	 */
+	#[DataProvider('teamViews')]
+	public function testAnOutsiderWithAManagerSeesNoAbsences(string $name): void {
+		$users = Server::get(IUserManager::class);
+		$april = ['from' => '2027-04-01', 'to' => '2027-04-30'];
+		$got = [];
+		foreach ([self::OUTSIDER, self::COLLEAGUE] as $role) {
+			$users->get(self::PREFIX . $role)->setManagerUids([self::PREFIX . self::MANAGER]);
+			try {
+				$response = $this->call($role, $name, $april);
+			} finally {
+				$users->get(self::PREFIX . $role)->setManagerUids([]);
+			}
+			self::assertSame(200, $response->getStatus(), $role);
+			$got[$role] = array_column($response->getData()['events'], 'requestId');
+		}
+
+		self::assertSame([self::OUTSIDER => [], self::COLLEAGUE => [$this->ids['{request}']]], $got);
+	}
+
+	#[DataProvider('teamViews')]
+	public function testHrOutsideTheEmployeesGroupSeesTheCompany(string $name): void {
+		$staff = Server::get(IGroupManager::class)->get(self::STAFF_GROUP);
+		$hr = Server::get(IUserManager::class)->get(self::PREFIX . self::HR);
+		$staff->removeUser($hr);
+		try {
+			$response = $this->call(self::HR, $name, ['from' => '2027-04-01', 'to' => '2027-04-30', 'scope' => 'company']);
+		} finally {
+			$staff->addUser($hr);
+		}
+
+		self::assertSame([$this->ids['{request}']], array_column($response->getData()['events'], 'requestId'));
+	}
+
+	public function testOnlyEmployeesAndHrEditHolidaysWhenEveryoneMay(): void {
+		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_HOLIDAYS_EVERYONE, true);
+		$new = ['date' => '2027-05-05', 'region' => self::HOLIDAY_REGION, 'label' => 'itest access new'];
+		$kept = ['id' => $this->ids['{holiday}'], 'date' => '2027-01-06', 'region' => self::HOLIDAY_REGION];
+
+		self::assertSame(403, $this->call(self::OUTSIDER, 'holiday#create', $new)->getStatus());
+		self::assertSame(403, $this->call(self::OUTSIDER, 'holiday#update', $kept + ['label' => 'itest access changed'])->getStatus());
+		self::assertSame(403, $this->call(self::OUTSIDER, 'holiday#destroy', $kept)->getStatus());
+		self::assertSame(['itest access day'], $this->holidayLabels());
+
+		self::assertSame(200, $this->call(self::COLLEAGUE, 'holiday#create', $new)->getStatus());
+		self::assertSame(['itest access day', 'itest access new'], $this->holidayLabels());
+
+		// Who added it is for the employees and HR
+		$authors = [];
+		foreach ([self::COLLEAGUE, self::OUTSIDER] as $role) {
+			$added = $this->call($role, 'holiday#history', [])->getData()[0];
+			$authors[$role] = [$added['action'], $added['actorUid']];
+		}
+		self::assertSame([
+			self::COLLEAGUE => ['added', self::PREFIX . self::COLLEAGUE],
+			self::OUTSIDER => ['added', null],
+		], $authors);
+	}
+
+	/** @return list<string> the labels of the test's holidays, in date order */
+	private function holidayLabels(): array {
+		return array_map(
+			static fn (Holiday $holiday): string => $holiday->getLabel(),
+			Server::get(HolidayService::class)->listForYear(2027, self::HOLIDAY_REGION),
+		);
 	}
 
 	/**

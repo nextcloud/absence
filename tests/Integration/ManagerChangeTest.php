@@ -258,7 +258,7 @@ class ManagerChangeTest extends TestCase {
 
 	private function permission(ManagerResolver $resolver): PermissionService {
 		return new PermissionService(Server::get(IGroupManager::class), $resolver, Server::get(ConfigService::class),
-			Server::get(LeaveTypeMapper::class), Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class));
+			Server::get(LeaveTypeMapper::class), Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class), $this->directory());
 	}
 
 	private function requestService(ManagerResolver $resolver): RequestService {

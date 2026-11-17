@@ -104,6 +104,9 @@ calendar forever, with an empty allowance and nothing to show.
   in HR (an admin, a guest) opening the app sees only "You are not in the employees
   group", with *Open the settings* for admins, and the Settings entry (§12). HR
   outside the group keeps its pages. The session carries `isEmployee` for this.
+  The server holds the same line: for such an account `GET /api/coverage` and
+  `GET /api/calendar` list no absences and `GET /api/employees/search` nobody,
+  whatever its manager field says, and it cannot edit public holidays (§7.2).
 - **One definition, one place.** `EmployeeDirectory` is the only component that
   enumerates users; `ReportService`, `EntitlementService`, `CoverageService` and
   `ManagerResolver` all ask it rather than walking `IUserManager` themselves. A
@@ -922,13 +925,15 @@ days; a country does not get its regions' days.
 - **Out again:** the page downloads the shown list in the same format, and
   `occ absence:export-holidays [--year] [--region]` prints it.
 
-Everyone can read the list. HR always edits it, and HR or an admin can let everyone
-add, edit and delete single holidays, so HR does not become a bottleneck. That switch
+Everyone can read the list. HR always edits it, and HR or an admin can let every
+employee (§2.2) add, edit and delete single holidays, so HR does not become a bottleneck. That switch
 lives in the *Public holidays* section of the Settings page (§12); the *Public
 holidays* page only tells HR who may edit and links there. Importing a whole list
 stays with HR. Each switch is written to the history like a change to the list.
 Each row shows who added and who last changed it, and a *History* view lists every
 change with its author and the values before and after (`absence_holiday_history`).
+Those names go to the employees and HR only: an account outside the employees group
+(§2.2) gets the list and the history without them.
 Every change also goes to the admin audit log (`CriticalActionPerformedEvent`, when
 the *Auditing / Logging* app is enabled) and to `nextcloud.log` like the other audit
 entries. Nothing is sent to the Activity stream, by notification or by email. Other apps read
@@ -1374,9 +1379,11 @@ the SPA). All list endpoints paginate and accept filters.
   (HR only).
 - HR/admin CRUD for leave types.
 - `GET /api/holidays?year&region` (everyone), `POST /api/holidays`,
-  `PUT|DELETE /api/holidays/{id}` (HR, or everyone when allowed),
+  `PUT|DELETE /api/holidays/{id}` (HR, or every employee when allowed),
   `POST /api/holidays/import {json, dryRun}` (HR) and `GET /api/holidays/history`
   (everyone): public holidays (§7.2). Who may edit is an app setting (§12).
+  `createdBy`, `updatedBy`, `actorUid` and their names are null for an account that is
+  neither an employee nor HR.
   `GET /api/holidays/applying?code&from&to` returns the days a region code gets and
   `GET /api/holidays/regions` the codes that have holidays; both are open to everyone.
 

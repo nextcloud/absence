@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
@@ -20,6 +21,7 @@ use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IGroup;
 use OCP\IGroupManager;
 use OCP\IUser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -36,6 +38,7 @@ class PermissionServiceTest extends TestCase {
 	private ConfigService&MockObject $config;
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
 	private LoggerInterface&MockObject $logger;
+	private EmployeeDirectory&MockObject $employees;
 	private PermissionService $service;
 
 	protected function setUp(): void {
@@ -45,6 +48,7 @@ class PermissionServiceTest extends TestCase {
 		$this->config = $this->createMock(ConfigService::class);
 		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->employees = $this->createMock(EmployeeDirectory::class);
 		$this->config->method('getHrGroup')->willReturn('hr');
 		$this->service = new PermissionService(
 			$this->groupManager,
@@ -53,6 +57,7 @@ class PermissionServiceTest extends TestCase {
 			$this->leaveTypeMapper,
 			$this->l10nMock(),
 			$this->logger,
+			$this->employees,
 		);
 	}
 
@@ -194,6 +199,29 @@ class PermissionServiceTest extends TestCase {
 		$this->hrGroupIs(['hilda']);
 		$this->service->assertHr('hilda');
 		$this->addToAssertionCount(1);
+	}
+
+	// ---------------------------------------------------- canEditHolidays ----
+
+	/** @return array<string, array{list<string>, bool, bool, bool}> */
+	public static function holidayEditors(): array {
+		return [
+			'HR, HR only' => [['hilda'], false, false, true],
+			'HR outside the employees group, everyone' => [['hilda'], false, true, true],
+			'employee, HR only' => [[], true, false, false],
+			'employee, everyone' => [[], true, true, true],
+			'outside the employees group, everyone' => [[], false, true, false],
+		];
+	}
+
+	/** @param list<string> $hrMembers */
+	#[DataProvider('holidayEditors')]
+	public function testWhoEditsHolidays(array $hrMembers, bool $isEmployee, bool $everyoneEdits, bool $expected): void {
+		$this->hrGroupIs($hrMembers);
+		$this->employees->method('isEmployee')->with('hilda')->willReturn($isEmployee);
+		$this->config->method('canEveryoneEditHolidays')->willReturn($everyoneEdits);
+
+		self::assertSame($expected, $this->service->canEditHolidays('hilda'));
 	}
 
 	// ---------------------------------------------------------- getHrUids ----
