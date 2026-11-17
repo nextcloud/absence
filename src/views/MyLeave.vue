@@ -44,9 +44,15 @@
 				<div v-if="sickByMonth.some((bar) => bar.value > 0)" class="surface">
 					<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
 				</div>
-				<p v-else class="surface charts__empty">
-					{{ t('absence', 'No sick days in {year}', { year }) }}
-				</p>
+				<div v-else class="surface charts__empty">
+					<!-- The empty chart keeps its title and size; the message takes the place of the bars -->
+					<div class="charts__placeholder">
+						<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
+					</div>
+					<p class="charts__empty-text">
+						{{ t('absence', 'No sick days in {year}', { year }) }}
+					</p>
+				</div>
 			</template>
 		</section>
 
@@ -409,7 +415,19 @@ function celebrateNewApprovals(): void {
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
 
 	&__empty {
-		align-self: start;
+		position: relative;
+	}
+
+	&__placeholder :deep(.chart__svg) {
+		visibility: hidden;
+	}
+
+	&__empty-text {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		margin: 0;
 		color: var(--color-text-maxcontrast);
 	}
