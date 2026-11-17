@@ -41,7 +41,7 @@
 					<dd>{{ detail.workingDays }}</dd>
 					<!-- What this absence leaves them with, so nobody has to go to the
 					     Balances report to find out. Absent for leave that counts against
-					     nothing, where "left" has no answer. -->
+					     nothing, where "available" has no answer. -->
 					<template v-if="detail.disability">
 						<dt>{{ t('absence', 'Disability') }}</dt>
 						<dd>
@@ -52,18 +52,12 @@
 					<template v-if="detail.balance">
 						<dt>{{ t('absence', 'Balance {year}', { year: detail.balance.year }) }}</dt>
 						<dd class="facts__balance">
-							<strong>{{ t('absence', '{days} left', { days: fmtDays(detail.balance.remaining) }) }}</strong>
+							<strong>{{ t('absence', 'Available: {days}', { days: fmtDays(detail.balance.available) }) }}</strong>
 							<span class="facts__muted">
-								{{ t('absence', 'of {total} · {used} taken', {
-									total: fmtDays(detail.balance.entitlement),
-									used: fmtDays(detail.balance.used),
-								}) }}
+								{{ t('absence', 'Used: {days}', { days: fmtDays(detail.balance.used) }) }}
 							</span>
 							<span v-if="detail.balance.pending > 0" class="facts__muted">
-								{{ t('absence', '{days} awaiting a decision, leaving {available} free to book', {
-									days: fmtDays(detail.balance.pending),
-									available: fmtDays(detail.balance.available),
-								}) }}
+								{{ t('absence', 'Pending: {days}', { days: fmtDays(detail.balance.pending) }) }}
 							</span>
 						</dd>
 					</template>

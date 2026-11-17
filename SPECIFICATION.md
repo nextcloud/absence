@@ -1281,7 +1281,7 @@ The HR area (visible only to HR-group members) provides:
    region code (§7.2), working days and contract percentage of the period in force
    today (§6.4), start date (the year, or the day when it falls in the selected
    year) and end date, manager (§2.1), and for the selected year the annual days
-   (§6.4), taken and left, and sick days. Missing data is flagged rather than left
+   (§6.4), taken and available, and sick days. Missing data is flagged rather than left
    blank: *No region code*, *No manager* (their requests go straight to HR) and *No
    contract data*. Filters: all, missing data (any of the three), part-time (fewer
    than five weekdays or under 100 %), and starting or leaving in the year; a search
@@ -1526,7 +1526,7 @@ generic form-over-table CRUD tool.
     `prefers-reduced-motion`. (Decisions themselves stay quiet: approving shows no
     toast or confetti; the updated status chip is the feedback.)
   - **Balance shown as delightful progress rings/bars**, not just numbers — a donut
-    ring of used vs. remaining per type, animated on load.
+    ring of the available days out of the entitlement per type, animated on load.
   - Warm, human microcopy throughout (§15.5).
 - **Accessible & adaptive (non-negotiable).** WCAG AA contrast in light *and* dark
   themes, full keyboard nav, visible focus rings, ARIA labels, respects
@@ -1586,7 +1586,7 @@ NcContent(app-name="absence")
   tab left open, and only commits a new value when the rendered text can have changed,
   so a hero reading "12 days to go" does not re-render the request list once a second
   all year. Then one compact
-  **balance card** per counting leave type: an animated **balance ring** (the remaining
+  **balance card** per counting leave type: an animated **balance ring** (the available
   number **counts up** on load) beside a **breakdown ledger** (base allowance
   + carry-over ± adjustment = entitlement, minus used and pending → **available**).
   Below, two **monthly `BarChart`s** for the current year — approved leave taken per
@@ -1647,7 +1647,7 @@ NcContent(app-name="absence")
   Accepts `?employee=&employeeName=&type=&status=&year=` so other views can deep-link
   into it — the *Sick leave* overview does, from each employee row.
 - **HR** (HR group only): *Employees* (§13: one row per person with region code,
-  working days, contract, start, manager and the year's days, taken, left and sick
+  working days, contract, start, manager and the year's days, taken, available and sick
   days; filter chips, search, "Load more", the entitlement editor in each row's menu,
   skeleton on load; `#/hr/balances` redirects there), *Statistics* (stat tiles + a **`LineChart`** area for monthly trend and a
   **`DonutChart`** with legend for by-type, following the `dataviz` palette & a11y
@@ -1718,11 +1718,16 @@ escalation → "Your manager's been quiet, so HR will take a look." Decisions ar
 deliberately quiet — approval shows no toast. Clarity always wins:
 error and validation copy stays plain and helpful.
 
+A balance has one headline word and number: **Available** (entitlement − used −
+pending, §3.4). The balance ring, the ledger, the request detail (short lines:
+Available, Used, Pending), HR's *Employees* list and the dashboard widget all use
+it. Labels inside components are in sentence case, not uppercase.
+
 ### 15.6 Dashboard widget (implemented, role-aware)
 
 A Dashboard tile that adapts to the viewer's role:
 
-- **Every employee** sees a balance summary line (remaining annual leave, used,
+- **Every employee** sees a balance summary line (available annual leave, used,
   pending) followed by their own upcoming/pending leave (type + date range + status).
 - **Line managers** additionally see their team's requests awaiting a decision.
 - **HR** additionally sees the escalated queue across the whole company.
@@ -1741,8 +1746,9 @@ future enhancement.)
 
 Signature components built on top of `@nextcloud/vue`:
 
-- **`BalanceRing`** — animated SVG donut of used vs. remaining for one leave type; the
-  arc grows and the centre number counts up on load.
+- **`BalanceRing`**: animated SVG donut of the available days out of the entitlement
+  for one leave type, labelled "available"; the arc grows and the centre number counts
+  up on load.
 - **`BalanceCard`** — a My-leave card pairing a compact `BalanceRing` with the
   breakdown ledger (base + carry-over ± adjustment = entitlement, − used − pending
   → available, right-aligned beside the ring).

@@ -2,7 +2,8 @@
   - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
   - SPDX-License-Identifier: AGPL-3.0-or-later
   -
-  - Animated donut ring showing used vs. remaining days for one leave type (§15.2).
+  - Animated donut ring showing the available days of one leave type out of its
+  - entitlement (§15.2).
 -->
 <template>
 	<div class="ring" role="group" :aria-label="ariaLabel">
@@ -13,16 +14,16 @@
 				cy="60"
 				:r="radius" />
 			<circle
-				class="ring__used"
+				class="ring__arc"
 				cx="60"
 				cy="60"
 				:r="radius"
 				:stroke="row.typeColor"
 				:stroke-dasharray="circumference"
-				:stroke-dashoffset="usedOffset"
+				:stroke-dashoffset="arcOffset"
 				transform="rotate(-90 60 60)" />
-			<text x="60" y="54" class="ring__value">{{ remainingLabel }}</text>
-			<text x="60" y="74" class="ring__unit">{{ t('absence', 'left') }}</text>
+			<text x="60" y="54" class="ring__value">{{ valueLabel }}</text>
+			<text x="60" y="74" class="ring__unit">{{ t('absence', 'available') }}</text>
 		</svg>
 		<div class="ring__label">
 			<span class="ring__icon" aria-hidden="true">{{ row.typeIcon }}</span>
@@ -43,8 +44,9 @@
 <script setup lang="ts">
 import type { BalanceRow } from '../types/index.ts'
 
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ringFigures } from '../utils/balance.ts'
 import { countUp } from '../utils/countUp.ts'
 import { formatNumber } from '../utils/locale.ts'
 
@@ -58,26 +60,16 @@ const circumference = 2 * Math.PI * radius
 const animated = ref(false)
 const tween = ref(0)
 
-const fraction = computed(() => {
-	if (!props.row.entitlement || props.row.entitlement <= 0) {
-		return props.row.used > 0 ? 1 : 0
-	}
-	return Math.min(1, Math.max(0, props.row.used / props.row.entitlement))
-})
+const figures = computed(() => ringFigures(props.row))
 
-// Animate from full (nothing drawn) to the used fraction.
-const usedOffset = computed(() => animated.value ? circumference * (1 - fraction.value) : circumference)
+// Animate from full (nothing drawn) to the available fraction.
+const arcOffset = computed(() => animated.value ? circumference * (1 - figures.value.fraction) : circumference)
 
-const targetValue = computed(() => {
-	if (props.row.remaining !== null && props.row.remaining !== undefined) {
-		return Number(props.row.remaining)
-	}
-	return Number(props.row.used)
-})
+const targetValue = computed(() => figures.value.value)
 
-const remainingLabel = computed(() => format(tween.value))
+const valueLabel = computed(() => format(tween.value))
 
-const ariaLabel = computed(() => `${props.row.typeLabel}: ${remainingLabel.value} ${t('absence', 'days left')}`)
+const ariaLabel = computed(() => n('absence', '{type}: %n day available', '{type}: %n days available', targetValue.value, { type: props.row.typeLabel }, { escape: false }))
 
 let stopCount: (() => void) | null = null
 
@@ -148,7 +140,7 @@ function format(v: number): string {
 		stroke-width: 10;
 	}
 
-	&__used {
+	&__arc {
 		fill: none;
 		stroke-width: 10;
 		stroke-linecap: round;
@@ -166,8 +158,6 @@ function format(v: number): string {
 		font-size: 11px;
 		text-anchor: middle;
 		fill: var(--color-text-maxcontrast);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
 	}
 
 	&__label {
