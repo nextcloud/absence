@@ -1026,8 +1026,9 @@ admins' to fill, so they remind nobody.
     the shared-calendar visibility to `reveal`, or when the viewer is somebody who
     could open that request and read the type off it anyway — its owner, their line
     manager, or HR (§2, `canView`). Everyone else gets `typeId: null` and the client
-    labels the absence generically. With no viewer the type is withheld from all
-    (fail-closed).
+    labels the absence generically: on the timeline a plain grey bar with no icon,
+    "Absent" in its accessible label and an "Absent" legend entry, so colour is not
+    the only cue. With no viewer the type is withheld from all (fail-closed).
     - The policy protects a *colleague's* privacy — a peer must not learn that
       somebody is on sick leave. It is not a restriction on HR, who record sick
       leave, nor on the line manager who approved the absence, and withholding it
@@ -1645,7 +1646,9 @@ NcContent(app-name="absence")
 - **Team / Who's off** — a **Gantt-style month timeline** (`TeamTimeline`, §15.7):
   a sticky avatar rail with continuous rounded leave **pills** (colored by type, hatched
   while pending), weekend shading, each person's public holidays, a "today" line, month navigation + a "Today" jump,
-  and a legend. `scope="team"` for managers, `scope="company"` for HR. With
+  and a legend. Every day of the month fits the width; when a day column would get
+  narrower than 24 px the day area scrolls sideways and the name rail stays in place.
+  `scope="team"` for managers, `scope="company"` for HR. With
   `selectable` the pills become buttons that open the request in the sidebar; only
   *Who's off* sets it, because HR may read every request the org-wide calendar shows
   while a team timeline can include leave the viewer is not allowed to open.
