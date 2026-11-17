@@ -46,6 +46,8 @@ class AttachmentService {
 	/** Uploads are documents, not media libraries. */
 	public const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 	public const MAX_PER_REQUEST = 10;
+	/** Stored bytes on all requests of one employee: the files sit outside any user quota. */
+	public const MAX_PER_EMPLOYEE_BYTES = 200 * 1024 * 1024;
 
 	public function __construct(
 		private AttachmentMapper $attachmentMapper,
@@ -107,6 +109,9 @@ class AttachmentService {
 		}
 		if ($this->attachmentMapper->countForRequest($requestId) >= self::MAX_PER_REQUEST) {
 			throw new ValidationException($this->l->t('This request already carries the maximum number of attachments.'));
+		}
+		if ($this->attachmentMapper->sumSizeForEmployee($request->getEmployeeUid()) + $size > self::MAX_PER_EMPLOYEE_BYTES) {
+			throw new ValidationException($this->l->t('All attachments of one person together can be up to %s MB.', [(string)(self::MAX_PER_EMPLOYEE_BYTES / 1024 / 1024)]));
 		}
 		$name = $this->sanitizeName((string)($upload['name'] ?? ''));
 		$content = file_get_contents($upload['tmp_name']);

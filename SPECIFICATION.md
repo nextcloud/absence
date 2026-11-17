@@ -355,7 +355,11 @@ confidential requests (§5.7) even the employee sees none. Upload: HR always;
 the employee on their own non-terminal, non-confidential request (which
 includes HR-recorded sick leave — exactly where a doctor's note belongs).
 Delete: HR, or the uploader while they still see the request and it is not
-in a terminal state. Limits: 10 MB per file, 10 files per request.
+in a terminal state. Limits: 10 MB per file, 10 files per request, and 200 MB
+of stored files per employee: the sizes recorded for the attachments on all
+their requests are summed, whoever uploaded them, and an upload that would go
+past 200 MB is refused with a validation error naming the limit. The cap is a
+constant, not a setting: the bytes sit in app data, outside any user quota.
 Attachments never appear in the request-history timeline (it is
 manager-visible); adds and removals go to the admin audit log (§11). The GDPR
 purge removes rows and bytes. API: §14; the earlier `attachment_note`

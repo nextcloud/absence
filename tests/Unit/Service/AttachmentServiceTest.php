@@ -130,6 +130,30 @@ class AttachmentServiceTest extends TestCase {
 		self::assertFalse($this->service->canAttach('emp', $request));
 	}
 
+	public function testAnUploadThatFillsTheCapOfTheEmployeeIsStored(): void {
+		$this->request();
+		$this->permission->method('isHr')->willReturn(true);
+		$this->attachmentMapper->method('sumSizeForEmployee')->with('emp')
+			->willReturn(AttachmentService::MAX_PER_EMPLOYEE_BYTES - 16);
+		$this->attachmentMapper->method('insert')->willReturnArgument(0);
+		$this->folder->expects(self::once())->method('newFile');
+
+		self::assertSame(16, $this->service->upload('hr', 5, $this->upload())->getSize());
+	}
+
+	public function testAnUploadPastTheCapOfTheEmployeeIsRejectedWhoeverUploads(): void {
+		$this->request();
+		$this->permission->method('isHr')->willReturn(true);
+		$this->attachmentMapper->method('sumSizeForEmployee')->with('emp')
+			->willReturn(AttachmentService::MAX_PER_EMPLOYEE_BYTES - 15);
+		$this->attachmentMapper->expects(self::never())->method('insert');
+		$this->folder->expects(self::never())->method('newFile');
+
+		$this->expectException(ValidationException::class);
+		$this->expectExceptionMessage('200 MB');
+		$this->service->upload('hr', 5, $this->upload());
+	}
+
 	public function testOversizedUploadsAreRejected(): void {
 		$this->request();
 		$this->permission->method('isHr')->willReturn(true);
