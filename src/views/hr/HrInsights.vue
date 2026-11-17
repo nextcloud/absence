@@ -25,9 +25,9 @@
 		<template v-else-if="data">
 			<div class="tiles">
 				<StatTile
-					:value="fmtHours(data.approval.medianHours)"
+					:value="formatHours(data.approval.medianHours)"
 					:label="t('absence', 'median time to a decision')"
-					:caption="t('absence', '95th percentile {p}', { p: fmtHours(data.approval.p95Hours) })">
+					:caption="t('absence', '95th percentile {p}', { p: formatHours(data.approval.p95Hours) })">
 					<template #icon>
 						<TimerOutline :size="20" />
 					</template>
@@ -89,7 +89,7 @@
 								{{ m.decided }}
 							</td>
 							<td class="num">
-								{{ fmtHours(m.medianHours) }}
+								{{ formatHours(m.medianHours) }}
 							</td>
 							<td class="num">
 								<span v-if="m.escalated > 0" class="pill pill--warn">{{ m.escalated }}</span>
@@ -111,6 +111,7 @@
 				</h3>
 				<p class="surface__lead">
 					{{ t('absence', 'Recorded sick leave scored as spells² × days, so frequent short absences weigh more heavily than one long illness. A prompt for a supportive conversation, not a verdict.') }}
+					{{ t('absence', 'A bar fills at {serious}: from {review} a review is due, from {serious} the case is serious.', { review: BRADFORD_REVIEW, serious: BRADFORD_SERIOUS }) }}
 				</p>
 				<table v-if="data.bradford.length" class="grid">
 					<thead>
@@ -138,10 +139,26 @@
 								{{ fmtDays(r.days) }}
 							</td>
 							<td class="num">
-								<strong>{{ r.score }}</strong>
+								<span class="score">
+									<NcChip
+										v-if="bradfordLevel(r.score) === 'serious'"
+										variant="error"
+										noClose
+										:text="t('absence', 'Serious')" />
+									<NcChip
+										v-else-if="bradfordLevel(r.score) === 'review'"
+										variant="warning"
+										noClose
+										:text="t('absence', 'Review due')" />
+									<strong>{{ r.score }}</strong>
+								</span>
 							</td>
 							<td class="bar">
-								<MeterBar :value="r.score" :max="bradfordMax" :color="scoreColor(r.score)" />
+								<MeterBar
+									:value="r.score"
+									:max="BRADFORD_SERIOUS"
+									:color="scoreColor(r.score)"
+									:ariaLabel="t('absence', 'Score {score} of {serious}', { score: r.score, serious: BRADFORD_SERIOUS })" />
 							</td>
 						</tr>
 					</tbody>
@@ -213,7 +230,7 @@
 								{{ fmtDays(team.outstanding) }}
 							</td>
 							<td class="bar">
-								<MeterBar :value="team.outstanding" :max="liabilityMax" color="var(--color-warning)" />
+								<MeterBar :value="team.outstanding" :max="liabilityMax" color="var(--color-element-warning)" />
 							</td>
 						</tr>
 					</tbody>
@@ -229,6 +246,7 @@ import type { Insights, NeglectedRow } from '../../types/index.ts'
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import NcChip from '@nextcloud/vue/components/NcChip'
 import ArrowUpBoldCircleOutline from 'vue-material-design-icons/ArrowUpBoldCircleOutline.vue'
 import CashMultiple from 'vue-material-design-icons/CashMultiple.vue'
 import Leaf from 'vue-material-design-icons/Leaf.vue'
@@ -238,6 +256,8 @@ import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../services/api.ts'
+import { BRADFORD_REVIEW, BRADFORD_SERIOUS, bradfordLevel } from '../../utils/bradford.ts'
+import { formatHours } from '../../utils/duration.ts'
 import { formatNumber, locale } from '../../utils/locale.ts'
 
 const now = new Date().getFullYear()
@@ -247,8 +267,6 @@ let reloadSeq = 0
 const year = ref(now)
 const yearOptions = [now + 1, now, now - 1, now - 2, now - 3]
 const data = ref<Insights | null>(null)
-
-const bradfordMax = computed<number>(() => Math.max(1, ...(data.value?.bradford ?? []).map((r) => r.score)))
 
 const liabilityMax = computed<number>(() => Math.max(1, ...(data.value?.liability.perTeam ?? []).map((r) => r.outstanding)))
 
@@ -296,22 +314,6 @@ async function reload(): Promise<void> {
 }
 
 /**
- * A duration in hours below two days, in days from there.
- *
- * @param h the hours, null when there is nothing to measure
- */
-function fmtHours(h: number | null): string {
-	if (h === null || h === undefined) {
-		return '–'
-	}
-	if (h < 48) {
-		return n('absence', '%n hour', '%n hours', Math.round(h))
-	}
-	const days = Math.round(h / 24 * 10) / 10
-	return n('absence', '{days} day', '{days} days', days, { days: formatNumber(days) })
-}
-
-/**
  * A share as a whole percentage.
  *
  * @param rate the share, 0..1
@@ -347,14 +349,14 @@ function neglectedLabel(p: NeglectedRow): string {
  * @param score the score
  */
 function scoreColor(score: number): string {
-	// The recognised Bradford thresholds: 500 = review, 900 = serious.
-	if (score >= 900) {
-		return 'var(--color-error, #d65a5a)'
+	switch (bradfordLevel(score)) {
+		case 'serious':
+			return 'var(--color-element-error)'
+		case 'review':
+			return 'var(--color-element-warning)'
+		default:
+			return 'var(--color-primary-element)'
 	}
-	if (score >= 500) {
-		return 'var(--color-warning, #c98a1e)'
-	}
-	return 'var(--color-primary-element)'
 }
 
 /**
@@ -365,9 +367,9 @@ function scoreColor(score: number): string {
 function rateColor(rate: number): string {
 	// Low utilisation is the thing to notice, so it reads warm.
 	if (rate < 0.4) {
-		return 'var(--color-warning, #c98a1e)'
+		return 'var(--color-element-warning)'
 	}
-	return 'var(--color-success, #4caf50)'
+	return 'var(--color-element-success)'
 }
 </script>
 
@@ -464,6 +466,12 @@ function rateColor(rate: number): string {
 
 .muted {
 	color: var(--color-text-maxcontrast);
+}
+
+.score {
+	display: inline-flex;
+	align-items: center;
+	gap: calc(var(--default-grid-baseline) * 2);
 }
 
 .watchlist {

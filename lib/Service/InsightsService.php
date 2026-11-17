@@ -365,7 +365,7 @@ class InsightsService {
 			$teams[] = [
 				'managerUid' => $manager === '' ? null : $manager,
 				'name' => $manager === ''
-					? $this->l->t('No manager')
+					? $this->l->t('People without a manager')
 					: $this->l->t("%s's team", [$this->displayName($manager)]),
 				'uids' => $members,
 			];

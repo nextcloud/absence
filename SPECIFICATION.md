@@ -1374,10 +1374,13 @@ The HR area (visible only to HR-group members) provides:
      decision, and a per-manager table (decisions, median, escalations). Only leave
      that went to a manager is counted, so HR-recorded absences (booked without a
      decision) never flatter the figure. Escalation rate = escalated ÷ requests that
-     needed a decision.
+     needed a decision. Durations under one hour read *under an hour*, not *0 hours*.
    - **Bradford Factor** — recorded sick leave scored per employee as
-     *spells² × days*, ranked, coloured amber/red at the conventional 500/900 review
-     thresholds. A well-being prompt, deliberately not shown to line managers.
+     *spells² × days*, ranked, against the conventional review thresholds: 500
+     (amber, *Review due*) and 900 (red, *Serious*). Each bar is scaled to 900, so
+     it fills at the serious threshold whatever the other scores are, and the level
+     is written next to the score, not shown by colour alone. A well-being prompt,
+     deliberately not shown to line managers.
    - **Leave utilisation** — annual `used ÷ entitlement`, company-wide and per team,
      plus a watchlist of employees with no non-sick leave in the last ~90 days
      (computed from a rolling one-year window), longest-neglected first.
@@ -1387,7 +1390,7 @@ The HR area (visible only to HR-group members) provides:
      the figure each person reads on their own balance. Nothing is at risk once
      the date has passed, or in a year other than the current one. Teams are
      grouped by the manager each employee reports to; those without a manager form
-     one group. All of it is HR-only — it names people and includes health-adjacent
+     one group, *People without a manager*. All of it is HR-only: it names people and includes health-adjacent
      figures.
 5. **Export:** CSV and Excel (`.xlsx`) export of raw requests and of the balances
    report, with date-range and group filters (the group filter narrows to the
@@ -1511,9 +1514,10 @@ the SPA). All list endpoints paginate and accept filters.
 **HR reporting**
 - `GET  /api/reports/balances` — balances report (filters).
 - `GET  /api/reports/trends` — aggregated stats for charts.
-- `GET  /api/reports/sick-leave` — sick-leave overview, every employee ranked by days
-  lost. Counts the leave type keyed `sick` by default; `typeId` counts another type
-  instead, which the *Sick leave* view exposes as a type picker. The response carries
+- `GET  /api/reports/sick-leave`: sick-leave overview, every employee sorted by days
+  lost (the view shows no rank numbers). Counts the leave type keyed `sick` by
+  default; `typeId` counts another type instead, which the *Sick leave* view exposes
+  as a type picker labelled *Leave type counted*, starting on the type keyed `sick`. The response carries
   the types it aggregated, so the page can name what it is counting rather than
   implying "sickness" is a fixed concept — and can say so plainly when an instance has
   no matching type instead of showing a table of zeroes.
