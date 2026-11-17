@@ -40,9 +40,20 @@
 			<div v-if="leaveByMonth" class="surface">
 				<BarChart :title="t('absence', 'Leave taken by month ({year})', { year })" :data="leaveByMonth" />
 			</div>
-			<div v-if="sickByMonth" class="surface">
-				<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
-			</div>
+			<template v-if="sickByMonth">
+				<div v-if="sickByMonth.some((bar) => bar.value > 0)" class="surface">
+					<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
+				</div>
+				<div v-else class="surface charts__empty">
+					<!-- The empty chart keeps its title and size; the message takes the place of the bars -->
+					<div class="charts__placeholder">
+						<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
+					</div>
+					<p class="charts__empty-text">
+						{{ t('absence', 'No sick days in {year}', { year }) }}
+					</p>
+				</div>
+			</template>
 		</section>
 
 		<section class="requests">
@@ -390,6 +401,23 @@ function celebrateNewApprovals(): void {
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
 
+	&__empty {
+		position: relative;
+	}
+
+	&__placeholder :deep(.chart__svg) {
+		visibility: hidden;
+	}
+
+	&__empty-text {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin: 0;
+		color: var(--color-text-maxcontrast);
+	}
 }
 
 .requests {

@@ -19,3 +19,12 @@ export function serverMessage(error: unknown): string {
 	const message = error.response?.data?.message
 	return typeof message === 'string' ? message : ''
 }
+
+/**
+ * Whether the server refused the request to this user (403).
+ *
+ * @param error what the request threw
+ */
+export function isForbidden(error: unknown): boolean {
+	return isAxiosError(error) && error.response?.status === 403
+}
