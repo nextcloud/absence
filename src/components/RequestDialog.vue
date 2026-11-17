@@ -5,15 +5,13 @@
   - Create / edit a leave request with a live working-day + balance preview (§15.2).
 -->
 <template>
-	<NcModal
+	<NcDialog
 		:name="dialogTitle"
 		size="normal"
-		@close="$emit('close')">
-		<form class="dialog" @submit.prevent="submit">
-			<h2 class="dialog__title">
-				{{ dialogTitle }}
-			</h2>
-
+		isForm
+		@submit="submit"
+		@update:open="(open) => !open && $emit('close')">
+		<div class="dialog">
 			<NcNoteCard v-if="hrMode" type="info">
 				{{ t('absence', 'Record an absence on behalf of an employee (e.g. sick leave). It is booked directly, without an approval step.') }}
 			</NcNoteCard>
@@ -98,29 +96,6 @@
 				</p>
 			</div>
 
-			<div v-if="needsReplacement" class="dialog__field">
-				<label class="dialog__label">
-					{{ t('absence', 'Replacement') }}<span v-if="replacementRequired" class="dialog__req">*</span>
-					<span v-else class="dialog__optional">{{ t('absence', '(optional)') }}</span>
-				</label>
-				<!-- eslint-disable @nextcloud/no-deprecated-library-props -- NcSelectUsers migration deferred: needs live-instance testing -->
-				<NcSelect
-					v-model="selectedReplacement"
-					:options="replacementOptions"
-					:loading="replacementLoading"
-					:userSelect="true"
-					label="displayName"
-					:filterable="false"
-					:placeholder="replacementPlaceholder"
-					:required="replacementRequired"
-					:aria-label-combobox="t('absence', 'Replacement')"
-					@search="onReplacementSearch" />
-				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
-				<p class="dialog__hint">
-					{{ replacementHint }}
-				</p>
-			</div>
-
 			<div class="dialog__row">
 				<div class="dialog__field">
 					<NcDateTimePickerNative
@@ -155,9 +130,6 @@
 			</NcNoteCard>
 
 			<div class="dialog__field">
-				<label class="dialog__label">
-					{{ t('absence', 'Working days') }}<span class="dialog__req">*</span>
-				</label>
 				<NcTextField
 					:modelValue="workingDays"
 					type="number"
@@ -166,34 +138,26 @@
 					step="0.5"
 					required
 					:label="t('absence', 'Working days')"
-					:labelVisible="false"
 					@update:modelValue="onWorkingDaysInput" />
-				<p class="dialog__hint dialog__hint--estimate">
-					<span aria-hidden="true">⚠️</span>
-					<template v-if="prefillActive && !isOwnLeave">
-						{{ t('absence', 'Prefilled from the working days and public holidays of {name}. This is only an estimate: always check the number and adjust it manually if it is off.', { name: subjectName }, undefined, { escape: false }) }}
-					</template>
-					<template v-else-if="prefillActive">
-						{{ t('absence', 'Prefilled from your working days and public holidays. This is only an estimate: always check the number and adjust it manually if it is off.') }}
-						<template v-if="!hrMode">
-							{{ t('absence', 'Your manager will verify it.') }}
-						</template>
-						<a
-							:href="settingsUrl"
-							target="_blank"
-							rel="noreferrer noopener"
-							class="dialog__link">{{ t('absence', 'Check your working days') }}</a>
-					</template>
-					<template v-else>
-						{{ t('absence', 'Number of working days this absence covers (excluding weekends and public holidays). This is only an estimate: always check the number and adjust it manually if it is off.') }}
-						<template v-if="!hrMode">
-							{{ t('absence', 'Your manager will verify it.') }}
-						</template>
-					</template>
+				<p class="dialog__hint" :class="{ 'dialog__hint--warning': estimate !== null }">
+					{{ workingDaysHint }}
+					<a
+						v-if="isOwnLeave && (prefillActive || estimate !== null)"
+						:href="settingsUrl"
+						target="_blank"
+						rel="noreferrer noopener"
+						class="dialog__link">{{ t('absence', 'Check your working days') }}</a>
 				</p>
 			</div>
 
-			<div v-if="balanceRow && !hrMode && workingDaysNum > 0" class="preview" :style="{ '--type-color': typeColor }">
+			<div v-if="balanceRow && selectedType && !hrMode && workingDaysNum > 0" class="preview" :style="{ '--type-color': typeColor }">
+				<div class="preview__days">
+					<span class="preview__count">
+						<span aria-hidden="true">{{ selectedType.icon }}</span>
+						{{ n('absence', '{days} day', '{days} days', workingDaysNum, { days: formatDays(workingDaysNum) }) }}
+					</span>
+					<span class="preview__caption">{{ selectedType.label }}</span>
+				</div>
 				<div class="preview__balance">
 					<span>{{ t('absence', 'Available') }}</span>
 					<strong>{{ formatDays(balanceRow.available) }} → {{ formatDays(projectedAvailable) }}</strong>
@@ -216,6 +180,30 @@
 				</template>
 			</NcNoteCard>
 
+			<div v-if="needsReplacement" class="dialog__field">
+				<label class="dialog__label">
+					{{ t('absence', 'Replacement') }}
+					<span v-if="replacementRequired" class="dialog__req">*</span>
+					<span v-else class="dialog__optional">{{ t('absence', '(optional)') }}</span>
+				</label>
+				<!-- eslint-disable @nextcloud/no-deprecated-library-props -- NcSelectUsers migration deferred: needs live-instance testing -->
+				<NcSelect
+					v-model="selectedReplacement"
+					:options="replacementOptions"
+					:loading="replacementLoading"
+					:userSelect="true"
+					label="displayName"
+					:filterable="false"
+					:placeholder="replacementPlaceholder"
+					:required="replacementRequired"
+					:aria-label-combobox="t('absence', 'Replacement')"
+					@search="onReplacementSearch" />
+				<!-- eslint-enable @nextcloud/no-deprecated-library-props -->
+				<p class="dialog__hint">
+					{{ replacementHint }}
+				</p>
+			</div>
+
 			<div class="dialog__field">
 				<label class="dialog__label">
 					{{ t('absence', 'Reason') }}
@@ -229,21 +217,21 @@
 					rows="2"
 					:required="requiresNote" />
 			</div>
+		</div>
 
-			<div class="dialog__actions">
-				<NcButton variant="tertiary" @click="$emit('close')">
-					{{ t('absence', 'Cancel') }}
-				</NcButton>
-				<NcButton variant="primary" type="submit" :disabled="submitting">
-					<template #icon>
-						<NcLoadingIcon v-if="submitting" :size="20" />
-						<Send v-else :size="20" />
-					</template>
-					{{ submitLabel }}
-				</NcButton>
-			</div>
-		</form>
-	</NcModal>
+		<template #actions>
+			<NcButton variant="tertiary" @click="$emit('close')">
+				{{ t('absence', 'Cancel') }}
+			</NcButton>
+			<NcButton variant="primary" type="submit" :disabled="submitting">
+				<template #icon>
+					<NcLoadingIcon v-if="submitting" :size="20" />
+					<Send v-else :size="20" />
+				</template>
+				{{ submitLabel }}
+			</NcButton>
+		</template>
+	</NcDialog>
 </template>
 
 <script setup lang="ts">
@@ -267,8 +255,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
@@ -286,7 +274,7 @@ import { missingYears } from '../utils/holidayYears.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { formatNumber } from '../utils/locale.ts'
 import { namesAndMore } from '../utils/people.ts'
-import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.ts'
+import { defaultLeaveType, estimateMismatch, isStoredRange, prefilledWorkingDays } from '../utils/prefill.ts'
 import { offeredLeaveTypes, requestChanges, requestCreation } from '../utils/requestPayload.ts'
 import { restAfter, splitAtYearEnd } from '../utils/yearSplit.ts'
 
@@ -364,7 +352,7 @@ const submitLabel = computed(() => {
 		return t('absence', 'Save changes')
 	}
 	// HR records directly — there is no request/approval flow.
-	return props.hrMode ? t('absence', 'Record') : t('absence', 'Submit request')
+	return props.hrMode ? t('absence', 'Record absence') : t('absence', 'Send request')
 })
 
 /** The type keyed 'sick' that the confidential categories nest under. */
@@ -518,6 +506,30 @@ const prefillActive = computed(() => {
 	return !workingDaysTouched.value
 		&& subjectWeekdays.value !== null
 		&& !isStoredRange(props.request, startIso.value, endIso.value)
+})
+
+/** What the dates add up to, while it differs from the number typed by hand */
+const estimate = computed(() => estimateMismatch({
+	request: props.request,
+	touched: workingDaysTouched.value,
+	startIso: startIso.value,
+	endIso: endIso.value,
+	weekdays: subjectWeekdays.value,
+	isHoliday: holidayChecker.value,
+}, workingDaysNum.value))
+
+const workingDaysHint = computed(() => {
+	const verify = props.hrMode ? [] : [t('absence', 'Your manager will verify it.')]
+	if (estimate.value !== null) {
+		return n('absence', 'The dates add up to {days} working day. Check the number you entered.', 'The dates add up to {days} working days. Check the number you entered.', estimate.value, { days: formatDays(estimate.value) })
+	}
+	if (prefillActive.value && !isOwnLeave.value) {
+		return t('absence', 'Prefilled from the working days and public holidays of {name}. This is only an estimate: always check the number and adjust it manually if it is off.', { name: subjectName.value }, undefined, { escape: false })
+	}
+	if (prefillActive.value) {
+		return [t('absence', 'Prefilled from your working days and public holidays. This is only an estimate: always check the number and adjust it manually if it is off.'), ...verify].join(' ')
+	}
+	return [t('absence', 'Number of working days this absence covers (excluding weekends and public holidays). This is only an estimate: always check the number and adjust it manually if it is off.'), ...verify].join(' ')
 })
 
 /** Where the picked range would be cut at New Year, null while it stays within one year (§7). */
@@ -849,7 +861,7 @@ async function initFromProps() {
 			selectedReplacement.value = { uid: request.replacementUid, displayName: request.replacementName || request.replacementUid }
 		}
 	} else {
-		selectedType.value = types[0] || null
+		selectedType.value = defaultLeaveType(types, props.hrMode)
 		const today = toIso(new Date())
 		startIso.value = today
 		endIso.value = today
@@ -983,12 +995,7 @@ async function submit() {
 	display: flex;
 	flex-direction: column;
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
-	padding: calc(var(--default-grid-baseline, 4px) * 5);
-
-	&__title {
-		margin: 0 0 4px;
-		font-size: 1.3rem;
-	}
+	padding: var(--default-grid-baseline, 4px);
 
 	&__row {
 		display: flex;
@@ -1027,9 +1034,7 @@ async function submit() {
 		color: var(--color-text-maxcontrast);
 	}
 
-	// The working-day estimate warning carries the message, not just decoration:
-	// the number is a guess until a human checked it, so it reads as a caution.
-	&__hint--estimate {
+	&__hint--warning {
 		color: var(--color-warning-text);
 	}
 
@@ -1039,13 +1044,6 @@ async function submit() {
 
 	&__split {
 		margin-top: calc(var(--default-grid-baseline, 4px) * 2);
-	}
-
-	&__actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		margin-top: 4px;
 	}
 }
 
@@ -1067,7 +1065,7 @@ async function submit() {
 
 	&__count {
 		font-size: 1.8rem;
-		font-weight: 700;
+		font-weight: 600;
 		color: var(--type-color);
 	}
 
@@ -1077,6 +1075,7 @@ async function submit() {
 	}
 
 	&__balance {
+		flex: 0 1 50%;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
@@ -1087,7 +1086,7 @@ async function submit() {
 
 	&__bar {
 		display: block;
-		width: 120px;
+		width: 100%;
 		height: 6px;
 		border-radius: 3px;
 		background: var(--color-background-dark);
