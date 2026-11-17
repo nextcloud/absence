@@ -14,8 +14,8 @@
 					{{ t('absence', 'Employees') }}
 				</h2>
 				<p class="employees__sub">
-					{{ employeesGroup
-						? t('absence', 'Members of the group {group}, {year}', { group: employeesGroup, year }, undefined, { escape: false, sanitize: false })
+					{{ employeesGroupName
+						? t('absence', 'Members of the group {group}, {year}', { group: employeesGroupName, year }, undefined, { escape: false, sanitize: false })
 						: t('absence', 'Everyone except guest accounts, {year}', { year }) }}
 				</p>
 			</div>
@@ -150,7 +150,14 @@
 								</template>
 							</td>
 							<td>
-								{{ since(row.contract.start) }}
+								<template v-if="row.contract.start">
+									{{ formatDate(row.contract.start) }}
+								</template>
+								<NcChip
+									v-else
+									variant="warning"
+									noClose
+									:text="t('absence', 'No start date')" />
 								<span v-if="row.contract.end" class="employees__muted">
 									{{ t('absence', 'until {date}', { date: formatDate(row.contract.end) }) }}
 								</span>
@@ -159,11 +166,12 @@
 								<template v-if="row.manager">
 									{{ row.manager.displayName }}
 								</template>
-								<NcChip
+								<span
 									v-else
-									variant="warning"
-									noClose
-									:text="t('absence', 'No manager')" />
+									class="employees__none"
+									:title="t('absence', 'No manager, requests go to HR')">
+									{{ t('absence', 'No manager') }}
+								</span>
 							</td>
 							<td class="num">
 								{{ fmt(row.annual?.entitlement) }}
@@ -291,7 +299,7 @@ const currentYear = new Date().getFullYear()
 
 const loading = ref(true)
 const rows = shallowRef<EmployeeRow[]>([])
-const employeesGroup = ref('')
+const employeesGroupName = ref('')
 const contacts = ref(false)
 const search = ref('')
 const filter = ref<FilterId>('all')
@@ -355,18 +363,6 @@ function fmt(v: number | null | undefined): string {
 }
 
 /**
- * The year someone started, or the day when it is in the selected year.
- *
- * @param start YYYY-MM-DD
- */
-function since(start: string | null): string {
-	if (!start) {
-		return ''
-	}
-	return Number(start.slice(0, 4)) === year.value ? formatDate(start) : start.slice(0, 4)
-}
-
-/**
  * Loads the employees of the selected year.
  */
 async function reload(): Promise<void> {
@@ -378,7 +374,7 @@ async function reload(): Promise<void> {
 			return
 		}
 		rows.value = list.rows
-		employeesGroup.value = list.employeesGroup
+		employeesGroupName.value = list.employeesGroupName
 		contacts.value = list.contacts
 	} catch (e) {
 		if (isLatest()) {
@@ -437,6 +433,10 @@ async function onSaved(): Promise<void> {
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
+	}
+
+	&__none {
+		color: var(--color-text-maxcontrast);
 	}
 
 	&__muted,

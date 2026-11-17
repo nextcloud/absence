@@ -111,14 +111,22 @@ class EmployeeListTest extends TestCase {
 		self::assertFalse($this->row(self::PART_TIME, self::YEAR + 1)['startsOrLeaves']);
 
 		$bare = $this->row(self::BARE);
-		self::assertSame([EmployeeListService::MISSING_REGION, EmployeeListService::MISSING_MANAGER, EmployeeListService::MISSING_CONTRACT], $bare['missing']);
+		self::assertSame([EmployeeListService::MISSING_REGION, EmployeeListService::MISSING_CONTRACT, EmployeeListService::MISSING_START], $bare['missing']);
 		self::assertFalse($bare['partTime']);
-		self::assertNull($bare['manager']);
+		self::assertNull($bare['manager'], 'no manager is not missing data');
+
+		// A start date without working days still lacks the contract, and the other way round
+		$this->fresh(EmployeeService::class)->saveContract(self::BARE, '2020-01-01', null, [], self::HR);
+		self::assertSame([EmployeeListService::MISSING_REGION, EmployeeListService::MISSING_CONTRACT], $this->row(self::BARE)['missing']);
+		$this->fresh(EmployeeService::class)->saveContract(self::BARE, null, null, [
+			['from' => '2020-01-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100],
+		], self::HR);
+		self::assertSame([EmployeeListService::MISSING_REGION, EmployeeListService::MISSING_START], $this->row(self::BARE)['missing']);
 
 		// Five days at full time from the start, ending next year
 		$this->contract(self::BARE, [1, 2, 3, 4, 5], 100);
 		$bare = $this->row(self::BARE);
-		self::assertNotContains(EmployeeListService::MISSING_CONTRACT, $bare['missing']);
+		self::assertSame([EmployeeListService::MISSING_REGION], $bare['missing']);
 		self::assertFalse($bare['partTime']);
 		self::assertFalse($bare['startsOrLeaves']);
 		self::assertTrue($this->row(self::BARE, self::YEAR + 1)['startsOrLeaves']);
@@ -129,6 +137,23 @@ class EmployeeListTest extends TestCase {
 		self::assertTrue($this->row(self::BARE)['partTime'], 'five days at 50%');
 		$this->contract(self::BARE, [1, 2, 3, 4, 5], null);
 		self::assertFalse($this->row(self::BARE)['partTime'], 'five days, no percentage');
+	}
+
+	public function testTheListNamesTheEmployeesGroupByItsDisplayName(): void {
+		$groups = Server::get(IGroupManager::class);
+		$group = $groups->createGroup('itest-emplist-staff');
+		$group->setDisplayName('Itest Staff');
+		$group->addUser(Server::get(IUserManager::class)->get(self::PART_TIME));
+		$appConfig = Server::get(IAppConfig::class);
+		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP, 'itest-emplist-staff');
+		try {
+			$list = $this->fresh(EmployeeListService::class)->list(self::YEAR);
+			self::assertSame('itest-emplist-staff', $list['employeesGroup']);
+			self::assertSame('Itest Staff', $list['employeesGroupName']);
+		} finally {
+			$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_EMPLOYEES_GROUP);
+			$group->delete();
+		}
 	}
 
 	public function testACountryWithRegionalHolidaysNeedsItsRegion(): void {
