@@ -173,10 +173,10 @@
 
 			<NcNoteCard v-if="overlapCount" :type="coverageTight ? 'warning' : 'info'">
 				<template v-if="coverageTight">
-					{{ n('absence', 'Heads up: %n colleague is already off then ({names}), so approving this would leave the team thin. You can still submit.', 'Heads up: %n colleagues are already off then ({names}), so approving this would leave the team thin. You can still submit.', overlapCount, { names: overlapLabel }) }}
+					{{ n('absence', 'Heads up: %n colleague is already off then ({names}), so approving this would leave the team thin. You can still submit.', 'Heads up: %n colleagues are already off then ({names}), so approving this would leave the team thin. You can still submit.', overlapCount, { names: overlapLabel }, { escape: false, sanitize: false }) }}
 				</template>
 				<template v-else>
-					{{ n('absence', '%n colleague is off then ({names}).', '%n colleagues are off then ({names}).', overlapCount, { names: overlapLabel }) }}
+					{{ n('absence', '%n colleague is off then ({names}).', '%n colleagues are off then ({names}).', overlapCount, { names: overlapLabel }, { escape: false, sanitize: false }) }}
 				</template>
 			</NcNoteCard>
 
@@ -447,7 +447,7 @@ const replacementHint = computed(() => {
 		return t('absence', 'A colleague who covers your duties while you are away. They are notified once your leave is approved.')
 	}
 	return subjectName.value
-		? t('absence', 'Optional. A colleague who covers for {name} while they are away, and is notified once this is recorded.', { name: subjectName.value })
+		? t('absence', 'Optional. A colleague who covers for {name} while they are away, and is notified once this is recorded.', { name: subjectName.value }, undefined, { escape: false, sanitize: false })
 		: t('absence', 'Optional. A colleague who covers these duties while this employee is away, and is notified once this is recorded.')
 })
 
@@ -524,7 +524,7 @@ const workingDaysHint = computed(() => {
 		return n('absence', 'The dates add up to {days} working day. Check the number you entered.', 'The dates add up to {days} working days. Check the number you entered.', estimate.value, { days: formatDays(estimate.value) })
 	}
 	if (prefillActive.value && !isOwnLeave.value) {
-		return t('absence', 'Prefilled from the working days and public holidays of {name}. This is only an estimate: always check the number and adjust it manually if it is off.', { name: subjectName.value }, undefined, { escape: false })
+		return t('absence', 'Prefilled from the working days and public holidays of {name}. This is only an estimate: always check the number and adjust it manually if it is off.', { name: subjectName.value }, undefined, { escape: false, sanitize: false })
 	}
 	if (prefillActive.value) {
 		return [t('absence', 'Prefilled from your working days and public holidays. This is only an estimate: always check the number and adjust it manually if it is off.'), ...verify].join(' ')
@@ -790,7 +790,7 @@ async function loadSubject() {
 			recomputePrefill()
 		} catch {
 			if (isLatest()) {
-				showError(t('absence', 'Could not load the working days of {name}', { name: subjectName.value }, undefined, { escape: false }))
+				showError(t('absence', 'Could not load the working days of {name}', { name: subjectName.value }, undefined, { escape: false, sanitize: false }))
 			}
 			return
 		}
