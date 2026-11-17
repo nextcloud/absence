@@ -23,6 +23,9 @@ class CoverageService {
 	public const SCOPE_TEAM = 'team';
 	public const SCOPE_COMPANY = 'company';
 
+	/** The statuses that put somebody on the timeline: booked or still asked for */
+	private const OFF_STATUSES = [LeaveRequest::STATUS_APPROVED, LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED, LeaveRequest::STATUS_WITHDRAWAL_PENDING];
+
 	public function __construct(
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
@@ -79,8 +82,7 @@ class CoverageService {
 	public function getCoverage(array $employeeUids, string $from, string $to, ?int $excludeRequestId = null, ?string $viewerUid = null): array {
 		[$from, $to] = $this->assertValidRange($from, $to);
 		$revealTypes = $this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL;
-		$statuses = [LeaveRequest::STATUS_APPROVED, LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED, LeaveRequest::STATUS_WITHDRAWAL_PENDING];
-		$requests = $this->requestMapper->findForEmployeesInRange($employeeUids, $from, $to, $statuses);
+		$requests = $this->requestMapper->findForEmployeesInRange($employeeUids, $from, $to, self::OFF_STATUSES);
 
 		// Resolve the viewer's reach once rather than asking canView() per request: a
 		// company-wide month can hold hundreds of rows, and the answer depends only on
@@ -152,6 +154,55 @@ class CoverageService {
 		$coverage['projectedPeak'] = $projectedPeak;
 		$coverage['conflict'] = $threshold > 0 && $projectedPeak >= $threshold;
 		return $coverage;
+	}
+
+	/**
+	 * For each request of a decision queue, the other members of its team who are
+	 * off on at least one of its days: the people {@see getRequestCoverage()} lists,
+	 * for the whole queue in one query. Names only, without the leave type, so a
+	 * confidential absence (§5.7) shows as nothing more than somebody being away.
+	 *
+	 * @param LeaveRequest[] $requests
+	 * @return array<int,list<string>> display names, one per person, keyed by request id
+	 */
+	public function othersOffFor(array $requests): array {
+		$teams = [];
+		$from = null;
+		$to = null;
+		foreach ($requests as $request) {
+			$employeeUid = $request->getEmployeeUid();
+			$teams[$request->getId()] = array_values(array_filter(
+				$this->teamOf($employeeUid, $request->getManagerUid()),
+				static fn (string $uid): bool => $uid !== $employeeUid,
+			));
+			$from = $from === null ? $request->getStartDate() : min($from, $request->getStartDate());
+			$to = $to === null ? $request->getEndDate() : max($to, $request->getEndDate());
+		}
+		if ($from === null || $to === null) {
+			return [];
+		}
+		$off = $this->requestMapper->findForEmployeesInRange(
+			array_values(array_unique(array_merge(...array_values($teams)))),
+			$from,
+			$to,
+			self::OFF_STATUSES,
+		);
+
+		$result = [];
+		foreach ($requests as $request) {
+			$names = [];
+			foreach ($off as $other) {
+				$uid = $other->getEmployeeUid();
+				if (!in_array($uid, $teams[$request->getId()], true)
+					|| $other->getStartDate() > $request->getEndDate()
+					|| $other->getEndDate() < $request->getStartDate()) {
+					continue;
+				}
+				$names[$uid] ??= $this->displayName($uid);
+			}
+			$result[$request->getId()] = array_values($names);
+		}
+		return $result;
 	}
 
 	/**

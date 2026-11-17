@@ -46,8 +46,9 @@ class RequestController extends Controller {
 		?string $employeeUid = null,
 		int $limit = 200,
 		int $offset = 0,
+		bool $decision = false,
 	): DataResponse {
-		return $this->handle(function () use ($scope, $status, $typeId, $from, $to, $employeeUid, $limit, $offset) {
+		return $this->handle(function () use ($scope, $status, $typeId, $from, $to, $employeeUid, $limit, $offset, $decision) {
 			// One status, or several separated by commas
 			foreach (array_filter(array_map('trim', explode(',', (string)$status))) as $one) {
 				if (!in_array($one, [...LeaveRequest::ACTIVE_STATUSES, ...LeaveRequest::TERMINAL_STATUSES], true)) {
@@ -61,6 +62,7 @@ class RequestController extends Controller {
 				'from' => $from,
 				'to' => $to,
 				'employeeUid' => $employeeUid,
+				'decision' => $decision,
 			], max(1, min(self::MAX_LIMIT, $limit)), max(0, $offset));
 		});
 	}

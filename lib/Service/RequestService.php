@@ -367,8 +367,10 @@ class RequestService {
 	public function listSerialized(string $actorUid, array $filters, ?int $limit, ?int $offset): array {
 		$viewerIsHr = $this->permission->isHr($actorUid);
 		$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
+		$requests = $this->list($actorUid, $filters, $limit, $offset);
+		$decisions = empty($filters['decision']) ? [] : $this->decisionInfo($actorUid, $requests);
 		return array_map(
-			function (LeaveRequest $r) use ($viewerIsHr, $hrOnlyIds): array {
+			function (LeaveRequest $r) use ($viewerIsHr, $hrOnlyIds, $decisions): array {
 				$data = $r->jsonSerialize();
 				if (!$viewerIsHr && in_array($r->getTypeId(), $hrOnlyIds, true)) {
 					$data = $this->withheld($data);
@@ -377,10 +379,75 @@ class RequestService {
 					// The disability flag (§5.8) exists for HR eyes only.
 					$data['disability'] = null;
 				}
+				if (isset($decisions[$r->getId()])) {
+					$data['decision'] = $decisions[$r->getId()];
+				}
 				return $this->withDisplayNames($data, $r);
 			},
-			$this->list($actorUid, $filters, $limit, $offset),
+			$requests,
 		);
+	}
+
+	/**
+	 * What a decider needs to see on each row of their queue: since when the
+	 * request waits, the days available once it is approved, and who else in the
+	 * team is off then. Only for the requests the actor may decide and that wait
+	 * for a decision. Balances and absences are read for the whole list at once.
+	 *
+	 * @param LeaveRequest[] $requests
+	 * @return array<int,array{waitingSince:?string,availableAfter:?float,othersOff:list<string>}> keyed by request id
+	 */
+	private function decisionInfo(string $actorUid, array $requests): array {
+		$open = array_values(array_filter(
+			$requests,
+			fn (LeaveRequest $r): bool => in_array($r->getStatus(), [...LeaveRequest::PENDING_STATUSES, LeaveRequest::STATUS_WITHDRAWAL_PENDING], true)
+				&& $this->permission->canDecide($actorUid, $r),
+		));
+
+		$uidsByYear = [];
+		foreach ($open as $r) {
+			if ($this->permission->canViewBalanceOf($actorUid, $r->getEmployeeUid())) {
+				$uidsByYear[(int)substr($r->getStartDate(), 0, 4)][$r->getEmployeeUid()] = true;
+			}
+		}
+		$balances = [];
+		foreach ($uidsByYear as $year => $uids) {
+			$balances[$year] = $this->balances->getBalancesForEmployees(array_map('strval', array_keys($uids)), $year);
+		}
+
+		$othersOff = $this->coverage->othersOffFor($open);
+		$info = [];
+		foreach ($open as $r) {
+			$withdrawal = $r->getStatus() === LeaveRequest::STATUS_WITHDRAWAL_PENDING;
+			$info[$r->getId()] = [
+				// A withdrawal waits from when it was asked for, not from the original request
+				'waitingSince' => ($withdrawal ? $r->getUpdatedAt() : $r->getCreatedAt())?->format(\DateTimeInterface::ATOM),
+				'availableAfter' => $this->availableAfter($r, $balances[(int)substr($r->getStartDate(), 0, 4)][$r->getEmployeeUid()] ?? []),
+				'othersOff' => $othersOff[$r->getId()] ?? [],
+			];
+		}
+		return $info;
+	}
+
+	/**
+	 * The days of the request's type left to book once it is approved. Pending
+	 * days already count against `available`, so approving a request leaves it
+	 * as it is, and approving a withdrawal gives the request's days back. Null
+	 * for a type that counts against nothing, or a balance the actor may not read.
+	 *
+	 * @param list<array<string,mixed>> $rows the employee's balance rows for the year the leave starts
+	 */
+	private function availableAfter(LeaveRequest $request, array $rows): ?float {
+		foreach ($rows as $row) {
+			if ($row['typeId'] !== $request->getTypeId() || $row['entitlement'] === null) {
+				continue;
+			}
+			$available = (float)$row['available'];
+			return $request->getStatus() === LeaveRequest::STATUS_WITHDRAWAL_PENDING
+				? $available + $request->getWorkingDays()
+				: $available;
+		}
+		return null;
 	}
 
 	/**

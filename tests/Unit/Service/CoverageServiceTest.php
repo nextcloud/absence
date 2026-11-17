@@ -19,6 +19,7 @@ use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IGroupManager;
+use OCP\IUser;
 use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -70,6 +71,58 @@ class CoverageServiceTest extends TestCase {
 		$r->setEndDate('2026-01-12');
 		$r->setStatus(LeaveRequest::STATUS_APPROVED);
 		return $r;
+	}
+
+	private function leave(int $id, string $employeeUid, string $start, string $end, ?string $managerUid = null): LeaveRequest {
+		$r = $this->request($id, $employeeUid);
+		$r->setStartDate($start);
+		$r->setEndDate($end);
+		$r->setManagerUid($managerUid);
+		$r->setStatus(LeaveRequest::STATUS_PENDING);
+		return $r;
+	}
+
+	public function testOthersOffForNamesTheTeamMatesOffDuringEachRequestOfAQueue(): void {
+		$this->managerResolver->method('getDirectReports')->willReturnMap([
+			['dave', ['alice', 'bob', 'charlie']],
+			['eve', ['frank', 'grace']],
+		]);
+		$this->userManager->method('get')->willReturnCallback(function (string $uid): IUser {
+			$user = $this->createMock(IUser::class);
+			$user->method('getDisplayName')->willReturn(ucfirst($uid) . ' Test');
+			return $user;
+		});
+		$alice = $this->leave(1, 'alice', '2026-12-21', '2026-12-24', 'dave');
+		$charlie = $this->leave(2, 'charlie', '2027-01-11', '2027-01-15', 'dave');
+		$frank = $this->leave(3, 'frank', '2026-12-21', '2026-12-21', 'eve');
+
+		// One read for the whole queue, over the dates of all its requests
+		$this->requestMapper->expects(self::once())->method('findForEmployeesInRange')
+			->with(self::callback(static function (array $uids): bool {
+				sort($uids);
+				return $uids === ['alice', 'bob', 'charlie', 'grace'];
+			}), '2026-12-21', '2027-01-15')
+			->willReturn([
+				$alice,
+				$charlie,
+				$this->leave(10, 'bob', '2026-12-21', '2026-12-23'),
+				$this->leave(11, 'bob', '2026-12-24', '2026-12-24'),
+				$this->leave(12, 'grace', '2026-12-18', '2026-12-21'),
+			]);
+
+		$result = $this->service->othersOffFor([$alice, $charlie, $frank]);
+
+		self::assertSame([
+			1 => ['Bob Test'],
+			2 => [],
+			3 => ['Grace Test'],
+		], $result);
+	}
+
+	public function testOthersOffForAnEmptyQueueReadsNothing(): void {
+		$this->requestMapper->expects(self::never())->method('findForEmployeesInRange');
+
+		self::assertSame([], $this->service->othersOffFor([]));
 	}
 
 	public function testNeutralPolicyHidesOthersTypeButKeepsOwn(): void {

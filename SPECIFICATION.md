@@ -1387,6 +1387,10 @@ the SPA). All list endpoints paginate and accept filters.
 **Requests**
 - `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status (one, or several separated by commas), type, date range, employee, group).
   `limit` is kept within 1 to 500 and `offset` at 0 or more; an unknown `status` is a 400.
+  With `decision=true`, each request the caller may decide and that waits for a decision
+  carries `decision: { waitingSince, availableAfter, othersOff }` for the Approvals rows
+  (§15.2). The balance follows `canViewBalanceOf` like the detail; balances and team
+  absences are read for the whole page at once, not per row.
 - `POST /api/requests` — create (§5.1).
 - `GET  /api/requests/{id}` — detail (with comments, coverage summary, and the
   employee's **balance** for that leave type in the year the leave starts — gated on
@@ -1545,7 +1549,7 @@ NcContent(app-name="absence")
 ├── NcAppNavigation                         ← LEFT sidebar (primary navigation)
 │   ├── NcAppNavigationNew ("＋ New request")   ← prominent primary CTA at top
 │   ├── NcAppNavigationItem  My leave           (icon: mdiBeach)
-│   ├── NcAppNavigationItem  Approvals  [badge]  (managers only; badge = pending count)
+│   ├── NcAppNavigationItem  Approvals  [badge]  (managers and HR; badge = pending count + escalated count for HR)
 │   ├── NcAppNavigationItem  Team               (icon: mdiAccountGroup)
 │   ├── NcAppNavigationItem  Public holidays
 │   ├── NcAppNavigationItem  Handbook           (handbook link, §13.1, when set; new tab)
@@ -1563,7 +1567,8 @@ NcContent(app-name="absence")
 ```
 
 - **Left `NcAppNavigation`** is the required primary sidebar. Items are gated by role
-  (§2): managers see *Approvals* with a live pending-count `NcCounterBubble`; HR sees
+  (§2): managers see *Approvals* with a live pending-count `NcCounterBubble`; for HR the
+  count adds the escalated requests, which HR decides on that page. HR sees
   the *HR* section (grouped under an `NcAppNavigationCaption`). Every item uses an
   `@mdi` icon. The **`NcAppNavigationNew` "New request"** button sits at the top as the
   single prominent primary action.
@@ -1572,7 +1577,11 @@ NcContent(app-name="absence")
   (Details / Coverage / Comments / History) — the standard Nextcloud master-detail
   pattern, used instead of a modal for *viewing* a request.
 - Route with `vue-router`; deep-link each view (`#/my`, `#/approvals`, `#/team`,
-  `#/hr/balances`, …).
+  `#/hr/balances`, …). A link to a request (`#/requests/{id}`, from notifications,
+  Activity and the dashboard) opens it in the sidebar over the page it belongs to for
+  the viewer: *My leave* for their own, *Approvals* when it waits there for them,
+  otherwise *Absences* for HR and *Team* for everyone else. The link's query
+  (`?decide=decline`) is kept.
 
 ### 15.2 Views
 
@@ -1620,7 +1629,13 @@ NcContent(app-name="absence")
   request/approval flow). Submitting posts `employeeUid` and books the leave directly
   as approved (§5.6).
 - **Approvals** (managers) — skeleton-then-list queues (team + escalated), rows with the
-  same accent-stripe/transition treatment. Opening one reveals the request **progress
+  same accent-stripe/transition treatment, soonest start date first. Instead of a status
+  chip (every row waits) a row says what the decision needs: how long it has waited
+  (since it was asked for, a withdrawal since the withdrawal), the days of the type
+  *available after* approval (left out for a type that counts against nothing), and a
+  warning chip naming a team mate off on overlapping days ("Alice Martin off too",
+  "and N more"; the team and statuses of §8, names only, never a type). Withdrawals
+  keep their chip. The list asks for this with `decision` (§14). Opening one reveals the request **progress
   stepper** and **coverage panel** (§8) in the sidebar with a conflict warning when the
   threshold is met. Approve / Reject as `NcButton` (primary / error); reject requires a
   comment; a successful approve updates the list quietly (no toast or confetti).

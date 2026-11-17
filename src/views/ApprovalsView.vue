@@ -105,6 +105,15 @@ onBeforeUnmount(() => {
 })
 
 /**
+ * The leave that starts first is the decision that cannot wait
+ *
+ * @param requests a queue
+ */
+function soonestFirst(requests: LeaveRequest[]): LeaveRequest[] {
+	return [...requests].sort((a, b) => a.startDate.localeCompare(b.startDate) || a.id - b.id)
+}
+
+/**
  * Load the requests waiting for the viewer, and for HR the escalated ones
  */
 async function reload(): Promise<void> {
@@ -112,12 +121,12 @@ async function reload(): Promise<void> {
 	loadError.value = false
 	try {
 		const [team, hr] = await Promise.all([
-			api.listRequests({ scope: 'reports', status: ACTIONABLE.join(',') }),
+			api.listRequests({ scope: 'reports', status: ACTIONABLE.join(','), decision: true }),
 			// Empty for anyone else, so the list of someone who stopped being HR goes away
-			sessionStore.session.isHr ? api.listRequests({ scope: 'hr', status: 'ESCALATED' }) : [],
+			sessionStore.session.isHr ? api.listRequests({ scope: 'hr', status: 'ESCALATED', decision: true }) : [],
 		])
-		teamQueue.value = team
-		escalated.value = hr
+		teamQueue.value = soonestFirst(team)
+		escalated.value = soonestFirst(hr)
 	} catch {
 		// Without this a failed load leaves both lists empty and the
 		// "All caught up!" state renders — a manager with pending requests
