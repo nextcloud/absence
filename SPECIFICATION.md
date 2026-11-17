@@ -1051,7 +1051,14 @@ admins' to fill, so they remind nobody.
 
 - **Team calendar / who's-off:** managers see their direct reports; HR sees the
   whole company; every employee sees their own team (peers who share the same
-  `manager_uid`). A month/timeline view rendered from approved + pending requests.
+  `manager_uid`) and their own manager, so they see when the manager is away. A
+  month/timeline view rendered from approved + pending requests.
+  - The manager's leave follows the same type rules as a colleague's (below). A
+    manager's own timeline stays their reports and themselves, without their own
+    manager.
+  - The manager is only on the timeline. Team coverage (the request dialog's
+    overlap note and its threshold) counts the team the manager decides for, the
+    same people the manager's review counts, so the manager is not part of it.
   - **Each person's public holidays are shaded on their row** (§7.2), from the region
     code they set, so a team spread over several regions reads correctly. Whoever
     sees a person on the timeline sees these days, and so can tell where that
@@ -1710,7 +1717,8 @@ NcContent(app-name="absence")
   while pending), weekend shading, each person's public holidays, a "today" line, month navigation + a "Today" jump,
   and a legend. Every day of the month fits the width; when a day column would get
   narrower than 24 px the day area scrolls sideways and the name rail stays in place.
-  `scope="team"` for managers, `scope="company"` for HR. With
+  `scope="team"` for managers and employees (an employee's team includes their own
+  manager, §8), `scope="company"` for HR. With
   `selectable` the pills become buttons that open the request in the sidebar; only
   *Who's off* sets it, because HR may read every request the org-wide calendar shows
   while a team timeline can include leave the viewer is not allowed to open.

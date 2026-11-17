@@ -40,7 +40,7 @@ class CalendarController extends Controller {
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(string $from, string $to, string $scope = 'team'): DataResponse {
 		return $this->handle(function () use ($from, $to, $scope) {
-			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope);
+			$uids = $this->service->resolveScopeUids((string)$this->userId, $scope, withOwnManager: true);
 			$coverage = $this->service->getCoverage($uids, $from, $to, null, (string)$this->userId);
 			// The people on show are the ones with an absence: their own public
 			// holidays are shaded on their row (§15.2).

@@ -46,9 +46,11 @@ class CoverageService {
 	 * Resolve the set of employees an actor may see for a given scope. Nobody for
 	 * an account that is neither an employee nor HR (§2.2).
 	 *
+	 * @param bool $withOwnManager add the manager of somebody who manages nobody to
+	 *                             their team scope; they are shown, not counted (§8)
 	 * @return string[]
 	 */
-	public function resolveScopeUids(string $actorUid, string $scope): array {
+	public function resolveScopeUids(string $actorUid, string $scope, bool $withOwnManager = false): array {
 		if (!$this->permission->isEmployeeOrHr($actorUid)) {
 			return [];
 		}
@@ -60,7 +62,12 @@ class CoverageService {
 		if ($reports !== []) {
 			return array_values(array_unique([...$reports, $actorUid]));
 		}
-		return array_values(array_unique([...$this->managerResolver->getPeers($actorUid), $actorUid]));
+		$team = [...$this->managerResolver->getPeers($actorUid), $actorUid];
+		$managerUid = $withOwnManager ? $this->managerResolver->getManagerUid($actorUid) : null;
+		if ($managerUid !== null) {
+			$team[] = $managerUid;
+		}
+		return array_values(array_unique($team));
 	}
 
 	/**
