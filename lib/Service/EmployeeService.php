@@ -116,7 +116,8 @@ class EmployeeService {
 	 * @throws NotFoundException|ValidationException
 	 */
 	public function saveContract(string $uid, ?string $start, ?string $end, array $periods, ?string $actor): array {
-		if (!$this->directory->isEmployee($uid)) {
+		$uid = $this->directory->canonicalUid($uid);
+		if ($uid === null || !$this->directory->isEmployee($uid)) {
 			throw new NotFoundException($this->l->t('Employee not found'));
 		}
 		$after = $this->validate($start, $end, $periods);

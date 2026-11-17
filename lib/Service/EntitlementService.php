@@ -157,7 +157,8 @@ class EntitlementService {
 	 */
 	public function setForEmployee(?string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
 		// Also rejects guests: they have no entitlement to set (§2.2).
-		if (!$this->employees->isEmployee($employeeUid)) {
+		$employeeUid = $this->employees->canonicalUid($employeeUid);
+		if ($employeeUid === null || !$this->employees->isEmployee($employeeUid)) {
 			throw new ValidationException($this->l->t('Unknown employee.'));
 		}
 		$this->assertCountingType($typeId);

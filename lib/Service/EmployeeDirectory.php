@@ -155,6 +155,17 @@ class EmployeeDirectory {
 		return $this->userManager->get($identifier)?->getUID();
 	}
 
+	/**
+	 * The account's own spelling of a uid, as the user backend finds an account
+	 * whatever letter case is given. Null when no account has this uid. An
+	 * e-mail address is not a uid here, although the backend finds the account
+	 * by it: only a file may name somebody that way ({@see resolveUser()}).
+	 */
+	public function canonicalUid(string $uid): ?string {
+		$canonical = $this->userManager->get($uid)?->getUID();
+		return $canonical !== null && mb_strtolower($canonical) === mb_strtolower($uid) ? $canonical : null;
+	}
+
 	/** Whether this uid is a guest account specifically (an unknown uid is not). */
 	public function isGuest(string $uid): bool {
 		$user = $this->userManager->get($uid);
