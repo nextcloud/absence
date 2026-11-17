@@ -332,6 +332,12 @@ function onChanged(): void {
 .closed {
 	height: 100%;
 }
+
+// The navigation body is as tall as the navigation, so the footer would give up
+// a few pixels to it and get a scrollbar of its own for one entry
+.app-navigation-entry__settings {
+	flex-shrink: 0;
+}
 </style>
 
 <style lang="scss">
