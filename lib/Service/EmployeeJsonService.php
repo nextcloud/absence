@@ -26,7 +26,7 @@ use OCP\IUserManager;
  *
  * @psalm-import-type Contract from EmployeeService
  * @psalm-import-type Period from EmployeeService
- * @psalm-type Entry = array{user: string, name: string, region: ?string, start: ?string, end: ?string, contract: list<Period>, vacation: array<string, float>}
+ * @psalm-type Entry = array{user: string, name: string, region: ?string, start: ?string, end: ?string, contract: list<Period>, vacation: array<int, float>}
  * @psalm-type Change = array{user: string, name: string, line: ?int, fields: list<array{field: string, year?: int, before: mixed, after: mixed}>}
  * @psalm-type Problem = array{line: ?int, entry: ?int, message: string}
  * @psalm-type Plan = array{changes: list<Change>, unchanged: int, errors: list<Problem>}
@@ -73,9 +73,9 @@ class EmployeeJsonService {
 		foreach ($uids as $uid) {
 			$contract = $this->employees->getContract($uid);
 			// The current year always, with the default while HR set nothing; the next one once set
-			$days = [(string)$year => $vacation[$uid][$year] ?? $default];
+			$days = [$year => $vacation[$uid][$year] ?? $default];
 			if (isset($vacation[$uid][$year + 1])) {
-				$days[(string)($year + 1)] = $vacation[$uid][$year + 1];
+				$days[$year + 1] = $vacation[$uid][$year + 1];
 			}
 			$entries[] = [
 				'user' => $uid,
