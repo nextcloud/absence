@@ -7,7 +7,76 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] – 1.0.0-beta.1
+## 1.0.0-beta.2 – 2026-11-17
+
+> [!IMPORTANT]
+> Leave is now taken and granted in full days only. Half days stored by an
+> earlier version keep their value.
+>
+> Upgrading from 1.0.12 keeps every request, entitlement, comment and
+> attachment. The working days each person set for themselves become a
+> contract that starts on January 1 of the current year.
+
+### Added
+* feat(approvals): show what a decision needs on each queued request by @skjnldsv in [#210](https://github.com/nextcloud/absence/pull/210)
+* feat(notifications): batch the comment e-mails by @skjnldsv in [#217](https://github.com/nextcloud/absence/pull/217)
+* feat(replacement): offer teammates first and warn when they are away by @skjnldsv in [#220](https://github.com/nextcloud/absence/pull/220)
+* feat(settings): links to the sections of the settings page by @skjnldsv in [#232](https://github.com/nextcloud/absence/pull/232)
+* feat(team): show the employee's own manager in the Team view by @skjnldsv in [#233](https://github.com/nextcloud/absence/pull/233)
+
+### Changed
+* fix: take leave and set entitlements in full days only by @skjnldsv in [#219](https://github.com/nextcloud/absence/pull/219)
+* fix(config): no HR group until an admin chooses one by @skjnldsv in [#222](https://github.com/nextcloud/absence/pull/222)
+* fix(entitlements): nobody changes their own entitlement by @skjnldsv in [#223](https://github.com/nextcloud/absence/pull/223)
+
+### Fixed
+* fix(request): let the browser check the request form by @skjnldsv in [#193](https://github.com/nextcloud/absence/pull/193)
+* fix(l10n): no em dashes in the app's strings by @skjnldsv in [#194](https://github.com/nextcloud/absence/pull/194)
+* fix(settings): admins no longer see the HR group as locked by @skjnldsv in [#195](https://github.com/nextcloud/absence/pull/195)
+* fix(permissions): keep the app closed outside the employees group on the server by @skjnldsv in [#200](https://github.com/nextcloud/absence/pull/200)
+* fix(requests): keep confidential history and comments with HR by @skjnldsv in [#201](https://github.com/nextcloud/absence/pull/201)
+* fix(requests): store and compare user ids in the account's own spelling by @skjnldsv in [#202](https://github.com/nextcloud/absence/pull/202)
+* fix(profile): answer unknown accounts like forbidden ones and keep confidential leave off the profile by @skjnldsv in [#203](https://github.com/nextcloud/absence/pull/203)
+* fix(settings): refuse links, numbers and expiry days that do not hold by @skjnldsv in [#204](https://github.com/nextcloud/absence/pull/204)
+* fix(requests): keep an HR member's own leave with a second person by @skjnldsv in [#205](https://github.com/nextcloud/absence/pull/205)
+* fix(requests): require the reason and refuse HR edits of closed requests by @skjnldsv in [#206](https://github.com/nextcloud/absence/pull/206)
+* fix(attachments): cap the stored attachments of one employee at 200 MB by @skjnldsv in [#207](https://github.com/nextcloud/absence/pull/207)
+* fix(rollover): leave carry-over imported with occ alone by @skjnldsv in [#208](https://github.com/nextcloud/absence/pull/208)
+* fix(requests): keep the leave type and remove the replacement on edit by @skjnldsv in [#209](https://github.com/nextcloud/absence/pull/209)
+* fix(ui): make list rows, page headers and page widths consistent by @skjnldsv in [#211](https://github.com/nextcloud/absence/pull/211)
+* fix(ui): explain a refused profile, an empty sick chart and comment times by @skjnldsv in [#212](https://github.com/nextcloud/absence/pull/212)
+* fix(l10n): stop stripping and escaping names that Vue renders as text by @skjnldsv in [#213](https://github.com/nextcloud/absence/pull/213)
+* fix(timeline): show the whole month and label withheld leave by @skjnldsv in [#214](https://github.com/nextcloud/absence/pull/214)
+* fix(balance): show one available figure everywhere by @skjnldsv in [#215](https://github.com/nextcloud/absence/pull/215)
+* fix(charts): readable labels, one tile style and Material icons on HR pages by @skjnldsv in [#216](https://github.com/nextcloud/absence/pull/216)
+* fix(request-dialog): reorder fields and keep the buttons in view by @skjnldsv in [#218](https://github.com/nextcloud/absence/pull/218)
+* fix(balance): no default entitlement or carry-over outside the contract by @skjnldsv in [#221](https://github.com/nextcloud/absence/pull/221)
+* fix(requests): require updatedAt to approve or reject by @skjnldsv in [#224](https://github.com/nextcloud/absence/pull/224)
+* fix(requests): keep a leave type disabled since on an employee's edit by @skjnldsv in [#225](https://github.com/nextcloud/absence/pull/225)
+* fix(ui): line up the figures of the year summary by @skjnldsv in [#226](https://github.com/nextcloud/absence/pull/226)
+* fix(ui): one type scale for the whole app by @skjnldsv in [#227](https://github.com/nextcloud/absence/pull/227)
+* fix(holidays): show employees their own holidays by @skjnldsv in [#228](https://github.com/nextcloud/absence/pull/228)
+* fix(profile): a shorter own profile by @skjnldsv in [#229](https://github.com/nextcloud/absence/pull/229)
+* fix(hr): employees list flags only real gaps by @skjnldsv in [#230](https://github.com/nextcloud/absence/pull/230)
+* fix(hr): clearer Bradford bars, team names and durations on Insights by @skjnldsv in [#231](https://github.com/nextcloud/absence/pull/231)
+* fix(ui): request rows wrap on narrow screens by @skjnldsv in [#234](https://github.com/nextcloud/absence/pull/234)
+* fix(ui): regular weight for the values in the request panel by @skjnldsv in [#235](https://github.com/nextcloud/absence/pull/235)
+* fix(api): refuse invalid dates and years on read endpoints by @skjnldsv in [#236](https://github.com/nextcloud/absence/pull/236)
+* fix(requests): answer unknown and hidden requests alike by @skjnldsv in [#237](https://github.com/nextcloud/absence/pull/237)
+* fix(export): quote every CSV field and neutralise formulas by @skjnldsv in [#238](https://github.com/nextcloud/absence/pull/238)
+* fix(hr): no entitlement editor on HR's own row by @skjnldsv in [#239](https://github.com/nextcloud/absence/pull/239)
+* fix(employees): JSON export follows the contract years by @skjnldsv in [#240](https://github.com/nextcloud/absence/pull/240)
+* fix(migration): keep data entered on 1.0.12 through the upgrade by @skjnldsv in [#241](https://github.com/nextcloud/absence/pull/241)
+
+### Other
+* chore: stop committing the compiled assets by @skjnldsv in [#196](https://github.com/nextcloud/absence/pull/196)
+* ci(dependabot): ignore TypeScript 7 until the tooling supports it by @skjnldsv in [#197](https://github.com/nextcloud/absence/pull/197)
+* Bump sass from 1.106.1 to 1.108.1
+* Bump vimeo/psalm from 6.20.3 to 7.0.2
+* Bump vitest from 5.0.5 to 5.1.0
+* Bump vue from 3.5.44 to 3.5.45
+
+## 1.0.0-beta.1 – 2026-11-13
 
 First public beta of Absence, a self-service leave-management app: employees
 apply for leave, line managers approve, and HR gets the company-wide overview.
