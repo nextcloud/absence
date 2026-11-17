@@ -30,12 +30,33 @@ class BalanceService {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private ConfigService $config,
 		private ClockService $clock,
+		private EmployeeService $employees,
 		private IL10N $l,
 	) {
 	}
 
 	public function currentYear(): int {
 		return $this->clock->userYear();
+	}
+
+	/**
+	 * Whether someone's contract (§6.4) covers at least one day of $year. True
+	 * when HR entered no start or end date.
+	 */
+	public function isEmployedIn(string $employeeUid, int $year): bool {
+		$contract = $this->employees->getContract($employeeUid);
+		return ($contract['start'] === null || $contract['start'] <= sprintf('%04d-12-31', $year))
+			&& ($contract['end'] === null || $contract['end'] >= sprintf('%04d-01-01', $year));
+	}
+
+	/**
+	 * The base a missing entitlement row stands for: the configured default for
+	 * the annual type in a year the person is employed in, 0 otherwise (§6.1).
+	 */
+	private function defaultBaseDays(string $employeeUid, int $year, LeaveType $type): float {
+		return $type->getKey() === 'annual' && $this->isEmployedIn($employeeUid, $year)
+			? $this->config->getDefaultEntitlement()
+			: 0.0;
 	}
 
 	/**
@@ -209,6 +230,7 @@ class BalanceService {
 		}
 		$types = $this->typesById();
 		$usageByEmployee = $this->usageFromAggregates($employeeUids, $year);
+		$this->employees->preload(array_values($employeeUids));
 
 		$entitlementsByEmployee = [];
 		foreach ($this->entitlementMapper->findForYear($year) as $ent) {
@@ -366,7 +388,7 @@ class BalanceService {
 				// No row yet: only the primary annual type inherits the configured
 				// default allotment; other counting types start at zero until HR
 				// grants an entitlement (avoids fabricating balances, §6.1).
-				$base = $type->getKey() === 'annual' ? $this->config->getDefaultEntitlement() : 0.0;
+				$base = $this->defaultBaseDays($employeeUid, $year, $type);
 				$entitlement = $base;
 			}
 		}
@@ -423,7 +445,7 @@ class BalanceService {
 			$ent->setEmployeeUid($employeeUid);
 			$ent->setYear($year);
 			$ent->setTypeId($typeId);
-			$ent->setBaseDays($type->getKey() === 'annual' ? $this->config->getDefaultEntitlement() : 0.0);
+			$ent->setBaseDays($this->defaultBaseDays($employeeUid, $year, $type));
 			$ent->setCarryOverDays(0.0);
 			$ent->setManualAdjustment(0.0);
 			$ent->setCreatedAt($now);

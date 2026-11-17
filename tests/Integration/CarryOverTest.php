@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OC\AppFramework\DependencyInjection\DIContainer;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\Entitlement;
 use OCA\Absence\Db\EntitlementEvent;
@@ -21,6 +22,7 @@ use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\EntitlementValidator;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -105,7 +107,7 @@ class CarryOverTest extends TestCase {
 			Server::get(EntitlementEventMapper::class),
 			Server::get(LeaveRequestMapper::class),
 			Server::get(LeaveTypeMapper::class),
-			Server::get(BalanceService::class),
+			$this->fresh(BalanceService::class),
 			$config,
 			$clock,
 			Server::get(ActivityPublisher::class),
@@ -117,6 +119,23 @@ class CarryOverTest extends TestCase {
 			Server::get(LoggerInterface::class),
 			Server::get(IEventDispatcher::class),
 		);
+	}
+
+	/**
+	 * A service without what an earlier test left in the shared instances' caches,
+	 * such as the employees group or the contracts.
+	 *
+	 * @template T
+	 * @param class-string<T> $class
+	 * @return T
+	 */
+	private function fresh(string $class): object {
+		// A new container registers itself as the app's: put the app's own back
+		$server = \OC::$server;
+		$registered = $server->getRegisteredAppContainer('absence');
+		$service = (new DIContainer('absence'))->get($class);
+		$server->registerAppContainer('absence', $registered);
+		return $service;
 	}
 
 	private function leave(string $uid, string $status, string $start, float $days): void {
@@ -143,6 +162,19 @@ class CarryOverTest extends TestCase {
 		$ent->setCreatedAt(new \DateTime('2031-01-01 09:00:00'));
 		$ent->setUpdatedAt(new \DateTime('2031-01-01 09:00:00'));
 		return Server::get(EntitlementMapper::class)->insert($ent);
+	}
+
+	private function contract(string $uid, ?string $start, ?string $end): void {
+		$this->fresh(EmployeeService::class)->saveContract($uid, $start, $end, [], self::HR);
+	}
+
+	private function annualEntitlement(string $uid, int $year): ?float {
+		foreach ($this->fresh(BalanceService::class)->getBalance($uid, $year)['balances'] as $row) {
+			if ($row['typeId'] === $this->annual) {
+				return $row['entitlement'];
+			}
+		}
+		return null;
 	}
 
 	private function stored(string $uid, int $year): Entitlement {
@@ -236,5 +268,33 @@ class CarryOverTest extends TestCase {
 
 		self::assertSame(1, $result['skipped']);
 		self::assertSame(1.0, $this->stored(self::WITH_ROW, 2032)->getCarryOverDays());
+	}
+
+	public function testNothingIsCarriedOverFromAYearBeforeTheStartDate(): void {
+		$this->contract(self::ON_DEFAULT, '2032-05-01', null);
+		// a stored row for the year before the start, as a frozen default leaves it
+		$this->contract(self::WITH_ROW, '2032-03-01', null);
+		$this->entitlement(self::WITH_ROW, 2031, 28.0);
+
+		self::assertSame(['affected' => 2, 'skipped' => 0, 'failed' => 0], $this->service()->rollover(2031));
+
+		$onDefault = $this->stored(self::ON_DEFAULT, 2032);
+		self::assertSame([28.0, 0.0], [$onDefault->getBaseDays(), $onDefault->getCarryOverDays()]);
+		self::assertSame(0.0, $this->stored(self::WITH_ROW, 2032)->getCarryOverDays());
+		self::assertSame(28.0, $this->stored(self::WITH_ROW, 2031)->getBaseDays());
+		self::assertSame(0.0, $this->annualEntitlement(self::ON_DEFAULT, 2031));
+	}
+
+	public function testNobodyIsRolledOverIntoAYearAfterTheEndDate(): void {
+		$this->contract(self::ON_DEFAULT, null, '2031-12-31');
+		$this->contract(self::WITH_ROW, null, '2031-06-30');
+		$this->entitlement(self::WITH_ROW, 2031, 20.0);
+
+		self::assertSame(['affected' => 0, 'skipped' => 0, 'failed' => 0], $this->service()->rollover(2031));
+
+		self::assertSame([], Server::get(EntitlementMapper::class)->findForEmployee(self::ON_DEFAULT, 2032));
+		self::assertSame([], Server::get(EntitlementMapper::class)->findForEmployee(self::WITH_ROW, 2032));
+		self::assertSame(0.0, $this->annualEntitlement(self::ON_DEFAULT, 2032));
+		self::assertSame(28.0, $this->annualEntitlement(self::ON_DEFAULT, 2031));
 	}
 }

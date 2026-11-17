@@ -716,6 +716,10 @@ statutory entitlement for employees with a recognised disability. Rules:
     (`GET /api/entitlements/on-default`, `POST /api/entitlements/apply-default`,
     HR or admin). Somebody with another base keeps it. All or nothing, and
     recorded in each entitlement history.
+- Without a stored entitlement, the annual type stands for the default only in a
+  year the contract (§6.4) covers at least one day of. A year that ends before the
+  start date or begins after the end date stands for 0 days. Stored entitlements
+  count as they are.
 - Manual adjustments (+/−) require an `adjustment_note`.
 - The API and the CSV import (§6.3) accept the same figures: a year from 2000 to
   2100, day counts from -9999.9 to 9999.9 with one decimal at most (a finer value
@@ -797,6 +801,8 @@ becomes the request's reason.
   year's `base_days` (the configured default for employees without a row, annual
   type only) + computed `carry_over_days`. A carry-over somebody already set for
   the new year, by hand or with the occ import (§6.3), is left alone.
+- Only employees whose contract (§6.4) covers part of the new year are rolled over.
+  Nothing is carried over from a year that ends before the start date.
 - Rollover and expiry are recorded in the entitlement history (§3.7b) with the actor
   `system`. A rollover with failed rows is tried again the next day, and
   `occ absence:rollover <year>` recomputes it by hand.

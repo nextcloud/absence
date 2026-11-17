@@ -51,6 +51,7 @@ class EntitlementServiceTest extends TestCase {
 		$this->entitlementMapper = $this->createMock(EntitlementMapper::class);
 		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$this->balanceService = $this->createMock(BalanceService::class);
+		$this->balanceService->method('isEmployedIn')->willReturn(true);
 		$this->config = $this->createMock(ConfigService::class);
 		$this->eventMapper = $this->createMock(EntitlementEventMapper::class);
 		$this->eventMapper->method('insert')->willReturnArgument(0);

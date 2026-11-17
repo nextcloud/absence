@@ -361,6 +361,12 @@ class EntitlementService {
 		$result = ['affected' => 0, 'skipped' => 0, 'failed' => 0];
 		foreach ($targets as $uid => $perType) {
 			$uid = (string)$uid;
+			// No entitlement for a year outside the contract (§6.4), and no carry-over
+			// from one
+			if (!$this->balanceService->isEmployedIn($uid, $toYear)) {
+				continue;
+			}
+			$carriesOver = $this->balanceService->isEmployedIn($uid, $fromYear);
 			foreach ($perType as $typeId => $baseDays) {
 				// One employee whose rollover throws must not abort the others: log
 				// the row, carry on, and report it so the caller can retry the year.
@@ -370,7 +376,7 @@ class EntitlementService {
 						$result['skipped']++;
 						continue;
 					}
-					$carry = $this->carryOverFrom($balances[$uid] ?? [], $typeId, $policy);
+					$carry = $carriesOver ? $this->carryOverFrom($balances[$uid] ?? [], $typeId, $policy) : 0.0;
 					$now = $this->clock->now();
 					if ($next === null) {
 						$before = 0.0;

@@ -20,6 +20,7 @@ use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\EntitlementValidator;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -86,6 +87,7 @@ class EntitlementHistoryTest extends TestCase {
 			Server::get(LeaveTypeMapper::class),
 			Server::get(ConfigService::class),
 			Server::get(ClockService::class),
+			Server::get(EmployeeService::class),
 			Server::get(IFactory::class)->get(ConfigService::APP_ID),
 		);
 	}
