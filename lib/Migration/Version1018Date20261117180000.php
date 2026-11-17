@@ -14,7 +14,6 @@ use OCA\Absence\AppInfo\Application;
 use OCA\Absence\Db\EmployeeChange;
 use OCA\Absence\Service\ClockService;
 use OCP\Config\IUserConfig;
-use OCP\Config\ValueType;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -44,7 +43,7 @@ class Version1018Date20261117180000 extends SimpleMigrationStep {
 
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
-		$values = $this->userConfig->getValuesByUsers(Application::APP_ID, self::KEY, ValueType::STRING);
+		$values = $this->ownWeekdays();
 		if ($values === []) {
 			return;
 		}
@@ -54,7 +53,7 @@ class Version1018Date20261117180000 extends SimpleMigrationStep {
 		foreach (array_chunk($values, self::CHUNK, true) as $chunk) {
 			$weekdays = [];
 			foreach ($chunk as $uid => $value) {
-				$days = is_string($value) ? self::parse($value) : null;
+				$days = self::parse($value);
 				if ($days !== null) {
 					$weekdays[(string)$uid] = $days;
 				}
@@ -64,6 +63,27 @@ class Version1018Date20261117180000 extends SimpleMigrationStep {
 		}
 		$this->userConfig->deleteKey(Application::APP_ID, self::KEY);
 		$output->info(sprintf('Turned the own working weekdays of %d people into contract periods', $converted));
+	}
+
+	/**
+	 * Read from the table: the typed read of the server fails on an empty value,
+	 * which Oracle stores as NULL.
+	 *
+	 * @return array<array-key, string> uid => stored value
+	 */
+	private function ownWeekdays(): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('userid', 'configvalue')
+			->from('preferences')
+			->where($qb->expr()->eq('appid', $qb->createNamedParameter(Application::APP_ID)))
+			->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter(self::KEY)));
+		$result = $qb->executeQuery();
+		$values = [];
+		while ($row = $result->fetch()) {
+			$values[$row['userid']] = (string)($row['configvalue'] ?? '');
+		}
+		$result->closeCursor();
+		return $values;
 	}
 
 	/**

@@ -29,7 +29,6 @@ declare(strict_types=1);
 
 use OCP\App\IAppManager;
 use OCP\Config\IUserConfig;
-use OCP\Config\ValueType;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\NotFoundException;
@@ -130,8 +129,9 @@ function seed(IDBConnection $db): void {
 	foreach ($requests as [$uid, $type, $from, $to, $days, $status, $reason, $replacement, $decidedBy, $disability]) {
 		$ids[] = insert($db, 'absence_requests', [
 			'employee_uid' => $uid, 'manager_uid' => 'upgrade-dave', 'type_id' => [$types[$type], IQueryBuilder::PARAM_INT],
-			// As text: every database takes it for a date column and for the text column of the betas
-			'start_date' => $from, 'end_date' => $to,
+			// 1.0.12 keeps days in date columns, the betas as text
+			'start_date' => $before1013 ? [new DateTime($from), IQueryBuilder::PARAM_DATE] : $from,
+			'end_date' => $before1013 ? [new DateTime($to), IQueryBuilder::PARAM_DATE] : $to,
 			'working_days' => $days, 'status' => $status, 'reason' => $reason, 'replacement_uid' => $replacement,
 			'decided_by' => $decidedBy, 'decided_at' => [$decidedBy === null ? null : new DateTime('2026-01-10 09:00:00'), $decidedBy === null ? IQueryBuilder::PARAM_NULL : IQueryBuilder::PARAM_DATETIME_MUTABLE],
 			'escalated' => [false, IQueryBuilder::PARAM_BOOL], 'disability' => [$disability, IQueryBuilder::PARAM_BOOL],
@@ -250,12 +250,23 @@ function weekdays(string $stored): ?string {
 	return implode(',', $days);
 }
 
-/** @return array<string, string> uid => value, for everybody who stored one */
+/**
+ * Read from the table: the typed read of the server fails on an empty value,
+ * which Oracle stores as NULL.
+ *
+ * @return array<string, string> uid => value, for everybody who stored one
+ */
 function personal(string $key): array {
+	$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+	$qb->select('userid', 'configvalue')->from('preferences')
+		->where($qb->expr()->eq('appid', $qb->createNamedParameter(APP)))
+		->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter($key)));
+	$result = $qb->executeQuery();
 	$values = [];
-	foreach (Server::get(IUserConfig::class)->getValuesByUsers(APP, $key, ValueType::STRING) as $uid => $value) {
-		$values[(string)$uid] = (string)$value;
+	while ($row = $result->fetch()) {
+		$values[(string)$row['userid']] = (string)($row['configvalue'] ?? '');
 	}
+	$result->closeCursor();
 	ksort($values);
 	return $values;
 }

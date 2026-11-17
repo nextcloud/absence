@@ -282,10 +282,19 @@ class UpgradeKeepsDataTest extends TestCase {
 	 * @return array<string, mixed>
 	 */
 	private function prefs(): array {
+		// From the table: the server's typed read fails on Oracle, where the
+		// empty value of one of these people is stored as NULL.
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('userid', 'configvalue')
+			->from('preferences')
+			->where($qb->expr()->eq('appid', $qb->createNamedParameter(ConfigService::APP_ID)))
+			->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter(self::KEY)));
+		$result = $qb->executeQuery();
 		$prefs = [];
-		foreach ($this->userConfig->getValuesByUsers(ConfigService::APP_ID, self::KEY) as $uid => $value) {
-			$prefs[(string)$uid] = $value;
+		while ($row = $result->fetch()) {
+			$prefs[(string)$row['userid']] = (string)($row['configvalue'] ?? '');
 		}
+		$result->closeCursor();
 		return $prefs;
 	}
 

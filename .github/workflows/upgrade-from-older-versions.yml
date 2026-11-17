@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database: ['sqlite', 'mysql', 'pgsql']
+        database: ['sqlite', 'mysql', 'pgsql', 'oci']
         from: ['1.0.12', '1.0.0-beta.1']
         how: ['upgrade', 'reinstall']
         include:
@@ -126,12 +126,24 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ needs.changes-and-matrix.outputs.php-min }}
-          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, mysql, pdo_mysql, pgsql, pdo_pgsql
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, mysql, pdo_mysql, pgsql, pdo_pgsql${{ matrix.database == 'oci' && ', oci8' || '' }}
           coverage: none
           ini-file: development
           ini-values: disable_functions=
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start Oracle
+        if: matrix.database == 'oci'
+        run: |
+          # Not a service: only these jobs need it, and it is slow to start
+          docker run -d --name oracle -p 1521:1521 -e ORACLE_PASSWORD=oracle ghcr.io/gvenzl/oracle-free:23 # zizmor: ignore[unpinned-images]
+          for _ in $(seq 1 60); do
+            docker exec oracle healthcheck.sh && exit 0
+            sleep 5
+          done
+          docker logs oracle | tail -20
+          exit 1
 
       - name: Install Nextcloud with Absence ${{ matrix.from }}
         env:
@@ -142,6 +154,7 @@ jobs:
             sqlite) ./occ maintenance:install --verbose --database=sqlite --admin-user admin --admin-pass admin ;;
             mysql) ./occ maintenance:install --verbose --database=mysql --database-name=nextcloud --database-host=127.0.0.1 --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin ;;
             pgsql) ./occ maintenance:install --verbose --database=pgsql --database-name=nextcloud --database-host=127.0.0.1 --database-port=4445 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin ;;
+            oci) ./occ maintenance:install --verbose --database=oci --database-name=FREE --database-host=127.0.0.1 --database-port=1521 --database-user=system --database-pass=oracle --admin-user admin --admin-pass admin ;;
           esac
           ./occ app:enable --force absence
           ./occ config:app:get absence installed_version
