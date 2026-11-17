@@ -68,12 +68,11 @@ class EmployeeJsonService {
 		$regions = $this->config->getRegionCodes();
 		$year = $this->balances->currentYear();
 		$vacation = $this->vacationDays([$year, $year + 1]);
-		$default = $this->config->getDefaultEntitlement();
 		$entries = [];
 		foreach ($uids as $uid) {
 			$contract = $this->employees->getContract($uid);
-			// The current year always, with the default while HR set nothing; the next one once set
-			$days = [$year => $vacation[$uid][$year] ?? $default];
+			// The current year always, with what the balance shows while HR set nothing; the next one once set
+			$days = [$year => $vacation[$uid][$year] ?? $this->balances->defaultAnnualDays($uid, $year)];
 			if (isset($vacation[$uid][$year + 1])) {
 				$days[$year + 1] = $vacation[$uid][$year + 1];
 			}
@@ -367,7 +366,6 @@ class EmployeeJsonService {
 		$regions = $this->config->getRegionCodes();
 		$years = array_values(array_unique(array_merge([], ...array_map(static fn (array $want): array => array_keys($want['after']['vacation']), array_values($wanted)))));
 		$vacation = $years === [] ? [] : $this->vacationDays($years);
-		$default = $this->config->getDefaultEntitlement();
 
 		$changes = [];
 		$writes = [];
@@ -391,8 +389,8 @@ class EmployeeJsonService {
 			}
 			$days = [];
 			foreach ($after['vacation'] as $year => $wantedDays) {
-				// No row yet means the default, which is what the balance shows
-				$current = $vacation[$uid][$year] ?? $default;
+				// No row yet means what the balance shows
+				$current = $vacation[$uid][$year] ?? $this->balances->defaultAnnualDays($uid, $year);
 				if ($current !== $wantedDays) {
 					$days[$year] = $wantedDays;
 					$fields[] = ['field' => 'vacation', 'year' => $year, 'before' => $current, 'after' => $wantedDays];
