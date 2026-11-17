@@ -19,11 +19,19 @@
  * `.app-absence .page`, so which one won would come down to stylesheet order.
  */
 
+/*
+ * Every view starts at the same left edge, the title included. The app-navigation
+ * toggle floats over the top-left corner of the content, so the page keeps clear
+ * of it on that side. Pages of tables and timelines take the full width; pages of
+ * forms, lists and cards stop at a reading width.
+ */
 .app-absence {
+	--page-gutter: calc(var(--default-grid-baseline, 4px) * 5);
+	--page-toggle-clearance: calc(var(--default-clickable-area, 44px) + var(--app-navigation-padding, 4px) * 2);
+
 	.page {
-		max-width: 1100px;
-		margin: 0 auto;
-		padding: calc(var(--default-grid-baseline, 4px) * 5);
+		padding: var(--page-gutter);
+		padding-inline-start: var(--page-toggle-clearance);
 		display: flex;
 		flex-direction: column;
 		gap: calc(var(--default-grid-baseline, 4px) * 5);
@@ -31,7 +39,26 @@
 
 	/** Reading-width pages: forms, lists and cards rather than wide tables. */
 	.page--narrow {
-		max-width: 900px;
+		max-width: calc(860px + var(--page-toggle-clearance) + var(--page-gutter));
+	}
+
+	/**
+	 * A header action that repeats one of the navigation. It only shows while the
+	 * navigation is closed, so a page never offers the same action twice.
+	 */
+	.app-navigation:not(.app-navigation--closed) ~ .app-content .page__primary {
+		display: none;
+	}
+
+	/* On a phone the clearance would cost every row its width: only the title moves aside. */
+	@media (max-width: 512px) {
+		.page {
+			padding-inline-start: var(--page-gutter);
+		}
+
+		.page__header {
+			padding-inline-start: calc(var(--page-toggle-clearance) - var(--page-gutter));
+		}
 	}
 
 	/** More air between major sections (the personal dashboard views). */

@@ -23,7 +23,7 @@
 					<span aria-hidden="true">⚠️</span>
 					{{ othersOff.label }}
 				</span>
-				<StatusChip v-if="showStatus" :status="request.status" />
+				<StatusChip v-if="showStatus" :status="leaveTypesStore.displayStatus(request)" />
 			</template>
 		</NcListItem>
 	</div>
@@ -46,14 +46,14 @@ const props = withDefaults(defineProps<{
 	request: LeaveRequest
 	active?: boolean
 	showEmployee?: boolean
-	// The employee's remaining days for this leave type and year, when the caller
-	// has them to hand. Null for leave that counts against no allowance, and while
-	// the figures are still loading.
-	remaining?: number | null
+	// The days the employee can still book of this leave type and year (after
+	// pending requests), when the caller has them to hand. Null for leave that
+	// counts against no allowance, and while the figures are still loading.
+	available?: number | null
 }>(), {
 	active: false,
 	showEmployee: false,
-	remaining: null,
+	available: null,
 })
 
 const emit = defineEmits<{
@@ -65,9 +65,7 @@ const leaveTypesStore = useLeaveTypesStore()
 const type = computed(() => leaveTypesStore.leaveType(props.request.typeId))
 
 // On a decision queue every row waits, so the status only tells a withdrawal apart
-const showStatus = computed(() => props.request.decision
-	? props.request.status === 'WITHDRAWAL_PENDING'
-	: leaveTypesStore.statusVisible(props.request))
+const showStatus = computed(() => !props.request.decision || props.request.status === 'WITHDRAWAL_PENDING')
 
 const waiting = computed(() => {
 	const since = props.request.decision?.waitingSince
@@ -110,12 +108,12 @@ const subtitle = computed(() => {
 	if (after !== undefined && after !== null) {
 		return `${range} · ${days} · ${n('absence', '%n available after', '%n available after', Math.round(after * 10) / 10)}`
 	}
-	if (props.remaining === null) {
+	if (props.available === null) {
 		return `${range} · ${days}`
 	}
 	// Days taken alone does not answer the question the list is scanned for.
-	const left = n('absence', '%n day left', '%n days left', Math.round(props.remaining * 10) / 10)
-	return `${range} · ${days} · ${left}`
+	const available = n('absence', '%n available', '%n available', Math.round(props.available * 10) / 10)
+	return `${range} · ${days} · ${available}`
 })
 
 /**

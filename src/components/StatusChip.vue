@@ -10,13 +10,13 @@
 </template>
 
 <script setup lang="ts">
-import type { RequestStatus } from '../types/index.ts'
+import type { ChipStatus } from '../types/index.ts'
 
 import { computed } from 'vue'
 import { statusMeta } from '../utils/status.ts'
 
 const props = defineProps<{
-	status: RequestStatus
+	status: ChipStatus
 }>()
 
 const meta = computed(() => statusMeta(props.status))

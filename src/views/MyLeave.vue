@@ -8,7 +8,7 @@
 			<h2 class="page__title">
 				{{ t('absence', 'My leave') }}
 			</h2>
-			<NcButton variant="primary" @click="openNew">
+			<NcButton class="page__primary" variant="primary" @click="openNew">
 				<template #icon>
 					<Plus :size="20" />
 				</template>

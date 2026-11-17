@@ -609,9 +609,10 @@ employees — sick leave is the canonical example (`employee_requestable = false
   edits or cancels it from the standard detail sidebar. There is **no delete**: a wrong
   entry is cancelled (`CANCELLED`), so the row and its history stay intact for the audit
   trail (§17). HR's cancel skips the withdrawal step and applies immediately (§5.5).
-- **No "Approved" label shown.** Since approval isn't a concept for HR-recorded leave,
-  the UI hides the status chip and the approval **progress stepper** when such a request
-  is `APPROVED` (a cancelled one still shows its status). The leave-type chip (e.g.
+- **"Recorded", not "Approved".** Since approval isn't a concept for HR-recorded leave,
+  the status chip reads **Recorded** and the approval **progress stepper** is hidden when
+  such a request is `APPROVED` (a cancelled one still shows its status). Every row of a
+  list carries a chip, so these rows look like the others. The leave-type chip (e.g.
   "🤒 Sick leave") still identifies it.
 
 ---
@@ -1587,8 +1588,13 @@ NcContent(app-name="absence")
   count adds the escalated requests, which HR decides on that page. HR sees
   the *HR* section (grouped under an `NcAppNavigationCaption`). Every item uses an
   `@mdi` icon. The **`NcAppNavigationNew` "New request"** button sits at the top as the
-  single prominent primary action.
-- **Center `NcAppContent`** hosts the routed view.
+  single prominent primary action. A page header button that repeats a navigation action
+  (*New request* on My leave, *Record absence* on Absences) only shows while the
+  navigation is closed, so there is always exactly one.
+- **Center `NcAppContent`** hosts the routed view. Every view uses the one page wrapper
+  (`src/styles/page.scss`): title and content share the same left edge, clear of the
+  navigation toggle; tables and timelines take the full width, forms, lists and cards
+  stop at a reading width.
 - **Right `NcAppSidebar`** opens when a request is selected, with tabbed detail
   (Details / Coverage / Comments / History) — the standard Nextcloud master-detail
   pattern, used instead of a modal for *viewing* a request. Each comment shows when it
@@ -1676,7 +1682,8 @@ NcContent(app-name="absence")
 - **Absences** (`#/hr/absences`, HR only) — the counterpart to *Record absence*: the
   full list of recorded absences with filters for employee (user autocomplete), leave
   type, status and year, paged with a "Load more" button. Rows are the same
-  `RequestListItem` as elsewhere and open the detail sidebar, whose **Edit** and
+  `RequestListItem` as elsewhere (with the person's days of that type still to book,
+  "N available", for a single year) and open the detail sidebar, whose **Edit** and
   **Cancel** controls are what let HR correct a wrong vacation or sick day (§5.6).
   People are named, never printed as user ids: requests are serialized with an
   `employeeName` (display name, falling back to the uid for a deleted account),

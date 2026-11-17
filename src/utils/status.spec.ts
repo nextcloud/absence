@@ -9,7 +9,7 @@ vi.mock('@nextcloud/l10n', () => ({ t: (app: string, text: string) => text }))
 
 describe('statusMeta', () => {
 	it('labels every known status', () => {
-		for (const status of ['PENDING', 'ESCALATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'WITHDRAWAL_PENDING']) {
+		for (const status of ['PENDING', 'ESCALATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'WITHDRAWAL_PENDING', 'RECORDED']) {
 			const meta = statusMeta(status)
 			expect(meta.label).toBeTruthy()
 			expect(meta.label).not.toBe(status)

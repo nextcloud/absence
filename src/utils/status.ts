@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import type { RequestStatus } from '../types/index.ts'
+import type { ChipStatus } from '../types/index.ts'
 
 import { t } from '@nextcloud/l10n'
 
@@ -21,7 +21,7 @@ export interface StatusMeta {
  *
  * @param status the status, as the server names it
  */
-export function statusMeta(status: RequestStatus | string): StatusMeta {
+export function statusMeta(status: ChipStatus | string): StatusMeta {
 	switch (status) {
 		case 'PENDING':
 			return { label: t('absence', 'Pending'), text: 'var(--color-warning-text)', tint: 'var(--color-warning)', icon: '⏳' }
@@ -33,6 +33,8 @@ export function statusMeta(status: RequestStatus | string): StatusMeta {
 			return { label: t('absence', 'Declined'), text: 'var(--color-error-text)', tint: 'var(--color-error)', icon: '✋' }
 		case 'CANCELLED':
 			return { label: t('absence', 'Cancelled'), text: 'var(--color-text-maxcontrast)', tint: 'var(--color-text-maxcontrast)', icon: '🚫' }
+		case 'RECORDED':
+			return { label: t('absence', 'Recorded'), text: 'var(--color-text-maxcontrast)', tint: 'var(--color-text-maxcontrast)', icon: '🗂️' }
 		case 'WITHDRAWAL_PENDING':
 			return { label: t('absence', 'Withdrawal pending'), text: 'var(--color-warning-text)', tint: 'var(--color-warning)', icon: '↩️' }
 		default:
