@@ -35,8 +35,8 @@ PHP (via composer scripts):
 
 ## Repo conventions
 
-- **Compiled assets are committed.** `js/` contains the Vite output and is tracked in git. After frontend changes, run `npm run build` and commit the `js/` output as a separate `chore(assets): recompile` commit.
-- Conventional-commit style: `feat(scope): …`, `fix(scope): …`, `chore(assets): recompile`.
+- **Compiled assets are not committed.** `js/` is the Vite output and is gitignored; the release workflow builds it before packaging. Run `npm run build` (or `npm run watch`) to test locally.
+- Conventional-commit style: `feat(scope): …`, `fix(scope): …`.
 - REUSE/SPDX compliance is CI-enforced: every file needs `SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors` and `SPDX-License-Identifier: AGPL-3.0-or-later` headers (or a `.license` sidecar / `REUSE.toml` entry).
 - Tabs for indentation in both PHP and JS (Nextcloud style).
 - Migration class prefixes are a running counter (`Version1000Date…` to `Version1010Date…`), and the server sorts on it before the date part. The next migration must be `Version1011Date<YYYYMMDDHHMMSS>` or higher: a lower prefix would run before the existing ones on a fresh install.
