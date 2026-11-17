@@ -1333,6 +1333,7 @@ the SPA). All list endpoints paginate and accept filters.
   three days" says nothing about whether any are left, and finding out otherwise
   means abandoning the view for the Balances report).
 - `PUT  /api/requests/{id}` — edit (§5.3; behavior depends on current status).
+  A field left out stays as it is; an empty `replacementUid` removes the replacement.
 - `POST /api/requests/{id}/cancel` — cancel / request withdrawal.
 - `POST /api/requests/{id}/approve` — manager/HR approve (optional comment).
 - `POST /api/requests/{id}/reject` — manager/HR reject (comment required).
@@ -1544,6 +1545,10 @@ NcContent(app-name="absence")
   shows an inline `NcNoteCard type="warning"` (warn, don't block). A second inline
   note names the **colleagues already off** during the picked dates (§8) — debounced
   as the dates move, one entry per person, "and N more" past three.
+  **Editing** keeps the request's own leave type picked and offered, marked
+  "(disabled)" when it was disabled since, and saves the type only when it was changed.
+  The replacement is saved with every edit: an emptied picker, or a type that asks
+  for none, removes the stored one (`replacementUid: ''`).
 - **Record absence** (HR only) — the *same* dialog opened in **HR mode** from the HR
   nav: adds an **employee search** (`NcSelect` with user autocomplete) and offers *all*
   enabled types (including sick); the balance preview is hidden (it's another person's
