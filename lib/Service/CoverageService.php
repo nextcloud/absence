@@ -36,11 +36,15 @@ class CoverageService {
 	}
 
 	/**
-	 * Resolve the set of employees an actor may see for a given scope.
+	 * Resolve the set of employees an actor may see for a given scope. Nobody for
+	 * an account that is neither an employee nor HR (§2.2).
 	 *
 	 * @return string[]
 	 */
 	public function resolveScopeUids(string $actorUid, string $scope): array {
+		if (!$this->permission->isEmployeeOrHr($actorUid)) {
+			return [];
+		}
 		if ($scope === self::SCOPE_COMPANY && $this->permission->isHr($actorUid)) {
 			return $this->employees->listAll();
 		}

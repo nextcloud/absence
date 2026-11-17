@@ -57,26 +57,37 @@ class HolidayController extends Controller {
 				throw new ValidationException($this->l->t('The year must be between %1$d and %2$d.', [self::MIN_YEAR, self::MAX_YEAR]));
 			}
 			return array_map(
-				fn (Holiday $h): array => [
-					...$h->jsonSerialize(),
-					'createdByName' => $this->name($h->getCreatedBy()),
-					'updatedByName' => $this->name($h->getUpdatedBy()),
-				],
+				function (Holiday $h): array {
+					$holiday = $this->serialize($h);
+					return [
+						...$holiday,
+						'createdByName' => $this->name($holiday['createdBy']),
+						'updatedByName' => $this->name($holiday['updatedBy']),
+					];
+				},
 				$this->service->listForYear($year, $region === '' ? null : $region),
 			);
 		});
 	}
 
 	/**
-	 * The recent changes to the list, with who made them.
+	 * The recent changes to the list. Who made them is for the employees and HR.
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function history(): DataResponse {
-		return $this->handle(fn () => array_map(
-			fn (array $change): array => [...$change, 'actorName' => $this->name($change['actorUid'])],
-			$this->service->history(),
-		));
+		return $this->handle(function () {
+			$showActors = $this->permission->isEmployeeOrHr((string)$this->userId);
+			return array_map(
+				function (array $change) use ($showActors): array {
+					if (!$showActors) {
+						$change['actorUid'] = null;
+					}
+					return [...$change, 'actorName' => $this->name($change['actorUid'])];
+				},
+				$this->service->history(),
+			);
+		});
 	}
 
 	/**
@@ -89,7 +100,7 @@ class HolidayController extends Controller {
 		return $this->handle(function () use ($code, $from, $to) {
 			[$from, $to] = $this->assertValidRange($from, $to, self::MAX_RANGE_DAYS);
 			return array_map(
-				static fn (Holiday $h): array => $h->jsonSerialize(),
+				$this->serialize(...),
 				$this->service->forRegions($code === '' ? [] : [$code], $from, $to),
 			);
 		});
@@ -108,7 +119,7 @@ class HolidayController extends Controller {
 			$this->permission->assertCanEditHolidays((string)$this->userId);
 			$holiday = $this->service->create($date, $region, $label, $recurring, $this->userId);
 			$this->log('holiday_created', $holiday);
-			return $holiday->jsonSerialize();
+			return $this->serialize($holiday);
 		});
 	}
 
@@ -119,7 +130,7 @@ class HolidayController extends Controller {
 			$this->permission->assertCanEditHolidays((string)$this->userId);
 			$holiday = $this->service->update($id, $date, $region, $label, $recurring, $this->userId);
 			$this->log('holiday_updated', $holiday);
-			return $holiday->jsonSerialize();
+			return $this->serialize($holiday);
 		});
 	}
 
@@ -148,6 +159,21 @@ class HolidayController extends Controller {
 			}
 			return $result;
 		});
+	}
+
+	/**
+	 * A holiday as the API sends it. Who added and who changed it is for the
+	 * employees and HR.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function serialize(Holiday $holiday): array {
+		$data = $holiday->jsonSerialize();
+		if (!$this->permission->isEmployeeOrHr((string)$this->userId)) {
+			$data['createdBy'] = null;
+			$data['updatedBy'] = null;
+		}
+		return $data;
 	}
 
 	private function name(?string $uid): ?string {

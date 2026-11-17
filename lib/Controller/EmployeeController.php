@@ -136,7 +136,7 @@ class EmployeeController extends Controller {
 	public function search(string $search = '', int $limit = 20): DataResponse {
 		return $this->handle(function () use ($search, $limit): array {
 			$search = trim($search);
-			if ($search === '') {
+			if ($search === '' || !$this->permission->isEmployeeOrHr((string)$this->userId)) {
 				return [];
 			}
 			// Over-fetch a little: guests removed below would otherwise eat into the

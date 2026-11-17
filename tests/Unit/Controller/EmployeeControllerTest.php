@@ -33,6 +33,8 @@ class EmployeeControllerTest extends TestCase {
 		$this->collaboratorSearch = $this->createMock(ISearch::class);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->employees = $this->createMock(EmployeeDirectory::class);
+		$permission = $this->createMock(PermissionService::class);
+		$permission->method('isEmployeeOrHr')->willReturn(true);
 		$this->controller = new EmployeeController(
 			'absence',
 			$this->createMock(IRequest::class),
@@ -44,7 +46,7 @@ class EmployeeControllerTest extends TestCase {
 			$this->createMock(EmployeeListService::class),
 			$this->createMock(EmployeeJsonService::class),
 			$this->createMock(\OCA\Absence\Service\RegionReminderService::class),
-			$this->createMock(PermissionService::class),
+			$permission,
 			$this->createMock(LoggerInterface::class),
 			$this->createMock(\OCP\IL10N::class),
 		);
