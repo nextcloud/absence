@@ -282,6 +282,10 @@ Threaded comments on a request (employee ↔ manager ↔ HR discussion).
 | `author_uid` | string(64) |
 | `body` | text |
 | `created_at` | datetime |
+| `confidential` | boolean, nullable, default false |
+
+`confidential` is set when the comment is written on a request of a confidential
+type: it is then shown to HR alone, for good (§5.7).
 
 ### 3.7 `absence_request_events` (history timeline)
 
@@ -297,6 +301,7 @@ happened and when. One row is written for every meaningful transition.
 | `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`, `request_imported` (§6.5). |
 | `detail` | text, nullable | Human-readable extra. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`. Recording only the resulting state cannot answer what anybody opens the history to ask — what changed and by how much — and a day count means nothing without the number it replaced. On creation it carries the type, dates, day count and the employee's reason, since the request itself only ever shows its *current* state. |
 | `created_at` | datetime | |
+| `confidential` | boolean, nullable, default false | Set when the entry is written on a request of a confidential type, and on the edit that moves a request away from one. Such an entry is shown to HR alone, for good (§5.7). |
 
 Events are written by the same `audit()` path that emits the server-log entry (§11),
 so history, server log and activity stay in sync from a single call site. History
@@ -607,6 +612,19 @@ Rules, enforced server-side at every surface:
   only requests they can decide, and the history text (§3.7) records a
   confidential type as "Absent", so it stays neutral if the request or the
   type is reclassified later.
+- **What was written while a request was confidential stays with HR.** Every
+  history entry (§3.7) and comment (§3.6) carries a `confidential` flag, set
+  when it is written from the request's type at that moment. An edit that
+  changes the type is flagged when either the old or the new type is
+  confidential, as its text names the change and the old reason. Non-HR
+  viewers never get flagged rows, whatever the request's type is later, be it
+  after an HR edit of the request or after the type itself stopped being
+  `hr_only`. Entries and comments written after the change show as usual.
+  The upgrade flags the rows of every request that is confidential at that
+  time. The request's own fields are not covered: its current `reason`,
+  `attachment_note` and `decision_comment`, and for the employee its
+  attachments (§3.8), follow the current type. HR can clear the reason in
+  the edit that changes the type.
 - **Presentation:** in the Record absence dialog the confidential categories do
   not appear as top-level leave types. HR picks **Sick leave** and a *Category*
   sub-select appears — *General sick leave* (default), *Child sick leave*,

@@ -278,16 +278,22 @@ class RequestService {
 			return $this->withDisplayNames($detail, $request);
 		}
 		$detail = $request->jsonSerialize();
+		// What was written while the absence was confidential stays with HR,
+		// whatever its type is now (§5.7).
 		$detail['comments'] = array_map(
 			static fn (RequestComment $c) => $c->jsonSerialize(),
-			$this->commentMapper->findForRequest($id),
+			array_values(array_filter(
+				$this->commentMapper->findForRequest($id),
+				static fn (RequestComment $c): bool => $viewerIsHr || !$c->getConfidential(),
+			)),
 		);
 		$detail['history'] = array_map(
 			static fn (RequestEvent $e) => $e->jsonSerialize(),
 			array_values(array_filter(
 				$this->eventMapper->findForRequest($id),
 				// The disability flag and its changes are for HR alone (§5.8)
-				static fn (RequestEvent $e): bool => $viewerIsHr || $e->getEventType() !== self::EVENT_DISABILITY,
+				static fn (RequestEvent $e): bool => $viewerIsHr
+					|| ($e->getEventType() !== self::EVENT_DISABILITY && !$e->getConfidential()),
 			)),
 		);
 		$detail['canDecide'] = $this->permission->canDecide($actorUid, $request);
@@ -1199,7 +1205,7 @@ class RequestService {
 				$request->setStatus(LeaveRequest::STATUS_APPROVED);
 				$request->setUpdatedAt($this->clock->now());
 				$request = $this->requestMapper->update($request);
-				$this->recordSystemComment($actorUid, $request->getId(), 'Withdrawal declined: ' . $comment);
+				$this->recordSystemComment($actorUid, $request, 'Withdrawal declined: ' . $comment);
 				return $request;
 			}, $this->db));
 			$this->notifications->dismiss($request);
@@ -1256,7 +1262,8 @@ class RequestService {
 		$request = $this->get($actorUid, $id);
 		// The thread of a confidential absence (§5.7) is read by HR alone, so only
 		// HR writes to it.
-		if ($this->permission->isHrOnlyRequest($request) && !$this->permission->isHr($actorUid)) {
+		$confidential = $this->permission->isHrOnlyRequest($request);
+		if ($confidential && !$this->permission->isHr($actorUid)) {
 			throw new ForbiddenException($this->l->t('Only HR can comment on this absence.'));
 		}
 		if (trim($body) === '') {
@@ -1269,6 +1276,7 @@ class RequestService {
 		$comment->setRequestId($request->getId());
 		$comment->setAuthorUid($actorUid);
 		$comment->setBody($body);
+		$comment->setConfidential($confidential);
 		$comment->setCreatedAt($this->clock->now());
 		$comment = $this->commentMapper->insert($comment);
 		$this->audit('comment_added', $request, ['actor' => $actorUid, 'detail' => $body]);
@@ -1310,6 +1318,7 @@ class RequestService {
 			$event->setActorUid($actorUid);
 			$event->setEventType(self::EVENT_DISABILITY);
 			$event->setDetail($request->getDisability() ? 'Set' : 'Cleared');
+			$event->setConfidential($this->permission->isHrOnlyRequest($request));
 			$event->setCreatedAt($this->clock->now());
 			$this->eventMapper->insert($event);
 		} catch (\Throwable $e) {
@@ -1360,6 +1369,10 @@ class RequestService {
 			$event->setActorUid($actor);
 			$event->setEventType($action);
 			$event->setDetail($detail);
+			// An edit that leaves a confidential type (§5.7) still describes it
+			$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
+			$event->setConfidential(in_array($request->getTypeId(), $hrOnlyIds, true)
+				|| in_array($before['typeId'] ?? null, $hrOnlyIds, true));
 			$event->setCreatedAt($this->clock->now());
 			$this->eventMapper->insert($event);
 		} catch (\Throwable $e) {
@@ -1386,11 +1399,12 @@ class RequestService {
 		}
 	}
 
-	private function recordSystemComment(string $authorUid, int $requestId, string $body): void {
+	private function recordSystemComment(string $authorUid, LeaveRequest $request, string $body): void {
 		$comment = new RequestComment();
-		$comment->setRequestId($requestId);
+		$comment->setRequestId($request->getId());
 		$comment->setAuthorUid($authorUid);
 		$comment->setBody($body);
+		$comment->setConfidential($this->permission->isHrOnlyRequest($request));
 		$comment->setCreatedAt($this->clock->now());
 		$this->commentMapper->insert($comment);
 	}

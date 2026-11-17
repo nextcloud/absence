@@ -21,6 +21,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setEventType(string $eventType)
  * @method string|null getDetail()
  * @method void setDetail(?string $detail)
+ * @method bool getConfidential()
+ * @method void setConfidential(bool $confidential)
  * @method \DateTime getCreatedAt()
  * @method void setCreatedAt(\DateTime $createdAt)
  */
@@ -29,10 +31,13 @@ class RequestEvent extends Entity implements \JsonSerializable {
 	protected ?string $actorUid = null;
 	protected string $eventType = '';
 	protected ?string $detail = null;
+	/** Written while the request was confidential (§5.7): shown to HR alone, whatever the request's type is later. */
+	protected bool $confidential = false;
 	protected ?\DateTime $createdAt = null;
 
 	public function __construct() {
 		$this->addType('requestId', 'integer');
+		$this->addType('confidential', 'boolean');
 		$this->addType('createdAt', 'datetime');
 	}
 

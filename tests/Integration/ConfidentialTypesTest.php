@@ -22,6 +22,7 @@ use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\LeaveImportService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\RequestService;
@@ -184,6 +185,107 @@ class ConfidentialTypesTest extends TestCase {
 			'Type Absent → ' . self::PLAIN_LABEL,
 			'Type ' . self::PLAIN_LABEL . ' → Absent',
 		], $details);
+	}
+
+	public function testWhatWasWrittenOnAConfidentialAbsenceStaysWithHrAfterATypeChange(): void {
+		$service = Server::get(RequestService::class);
+		$request = $this->recordConfidential('itest secret reason');
+		$service->addComment(self::HR, $request->getId(), 'itest secret comment');
+		$service->update(self::HR, $request->getId(), ['typeId' => $this->plainType->getId(), 'reason' => '']);
+
+		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {
+			$detail = $service->getDetail($uid, $request->getId());
+			self::assertSame($this->plainType->getId(), $detail['typeId'], $uid);
+			self::assertSame([], $detail['history'], $uid);
+			self::assertSame([], $detail['comments'], $uid);
+			self::assertStringNotContainsString('itest secret', json_encode($detail, JSON_THROW_ON_ERROR), $uid);
+		}
+		$detail = $service->getDetail(self::HR, $request->getId());
+		self::assertSame([
+			'Absent, 2027-05-03 – 2027-05-04 (2 days) · Reason: “itest secret reason” · Recorded by HR',
+			'itest secret comment',
+			'Type Absent → ' . self::PLAIN_LABEL . '; Reason cleared',
+		], array_column($detail['history'], 'detail'));
+		self::assertSame(['itest secret comment'], array_column($detail['comments'], 'body'));
+	}
+
+	public function testWhatIsWrittenAfterLeavingAConfidentialTypeIsShownAsUsual(): void {
+		$service = Server::get(RequestService::class);
+		$request = $this->recordConfidential('itest secret reason');
+		$service->update(self::HR, $request->getId(), ['typeId' => $this->plainType->getId(), 'reason' => 'itest open reason']);
+		$service->addComment(self::MANAGER, $request->getId(), 'itest open comment');
+		$service->update(self::HR, $request->getId(), ['endDate' => '2027-05-05', 'workingDays' => 3]);
+
+		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {
+			$detail = $service->getDetail($uid, $request->getId());
+			self::assertSame([
+				'itest open comment',
+				'Dates 2027-05-03 – 2027-05-04 → 2027-05-03 – 2027-05-05; Working days 2 days → 3 days (+1 day)',
+			], array_column($detail['history'], 'detail'), $uid);
+			self::assertSame(['itest open comment'], array_column($detail['comments'], 'body'), $uid);
+		}
+		self::assertCount(4, $service->getDetail(self::HR, $request->getId())['history']);
+	}
+
+	public function testWhatWasWrittenOnAConfidentialAbsenceStaysWithHrWhenTheTypeStopsBeingConfidential(): void {
+		$service = Server::get(RequestService::class);
+		$request = $this->recordConfidential('itest secret reason');
+		$service->addComment(self::HR, $request->getId(), 'itest secret comment');
+		$this->confidentialType->setHrOnly(false);
+		Server::get(LeaveTypeMapper::class)->update($this->confidentialType);
+
+		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {
+			$detail = $service->getDetail($uid, $request->getId());
+			self::assertSame([], $detail['history'], $uid);
+			self::assertSame([], $detail['comments'], $uid);
+		}
+		self::assertCount(2, $service->getDetail(self::HR, $request->getId())['history']);
+	}
+
+	public function testTheHistoryOfAnImportedConfidentialAbsenceStaysWithHrAfterATypeChange(): void {
+		$service = Server::get(RequestService::class);
+		Server::get(LeaveImportService::class)->import(json_encode([[
+			'user' => self::EMPLOYEE,
+			'type' => $this->confidentialType->getKey(),
+			'from' => '2027-05-03',
+			'to' => '2027-05-04',
+			'workingDays' => 2,
+			'note' => 'itest secret note',
+		]], JSON_THROW_ON_ERROR), self::HR);
+		[$id] = $this->listedIds(self::HR, ['scope' => 'hr', 'employeeUid' => self::EMPLOYEE]);
+		$service->update(self::HR, $id, ['typeId' => $this->plainType->getId(), 'reason' => '']);
+
+		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {
+			self::assertSame([], $service->getDetail($uid, $id)['history'], $uid);
+		}
+		self::assertCount(2, $service->getDetail(self::HR, $id)['history']);
+	}
+
+	public function testADeclinedWithdrawalOfAConfidentialAbsenceStaysWithHrAfterATypeChange(): void {
+		$service = Server::get(RequestService::class);
+		// A withdrawal waiting on a confidential type, as when a type with open
+		// requests becomes confidential
+		$request = $this->request($this->confidentialType, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2027-05-03');
+		$service->reject(self::HR, $request->getId(), 'itest secret refusal');
+		$service->update(self::HR, $request->getId(), ['typeId' => $this->plainType->getId()]);
+
+		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {
+			$detail = $service->getDetail($uid, $request->getId());
+			self::assertSame([], $detail['history'], $uid);
+			self::assertSame([], $detail['comments'], $uid);
+		}
+		self::assertSame(['Withdrawal declined: itest secret refusal'], array_column($service->getDetail(self::HR, $request->getId())['comments'], 'body'));
+	}
+
+	private function recordConfidential(string $reason): LeaveRequest {
+		return Server::get(RequestService::class)->create(self::HR, [
+			'typeId' => $this->confidentialType->getId(),
+			'employeeUid' => self::EMPLOYEE,
+			'startDate' => '2027-05-03',
+			'endDate' => '2027-05-04',
+			'workingDays' => 2,
+			'reason' => $reason,
+		]);
 	}
 
 	private function type(string $suffix, string $label, bool $hrOnly): LeaveType {
