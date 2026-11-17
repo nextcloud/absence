@@ -14,6 +14,7 @@ use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\EmployeeController;
 use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Db\EntitlementEventMapper;
+use OCA\Absence\Db\EntitlementMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
@@ -155,6 +156,22 @@ class EmployeeJsonTest extends TestCase {
 		self::assertSame(24.0, $this->annual($year)['baseDays']);
 		self::assertSame(22.0, $this->annual($year + 1)['baseDays']);
 		self::assertSame([$year => 24.0, $year + 1 => 22.0], $this->entry($this->service->export(), self::ROBIN)['vacation']);
+	}
+
+	public function testHrDoesNotSetTheirOwnVacationDays(): void {
+		$year = $this->year();
+		$entry = ['user' => self::HR, 'region' => null, 'start' => null, 'end' => null, 'contract' => []];
+		$own = $this->json([[...$entry, 'vacation' => [(string)$year => 40]]]);
+		$message = self::HR . ': somebody else from HR has to change your own vacation days';
+
+		$plan = $this->controller(self::HR)->importJson($own, true)->getData();
+		self::assertSame([$message], array_column($plan['errors'], 'message'));
+		self::assertSame(422, $this->controller(self::HR)->importJson($own, false)->getStatus());
+		self::assertSame([], Server::get(EntitlementMapper::class)->findForEmployee(self::HR, $year));
+
+		// The same list without a change to them goes through
+		$unchanged = $this->json([[...$entry, 'vacation' => [(string)$year => Server::get(ConfigService::class)->getDefaultEntitlement()]]]);
+		self::assertSame([], $this->controller(self::HR)->importJson($unchanged, true)->getData()['errors']);
 	}
 
 	public function testWrongVacationDaysAreReported(): void {

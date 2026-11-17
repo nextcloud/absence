@@ -19,6 +19,7 @@ import type {
 	EmployeesPreview,
 	EmptyResponse,
 	Entitlement,
+	EntitlementBulkResult,
 	EntitlementCreateData,
 	EntitlementEvent,
 	EntitlementUpdateData,
@@ -148,7 +149,7 @@ export default {
 	updateEntitlement: (id: number, data: EntitlementUpdateData) => put<Entitlement>(`/api/entitlements/${id}`, data),
 	// A changed default can be handed on to the people who had the old one this year.
 	entitlementsOnDefault: (days: number) => get<{ year: number, count: number }>('/api/entitlements/on-default', { days }),
-	applyDefaultEntitlement: (from: number, to: number) => post<{ affected: number }>('/api/entitlements/apply-default', { from, to }),
+	applyDefaultEntitlement: (from: number, to: number) => post<EntitlementBulkResult>('/api/entitlements/apply-default', { from, to }),
 	// What the contract would give for the year, for HR to take over or not.
 	proRataEntitlement: (employeeUid: string, year: number) => get<ProRataSuggestion>('/api/entitlements/pro-rata', { employeeUid, year }),
 	// Who changed an entitlement, which figure, from what to what, and why.

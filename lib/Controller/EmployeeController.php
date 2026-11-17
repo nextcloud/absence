@@ -82,7 +82,7 @@ class EmployeeController extends Controller {
 		return $this->handle(function () use ($json, $dryRun): array {
 			$this->permission->assertHr((string)$this->userId);
 			if ($dryRun) {
-				return $this->json->plan($json);
+				return $this->json->plan($json, $this->userId);
 			}
 			$plan = $this->json->import($json, $this->userId);
 			$this->logger->info('Absence action: employees_imported', [

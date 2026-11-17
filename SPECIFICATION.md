@@ -568,6 +568,12 @@ The app knows when the decider is away — it manages their leave too:
   (`PermissionService::canDecide`), change an absence they recorded for
   themselves into a type that employees request (§5.6), or import their own
   leave (§6.5).
+- **Not their own entitlement.** Nobody changes their own base days, carry-over
+  or adjustments through the API (403, "Somebody else from HR has to change your
+  own entitlement."), nor their own vacation days in the employees JSON (§6.5).
+  A bulk change and handing on a changed default (§6.1) leave the actor's own
+  entitlement out and answer `ownSkipped: true`. occ has no actor and changes
+  every entitlement.
 
 ### 5.6 HR-recorded leave (e.g. sick leave)
 

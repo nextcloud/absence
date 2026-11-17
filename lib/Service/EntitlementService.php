@@ -14,6 +14,7 @@ use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -72,6 +73,13 @@ class EntitlementService {
 			throw new ValidationException($this->l->t('Send either an adjustment to apply or an absolute adjustment, not both.'));
 		}
 		$this->validator->assertFigures($data);
+		if ($actorUid !== null) {
+			try {
+				$this->assertNotOwn($actorUid, $this->entitlementMapper->find($id)->getEmployeeUid());
+			} catch (DoesNotExistException) {
+				throw new NotFoundException($this->l->t('Entitlement not found'));
+			}
+		}
 		$note = trim((string)($data['adjustmentNote'] ?? ''));
 		$delta = (float)($data['adjustmentDelta'] ?? 0.0);
 		if (abs($delta) <= 0.001) {
@@ -161,6 +169,7 @@ class EntitlementService {
 		if ($employeeUid === null || !$this->employees->isEmployee($employeeUid)) {
 			throw new ValidationException($this->l->t('Unknown employee.'));
 		}
+		$this->assertNotOwn($actorUid, $employeeUid);
 		$this->assertCountingType($typeId);
 		$this->validator->assertYear($year);
 		$this->validator->assertFigures($data);
@@ -173,16 +182,24 @@ class EntitlementService {
 	 * for a given counting leave type (§6.1). All or nothing, and recorded in each
 	 * employee's entitlement history like a single edit.
 	 *
-	 * @return int number of employees affected
+	 * The actor's own entitlement is left out: somebody else changes it.
+	 *
+	 * @return array{affected: int, ownSkipped: bool} the employees changed, and
+	 *                                                whether the actor's own entitlement was left out
 	 */
-	public function bulkSet(string $actorUid, int $year, int $typeId, float $baseDays, ?string $group): int {
+	public function bulkSet(string $actorUid, int $year, int $typeId, float $baseDays, ?string $group): array {
 		$this->validator->assertYear($year);
 		$this->validator->assertFigures(['baseDays' => $baseDays]);
 		$this->assertCountingType($typeId);
 		$count = 0;
+		$ownSkipped = false;
 		$this->db->beginTransaction();
 		try {
 			foreach ($this->targetUids($group) as $uid) {
+				if ($uid === $actorUid) {
+					$ownSkipped = true;
+					continue;
+				}
 				$ent = $this->balanceService->ensureEntitlement($uid, $year, $typeId);
 				$before = [
 					EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
@@ -213,7 +230,7 @@ class EntitlementService {
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
 			'Absence entitlements of leave type %s for %s set for %s people', [(string)$typeId, (string)$year, (string)$count],
 		));
-		return $count;
+		return ['affected' => $count, 'ownSkipped' => $ownSkipped];
 	}
 
 	/**
@@ -248,13 +265,17 @@ class EntitlementService {
 	 * base this year (§6.1). Somebody with a base of their own keeps it. All or
 	 * nothing, and recorded in each entitlement history.
 	 *
-	 * @return int the entitlements changed
+	 * The actor's own entitlement is left out: somebody else changes it.
+	 *
+	 * @return array{affected: int, ownSkipped: bool} the entitlements changed, and
+	 *                                                whether the actor's own was left out
 	 * @throws ValidationException
 	 */
-	public function applyDefault(string $actorUid, float $from, float $to): int {
+	public function applyDefault(string $actorUid, float $from, float $to): array {
 		$this->validator->assertFigures(['baseDays' => $to]);
 		$note = $this->l->t('Default entitlement changed from %1$s to %2$s days', [$this->days($from), $this->days($to)]);
-		$rows = $this->onDefault($from);
+		$onDefault = $this->onDefault($from);
+		$rows = array_values(array_filter($onDefault, static fn (Entitlement $ent): bool => $ent->getEmployeeUid() !== $actorUid));
 		$this->db->beginTransaction();
 		try {
 			foreach ($rows as $ent) {
@@ -283,7 +304,7 @@ class EntitlementService {
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
 			'Absence default entitlement change from %s to %s applied to %s people', [$this->days($from), $this->days($to), (string)count($rows)],
 		));
-		return count($rows);
+		return ['affected' => count($rows), 'ownSkipped' => count($rows) < count($onDefault)];
 	}
 
 	/**
@@ -578,6 +599,18 @@ class EntitlementService {
 	/** A day count without a trailing `.0`. */
 	private function days(float $value): string {
 		return rtrim(rtrim(number_format($value, 1, '.', ''), '0'), '.');
+	}
+
+	/**
+	 * Nobody changes their own entitlement (§5.5): somebody else from HR does.
+	 * occ has no actor and may.
+	 *
+	 * @throws ForbiddenException
+	 */
+	private function assertNotOwn(?string $actorUid, string $employeeUid): void {
+		if ($actorUid !== null && $actorUid === $employeeUid) {
+			throw new ForbiddenException($this->l->t('Somebody else from HR has to change your own entitlement.'));
+		}
 	}
 
 	/**
