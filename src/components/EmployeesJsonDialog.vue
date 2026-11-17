@@ -302,7 +302,7 @@ async function apply() {
 		border-radius: var(--border-radius-large);
 		background: var(--color-background-hover);
 		font-family: var(--font-face-monospace, monospace);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		overflow: hidden;
 	}
 
@@ -323,7 +323,7 @@ async function apply() {
 
 		&--error {
 			color: var(--color-error-text);
-			font-weight: bold;
+			font-weight: 600;
 		}
 	}
 
@@ -372,11 +372,9 @@ async function apply() {
 		}
 
 		th {
-			font-size: 0.76rem;
+			font-size: var(--font-size-small);
 			font-weight: 600;
 			color: var(--color-text-maxcontrast);
-			text-transform: uppercase;
-			letter-spacing: 0.05em;
 		}
 	}
 

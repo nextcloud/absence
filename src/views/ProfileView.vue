@@ -351,7 +351,7 @@ function onContractSaved(): void {
 
 		h3 {
 			margin: 0 0 10px;
-			font-size: 1.1rem;
+			font-size: var(--default-font-size);
 			font-weight: 600;
 		}
 
@@ -366,7 +366,7 @@ function onContractSaved(): void {
 	}
 
 	&__figure {
-		font-size: 1.1rem;
+		font-size: var(--default-font-size);
 		margin: 12px 0 4px;
 	}
 

@@ -442,7 +442,7 @@ async function onSaved(): Promise<void> {
 	&__muted,
 	&__note {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__note {

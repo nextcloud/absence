@@ -101,11 +101,11 @@ function signed(v: number): string {
 	}
 
 	:deep(.ring__value) {
-		font-size: 30px;
+		font-size: var(--absence-font-size-figure);
 	}
 
 	:deep(.ring__unit) {
-		font-size: 12px;
+		font-size: var(--font-size-small);
 	}
 }
 
@@ -113,7 +113,7 @@ function signed(v: number): string {
 .card__notice {
 	flex-basis: 100%;
 	margin: 0;
-	font-size: 0.85rem;
+	font-size: var(--font-size-small);
 	text-align: end;
 	color: var(--color-warning-text, var(--color-warning));
 }
@@ -126,7 +126,7 @@ function signed(v: number): string {
 	// Push the ledger to the right edge of the card.
 	margin-inline-start: auto;
 	padding: 0;
-	font-size: 0.85rem;
+	font-size: var(--font-size-small);
 
 	&__row {
 		display: flex;
@@ -144,7 +144,7 @@ function signed(v: number): string {
 		}
 
 		dt {
-			font-weight: normal;
+			font-weight: 400;
 			text-align: start;
 		}
 
@@ -165,7 +165,7 @@ function signed(v: number): string {
 		&--available {
 			border-top: 1px solid var(--color-border);
 			color: var(--color-main-text);
-			font-weight: 700;
+			font-weight: 600;
 
 			dd {
 				color: var(--type-color, var(--color-main-text));

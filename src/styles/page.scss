@@ -20,6 +20,22 @@
  */
 
 /*
+ * The app's whole type scale. Nothing else sets a font size: page titles, one
+ * size for big figures, and Nextcloud's body and small sizes for everything
+ * else. Headings below the page title differ by weight, not size. On :root so
+ * dialogs, which render outside the app container, get them too.
+ */
+:root {
+	--absence-font-size-title: calc(var(--default-font-size) * 4 / 3);
+	--absence-font-size-figure: calc(var(--default-font-size) * 1.6);
+}
+
+.app-absence :is(h2, h3, h4, h5, h6) {
+	font-size: var(--default-font-size);
+	font-weight: 600;
+}
+
+/*
  * Every view starts at the same left edge, the title included. The app-navigation
  * toggle floats over the top-left corner of the content, so the page keeps clear
  * of it on that side. Pages of tables and timelines take the full width; pages of
@@ -92,7 +108,7 @@
 
 	.page__title {
 		margin: 0;
-		font-size: 1.6rem;
+		font-size: var(--absence-font-size-title);
 	}
 
 	.page__tools {
@@ -137,7 +153,7 @@
 	.page__hint {
 		margin: -12px 0 0;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.9rem;
+		font-size: var(--font-size-small);
 	}
 
 	/*
@@ -167,11 +183,9 @@
 		th:last-child, td:last-child { padding-inline-end: 18px; }
 
 		th {
-			font-size: 0.76rem;
+			font-size: var(--font-size-small);
 			font-weight: 600;
 			color: var(--color-text-maxcontrast);
-			text-transform: uppercase;
-			letter-spacing: 0.05em;
 			white-space: nowrap;
 			background: var(--color-background-hover);
 			border-bottom-color: var(--color-border-dark, var(--color-border));

@@ -261,7 +261,7 @@ function storeCode() {
 
 	&__hint {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.9rem;
+		font-size: var(--font-size-small);
 		margin: 8px 0;
 	}
 }
@@ -298,14 +298,14 @@ function storeCode() {
 		align-items: center;
 		gap: 8px;
 		margin: 0 0 4px;
-		font-size: 1rem;
+		font-size: var(--default-font-size);
 		font-weight: 600;
 	}
 
 	&__count {
 		padding: 0 8px;
 		border-radius: var(--border-radius-pill);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__column--lost &__count {
@@ -321,7 +321,7 @@ function storeCode() {
 	&__year {
 		margin: 8px 0 2px;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.8rem;
+		font-size: var(--font-size-small);
 		font-weight: 600;
 	}
 
@@ -352,7 +352,7 @@ function storeCode() {
 	&__tag {
 		margin-inline-start: 4px;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.8rem;
+		font-size: var(--font-size-small);
 	}
 }
 </style>

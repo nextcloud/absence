@@ -281,13 +281,13 @@ async function save() {
 	}
 
 	&__prorata-why {
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 
 	&__hint {
 		margin: -4px 0 0;
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 }
@@ -299,7 +299,7 @@ async function save() {
 
 	&__title {
 		margin: 0 0 8px;
-		font-size: 0.9rem;
+		font-size: var(--default-font-size);
 		color: var(--color-text-maxcontrast);
 	}
 
@@ -325,7 +325,7 @@ async function save() {
 		flex: 0 0 auto;
 		min-width: 3.2em;
 		text-align: end;
-		font-weight: bold;
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 
 		&--up { color: var(--color-success-text); }
@@ -344,7 +344,7 @@ async function save() {
 
 	&__meta,
 	&__empty {
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 

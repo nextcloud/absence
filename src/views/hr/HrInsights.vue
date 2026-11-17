@@ -379,7 +379,7 @@ function rateColor(rate: number): string {
 
 	&__label {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__select {
@@ -407,13 +407,13 @@ function rateColor(rate: number): string {
 		align-items: center;
 		gap: 8px;
 		margin: 0 0 4px;
-		font-size: 1.05rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__lead {
 		margin: 0 0 16px;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.88rem;
+		font-size: var(--font-size-small);
 		max-width: 60ch;
 	}
 }
@@ -429,9 +429,7 @@ function rateColor(rate: number): string {
 	}
 
 	th {
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 		font-weight: 600;
 	}
@@ -456,7 +454,7 @@ function rateColor(rate: number): string {
 	display: inline-block;
 	padding: 1px 8px;
 	border-radius: var(--border-radius-pill, 999px);
-	font-size: 0.8rem;
+	font-size: var(--font-size-small);
 
 	&--warn {
 		background: color-mix(in srgb, var(--color-warning) 22%, transparent);
@@ -473,7 +471,7 @@ function rateColor(rate: number): string {
 
 	&__title {
 		margin: 0 0 8px;
-		font-size: 0.95rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__list {
@@ -491,7 +489,7 @@ function rateColor(rate: number): string {
 			padding: 8px 12px;
 			border-radius: var(--border-radius, 8px);
 			background: var(--color-background-hover);
-			font-size: 0.9rem;
+			font-size: var(--font-size-small);
 		}
 	}
 }
@@ -509,8 +507,8 @@ function rateColor(rate: number): string {
 	}
 
 	&__value {
-		font-size: 2rem;
-		font-weight: 700;
+		font-size: var(--absence-font-size-figure);
+		font-weight: 600;
 		line-height: 1.1;
 
 		&--warn {

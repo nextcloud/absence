@@ -30,7 +30,7 @@ const type = computed(() => leaveTypesStore.leaveType(props.typeId))
 	gap: 6px;
 	padding: 2px 10px;
 	border-radius: var(--border-radius-pill, 16px);
-	font-size: 0.8rem;
+	font-size: var(--font-size-small);
 	font-weight: 600;
 	// The type colour is arbitrary (set by HR), so pull the text toward the
 	// foreground colour for guaranteed contrast in both light and dark themes,

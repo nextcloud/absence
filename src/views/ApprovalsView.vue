@@ -145,7 +145,7 @@ async function reload(): Promise<void> {
 
 .group__title {
 	margin: 0 0 12px;
-	font-size: 1.1rem;
+	font-size: var(--default-font-size);
 }
 
 .list {

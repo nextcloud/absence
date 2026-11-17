@@ -148,14 +148,14 @@ function format(v: number): string {
 	}
 
 	&__value {
-		font-size: 26px;
-		font-weight: 700;
+		font-size: var(--absence-font-size-figure);
+		font-weight: 600;
 		text-anchor: middle;
 		fill: var(--color-main-text);
 	}
 
 	&__unit {
-		font-size: 11px;
+		font-size: var(--font-size-small);
 		text-anchor: middle;
 		fill: var(--color-text-maxcontrast);
 	}
@@ -168,7 +168,7 @@ function format(v: number): string {
 	}
 
 	&__meta {
-		font-size: 0.82rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 

@@ -134,7 +134,7 @@ function format(v: number): string {
 
 	&__title {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__grid {
@@ -151,7 +151,7 @@ function format(v: number): string {
 
 	// One size for numbers and the month name, so values and labels line up.
 	&__value {
-		font-size: calc(var(--default-font-size) * 1.6);
+		font-size: var(--absence-font-size-figure);
 		font-weight: 600;
 		line-height: 1.2;
 		color: var(--color-main-text);
@@ -163,7 +163,7 @@ function format(v: number): string {
 	}
 
 	&__label {
-		font-size: 0.82rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 }

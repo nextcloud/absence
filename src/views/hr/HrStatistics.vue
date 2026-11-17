@@ -368,7 +368,7 @@ async function reload(): Promise<void> {
 	&__caption {
 		margin: 2px 0 12px;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__list {

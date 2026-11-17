@@ -319,7 +319,7 @@ $day-min-w: 24px;
 	}
 
 	&__month {
-		font-size: 1.1rem;
+		font-size: var(--default-font-size);
 		min-width: 150px;
 		text-align: center;
 	}
@@ -376,10 +376,8 @@ $day-min-w: 24px;
 		border-inline-end: 1px solid var(--color-border);
 
 		&--head {
-			font-size: 0.8rem;
+			font-size: var(--font-size-small);
 			color: var(--color-text-maxcontrast);
-			text-transform: uppercase;
-			letter-spacing: 0.04em;
 		}
 	}
 
@@ -414,7 +412,7 @@ $day-min-w: 24px;
 		top: 50%;
 		transform: translateY(-50%);
 		text-align: center;
-		font-size: 0.72rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 
 		&--today {
@@ -457,7 +455,7 @@ $day-min-w: 24px;
 		border-radius: var(--border-radius-pill, 14px);
 		background: var(--pill);
 		color: var(--pill-text, #fff);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 		overflow: hidden;
 		z-index: 1;
@@ -509,7 +507,7 @@ $day-min-w: 24px;
 	display: flex;
 	flex-wrap: wrap;
 	gap: 14px;
-	font-size: 0.8rem;
+	font-size: var(--font-size-small);
 	color: var(--color-text-maxcontrast);
 
 	&__item {

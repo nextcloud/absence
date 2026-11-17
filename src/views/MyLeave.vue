@@ -368,14 +368,12 @@ function celebrateNewApprovals(): void {
 	}
 
 	&__eyebrow {
-		font-size: 0.78rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 
 	&__headline {
-		font-size: 1.25rem;
+		font-size: var(--default-font-size);
 
 		// Proportional digits make a ticking clock jitter as the glyph widths change.
 		&--ticking {
@@ -385,7 +383,7 @@ function celebrateNewApprovals(): void {
 	}
 
 	&__sub {
-		font-size: 0.9rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 }
@@ -423,7 +421,7 @@ function celebrateNewApprovals(): void {
 .requests {
 	&__title {
 		margin: 0 0 12px;
-		font-size: 1.1rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__list {
