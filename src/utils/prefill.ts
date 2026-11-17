@@ -60,3 +60,31 @@ export function prefilledWorkingDays(form: PrefillForm): string | null {
 	}
 	return String(countWorkingDays(startIso, endIso, weekdays, isHoliday))
 }
+
+/**
+ * The count the dates add up to, when it differs from the number typed by
+ * hand, so the form can ask to check it. Null while the prefilled count is
+ * shown, when the numbers agree, or when there is nothing to count from.
+ *
+ * @param form the state of the form
+ * @param entered the number in the field
+ */
+export function estimateMismatch(form: PrefillForm, entered: number): number | null {
+	const { touched, startIso, endIso, weekdays, isHoliday } = form
+	if (!touched || !startIso || !endIso || !weekdays) {
+		return null
+	}
+	const estimate = countWorkingDays(startIso, endIso, weekdays, isHoliday)
+	return estimate === entered ? null : estimate
+}
+
+/**
+ * The leave type a new request starts on: sick leave when HR records an
+ * absence, as that is what they record most, else the first type offered.
+ *
+ * @param types the types the form offers
+ * @param hrMode whether HR records the absence for an employee
+ */
+export function defaultLeaveType<T extends { key: string }>(types: T[], hrMode: boolean): T | null {
+	return (hrMode && types.find((type) => type.key === 'sick')) || types[0] || null
+}

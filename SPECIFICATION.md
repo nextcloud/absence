@@ -1623,27 +1623,33 @@ NcContent(app-name="absence")
   `<TransitionGroup>`. While loading, a **skeleton** placeholder shows instead of a
   spinner. The empty state uses an **animated palm illustration** + warm copy + CTA.
   Selecting a request opens the right `NcAppSidebar`.
-- **New/Edit request** — an `NcModal` with: leave-type picker (`NcSelect` showing
+- **New/Edit request**: an `NcDialog` form: the title is its heading and accessible
+  name, only the fields scroll and the **Cancel / Send request** buttons stay in view.
+  Fields in order: leave-type picker (`NcSelect` showing
   color+icon; employees only see **self-requestable** types — sick leave is excluded,
   §5.6), **From / To** date fields using the standard native picker
   (`NcDateTimePickerNative`, locale-formatted), and a required **Working days** number
-  field (`NcTextField type="number"`) the employee fills in manually (§7). A **live
-  preview** shows the balance impact as *before → after* plus a fill bar from the entered
-  number. For types with `requires_replacement`, a **mandatory replacement picker**
-  (`NcSelect` + org-wide user autocomplete, self excluded) appears. Optional reason
-  (`NcTextArea`, labelled "(optional)" unless the type requires a note) and conditional
-  note. Submit disabled until valid; negative `available`
-  shows an inline `NcNoteCard type="warning"` (warn, don't block). A second inline
-  note names the **colleagues already off** during the picked dates (§8) — debounced
-  as the dates move, one entry per person, "and N more" past three.
+  field (`NcTextField type="number"`), prefilled and editable (§7). Its hint is muted
+  and turns into a warning only when the number entered differs from what the dates
+  add up to. A **live preview** shows the type's emoji and the day count in the type
+  colour with the type name under it, and the balance impact as *before → after* plus
+  a fill bar. Then the notes: negative `available`
+  shows an inline `NcNoteCard type="warning"` (warn, don't block), and a second
+  note names the **colleagues already off** during the picked dates (§8), debounced
+  as the dates move, one entry per person, "and N more" past three. For types with
+  `requires_replacement`, a **mandatory replacement picker** (`NcSelect` + org-wide
+  user autocomplete, self excluded) comes next, then the optional reason
+  (`NcTextArea`, labelled "(optional)" unless the type requires a note). Submit
+  disabled until valid.
   **Editing** keeps the request's own leave type picked and offered, marked
   "(disabled)" when it was disabled since, and saves the type only when it was changed.
   The replacement is saved with every edit: an emptied picker, or a type that asks
   for none, removes the stored one (`replacementUid: ''`).
 - **Record absence** (HR only) — the *same* dialog opened in **HR mode** from the HR
   nav: adds an **employee search** (`NcSelect` with user autocomplete) and offers *all*
-  enabled types (including sick); the balance preview is hidden (it's another person's
-  leave). The primary button reads **"Record"** (not "Submit request" — there is no
+  enabled types (including sick), starting on **Sick leave** when that type is enabled;
+  the balance preview is hidden (it's another person's
+  leave). The primary button reads **"Record absence"** (not "Send request": there is no
   request/approval flow). Submitting posts `employeeUid` and books the leave directly
   as approved (§5.6).
 - **Approvals** (managers) — skeleton-then-list queues (team + escalated), rows with the
