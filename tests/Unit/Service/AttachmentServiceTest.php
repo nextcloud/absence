@@ -76,6 +76,7 @@ class AttachmentServiceTest extends TestCase {
 		$request->setTypeId(2);
 		$request->setStatus($status);
 		$this->requestMapper->method('find')->willReturn($request);
+		$this->permission->method('canView')->willReturn(true);
 		$this->permission->method('isHrOnlyRequest')->willReturn($hrOnly);
 		return $request;
 	}

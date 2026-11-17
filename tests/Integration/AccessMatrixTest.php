@@ -66,6 +66,8 @@ class AccessMatrixTest extends TestCase {
 	private const ADMIN = 'admin';
 	private const ROLES = [self::ANON, self::OUTSIDER, self::COLLEAGUE, self::OWNER, self::MANAGER, self::HR, self::ADMIN];
 	private const LOGGED_IN = [self::OUTSIDER, self::COLLEAGUE, self::OWNER, self::MANAGER, self::HR, self::ADMIN];
+	/** Who may see the owner's request */
+	private const VIEWERS = [self::OWNER, self::MANAGER, self::HR];
 
 	/** @var array<string,mixed> */
 	private array $snapshot = [];
@@ -80,13 +82,15 @@ class AccessMatrixTest extends TestCase {
 	 * route name => [allowed roles, parameters, how the others are turned
 	 * away]. Placeholders in braces are the fixtures' ids. Allowed roles must
 	 * not get 401 or 403; the others get 403 (401 when not logged in) before
-	 * anything is read or written, or, for a list, an empty one.
+	 * anything is read or written, or, for a list, an empty one. On the routes
+	 * of one request ('hidden'), whoever may not see the request gets 404 as
+	 * for an unknown id, and allowed roles must not get 404 either.
 	 *
-	 * @return array<string, array{0: list<string>, 1: array<string,mixed>, 2?: 'empty'}>
+	 * @return array<string, array{0: list<string>, 1: array<string,mixed>, 2?: 'empty'|'hidden'|'hidden-empty'}>
 	 */
 	private static function matrix(): array {
 		$hr = [self::HR];
-		$viewers = [self::OWNER, self::MANAGER, self::HR];
+		$viewers = self::VIEWERS;
 		$from = ['from' => '2027-03-01', 'to' => '2027-03-31'];
 		return [
 			'page#index' => [self::LOGGED_IN, []],
@@ -95,16 +99,16 @@ class AccessMatrixTest extends TestCase {
 			'config#updatePersonal' => [self::LOGGED_IN, ['values' => []]],
 
 			'request#index' => [self::LOGGED_IN, []],
-			'request#show' => [$viewers, ['id' => '{request}']],
+			'request#show' => [$viewers, ['id' => '{request}'], 'hidden'],
 			'request#create' => [self::LOGGED_IN, ['typeId' => '{type}', 'startDate' => '2027-03-01', 'endDate' => '2027-03-02']],
-			'request#update' => [[self::OWNER, self::HR], ['id' => '{request}', 'reason' => 'itest']],
-			'request#cancel' => [[self::OWNER, self::HR], ['id' => '{request}']],
-			'request#approve' => [[self::MANAGER, self::HR], ['id' => '{request}', 'updatedAt' => '{updatedAt}']],
-			'request#reject' => [[self::MANAGER, self::HR], ['id' => '{request}', 'comment' => 'itest', 'updatedAt' => '{updatedAt}']],
-			'request#addComment' => [$viewers, ['id' => '{request}', 'body' => 'itest']],
+			'request#update' => [[self::OWNER, self::HR], ['id' => '{request}', 'reason' => 'itest'], 'hidden'],
+			'request#cancel' => [[self::OWNER, self::HR], ['id' => '{request}'], 'hidden'],
+			'request#approve' => [[self::MANAGER, self::HR], ['id' => '{request}', 'updatedAt' => '{updatedAt}'], 'hidden'],
+			'request#reject' => [[self::MANAGER, self::HR], ['id' => '{request}', 'comment' => 'itest', 'updatedAt' => '{updatedAt}'], 'hidden'],
+			'request#addComment' => [$viewers, ['id' => '{request}', 'body' => 'itest'], 'hidden'],
 
-			'attachment#index' => [[self::OWNER, self::HR], ['id' => '{request}'], 'empty'],
-			'attachment#create' => [[self::OWNER, self::HR], ['id' => '{request}', 'file' => '{upload}']],
+			'attachment#index' => [[self::OWNER, self::HR], ['id' => '{request}'], 'hidden-empty'],
+			'attachment#create' => [[self::OWNER, self::HR], ['id' => '{request}', 'file' => '{upload}'], 'hidden'],
 			'attachment#download' => [[self::OWNER, self::HR], ['id' => '{attachment}']],
 			'attachment#destroy' => [[self::OWNER, self::HR], ['id' => '{attachment}']],
 
@@ -330,11 +334,13 @@ class AccessMatrixTest extends TestCase {
 
 		// The turned-away first: an allowed call may delete what they are asked about
 		$denied = array_values(array_diff(self::ROLES, $allowed));
+		$lists = in_array($turnedAway, ['empty', 'hidden-empty'], true);
+		$hidden = in_array($turnedAway, ['hidden', 'hidden-empty'], true);
 		$got = [];
 		foreach ([...$denied, ...$allowed] as $role) {
 			$response = $this->call($role, $name, $params);
 			$got[$role] = $response->getStatus();
-			if ($turnedAway === 'empty' && $response->getStatus() === 200) {
+			if ($lists && $response->getStatus() === 200) {
 				$got[$role] = $response->getData() === [] ? 'empty' : 'listed';
 			}
 		}
@@ -342,12 +348,13 @@ class AccessMatrixTest extends TestCase {
 		$expected = [];
 		foreach ($got as $role => $status) {
 			$expected[$role] = match (true) {
-				in_array($role, $allowed, true) => match ($turnedAway) {
-					'empty' => 'listed',
-					default => in_array($status, [401, 403], true) ? 'allowed' : $status,
+				in_array($role, $allowed, true) => match (true) {
+					$lists => 'listed',
+					default => in_array($status, $hidden ? [401, 403, 404] : [401, 403], true) ? 'allowed' : $status,
 				},
 				$role === self::ANON => 401,
-				$turnedAway === 'empty' => 'empty',
+				$hidden && !in_array($role, self::VIEWERS, true) => 404,
+				$lists => 'empty',
 				default => 403,
 			};
 		}
@@ -428,6 +435,29 @@ class AccessMatrixTest extends TestCase {
 			static fn (Holiday $holiday): string => $holiday->getLabel(),
 			Server::get(HolidayService::class)->listForYear(2027, self::HOLIDAY_REGION),
 		);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function requestRoutes(): array {
+		return ['request#show' => ['request#show'], 'request#addComment' => ['request#addComment'], 'attachment#index' => ['attachment#index']];
+	}
+
+	/**
+	 * A request somebody may not see answers like one that does not exist, so
+	 * the ids tell nothing. HR, who sees them all, gets the real answer.
+	 */
+	#[DataProvider('requestRoutes')]
+	public function testAnUnseenRequestAnswersLikeAnUnknownOne(string $name): void {
+		$unknown = $this->ids['{request}'] + 1000;
+		$answer = function (string $role, int $id) use ($name): array {
+			$response = $this->call($role, $name, ['id' => $id, 'body' => 'itest']);
+			return [$response->getStatus(), $response->getData()['message'] ?? null];
+		};
+
+		self::assertSame([404, 'Request not found'], $answer(self::COLLEAGUE, $unknown));
+		self::assertSame($answer(self::COLLEAGUE, $unknown), $answer(self::COLLEAGUE, $this->ids['{request}']));
+		self::assertSame([404, 'Request not found'], $answer(self::HR, $unknown));
+		self::assertSame(200, $this->call(self::HR, $name, ['id' => $this->ids['{request}'], 'body' => 'itest'])->getStatus());
 	}
 
 	/**

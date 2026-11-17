@@ -65,9 +65,10 @@ class AttachmentService {
 	 * The attachments an actor may see on a request; [] when they may see none.
 	 *
 	 * @return Attachment[]
+	 * @throws NotFoundException
 	 */
 	public function listForRequest(string $actorUid, int $requestId): array {
-		$request = $this->loadRequest($requestId);
+		$request = $this->loadVisibleRequest($actorUid, $requestId);
 		if (!$this->canSee($actorUid, $request)) {
 			return [];
 		}
@@ -96,7 +97,7 @@ class AttachmentService {
 	 * @throws ValidationException|ForbiddenException|NotFoundException
 	 */
 	public function upload(string $actorUid, int $requestId, array $upload): Attachment {
-		$request = $this->loadRequest($requestId);
+		$request = $this->loadVisibleRequest($actorUid, $requestId);
 		if (!$this->canAttach($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to attach files to this request'));
 		}
@@ -239,6 +240,19 @@ class AttachmentService {
 		} catch (DoesNotExistException) {
 			throw new NotFoundException($this->l->t('Request not found'));
 		}
+	}
+
+	/**
+	 * A request the actor may not see is refused like one that does not exist.
+	 *
+	 * @throws NotFoundException
+	 */
+	private function loadVisibleRequest(string $actorUid, int $requestId): LeaveRequest {
+		$request = $this->loadRequest($requestId);
+		if (!$this->permission->canView($actorUid, $request)) {
+			throw new NotFoundException($this->l->t('Request not found'));
+		}
+		return $request;
 	}
 
 	private function loadAttachment(int $attachmentId): Attachment {
