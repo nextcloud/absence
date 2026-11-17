@@ -60,6 +60,18 @@ export interface LeaveRequest extends Omit<LeaveRequestRecord, 'typeId' | 'disab
 	replacementName?: string
 	/** Only present once somebody decided. */
 	decidedByName?: string
+	/** Only in a list asked for with `decision`, on the requests the viewer may decide and that wait for it. */
+	decision?: RequestDecision
+}
+
+/** What a decider sees on a row of their queue. */
+export interface RequestDecision {
+	/** When the request, or for a withdrawal the withdrawal, was asked for. */
+	waitingSince: string | null
+	/** The days of the type left once approved; null for a type that counts against nothing. */
+	availableAfter: number | null
+	/** The display names of the other team members off on at least one of the days. */
+	othersOff: string[]
 }
 
 /** A comment as stored, from RequestComment::jsonSerialize(): the answer of POST /api/requests/{id}/comments. */
@@ -173,6 +185,8 @@ export interface RequestListParams {
 	/** 1..500, 200 by default. */
 	limit?: number
 	offset?: number
+	/** Add the `decision` of each request the caller may decide. */
+	decision?: boolean
 }
 
 /** Body of POST /api/requests. */

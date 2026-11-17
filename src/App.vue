@@ -33,8 +33,8 @@
 					<template #icon>
 						<ClipboardCheck :size="20" />
 					</template>
-					<template v-if="pendingCount > 0" #counter>
-						<NcCounterBubble :count="pendingCount" type="highlighted" />
+					<template v-if="approvalsCount > 0" #counter>
+						<NcCounterBubble :count="approvalsCount" type="highlighted" />
 					</template>
 				</NcAppNavigationItem>
 
@@ -99,9 +99,6 @@
 					<NcAppNavigationItem :name="t('absence', 'Who\'s off')" :to="{ name: 'hr-whos-off' }">
 						<template #icon>
 							<CalendarMonth :size="20" />
-						</template>
-						<template v-if="escalatedCount > 0" #counter>
-							<NcCounterBubble :count="escalatedCount" />
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
@@ -262,9 +259,9 @@ const closed = computed<ClosedState | null>(() => {
 	return null
 })
 
-const pendingCount = computed(() => sessionStore.session.pendingApprovals || 0)
-
-const escalatedCount = computed(() => sessionStore.session.escalatedCount ?? 0)
+// Everything the Approvals page lists: the reports' requests, and for HR the
+// escalated ones. The two counts never overlap, escalated requests are only in the second.
+const approvalsCount = computed(() => (sessionStore.session.pendingApprovals || 0) + (sessionStore.session.escalatedCount ?? 0))
 
 const handbookUrl = computed(() => newTabUrl(sessionStore.session.handbookUrl ?? '', window.location.origin))
 

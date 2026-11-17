@@ -84,7 +84,7 @@ import type { LeaveTypeLook } from '../stores/leaveTypes.ts'
 
 import { showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import Plus from 'vue-material-design-icons/Plus.vue'
@@ -101,11 +101,6 @@ import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../u
 import { openNewKey } from '../utils/injectionKeys.ts'
 import { locale } from '../utils/locale.ts'
 
-const props = withDefaults(defineProps<{
-	id?: string | number | null
-}>(), {
-	id: null,
-})
 const requestsStore = useRequestsStore()
 const leaveTypesStore = useLeaveTypesStore()
 const sessionStore = useSessionStore()
@@ -212,14 +207,6 @@ const nextBreak = computed<NextBreak | null>(() => {
 		live: false,
 	}
 })
-
-// Immediate, and watched: a link to /requests/:id followed while this page
-// is already open changes the id without mounting the page again.
-watch(() => props.id, (id) => {
-	if (id) {
-		requestsStore.select(Number(id))
-	}
-}, { immediate: true })
 
 onMounted(() => {
 	reload()

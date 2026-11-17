@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import type { RouteRecordRaw } from 'vue-router'
+import type { RouteLocationNormalized, RouteLocationRaw, RouteRecordRaw } from 'vue-router'
 
 import { createRouter, createWebHashHistory } from 'vue-router'
 import ApprovalsView from './views/ApprovalsView.vue'
@@ -18,8 +18,11 @@ import HrWhosOff from './views/hr/HrWhosOff.vue'
 import MyLeave from './views/MyLeave.vue'
 import ProfileView from './views/ProfileView.vue'
 import TeamView from './views/TeamView.vue'
+import api from './services/api.ts'
+import { useRequestsStore } from './stores/requests.ts'
 import { useSessionStore } from './stores/session.ts'
 import { canOpenRoute } from './utils/access.ts'
+import { requestPage } from './utils/decision.ts'
 
 declare module 'vue-router' {
 	interface RouteMeta {
@@ -28,6 +31,26 @@ declare module 'vue-router' {
 		/** Also open to admins, who set the app up before HR exists */
 		admin?: boolean
 	}
+}
+
+/**
+ * Select the linked request and show the page behind it. A request that cannot
+ * be read opens over My leave, where the sidebar says why.
+ *
+ * @param to the link followed
+ */
+async function openRequest(to: RouteLocationNormalized): Promise<RouteLocationRaw> {
+	const id = Number(to.params.id)
+	const session = useSessionStore().session
+	let page = 'my'
+	try {
+		page = requestPage(await api.getRequest(id), session)
+	} catch {
+		// The sidebar loads the request again and shows the error
+	}
+	useRequestsStore().select(id)
+	// The query carries what the link asks of the sidebar, like ?decide=decline
+	return { name: page, query: to.query, replace: true }
 }
 
 const routes: RouteRecordRaw[] = [
@@ -47,8 +70,9 @@ const routes: RouteRecordRaw[] = [
 	{ path: '/holidays', name: 'holidays', component: HolidaysView },
 	{ path: '/profile', name: 'profile', component: ProfileView },
 	{ path: '/profile/:uid', name: 'profile-of', component: ProfileView, props: true },
-	// Deep link from notifications/activity: open My leave with the request selected.
-	{ path: '/requests/:id', name: 'request', component: MyLeave, props: true },
+	// Deep link from notifications, activity and the dashboard: the request opens in
+	// the sidebar over the page it belongs to for the viewer.
+	{ path: '/requests/:id', name: 'request', component: MyLeave, beforeEnter: openRequest },
 	{ path: '/:pathMatch(.*)*', redirect: '/my' },
 ]
 

@@ -15,8 +15,15 @@
 			<template #subname>
 				{{ subtitle }}
 			</template>
-			<template v-if="showStatus" #indicator>
-				<StatusChip :status="request.status" />
+			<template v-if="waiting" #details>
+				<span :title="waiting.title">{{ waiting.label }}</span>
+			</template>
+			<template v-if="showStatus || othersOff" #indicator>
+				<span v-if="othersOff" class="rli__clash" :title="othersOff.title">
+					<span aria-hidden="true">⚠️</span>
+					{{ othersOff.label }}
+				</span>
+				<StatusChip v-if="showStatus" :status="request.status" />
 			</template>
 		</NcListItem>
 	</div>
@@ -25,12 +32,15 @@
 <script setup lang="ts">
 import type { LeaveRequest } from '../types/index.ts'
 
-import { n } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import StatusChip from './StatusChip.vue'
 import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { formatRange } from '../utils/dates.ts'
+import { waitingFor } from '../utils/decision.ts'
+import { locale } from '../utils/locale.ts'
+import { namesAndMore } from '../utils/people.ts'
 
 const props = withDefaults(defineProps<{
 	request: LeaveRequest
@@ -54,7 +64,32 @@ const leaveTypesStore = useLeaveTypesStore()
 
 const type = computed(() => leaveTypesStore.leaveType(props.request.typeId))
 
-const showStatus = computed(() => leaveTypesStore.statusVisible(props.request))
+// On a decision queue every row waits, so the status only tells a withdrawal apart
+const showStatus = computed(() => props.request.decision
+	? props.request.status === 'WITHDRAWAL_PENDING'
+	: leaveTypesStore.statusVisible(props.request))
+
+const waiting = computed(() => {
+	const since = props.request.decision?.waitingSince
+	if (!since) {
+		return null
+	}
+	return {
+		label: waitingFor(since, new Date()),
+		title: new Date(since).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }),
+	}
+})
+
+const othersOff = computed(() => {
+	const names = props.request.decision?.othersOff ?? []
+	if (!names.length) {
+		return null
+	}
+	return {
+		label: t('absence', '{names} off too', { names: namesAndMore({ count: names.length, names: names.slice(0, 1) }) }, { escape: false, sanitize: false }),
+		title: names.join(', '),
+	}
+})
 
 const colorSoft = computed(() => `color-mix(in srgb, ${type.value.color} 18%, transparent)`)
 
@@ -71,6 +106,10 @@ const title = computed(() => {
 const subtitle = computed(() => {
 	const range = formatRange(props.request.startDate, props.request.endDate)
 	const days = n('absence', '%n day', '%n days', props.request.workingDays)
+	const after = props.request.decision?.availableAfter
+	if (after !== undefined && after !== null) {
+		return `${range} · ${days} · ${n('absence', '%n available after', '%n available after', Math.round(after * 10) / 10)}`
+	}
 	if (props.remaining === null) {
 		return `${range} · ${days}`
 	}
@@ -129,6 +168,19 @@ function select(event?: MouseEvent) {
 	:deep(.list-item),
 	:deep(.list-item__wrapper) {
 		border-radius: var(--border-radius-large, 12px);
+	}
+
+	&__clash {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 10px;
+		border-radius: var(--border-radius-pill, 16px);
+		font-size: var(--font-size-small, 13px);
+		font-weight: 600;
+		color: var(--color-warning-text);
+		background: color-mix(in srgb, var(--color-warning) 18%, var(--color-main-background));
+		white-space: nowrap;
 	}
 
 	&__icon {

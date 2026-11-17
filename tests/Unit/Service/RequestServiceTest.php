@@ -874,6 +874,84 @@ class RequestServiceTest extends TestCase {
 		self::assertSame($request->getStartDate(), $rows[0]['startDate']);
 	}
 
+	private function queued(int $id, string $employeeUid, string $status, string $start, string $createdAt, string $updatedAt): LeaveRequest {
+		$request = new LeaveRequest();
+		$request->setId($id);
+		$request->setEmployeeUid($employeeUid);
+		$request->setTypeId(1);
+		$request->setStartDate($start);
+		$request->setEndDate($start);
+		$request->setWorkingDays(3.0);
+		$request->setStatus($status);
+		$request->setCreatedAt(new \DateTime($createdAt, new \DateTimeZone('UTC')));
+		$request->setUpdatedAt(new \DateTime($updatedAt, new \DateTimeZone('UTC')));
+		return $request;
+	}
+
+	public function testTheDecisionQueueSaysHowLongEachRequestWaitsWhatIsLeftAndWhoElseIsOff(): void {
+		$pending = $this->queued(5, 'alice', LeaveRequest::STATUS_PENDING, '2026-12-21', '2026-11-15 10:00', '2026-11-15 10:00');
+		$withdrawal = $this->queued(6, 'bob', LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2027-01-11', '2026-10-01 09:00', '2026-11-16 08:30');
+		$decided = $this->queued(7, 'charlie', LeaveRequest::STATUS_APPROVED, '2026-12-01', '2026-10-01 09:00', '2026-10-02 09:00');
+		$notMine = $this->queued(8, 'dave', LeaveRequest::STATUS_PENDING, '2026-12-01', '2026-11-01 09:00', '2026-11-01 09:00');
+		$this->requestMapper->method('findFiltered')->willReturn([$pending, $withdrawal, $decided, $notMine]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([]);
+		$this->permission->method('canDecide')->willReturnCallback(
+			static fn (string $actor, LeaveRequest $r): bool => $r->getEmployeeUid() !== 'dave',
+		);
+		$this->permission->method('canViewBalanceOf')->willReturn(true);
+		$this->balances->method('getBalancesForEmployees')->willReturnCallback(static fn (array $uids, int $year): array => match ($year) {
+			2026 => ['alice' => [
+				['typeId' => 2, 'entitlement' => 5.0, 'available' => 1.0],
+				['typeId' => 1, 'entitlement' => 28.0, 'available' => 16.0],
+			]],
+			2027 => ['bob' => [['typeId' => 1, 'entitlement' => 28.0, 'available' => 20.0]]],
+			default => [],
+		});
+		$this->coverage->method('othersOffFor')->willReturnCallback(static fn (array $requests): array => array_fill_keys(
+			array_map(static fn (LeaveRequest $r): int => $r->getId(), $requests),
+			['Bob Keller'],
+		));
+
+		$rows = $this->service->listSerialized('boss', ['scope' => 'reports', 'decision' => true], null, null);
+
+		self::assertSame([
+			'waitingSince' => '2026-11-15T10:00:00+00:00',
+			'availableAfter' => 16.0,
+			'othersOff' => ['Bob Keller'],
+		], $rows[0]['decision']);
+		// Approving a withdrawal gives the days back, and it waits since it was asked for
+		self::assertSame('2026-11-16T08:30:00+00:00', $rows[1]['decision']['waitingSince']);
+		self::assertSame(23.0, $rows[1]['decision']['availableAfter']);
+		self::assertArrayNotHasKey('decision', $rows[2], 'Nothing left to decide');
+		self::assertArrayNotHasKey('decision', $rows[3], 'Not for this actor to decide');
+	}
+
+	public function testTheDecisionQueueLeavesOutABalanceTheActorMayNotRead(): void {
+		$pending = $this->queued(5, 'alice', LeaveRequest::STATUS_ESCALATED, '2026-12-21', '2026-11-15 10:00', '2026-11-15 10:00');
+		$this->requestMapper->method('findFiltered')->willReturn([$pending]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([]);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->permission->method('canViewBalanceOf')->willReturn(false);
+		$this->balances->expects(self::never())->method('getBalancesForEmployees');
+		$this->coverage->method('othersOffFor')->willReturn([]);
+
+		$rows = $this->service->listSerialized('boss', ['scope' => 'reports', 'decision' => true], null, null);
+
+		self::assertNull($rows[0]['decision']['availableAfter']);
+		self::assertSame([], $rows[0]['decision']['othersOff']);
+	}
+
+	public function testAPlainListCarriesNoDecisionInfo(): void {
+		$this->requestMapper->method('findFiltered')->willReturn([$this->pendingOwnRequest()]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([]);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->coverage->expects(self::never())->method('othersOffFor');
+
+		$rows = $this->service->listSerialized('boss', ['scope' => 'reports'], null, null);
+
+		self::assertArrayNotHasKey('decision', $rows[0]);
+	}
+
 	public function testAConfidentialAbsenceIsFullyVisibleToHr(): void {
 		$request = $this->pendingOwnRequest();
 		$request->setTypeId(9);
