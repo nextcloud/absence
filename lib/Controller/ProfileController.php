@@ -38,6 +38,7 @@ class ProfileController extends Controller {
 
 	/** The person themselves, their manager and HR. */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function show(string $uid): DataResponse {
 		return $this->handle(fn () => $this->profiles->get((string)$this->userId, $uid));
 	}

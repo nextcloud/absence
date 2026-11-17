@@ -597,7 +597,9 @@ Rules, enforced server-side at every surface:
   admin's "reveal" visibility setting deliberately does not extend to these
   types), in balance rows, in the dashboard widget, and in both CalDAV event
   titles (a personal calendar can be shared, so even the employee's own event
-  says only "Absence").
+  says only "Absence"). On the profile page (§15.2) a confidential absence is
+  neither the next leave nor part of the sick days, and when sick leave itself
+  is confidential the sick days are not sent (`sick` is null).
 - **Nothing else tells the category either**: for non-HR the `typeId` list
   filter ignores confidential types (filtering on one returns nothing), only
   HR comments on a confidential absence, the manager's dashboard section lists
@@ -1588,9 +1590,12 @@ NcContent(app-name="absence")
   vacation balance and next leave (HR edits the vacation days there with the entitlement
   editor of the Employees list, §13), their region code (editable by the person, with the
   change dialog of §7.2), the number of public holidays this year and the next ones, the
-  contract (§6.4: read-only, editable by HR), sick days this year, and the history of
+  contract (§6.4: read-only, editable by HR), sick days this year (HR only when sick
+  leave is a confidential type, §5.7), and the history of
   changes (the person and HR only). The person, their manager and HR may open it
-  (`GET /api/profiles/{uid}`), the same rule as balances. Links to the person's card in
+  (`GET /api/profiles/{uid}`), the same rule as balances. An account that does not
+  exist is refused with the same 403 as someone else's profile; only HR, who may open
+  every profile, gets a 404. Links to the person's card in
   Contacts, where managers and teams are kept, when Contacts is enabled.
 - **Settings** (`#/hr/settings`, HR and admins, §12): One section per row, title and
   short description on the left, fields on the right: *Who is who*, *Vacation*,

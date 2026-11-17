@@ -120,7 +120,8 @@ export interface Profile {
 	regionCode: string
 	holidays: ProfileHolidays
 	contract: Contract
-	sick: ProfileSickLeave
+	/** Null when sick leave is a confidential type and the viewer is not HR. */
+	sick: ProfileSickLeave | null
 	nextLeave: ProfileNextLeave | null
 	/** Null for a manager: only the person and HR see the history. */
 	history: ProfileChange[] | null

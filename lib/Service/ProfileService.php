@@ -47,16 +47,19 @@ class ProfileService {
 	}
 
 	/**
+	 * An account that does not exist is refused like someone else's profile, so
+	 * only HR, who may open them all, learns that there is none.
+	 *
 	 * @return array<string, mixed>
 	 * @throws ForbiddenException|NotFoundException
 	 */
 	public function get(string $viewer, string $uid): array {
+		if (!$this->permission->canViewBalanceOf($viewer, $uid)) {
+			throw new ForbiddenException($this->l->t('You may not see this profile'));
+		}
 		$user = $this->userManager->get($uid);
 		if ($user === null) {
 			throw new NotFoundException($this->l->t('Employee not found'));
-		}
-		if (!$this->permission->canViewBalanceOf($viewer, $uid)) {
-			throw new ForbiddenException($this->l->t('You may not see this profile'));
 		}
 		$isHr = $this->permission->isHr($viewer);
 		$managerUid = $this->managers->getManagerUid($uid);
@@ -85,21 +88,27 @@ class ProfileService {
 				'remaining' => count($upcoming),
 			],
 			'contract' => $this->employees->getContract($uid),
-			...$this->leave($uid, $year, $today),
+			...$this->leave($uid, $year, $today, $isHr),
 			'history' => $isHr || $viewer === $uid ? $this->history($uid) : null,
 		];
 	}
 
 	/**
-	 * Sick days this year and the next approved leave. A confidential absence
-	 * shows by its dates only, as everywhere else (§5.7): it is neither sick
-	 * leave nor a counting type here.
+	 * Sick days this year and the next approved leave. Absences of a
+	 * confidential type (§5.7) count for HR only: for everyone else they are
+	 * neither the next leave nor sick days, and there are no sick figures at
+	 * all when sick leave itself is confidential.
 	 *
-	 * @return array{sick: array{year: int, days: float, times: int}, nextLeave: ?array<string, mixed>}
+	 * @return array{sick: ?array{year: int, days: float, times: int}, nextLeave: ?array<string, mixed>}
 	 */
-	private function leave(string $uid, int $year, string $today): array {
+	private function leave(string $uid, int $year, string $today, bool $viewerIsHr): array {
 		$types = [];
+		$sickWithheld = false;
 		foreach ($this->types->findAll() as $type) {
+			if ($type->getHrOnly() && !$viewerIsHr) {
+				$sickWithheld = $sickWithheld || $type->getKey() === self::SICK_KEY;
+				continue;
+			}
 			$types[$type->getId()] = $type;
 		}
 		$sickDays = 0.0;
@@ -122,7 +131,7 @@ class ProfileService {
 			}
 		}
 		return [
-			'sick' => ['year' => $year, 'days' => $sickDays, 'times' => $sickTimes],
+			'sick' => $sickWithheld ? null : ['year' => $year, 'days' => $sickDays, 'times' => $sickTimes],
 			'nextLeave' => $next === null ? null : [
 				'id' => $next->getId(),
 				'startDate' => $next->getStartDate(),
