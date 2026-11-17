@@ -266,7 +266,7 @@ class ConfidentialTypesTest extends TestCase {
 		// A withdrawal waiting on a confidential type, as when a type with open
 		// requests becomes confidential
 		$request = $this->request($this->confidentialType, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2027-05-03');
-		$service->reject(self::HR, $request->getId(), 'itest secret refusal');
+		$service->reject(self::HR, $request->getId(), 'itest secret refusal', $request->getUpdatedAt()->format(\DateTimeInterface::ATOM));
 		$service->update(self::HR, $request->getId(), ['typeId' => $this->plainType->getId()]);
 
 		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {

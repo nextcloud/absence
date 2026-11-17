@@ -215,14 +215,14 @@ export type RequestUpdateData = Partial<Omit<RequestCreateData, 'employeeUid'>>
 /** Body of POST /api/requests/{id}/approve. */
 export interface RequestApproveData {
 	comment?: string | null
-	/** The request's updatedAt as the decider saw it: the server answers 409 if it changed since. */
-	updatedAt?: string | null
+	/** The request's updatedAt as the decider saw it, required: the server answers 409 if it changed since. */
+	updatedAt: string | null
 }
 
 /** Body of POST /api/requests/{id}/reject: the comment is required. */
 export interface RequestRejectData {
 	comment: string
-	updatedAt?: string | null
+	updatedAt: string | null
 }
 
 /** Body of POST /api/requests/{id}/comments. */

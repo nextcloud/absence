@@ -110,7 +110,7 @@ class CanonicalUidTest extends TestCase {
 
 	public function testOnesOwnUidInAnotherCaseIsNoReplacementForAnApprovedRequest(): void {
 		$request = $this->service->create(self::EMPLOYEE, $this->leave('2027-02-01'));
-		$this->service->approve(self::MANAGER, $request->getId(), null);
+		$this->service->approve(self::MANAGER, $request->getId(), null, $request->getUpdatedAt()->format(\DateTimeInterface::ATOM));
 
 		self::assertSame(
 			$this->refusal(fn () => $this->service->update(self::EMPLOYEE, $request->getId(), ['replacementUid' => self::EMPLOYEE])),

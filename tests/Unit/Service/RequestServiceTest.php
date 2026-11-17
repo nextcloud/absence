@@ -49,6 +49,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 class RequestServiceTest extends TestCase {
+	/** The `updatedAt` a decider saw, as the API serialises it. */
+	private const SEEN = '2026-02-01T10:05:00+00:00';
 	use ClockMockTrait;
 	use L10nMockTrait;
 
@@ -170,6 +172,7 @@ class RequestServiceTest extends TestCase {
 		$request->setEndDate('2026-02-12');
 		$request->setWorkingDays(3.0);
 		$request->setStatus(LeaveRequest::STATUS_PENDING);
+		$request->setUpdatedAt(new \DateTime(self::SEEN));
 		return $request;
 	}
 
@@ -420,7 +423,7 @@ class RequestServiceTest extends TestCase {
 		$this->notifications->expects(self::once())->method('notifyReplacementCancelled');
 		$this->calendar->expects(self::once())->method('onRemoved');
 
-		$result = $this->service->approve('mgr', 5, null);
+		$result = $this->service->approve('mgr', 5, null, self::SEEN);
 		self::assertSame(LeaveRequest::STATUS_CANCELLED, $result->getStatus());
 	}
 
@@ -437,7 +440,7 @@ class RequestServiceTest extends TestCase {
 		$this->notifications->expects(self::once())->method('notifyWithdrawalRejected');
 		$this->notifications->expects(self::never())->method('notifyDecision');
 
-		$result = $this->service->reject('mgr', 5, 'We need you that week');
+		$result = $this->service->reject('mgr', 5, 'We need you that week', self::SEEN);
 		self::assertSame(LeaveRequest::STATUS_APPROVED, $result->getStatus());
 	}
 
@@ -505,7 +508,7 @@ class RequestServiceTest extends TestCase {
 		$this->permission->method('canView')->willReturn(true);
 		$this->permission->method('canDecide')->willReturn(true);
 
-		$result = $this->service->approve('mgr', 6, null);
+		$result = $this->service->approve('mgr', 6, null, self::SEEN);
 
 		self::assertSame(LeaveRequest::STATUS_APPROVED, $result->getStatus());
 		self::assertSame(LeaveRequest::STATUS_CANCELLED, $original->getStatus(),
@@ -536,7 +539,7 @@ class RequestServiceTest extends TestCase {
 		$this->db->expects(self::once())->method('commit');
 		$this->db->expects(self::never())->method('rollBack');
 
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 
 		$this->assertSame(LeaveRequest::STATUS_APPROVED, $edit->getStatus());
 		$this->assertSame(LeaveRequest::STATUS_CANCELLED, $original->getStatus());
@@ -571,7 +574,7 @@ class RequestServiceTest extends TestCase {
 		});
 		$this->rebuildService();
 
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 
 		self::assertSame([['request_approved', 'approved']], $dispatched);
 	}
@@ -588,7 +591,7 @@ class RequestServiceTest extends TestCase {
 		$this->rebuildService();
 
 		$this->expectException(\RuntimeException::class);
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 	}
 
 	public function testReplacingTheReplacementReleasesThePreviousOne(): void {
@@ -618,7 +621,7 @@ class RequestServiceTest extends TestCase {
 				$released = $r->getReplacementUid();
 			});
 
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 
 		$this->assertSame('ada', $released);
 	}
@@ -644,7 +647,7 @@ class RequestServiceTest extends TestCase {
 
 		$this->notifications->expects(self::never())->method('notifyReplacementCancelled');
 
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 	}
 
 	public function testAFailedWriteRollsTheTransactionBack(): void {
@@ -663,7 +666,7 @@ class RequestServiceTest extends TestCase {
 		$this->notifications->expects(self::never())->method('notifyDecision');
 
 		$this->expectException(\RuntimeException::class);
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 	}
 
 	public function testDecidingReleasesTheEmployeeLockEvenWhenTheWriteFails(): void {
@@ -680,7 +683,7 @@ class RequestServiceTest extends TestCase {
 		$this->lockingProvider->expects(self::once())->method('releaseLock');
 
 		$this->expectException(\RuntimeException::class);
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 	}
 
 	public function testACompetingWriteOnTheSameEmployeeIsRejectedAsAConflict(): void {
@@ -697,7 +700,7 @@ class RequestServiceTest extends TestCase {
 		$this->requestMapper->expects(self::never())->method('update');
 
 		$this->expectException(\OCA\Absence\Exception\ConflictException::class);
-		$this->service->approve('boss', 6, null);
+		$this->service->approve('boss', 6, null, self::SEEN);
 	}
 
 	public function testAddCommentRejectsOverlongBody(): void {
@@ -761,7 +764,7 @@ class RequestServiceTest extends TestCase {
 		$this->notifications->expects(self::once())->method('notifyWithdrawalRejected')
 			->with($request, 'We have nobody to cover that week.', 'boss');
 
-		$this->service->reject('boss', 5, 'We have nobody to cover that week.');
+		$this->service->reject('boss', 5, 'We have nobody to cover that week.', self::SEEN);
 	}
 
 	public function testWorkingDaysMayNotExceedTheCalendarSpan(): void {
@@ -1381,7 +1384,7 @@ class RequestServiceTest extends TestCase {
 		$this->notifications->expects(self::never())->method('notifyDecision');
 
 		$this->expectException(ConflictException::class);
-		$this->service->approve('mgr', 5, null);
+		$this->service->approve('mgr', 5, null, self::SEEN);
 	}
 
 	public function testRejectingARequestApprovedInTheMeantimeIsAConflict(): void {
@@ -1394,7 +1397,7 @@ class RequestServiceTest extends TestCase {
 		$this->notifications->expects(self::never())->method('notifyDecision');
 
 		$this->expectException(ConflictException::class);
-		$this->service->reject('mgr', 5, 'Too thin that week');
+		$this->service->reject('mgr', 5, 'Too thin that week', self::SEEN);
 	}
 
 	public function testCancellingARequestApprovedInTheMeantimeIsAConflict(): void {
@@ -1438,7 +1441,7 @@ class RequestServiceTest extends TestCase {
 		$this->calendar->expects(self::never())->method('onRemoved');
 
 		$this->expectException(ConflictException::class);
-		$this->service->approve('mgr', 5, null);
+		$this->service->approve('mgr', 5, null, self::SEEN);
 	}
 
 	public function testEditingARequestDecidedInTheMeantimeIsAConflict(): void {
@@ -1537,8 +1540,8 @@ class RequestServiceTest extends TestCase {
 		$this->lockingProvider->expects(self::once())->method('releaseLock');
 
 		match ($transition) {
-			'approve' => $this->service->approve('mgr', 5, null),
-			'reject' => $this->service->reject('mgr', 5, 'Too thin that week'),
+			'approve' => $this->service->approve('mgr', 5, null, self::SEEN),
+			'reject' => $this->service->reject('mgr', 5, 'Too thin that week', self::SEEN),
 			'cancel' => $this->service->cancel(str_repeat('u', 64), 5),
 		};
 	}
@@ -1559,8 +1562,8 @@ class RequestServiceTest extends TestCase {
 		$this->permission->method('canView')->willReturn(true);
 		$this->permission->method('canDecide')->willReturn(true);
 
-		$this->service->reject('mgr', 1, 'No');
-		$this->service->reject('mgr', 2, 'No');
+		$this->service->reject('mgr', 1, 'No', self::SEEN);
+		$this->service->reject('mgr', 2, 'No', self::SEEN);
 
 		self::assertCount(2, array_unique($keys));
 	}

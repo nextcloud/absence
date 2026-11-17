@@ -126,8 +126,8 @@ export default {
 	updateRequest: (id: number, data: RequestUpdateData) => put<LeaveRequest>(`/api/requests/${id}`, data),
 	cancelRequest: (id: number) => post<LeaveRequest>(`/api/requests/${id}/cancel`),
 	// `updatedAt` is the request as the decider saw it: the server answers 409 if it changed since
-	approveRequest: (id: number, comment?: string | null, updatedAt?: string | null) => post<LeaveRequest>(`/api/requests/${id}/approve`, { comment, updatedAt }),
-	rejectRequest: (id: number, comment: string, updatedAt?: string | null) => post<LeaveRequest>(`/api/requests/${id}/reject`, { comment, updatedAt }),
+	approveRequest: (id: number, comment: string | null | undefined, updatedAt: string | null) => post<LeaveRequest>(`/api/requests/${id}/approve`, { comment, updatedAt }),
+	rejectRequest: (id: number, comment: string, updatedAt: string | null) => post<LeaveRequest>(`/api/requests/${id}/reject`, { comment, updatedAt }),
 	addComment: (id: number, body: string) => post<RequestCommentRecord>(`/api/requests/${id}/comments`, { body }),
 
 	// Attachments (doctor's notes etc.): HR and the employee only
