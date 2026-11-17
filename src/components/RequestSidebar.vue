@@ -8,8 +8,8 @@
 		:name="type.label"
 		:subname="subLabel"
 		@close="$emit('close')">
-		<template v-if="showStatus" #description>
-			<StatusChip :status="detail.status" />
+		<template #description>
+			<StatusChip :status="leaveTypesStore.displayStatus(detail)" />
 		</template>
 
 		<NcAppSidebarTab id="details" :name="t('absence', 'Details')" :order="1">
@@ -22,7 +22,7 @@
 				<NcNoteCard v-if="shortNoticeLabel" type="warning">
 					{{ shortNoticeLabel }}
 				</NcNoteCard>
-				<RequestStepper v-if="showStatus" :status="detail.status" class="section__stepper" />
+				<RequestStepper v-if="!recorded" :status="detail.status" class="section__stepper" />
 				<dl class="facts">
 					<dt>{{ t('absence', 'Employee') }}</dt>
 					<dd class="facts__decided">
@@ -430,7 +430,8 @@ const shortNoticeLabel = computed(() => {
 /** A confidential absence seen by someone outside HR: no category, no thread. */
 const withheld = computed(() => detail.value?.typeId === null)
 
-const showStatus = computed(() => detail.value ? leaveTypesStore.statusVisible(detail.value) : true)
+/** Leave HR booked without an approval: there are no steps to show */
+const recorded = computed(() => detail.value !== null && leaveTypesStore.displayStatus(detail.value) === 'RECORDED')
 
 const isDecidable = computed(() => detail.value !== null && ['PENDING', 'ESCALATED', 'WITHDRAWAL_PENDING'].includes(detail.value.status))
 

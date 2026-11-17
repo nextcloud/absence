@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import type { InitialState, LeaveRequest, LeaveType } from '../types/index.ts'
+import type { ChipStatus, InitialState, LeaveRequest, LeaveType } from '../types/index.ts'
 
 import { loadState } from '@nextcloud/initial-state'
 import { t } from '@nextcloud/l10n'
@@ -56,13 +56,13 @@ export const useLeaveTypesStore = defineStore('leaveTypes', () => {
 	}
 
 	/**
-	 * Whether to show a status chip. HR-recorded leave (sick) that is approved has no
-	 * approval concept, so the "Approved" label is hidden as noise.
+	 * The status a request's chip shows. HR-recorded leave (sick) has no approval,
+	 * so once booked it reads "Recorded" rather than "Approved".
 	 *
 	 * @param request the request to look at
 	 */
-	function statusVisible(request: Typed & Pick<LeaveRequest, 'status'>): boolean {
-		return !(isHrRecorded(request) && request.status === 'APPROVED')
+	function displayStatus(request: Typed & Pick<LeaveRequest, 'status'>): ChipStatus {
+		return isHrRecorded(request) && request.status === 'APPROVED' ? 'RECORDED' : request.status
 	}
 
 	/**
@@ -72,5 +72,5 @@ export const useLeaveTypesStore = defineStore('leaveTypes', () => {
 		leaveTypes.value = await api.listLeaveTypes(false)
 	}
 
-	return { leaveTypes, enabledLeaveTypes, requestableLeaveTypes, leaveType, isHrRecorded, statusVisible, loadLeaveTypes }
+	return { leaveTypes, enabledLeaveTypes, requestableLeaveTypes, leaveType, isHrRecorded, displayStatus, loadLeaveTypes }
 })

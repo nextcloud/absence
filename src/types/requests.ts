@@ -7,6 +7,9 @@ import type { RequestCoverage } from './coverage.ts'
 
 export type RequestStatus = 'PENDING' | 'ESCALATED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'WITHDRAWAL_PENDING'
 
+/** What a status chip shows: the status, or RECORDED for leave HR booked without an approval. */
+export type ChipStatus = RequestStatus | 'RECORDED'
+
 /**
  * Whose requests to list: the caller's own, those of the people who report to
  * them ('reports' and 'approvals' are the same list), or everyone (HR only).

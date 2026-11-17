@@ -22,7 +22,7 @@
 					</template>
 					{{ t('absence', 'Import leave') }}
 				</NcButton>
-				<NcButton variant="primary" @click="openRecord">
+				<NcButton class="page__primary" variant="primary" @click="openRecord">
 					<template #icon>
 						<ClipboardPlusOutline :size="20" />
 					</template>

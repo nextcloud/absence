@@ -76,14 +76,14 @@ describe('leave types store', () => {
 
 	it('treats a withheld (confidential) type as HR-recorded', () => {
 		// The server nulls the type of confidential absences for non-HR viewers;
-		// those are always HR-recorded, so no approval chip should show either.
+		// those are always HR-recorded, so they read as recorded, not approved.
 		expect(store.isHrRecorded({ typeId: null })).toBe(true)
-		expect(store.statusVisible({ typeId: null, status: 'APPROVED' })).toBe(false)
+		expect(store.displayStatus({ typeId: null, status: 'APPROVED' })).toBe('RECORDED')
 	})
 
-	it('hides the "Approved" chip on HR-recorded leave (no approval concept)', () => {
-		expect(store.statusVisible({ typeId: 2, status: 'APPROVED' })).toBe(false)
-		expect(store.statusVisible({ typeId: 2, status: 'CANCELLED' })).toBe(true)
-		expect(store.statusVisible({ typeId: 1, status: 'APPROVED' })).toBe(true)
+	it('shows HR-recorded leave as recorded, since it has no approval', () => {
+		expect(store.displayStatus({ typeId: 2, status: 'APPROVED' })).toBe('RECORDED')
+		expect(store.displayStatus({ typeId: 2, status: 'CANCELLED' })).toBe('CANCELLED')
+		expect(store.displayStatus({ typeId: 1, status: 'APPROVED' })).toBe('APPROVED')
 	})
 })

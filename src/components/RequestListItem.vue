@@ -23,7 +23,7 @@
 					<span aria-hidden="true">⚠️</span>
 					{{ othersOff.label }}
 				</span>
-				<StatusChip v-if="showStatus" :status="request.status" />
+				<StatusChip v-if="showStatus" :status="leaveTypesStore.displayStatus(request)" />
 			</template>
 		</NcListItem>
 	</div>
@@ -65,9 +65,7 @@ const leaveTypesStore = useLeaveTypesStore()
 const type = computed(() => leaveTypesStore.leaveType(props.request.typeId))
 
 // On a decision queue every row waits, so the status only tells a withdrawal apart
-const showStatus = computed(() => props.request.decision
-	? props.request.status === 'WITHDRAWAL_PENDING'
-	: leaveTypesStore.statusVisible(props.request))
+const showStatus = computed(() => !props.request.decision || props.request.status === 'WITHDRAWAL_PENDING')
 
 const waiting = computed(() => {
 	const since = props.request.decision?.waitingSince
