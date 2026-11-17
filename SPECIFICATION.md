@@ -873,6 +873,14 @@ and to the admin audit log; the region code people set themselves (§7.2) goes t
 same history. The weekdays drive the working-days prefill (§7.1); the percentage is
 not used for leave yet.
 
+Before HR kept contracts, people set their own working weekdays. The upgrade
+(`Version1018…`) turns a valid setting into a period for everyone who has none yet:
+`valid_from` is January 1 of the current year (server date), since the setting has
+no date and the year's leave is still being counted; the percentage stays empty. The
+history entry has no author and `"source": "own_setting"` in its detail. The setting
+is then deleted for everybody; an invalid one is dropped. HR corrects the date where
+it is wrong.
+
 The annual allowance is **not** derived from the contract: HR sets each person's days
 for the year (`absence_entitlements`, §5.5). The same percentage can mean shorter days
 on all five weekdays, with the full allowance, or fewer weekdays with fewer days, and
@@ -2151,9 +2159,14 @@ Recorded during the build so the spec matches the code:
   prefill reads the list.
 - **Contract data and a profile page** (§6.4, §15.2): HR enters start and end dates and
   the working pattern from a date on; the prefill reads those weekdays instead of the
-  ones people set for themselves, which are dropped (`Version1010…`, app 1.2.0). The
+  ones people set for themselves, which become a contract period on the upgrade
+  (`Version1018…`, §6.4) and are then deleted. The
   personal section on the Availability page is gone: the region code moved to the
   profile page.
+- **Shorter table names** (`Version1013…`, `Version1014…`): three tables were renamed
+  for Oracle's 30-character limit. Each is copied in one transaction, and the old table
+  is only dropped when the new one holds at least as many rows; otherwise the upgrade
+  stops with the old table intact.
 - **HR → Employees** (§13, §15.2): the *Balances* page became a list of every employee
   with their region code, contract, manager and the year's days, flagging missing data,
   from one HR-only endpoint (`GET /api/employees`) that costs a fixed number of

@@ -10,8 +10,6 @@ declare(strict_types=1);
 namespace OCA\Absence\Migration;
 
 use Closure;
-use OCA\Absence\AppInfo\Application;
-use OCP\Config\IUserConfig;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\Types;
 use OCP\Migration\IOutput;
@@ -20,15 +18,10 @@ use OCP\Migration\SimpleMigrationStep;
 /**
  * Contract data HR keeps per employee (§6.4): start and end date, the working
  * weekdays and contract percentage from a date on, and the history of changes.
- * The weekdays people set for themselves for the prefill are dropped: HR owns
- * them now.
+ * The weekdays people set for themselves stay until `Version1018…` turns them
+ * into contract periods, once the tables have their final names.
  */
 class Version1010Date20261023100000 extends SimpleMigrationStep {
-	public function __construct(
-		private IUserConfig $userConfig,
-	) {
-	}
-
 	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
@@ -70,10 +63,5 @@ class Version1010Date20261023100000 extends SimpleMigrationStep {
 			$changed = true;
 		}
 		return $changed ? $schema : null;
-	}
-
-	#[\Override]
-	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
-		$this->userConfig->deleteKey(Application::APP_ID, 'work_weekdays');
 	}
 }
