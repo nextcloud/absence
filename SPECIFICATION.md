@@ -1265,7 +1265,11 @@ confirmation below. Neither setting can be emptied, and the session carries
 `configured`.
 
 The settings live on a **Settings** page inside the app (`#/hr/settings`), reached
-from the app navigation footer. There is no Administration settings section. HR
+from the app navigation footer. Under its title, a list of links leads to each
+section of the table below: a link scrolls to its section and moves the keyboard
+focus to the section heading without changing the URL, and
+`#/hr/settings?section=<id>` opens the page on that section. There is no
+Administration settings section. HR
 members and Nextcloud admins can open it: admins need it without being in HR,
 because a fresh install has nobody in HR and someone has to pick the HR group.
 Everyone else gets 403 from its endpoints (`GET`/`PUT /api/settings`,
