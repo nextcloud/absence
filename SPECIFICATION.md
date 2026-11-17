@@ -513,6 +513,9 @@ HR can change it via the HR edit path.
   the edit first, then withdraw. Correspondingly, retiring a superseded request
   treats `WITHDRAWAL_PENDING` as still in force, so rows written before this rule
   still retire cleanly.
+- **A leave type disabled since:** an edit keeps the request's own type, whether
+  it sends `typeId` unchanged or leaves it out. Moving the request to a disabled
+  type is refused (422).
 - **Cancellation of any non-terminal request** restores pending/used balance.
 
 ### 5.4 Escalation (manager non-response)

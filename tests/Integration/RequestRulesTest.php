@@ -147,6 +147,45 @@ class RequestRulesTest extends TestCase {
 		self::assertSame('Moving to Berlin', $this->mapper->find($request->getId())->getReason());
 	}
 
+	public function testAnEmployeeKeepsALeaveTypeDisabledSinceTheyAsked(): void {
+		$request = $this->service->create(self::EMPLOYEE, $this->week(['reason' => 'Moving house']));
+		$this->noteType->setEnabled(false);
+		Server::get(LeaveTypeMapper::class)->update($this->noteType);
+
+		// Without the type, as the dialog sends an edit, and with it unchanged
+		$this->service->update(self::EMPLOYEE, $request->getId(), ['startDate' => '2027-06-08', 'workingDays' => 4]);
+		$this->service->update(self::EMPLOYEE, $request->getId(), ['typeId' => $this->noteType->getId(), 'endDate' => '2027-06-10', 'workingDays' => 3]);
+		$stored = $this->mapper->find($request->getId());
+		self::assertSame(
+			[$this->noteType->getId(), '2027-06-08', '2027-06-10', 3.0],
+			[$stored->getTypeId(), $stored->getStartDate(), $stored->getEndDate(), $stored->getWorkingDays()],
+		);
+
+		// Approved leave too: the edit waits for a decision in the same type
+		$approved = $this->service->approve(self::HR, $request->getId(), null, $stored->getUpdatedAt()->format(\DateTimeInterface::ATOM));
+		$edit = $this->service->update(self::EMPLOYEE, $approved->getId(), ['endDate' => '2027-06-09', 'workingDays' => 2]);
+		self::assertSame([$this->noteType->getId(), $approved->getId()], [$edit->getTypeId(), $edit->getSupersedesId()]);
+	}
+
+	public function testAnEmployeeCannotSwitchToADisabledLeaveType(): void {
+		$request = $this->service->create(self::EMPLOYEE, $this->week(['reason' => 'Moving house']));
+		$type = new LeaveType();
+		$type->setKey(self::TYPE_KEY . '_off');
+		$type->setLabel('Itest disabled leave');
+		$type->setCountsAgainstBalance(false);
+		$type->setEnabled(false);
+		$disabled = Server::get(LeaveTypeMapper::class)->insert($type);
+		try {
+			$this->service->update(self::EMPLOYEE, $request->getId(), ['typeId' => $disabled->getId()]);
+			self::fail('Switched to a disabled type');
+		} catch (ValidationException $e) {
+			self::assertSame('This leave type is disabled.', $e->getMessage());
+		} finally {
+			Server::get(LeaveTypeMapper::class)->delete($disabled);
+		}
+		self::assertSame($this->noteType->getId(), $this->mapper->find($request->getId())->getTypeId());
+	}
+
 	#[DataProvider('closedStatuses')]
 	public function testHrCannotEditAClosedRequest(string $status): void {
 		$request = $this->seed($status);
