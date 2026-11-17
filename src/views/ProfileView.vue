@@ -68,7 +68,15 @@
 		<div v-else-if="profile" class="profile__grid">
 			<section class="profile__card">
 				<h3>{{ t('absence', 'Vacation {year}', { year: profile.holidays.year }) }}</h3>
-				<BalanceCard v-for="row in balances" :key="row.typeId" :row="row" />
+				<div v-if="profile.self" class="profile__balance">
+					<BalanceRing v-for="row in balances" :key="row.typeId" :row="row" />
+					<RouterLink class="profile__link" :to="{ name: 'my' }">
+						{{ t('absence', 'Details in My leave') }}
+					</RouterLink>
+				</div>
+				<template v-else>
+					<BalanceCard v-for="row in balances" :key="row.typeId" :row="row" />
+				</template>
 				<NcButton
 					v-if="profile.canEditContract && balances.length"
 					class="profile__edit"
@@ -96,9 +104,9 @@
 				<p v-if="profile.holidays.upcoming.length" class="profile__note">
 					{{ t('absence', 'Next: {days}', { days: profile.holidays.upcoming.map((day) => `${day.label}, ${formatDate(day.date)}`).join(' · ') }, undefined, { escape: false, sanitize: false }) }}
 				</p>
-				<router-link :to="{ name: 'holidays' }">
+				<RouterLink class="profile__link" :to="{ name: 'holidays' }">
 					{{ t('absence', 'See the list') }}
-				</router-link>
+				</RouterLink>
 			</section>
 
 			<section class="profile__card profile__card--wide">
@@ -116,8 +124,8 @@
 								· {{ t('absence', '{percent}%', { percent: current.percent }) }}
 							</template>
 						</p>
-						<p class="profile__note">
-							{{ t('absence', 'Since {date}', { date: formatDate(current.from) }) }}
+						<p v-if="since" class="profile__note">
+							{{ t('absence', 'Since {date}', { date: formatDate(since) }) }}
 						</p>
 					</template>
 					<p v-else class="profile__note">
@@ -130,7 +138,7 @@
 					</p>
 				</template>
 				<p class="profile__note">
-					{{ t('absence', 'Set by HR. Visible to this person, their manager and HR.') }}
+					{{ profile.self ? t('absence', 'Set by HR. Visible to you, your manager and HR.') : t('absence', 'Set by HR. Visible to this person, their manager and HR.') }}
 				</p>
 			</section>
 
@@ -169,12 +177,14 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import BalanceCard from '../components/BalanceCard.vue'
+import BalanceRing from '../components/BalanceRing.vue'
 import ContractEditor from '../components/ContractEditor.vue'
 import EntitlementDialog from '../components/EntitlementDialog.vue'
 import RegionCodeField from '../components/RegionCodeField.vue'
 import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
 import { useSessionStore } from '../stores/session.ts'
+import { patternSince } from '../utils/contract.ts'
 import { formatDate, formatRange, toIso } from '../utils/dates.ts'
 import { displayNameOf } from '../utils/displayName.ts'
 import { isForbidden, serverMessage } from '../utils/errors.ts'
@@ -218,6 +228,9 @@ const current = computed<ContractPeriod | null>(() => {
 	const today = toIso(new Date())
 	return [...profile.value.contract.periods].reverse().find((period) => period.from <= today) ?? null
 })
+
+/** When today's working pattern began, null when that is the start date */
+const since = computed(() => (current.value && profile.value ? patternSince(current.value.from, profile.value.contract.start) : null))
 
 watch(profileUid, () => {
 	// The row belongs to the previous person: saving it would write to this one
@@ -368,6 +381,18 @@ function onContractSaved(): void {
 	&__figure {
 		font-size: var(--default-font-size);
 		margin: 12px 0 4px;
+	}
+
+	&__balance {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: calc(4 * var(--default-grid-baseline));
+	}
+
+	&__link {
+		color: var(--color-primary-element);
+		font-weight: 600;
 	}
 
 	&__edit {

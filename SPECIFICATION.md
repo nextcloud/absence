@@ -1743,9 +1743,13 @@ NcContent(app-name="absence")
   (filter form + CSV buttons), plus entitlement / leave-type / holiday management.
 - **Profile** (`#/profile`, `#/profile/:uid`) — the first entry of the navigation. The person's
   vacation balance and next leave (HR edits the vacation days there with the entitlement
-  editor of the Employees list, §13), their region code (editable by the person, with the
-  change dialog of §7.2), the number of public holidays this year and the next ones, the
-  contract (§6.4: read-only, editable by HR), sick days this year (HR only when sick
+  editor of the Employees list, §13): on one's own profile the ring and a link to *My
+  leave* for the details, on someone else's the ring with its ledger. Their region code
+  (editable by the person: *Save* first shows the change dialog of §7.2), the number of
+  public holidays this year and the next ones with a link to the list, the
+  contract (§6.4: read-only, editable by HR; the "Since" line of today's working pattern is
+  left out when it began on the start date, and the note says who sees it, "you, your
+  manager and HR" on one's own profile), sick days this year (HR only when sick
   leave is a confidential type, §5.7), and the history of
   changes (the person and HR only). The person, their manager and HR may open it
   (`GET /api/profiles/{uid}`), the same rule as balances. An account that does not

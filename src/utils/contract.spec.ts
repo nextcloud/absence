@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { contractDiff, describePeriod, weekdaysOn } from './contract.ts'
+import { contractDiff, describePeriod, patternSince, weekdaysOn } from './contract.ts'
 
 const fullTime = { from: '2024-03-01', weekdays: [1, 2, 3, 4, 5], percent: 100 }
 const fourDays = { from: '2026-07-01', weekdays: [1, 2, 3, 4], percent: 80 }
@@ -41,5 +41,19 @@ describe('contractDiff', () => {
 
 	it('has nothing to show for a first contract', () => {
 		expect(contractDiff([], [fullTime])).toEqual({ removed: [], added: [fullTime], kept: [] })
+	})
+})
+
+describe('patternSince', () => {
+	it('dates a pattern that began after the start', () => {
+		expect(patternSince(fourDays.from, fullTime.from)).toBe('2026-07-01')
+	})
+
+	it('leaves the date out when the pattern began on the start date', () => {
+		expect(patternSince(fullTime.from, '2024-03-01')).toBeNull()
+	})
+
+	it('dates the pattern when there is no start date', () => {
+		expect(patternSince(fullTime.from, null)).toBe('2024-03-01')
 	})
 })
