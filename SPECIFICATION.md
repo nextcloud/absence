@@ -533,6 +533,11 @@ The app knows when the decider is away — it manages their leave too:
 - HR can approve/reject/cancel **any** request regardless of state, edit dates,
   adjust `working_days`, and edit any balance/entitlement (with an audit note).
 - All HR overrides are recorded in activity and `decision_comment` / `adjustment_note`.
+- **Not their own leave.** An HR member's own leave needs a second person, like
+  everybody's. They cannot approve or reject their own request
+  (`PermissionService::canDecide`), change an absence they recorded for
+  themselves into a type that employees request (§5.6), or import their own
+  leave (§6.5).
 
 ### 5.6 HR-recorded leave (e.g. sick leave)
 
@@ -564,6 +569,11 @@ employees — sick leave is the canonical example (`employee_requestable = false
 - **Only HR can edit or cancel it.** For an HR-recorded type, `PermissionService::canModify`
   returns false for the employee (owner) — so the employee sees no Edit/Cancel controls
   and the API rejects such attempts; only HR may change it (§17).
+- **An HR member's own record.** An HR member records an absence of such a type
+  for themselves like for anybody else, and corrects it. What they cannot do is
+  change its type to one that employees request: the edit keeps the record
+  `APPROVED`, and nobody decides their own leave (§5.5). The API answers 403,
+  and somebody else from HR can make that change.
 - **Correcting a record.** HR reaches individual records through the **Absences**
   view (§15.2) — or by selecting one in *Who's off* / the *Sick leave* drilldown — and
   edits or cancels it from the standard detail sidebar. There is **no delete**: a wrong
@@ -714,6 +724,10 @@ becomes the request's reason.
   and `workingDays` passes the same checks as a request (> 0, at most one per
   calendar day, §7). An entry that overlaps leave the person already has in
   force (as in §5.1), or an earlier entry of the list, is invalid.
+- **Not one's own leave.** An entry for the HR member who runs the import is
+  invalid: the leave is approved as it is booked, and nobody decides their own
+  (§5.5). Somebody else from HR imports it. occ has no acting member and takes
+  every entry.
 - **Duplicates are skipped, not errors.** An entry whose person already has a
   request in force (not rejected or cancelled) with the same type and dates is
   counted as skipped, and so is a second copy within the file. Importing the
