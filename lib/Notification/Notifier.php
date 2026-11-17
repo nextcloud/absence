@@ -187,15 +187,17 @@ class Notifier implements INotifier {
 		// opposite way — the same wording the sidebar uses (RequestSidebar.vue).
 		$isWithdrawal = $subject === NotificationService::SUBJECT_WITHDRAWAL;
 
-		$approve = $notification->createAction();
-		$approve->setLabel('approve')
-			->setParsedLabel($isWithdrawal ? $l->t('Approve withdrawal') : $l->t('Approve'))
-			// The request as it was when this notification was sent: once it has been
-			// edited, the click is refused rather than taken as a yes to the new dates.
-			// Notifications stored before this was carried approve as they always did.
-			->setLink($this->urlGenerator->linkToRouteAbsolute('absence.request.approve', array_filter(['id' => $requestId, 'updatedAt' => $updatedAt])), 'POST')
-			->setPrimary(true);
-		$notification->addParsedAction($approve);
+		// The request as it was when this notification was sent: once it has been
+		// edited, the click is refused rather than taken as a yes to the new dates.
+		// A notification stored without it has no version to approve (§5.2).
+		if ($updatedAt !== '') {
+			$approve = $notification->createAction();
+			$approve->setLabel('approve')
+				->setParsedLabel($isWithdrawal ? $l->t('Approve withdrawal') : $l->t('Approve'))
+				->setLink($this->urlGenerator->linkToRouteAbsolute('absence.request.approve', ['id' => $requestId, 'updatedAt' => $updatedAt]), 'POST')
+				->setPrimary(true);
+			$notification->addParsedAction($approve);
+		}
 
 		$decline = $notification->createAction();
 		$decline->setLabel('decline')

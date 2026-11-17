@@ -1160,7 +1160,7 @@ All four channels are required.
     dismisses itself on success; a request whose state moved on in the meantime
     fails the same way it would in the app. The link carries the request's
     `updatedAt` from when the notification was sent, so a request edited since
-    is not approved (409).
+    is not approved (409). A notification stored without it has no *Approve*.
   - *Decline* is deliberately **not** a one-click verdict. A decline requires a
     reason (§5.2), and a manager able to reject somebody's holiday from a toast
     without saying why would be a worse app, not a faster one. It is a `WEB` link
@@ -1399,8 +1399,8 @@ the SPA). All list endpoints paginate and accept filters.
 - `POST /api/requests/{id}/cancel` — cancel / request withdrawal.
 - `POST /api/requests/{id}/approve` — manager/HR approve (optional comment).
 - `POST /api/requests/{id}/reject` — manager/HR reject (comment required).
-  Both take an optional `updatedAt`, the value the decider last saw: a request
-  changed since is not decided (409). Every transition (edit, cancel, approve,
+  Both require `updatedAt`, the value the decider last saw (422 without it): a
+  request changed since is not decided (409). Every transition (edit, cancel, approve,
   reject) is decided on the request as it is inside the transaction, and is a
   409 when another change got there first.
 - `POST /api/requests/{id}/comments` — add comment.

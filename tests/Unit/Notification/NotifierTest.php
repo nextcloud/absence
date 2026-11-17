@@ -225,7 +225,7 @@ class NotifierTest extends TestCase {
 	public function testApprovingIsOneClickAndDoesNotOpenTheApp(): void {
 		// The whole point: the common answer costs a click, not a page load. If this
 		// ever became a WEB link the feature would still look right and do nothing.
-		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7']);
+		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7', 'updatedAt' => '2026-02-01T09:00:00+00:00']);
 
 		self::assertSame(
 			['Approve', 'Decline', 'Review'],
@@ -233,16 +233,24 @@ class NotifierTest extends TestCase {
 		);
 		self::assertSame([
 			'label' => 'Approve',
-			'link' => 'https://cloud.example/apps/absence/api/requests/7/approve',
+			'link' => 'https://cloud.example/apps/absence/api/requests/7/approve?updatedAt=2026-02-01T09%3A00%3A00%2B00%3A00',
 			'verb' => 'POST',
 			'primary' => true,
 		], $this->actions[0]);
 	}
 
+	public function testANotificationWithoutTheVersionOffersNoApproveButton(): void {
+		// Approving needs the version the decider saw, and older notifications
+		// were stored without it: they open the request instead.
+		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7']);
+
+		self::assertSame(['Decline', 'Review'], array_column($this->actions, 'label'));
+	}
+
 	public function testDecliningOpensTheReasonFormRatherThanDecidingOutright(): void {
 		// A reason is mandatory (§5.2), so "Decline" may not be a verdict — it is a
 		// deep link that lands in the form with the box open.
-		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7']);
+		$this->prepare(NotificationService::SUBJECT_NEW_REQUEST, ['employee' => 'emp', 'requestId' => '7', 'updatedAt' => '2026-02-01T09:00:00+00:00']);
 
 		self::assertSame('WEB', $this->actions[1]['verb']);
 		self::assertSame('https://cloud.example/apps/absence/#/requests/7?decide=decline', $this->actions[1]['link']);
@@ -252,7 +260,7 @@ class NotifierTest extends TestCase {
 	public function testTheOverdueReminderCarriesTheSameButtons(): void {
 		// The reminder fires precisely because nobody has decided yet, so it is the
 		// notification where a one-click answer is worth the most.
-		$this->prepare(NotificationService::SUBJECT_REMINDER, ['employee' => 'emp', 'requestId' => '7']);
+		$this->prepare(NotificationService::SUBJECT_REMINDER, ['employee' => 'emp', 'requestId' => '7', 'updatedAt' => '2026-02-01T09:00:00+00:00']);
 
 		self::assertSame(['Approve', 'Decline', 'Review'], array_column($this->actions, 'label'));
 	}
@@ -260,7 +268,7 @@ class NotifierTest extends TestCase {
 	public function testAWithdrawalAsksTheOppositeQuestion(): void {
 		// Here "approve" cancels the leave and "decline" keeps it — labelling both
 		// the usual way round would have managers clicking the opposite of what they mean.
-		$this->prepare(NotificationService::SUBJECT_WITHDRAWAL, ['employee' => 'emp', 'requestId' => '7']);
+		$this->prepare(NotificationService::SUBJECT_WITHDRAWAL, ['employee' => 'emp', 'requestId' => '7', 'updatedAt' => '2026-02-01T09:00:00+00:00']);
 
 		self::assertSame(['Approve withdrawal', 'Keep leave', 'Review'], array_column($this->actions, 'label'));
 	}

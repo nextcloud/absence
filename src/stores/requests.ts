@@ -88,7 +88,7 @@ export const useRequestsStore = defineStore('requests', () => {
 	 * @param comment a note for the employee
 	 * @param updatedAt the request as the decider saw it
 	 */
-	async function approveRequest(id: number, comment?: string | null, updatedAt?: string | null): Promise<LeaveRequest> {
+	async function approveRequest(id: number, comment: string | null | undefined, updatedAt: string | null): Promise<LeaveRequest> {
 		const res = await api.approveRequest(id, comment, updatedAt)
 		await sessionStore.refreshSession()
 		return res
@@ -99,7 +99,7 @@ export const useRequestsStore = defineStore('requests', () => {
 	 * @param comment why
 	 * @param updatedAt the request as the decider saw it
 	 */
-	async function rejectRequest(id: number, comment: string, updatedAt?: string | null): Promise<LeaveRequest> {
+	async function rejectRequest(id: number, comment: string, updatedAt: string | null): Promise<LeaveRequest> {
 		const res = await api.rejectRequest(id, comment, updatedAt)
 		showSuccess(t('absence', 'Request declined'))
 		await sessionStore.refreshSession()

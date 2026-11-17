@@ -209,6 +209,26 @@ class RequestRulesTest extends TestCase {
 		);
 	}
 
+	public function testADecisionNamesTheVersionItIsAbout(): void {
+		$request = $this->seed(LeaveRequest::STATUS_PENDING);
+		$decisions = [
+			'approve' => fn () => $this->service->approve(self::HR, $request->getId(), null, null),
+			'reject' => fn () => $this->service->reject(self::HR, $request->getId(), 'No', null),
+		];
+		foreach ($decisions as $name => $decide) {
+			try {
+				$decide();
+				self::fail($name . ' without updatedAt');
+			} catch (ValidationException $e) {
+				self::assertSame('updatedAt is missing: reload the request and decide again.', $e->getMessage());
+			}
+		}
+		self::assertSame(LeaveRequest::STATUS_PENDING, $this->mapper->find($request->getId())->getStatus());
+
+		$approved = $this->service->approve(self::HR, $request->getId(), null, $request->getUpdatedAt()->format(\DateTimeInterface::ATOM));
+		self::assertSame(LeaveRequest::STATUS_APPROVED, $approved->getStatus());
+	}
+
 	/**
 	 * @param array<string,mixed> $data
 	 * @return array<string,mixed>

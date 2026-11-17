@@ -197,6 +197,18 @@ class RequestService {
 	}
 
 	/**
+	 * A decision is about the version of the request the decider saw (§5.2).
+	 *
+	 * @throws ValidationException
+	 */
+	private function requireSeen(?\DateTimeImmutable $seen): \DateTimeImmutable {
+		if ($seen === null) {
+			throw new ValidationException($this->l->t('updatedAt is missing: reload the request and decide again.'));
+		}
+		return $seen;
+	}
+
+	/**
 	 * Validate the nominated replacement (§5.1). Returns the trimmed uid, or null
 	 * when none was given and none is demanded.
 	 *
@@ -1108,10 +1120,10 @@ class RequestService {
 	// ------------------------------------------------------------- decisions ----
 
 	/**
-	 * @param ?string $updatedAt the request's `updatedAt` as the decider last saw it;
-	 *                           when given, a request changed since is not decided (409)
+	 * @param ?string $updatedAt the request's `updatedAt` as the decider last saw it,
+	 *                           required: a request changed since is not decided (409)
 	 */
-	public function approve(string $actorUid, int $id, ?string $comment, ?string $updatedAt = null): LeaveRequest {
+	public function approve(string $actorUid, int $id, ?string $comment, ?string $updatedAt): LeaveRequest {
 		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
 			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
@@ -1120,6 +1132,7 @@ class RequestService {
 		if (!$this->permission->canDecide($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to decide this request'));
 		}
+		$seen = $this->requireSeen($seen);
 		$status = $request->getStatus();
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {
@@ -1184,7 +1197,7 @@ class RequestService {
 	/**
 	 * @param ?string $updatedAt see {@see approve()}
 	 */
-	public function reject(string $actorUid, int $id, string $comment, ?string $updatedAt = null): LeaveRequest {
+	public function reject(string $actorUid, int $id, string $comment, ?string $updatedAt): LeaveRequest {
 		if (trim($comment) === '') {
 			throw new ValidationException($this->l->t('A comment is required when rejecting.'));
 		}
@@ -1196,6 +1209,7 @@ class RequestService {
 		if (!$this->permission->canDecide($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to decide this request'));
 		}
+		$seen = $this->requireSeen($seen);
 		$status = $request->getStatus();
 
 		if (in_array($status, [LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED], true)) {

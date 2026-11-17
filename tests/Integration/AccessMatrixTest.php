@@ -99,8 +99,8 @@ class AccessMatrixTest extends TestCase {
 			'request#create' => [self::LOGGED_IN, ['typeId' => '{type}', 'startDate' => '2027-03-01', 'endDate' => '2027-03-02']],
 			'request#update' => [[self::OWNER, self::HR], ['id' => '{request}', 'reason' => 'itest']],
 			'request#cancel' => [[self::OWNER, self::HR], ['id' => '{request}']],
-			'request#approve' => [[self::MANAGER, self::HR], ['id' => '{request}']],
-			'request#reject' => [[self::MANAGER, self::HR], ['id' => '{request}', 'comment' => 'itest']],
+			'request#approve' => [[self::MANAGER, self::HR], ['id' => '{request}', 'updatedAt' => '{updatedAt}']],
+			'request#reject' => [[self::MANAGER, self::HR], ['id' => '{request}', 'comment' => 'itest', 'updatedAt' => '{updatedAt}']],
 			'request#addComment' => [$viewers, ['id' => '{request}', 'body' => 'itest']],
 
 			'attachment#index' => [[self::OWNER, self::HR], ['id' => '{request}'], 'empty'],
@@ -251,6 +251,7 @@ class AccessMatrixTest extends TestCase {
 			'{owner}' => $owner,
 			'{type}' => $type->getId(),
 			'{request}' => $request->getId(),
+			'{updatedAt}' => $request->getUpdatedAt()->format(\DateTimeInterface::ATOM),
 			'{entitlement}' => $entitlement->getId(),
 			'{attachment}' => $attachment->getId(),
 			'{holiday}' => $holiday->getId(),
