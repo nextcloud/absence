@@ -69,23 +69,29 @@
 		<div v-else class="report">
 			<div class="tiles">
 				<StatTile
-					icon="🤒"
 					:value="fmt(totals.days)"
 					:label="t('absence', 'days in {year}', { year })"
-					:caption="countedLabel"
-					accent="var(--color-warning)" />
+					:caption="countedLabel">
+					<template #icon>
+						<Thermometer :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="👥"
 					:value="totals.affected"
 					:label="t('absence', 'employees affected')"
-					:caption="t('absence', 'of {total}', { total: totals.employees })"
-					accent="var(--color-primary-element)" />
+					:caption="t('absence', 'of {total}', { total: totals.employees })">
+					<template #icon>
+						<AccountGroup :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="📉"
 					:value="fmt(averagePerEmployee)"
 					:label="t('absence', 'avg. days per employee')"
-					:caption="t('absence', 'counting everybody')"
-					accent="var(--color-info, var(--color-primary-element))" />
+					:caption="t('absence', 'counting everybody')">
+					<template #icon>
+						<ChartLine :size="20" />
+					</template>
+				</StatTile>
 			</div>
 
 			<div v-if="filtered.length" class="table-wrap">
@@ -196,7 +202,9 @@ import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwit
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
+import ChartLine from 'vue-material-design-icons/ChartLine.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import MeterBar from '../../components/MeterBar.vue'

@@ -10,11 +10,12 @@
 			{{ title }}
 		</figcaption>
 		<svg
+			ref="svg"
 			:viewBox="`0 0 ${width} ${height}`"
+			:height="height"
 			class="line__svg"
 			role="img"
-			:aria-label="title"
-			preserveAspectRatio="none">
+			:aria-label="title">
 			<line
 				v-for="(g, i) in gridlines"
 				:key="'g' + i"
@@ -32,7 +33,7 @@
 					:cy="p.y"
 					r="3" />
 				<text
-					v-if="showLabel(i)"
+					v-if="i % step === 0"
 					class="line__xlabel"
 					:x="p.x"
 					:y="height - 4"
@@ -48,7 +49,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useElementWidth } from '../composables/useElementWidth.ts'
+import { labelStep } from '../utils/chartLabels.ts'
 import { formatNumber } from '../utils/locale.ts'
 
 /** One point of the series */
@@ -64,20 +67,23 @@ const props = withDefaults(defineProps<{
 	title: '',
 })
 
-const width = 640
-const height = 200
+// The view box matches the rendered size, so text keeps its CSS font size.
+const svg = ref<SVGSVGElement | null>(null)
+const width = useElementWidth(svg, 640)
+const height = 160
 const padX = 28
 const padTop = 16
 const padBottom = 22
 
 const max = computed(() => Math.max(1, ...props.data.map((d) => d.value)))
 
+const usableW = computed(() => width.value - padX * 2)
+
 const points = computed(() => {
 	const n = props.data.length
-	const usableW = width - padX * 2
 	const usableH = height - padTop - padBottom
 	return props.data.map((d, i) => ({
-		x: padX + (n <= 1 ? usableW / 2 : (usableW * i) / (n - 1)),
+		x: padX + (n <= 1 ? usableW.value / 2 : (usableW.value * i) / (n - 1)),
 		y: padTop + usableH * (1 - d.value / max.value),
 		label: d.label,
 		value: d.value,
@@ -96,6 +102,8 @@ const areaPath = computed(() => {
 	return `M${first.x} ${base} ` + points.value.map((p) => `L${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ` L${last.x} ${base} Z`
 })
 
+const step = computed(() => labelStep(props.data.map((d) => d.label), props.data.length > 1 ? usableW.value / (props.data.length - 1) : usableW.value))
+
 const gridlines = computed(() => {
 	const usableH = height - padTop - padBottom
 	return [0, 0.5, 1].map((f) => padTop + usableH * f)
@@ -109,17 +117,6 @@ const gridlines = computed(() => {
 function fmt(v: number): string {
 	return formatNumber(v)
 }
-
-/**
- * Whether the point gets its label under the axis.
- *
- * @param i the index of the point
- */
-function showLabel(i: number): boolean {
-	// Avoid crowding: with many points, label every other one.
-	const step = props.data.length > 8 ? 2 : 1
-	return i % step === 0
-}
 </script>
 
 <style scoped lang="scss">
@@ -132,8 +129,8 @@ function showLabel(i: number): boolean {
 	}
 
 	&__svg {
+		display: block;
 		width: 100%;
-		height: auto;
 	}
 
 	&__grid {
@@ -160,7 +157,7 @@ function showLabel(i: number): boolean {
 	}
 
 	&__xlabel {
-		font-size: 10px;
+		font-size: var(--font-size-small);
 		fill: var(--color-text-maxcontrast);
 	}
 }
