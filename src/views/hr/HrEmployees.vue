@@ -96,7 +96,7 @@
 								{{ t('absence', 'Taken') }}
 							</th>
 							<th class="num">
-								{{ t('absence', 'Left') }}
+								{{ t('absence', 'Available') }}
 							</th>
 							<th class="num">
 								{{ t('absence', 'Sick') }}
@@ -171,8 +171,8 @@
 							<td class="num">
 								{{ fmt(row.annual?.used) }}
 							</td>
-							<td class="num lead" :class="leftClass(row.annual)">
-								{{ fmt(row.annual?.remaining) }}
+							<td class="num lead" :class="balanceTone(row.annual)">
+								{{ fmt(row.annual?.available) }}
 							</td>
 							<td class="num">
 								{{ fmt(row.sickDays) }}
@@ -255,6 +255,7 @@ import EntitlementDialog from '../../components/EntitlementDialog.vue'
 import RegionReminderDialog from '../../components/RegionReminderDialog.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import api from '../../services/api.ts'
+import { balanceTone } from '../../utils/balance.ts'
 import { formatDate } from '../../utils/dates.ts'
 import { serverMessage } from '../../utils/errors.ts'
 import { latestOnly } from '../../utils/latest.ts'
@@ -278,9 +279,6 @@ interface EditedEntitlement {
 
 /** Rows shown at first and added by "Load more" */
 const PAGE = 50
-
-// Below this share of the entitlement, the days left are nearly spent.
-const LOW_BALANCE_RATIO = 0.2
 
 const matches: Record<FilterId, (row: EmployeeRow) => boolean> = {
 	all: () => true,
@@ -366,23 +364,6 @@ function since(start: string | null): string {
 		return ''
 	}
 	return Number(start.slice(0, 4)) === year.value ? formatDate(start) : start.slice(0, 4)
-}
-
-/**
- * Red when overdrawn, amber when nearly spent.
- *
- * @param annual the annual balance row
- */
-function leftClass(annual: BalanceRow | null): string {
-	if (!annual || annual.entitlement === null || !(annual.entitlement > 0)) {
-		return ''
-	}
-	// A missing figure compares like 0, as it always did
-	const remaining = annual.remaining ?? 0
-	if (remaining < 0) {
-		return 'neg'
-	}
-	return remaining < annual.entitlement * LOW_BALANCE_RATIO ? 'low' : ''
 }
 
 /**
@@ -473,7 +454,7 @@ async function onSaved(): Promise<void> {
 	}
 }
 
-// Amber, not red: the days left are nearly spent, which is worth noticing but is
+// Amber, not red: the available days are nearly spent, which is worth noticing but is
 // not yet the error that an overdrawn balance is. Qualified with the element so it
 // outranks the global `.tbl .lead` colour on the same cell.
 td.low {

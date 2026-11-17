@@ -183,14 +183,14 @@ class AbsenceWidget implements IAPIWidget, IAPIWidgetV2, IIconWidget {
 	private function balanceSummary(string $userId): ?array {
 		// Without a year the rows of every year with an entitlement come back, next year's first.
 		foreach ($this->balanceService->getBalance($userId, $this->balanceService->currentYear())['balances'] as $row) {
-			if ($row['typeKey'] === 'annual' && $row['remaining'] !== null) {
-				$remaining = $this->formatDays((float)$row['remaining']);
+			if ($row['typeKey'] === 'annual' && $row['available'] !== null) {
+				$available = $this->formatDays((float)$row['available']);
 				$pending = (float)$row['pending'];
 				$subtitle = $pending > 0
 					? $this->l->t('%1$s used · %2$s pending', [$this->formatDays((float)$row['used']), $this->formatDays($pending)])
 					: $this->l->t('%s used', [$this->formatDays((float)$row['used'])]);
 				return [
-					'title' => $this->l->n('%s day of annual leave left', '%s days of annual leave left', (int)ceil((float)$row['remaining']), [$remaining]),
+					'title' => $this->l->n('%s day of annual leave available', '%s days of annual leave available', (int)ceil((float)$row['available']), [$available]),
 					'subtitle' => $subtitle,
 				];
 			}

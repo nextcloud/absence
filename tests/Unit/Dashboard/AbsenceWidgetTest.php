@@ -65,19 +65,20 @@ class AbsenceWidgetTest extends TestCase {
 		);
 	}
 
-	public static function remainingDays(): array {
+	public static function availableDays(): array {
 		return [
-			'one day' => [1.0, '1 day of annual leave left'],
-			'several days' => [12.0, '12 days of annual leave left'],
-			'a day and a half' => [1.5, '1.5 days of annual leave left'],
-			'nothing' => [0.0, '0 days of annual leave left'],
+			'one day' => [1.0, '1 day of annual leave available'],
+			'several days' => [12.0, '12 days of annual leave available'],
+			'a day and a half' => [1.5, '1.5 days of annual leave available'],
+			'nothing' => [0.0, '0 days of annual leave available'],
 		];
 	}
 
-	#[DataProvider('remainingDays')]
-	public function testTheBalanceRowAgreesWithTheNumberOfDays(float $remaining, string $expected): void {
+	#[DataProvider('availableDays')]
+	public function testTheBalanceRowAgreesWithTheNumberOfDays(float $available, string $expected): void {
+		// Two days pending: what is left to book, not what is left after approved leave
 		$this->balanceService->method('getBalance')->willReturn(['balances' => [
-			['typeKey' => 'annual', 'remaining' => $remaining, 'pending' => 0.0, 'used' => 3.0],
+			['typeKey' => 'annual', 'remaining' => $available + 2.0, 'available' => $available, 'pending' => 2.0, 'used' => 3.0],
 		]]);
 		$this->requestMapper->method('findAllForEmployee')->willReturn([]);
 
@@ -89,14 +90,14 @@ class AbsenceWidgetTest extends TestCase {
 	public function testTheBalanceIsThisYearsAlsoOnceNextYearHasAnEntitlement(): void {
 		$this->balanceService->method('currentYear')->willReturn(2026);
 		$this->balanceService->method('getBalance')->willReturnCallback(static fn (string $uid, ?int $year = null): array => ['balances' => array_values(array_filter([
-			['typeKey' => 'annual', 'year' => 2027, 'remaining' => 30.0, 'pending' => 0.0, 'used' => 0.0],
-			['typeKey' => 'annual', 'year' => 2026, 'remaining' => 4.0, 'pending' => 0.0, 'used' => 26.0],
+			['typeKey' => 'annual', 'year' => 2027, 'remaining' => 30.0, 'available' => 30.0, 'pending' => 0.0, 'used' => 0.0],
+			['typeKey' => 'annual', 'year' => 2026, 'remaining' => 4.0, 'available' => 4.0, 'pending' => 0.0, 'used' => 26.0],
 		], static fn (array $row): bool => $year === null || $row['year'] === $year))]);
 		$this->requestMapper->method('findAllForEmployee')->willReturn([]);
 
 		$items = $this->widget->getItems('itest-casey');
 
-		$this->assertSame('4 days of annual leave left', $items[0]->getTitle());
+		$this->assertSame('4 days of annual leave available', $items[0]->getTitle());
 	}
 
 	public function testDatesAreWrittenInTheReadersLanguage(): void {
