@@ -127,8 +127,8 @@ export interface Profile {
 	history: ProfileChange[] | null
 }
 
-/** What HR still has to complete for an employee. */
-export type EmployeeMissing = 'region' | 'manager' | 'contract'
+/** What HR still has to complete for an employee: a person without a manager lacks nothing, their requests go to HR. */
+export type EmployeeMissing = 'region' | 'contract' | 'start'
 
 /** One row of HR's employees list, from EmployeeListService::rows(). */
 export interface EmployeeRow {
@@ -159,6 +159,8 @@ export interface EmployeeList {
 	year: number
 	/** Gid of the employees group, '' when none is configured. */
 	employeesGroup: string
+	/** Display name of the employees group, '' when none is configured. */
+	employeesGroupName: string
 	/** Whether the Contacts app is enabled for the viewer. */
 	contacts: boolean
 	rows: EmployeeRow[]

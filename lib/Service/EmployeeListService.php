@@ -10,11 +10,13 @@ declare(strict_types=1);
 namespace OCA\Absence\Service;
 
 use OCP\App\IAppManager;
+use OCP\IGroupManager;
 use OCP\IUserManager;
 
 /**
  * The HR employees list (§13): everyone with their region code, contract,
- * manager, annual days and sick days for a year, and what is missing. Loaded
+ * manager, annual days and sick days for a year, and what HR still has to
+ * fill in: the region code, the working pattern and the start date. Loaded
  * in a fixed number of queries, however many people there are.
  *
  * @psalm-import-type Contract from EmployeeService
@@ -22,8 +24,8 @@ use OCP\IUserManager;
  */
 class EmployeeListService {
 	public const MISSING_REGION = 'region';
-	public const MISSING_MANAGER = 'manager';
 	public const MISSING_CONTRACT = 'contract';
+	public const MISSING_START = 'start';
 
 	private const ANNUAL = 'annual';
 	private const FULL_WEEK = 5;
@@ -37,6 +39,7 @@ class EmployeeListService {
 		private ConfigService $config,
 		private ReportService $reports,
 		private IUserManager $userManager,
+		private IGroupManager $groupManager,
 		private IAppManager $appManager,
 		private ClockService $clock,
 		private HolidayService $holidays,
@@ -44,13 +47,15 @@ class EmployeeListService {
 	}
 
 	/**
-	 * @return array{year: int, employeesGroup: string, contacts: bool, rows: list<array<string, mixed>>}
+	 * @return array{year: int, employeesGroup: string, employeesGroupName: string, contacts: bool, rows: list<array<string, mixed>>}
 	 */
 	public function list(?int $year): array {
 		$year ??= $this->clock->userYear();
+		$group = $this->config->getEmployeesGroup();
 		return [
 			'year' => $year,
-			'employeesGroup' => $this->config->getEmployeesGroup(),
+			'employeesGroup' => $group,
+			'employeesGroupName' => $group === '' ? '' : ($this->groupManager->get($group)?->getDisplayName() ?? $group),
 			'contacts' => $this->appManager->isEnabledForUser('contacts'),
 			'rows' => $this->rows($this->directory->listAll(), $year),
 		];
@@ -86,8 +91,8 @@ class EmployeeListService {
 			$current = self::currentPeriod($contract, $today);
 			$missing = array_keys(array_filter([
 				self::MISSING_REGION => $this->holidays->needsRegion($region),
-				self::MISSING_MANAGER => $managerUid === null,
-				self::MISSING_CONTRACT => $contract['start'] === null && $contract['end'] === null && $contract['periods'] === [],
+				self::MISSING_CONTRACT => $contract['periods'] === [],
+				self::MISSING_START => $contract['start'] === null,
 			]));
 			$rows[] = [
 				'uid' => $uid,

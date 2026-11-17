@@ -1325,11 +1325,14 @@ The HR area (visible only to HR-group members) provides:
 1. **Employees list** (`#/hr/employees`, `GET /api/employees?year`, HR-only):
    everyone the directory counts as an employee (§2.2), one row each, with their
    region code (§7.2), working days and contract percentage of the period in force
-   today (§6.4), start date (the year, or the day when it falls in the selected
-   year) and end date, manager (§2.1), and for the selected year the annual days
+   today (§6.4), start date and end date (both as the locale's date, the same
+   format on every row), manager (§2.1), and for the selected year the annual days
    (§6.4), taken and available, and sick days. Missing data is flagged rather than left
-   blank: *No region code*, *No manager* (their requests go straight to HR) and *No
-   contract data*. Filters: all, missing data (any of the three), part-time (fewer
+   blank: *No region code*, *No contract data* (no working pattern) and *No start
+   date*. Having no manager is not missing data: the person at the top and often HR
+   have none, and their requests go straight to HR, so the cell reads *No manager* in
+   muted text. The subtitle names the employees group by its display name. Filters:
+   all, missing data (any of the three), part-time (fewer
    than five weekdays or under 100 %), and starting or leaving in the year; a search
    by name or user id; rows shown 50 at a time. Each row opens the person's profile,
    and its menu edits each counting entitlement with its history (§6.1). *Edit as
