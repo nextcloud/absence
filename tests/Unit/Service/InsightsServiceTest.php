@@ -172,8 +172,9 @@ class InsightsServiceTest extends TestCase {
 		self::assertSame(25.0, $util['company']['used']);
 		self::assertSame(81.0, $util['company']['entitlement']);
 		self::assertSame(0.309, $util['company']['rate']);
-		// Two teams, lowest utilisation first (carol's "no manager" team at 0%).
+		// Two teams, lowest utilisation first (carol, who has no manager, at 0%).
 		self::assertSame(0.0, $util['perTeam'][0]['rate']);
+		self::assertSame('People without a manager', $util['perTeam'][0]['name']);
 		// carol never took non-sick leave in the window → top of the watchlist.
 		self::assertSame('carol', $util['neglected'][0]['employeeUid']);
 		self::assertNull($util['neglected'][0]['daysSince']);

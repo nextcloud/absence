@@ -24,8 +24,8 @@
 					v-model="type"
 					:options="typeOptions"
 					label="label"
-					:placeholder="t('absence', 'Sick leave (default)')"
-					:aria-label-combobox="t('absence', 'Leave type counted')">
+					:inputLabel="t('absence', 'Leave type counted')"
+					:clearable="false">
 					<template #option="{ icon, label }">
 						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
 					</template>
@@ -98,9 +98,6 @@
 				<table class="tbl">
 					<thead>
 						<tr>
-							<th class="num rank">
-								#
-							</th>
 							<th>{{ t('absence', 'Employee') }}</th>
 							<th class="num">
 								{{ t('absence', 'Days') }}
@@ -119,14 +116,11 @@
 					</thead>
 					<tbody>
 						<tr
-							v-for="(row, index) in filtered"
+							v-for="row in filtered"
 							:key="row.employeeUid"
 							class="row"
 							:class="{ 'row--drillable': row.days > 0 }"
 							@click="openRecords(row)">
-							<td class="num rank">
-								{{ index + 1 }}
-							</td>
 							<td>
 								<div class="emp">
 									<NcAvatar
@@ -230,8 +224,9 @@ const totals = ref<SickLeaveTotals>({ employees: 0, affected: 0, days: 0, episod
 // NcTextField types what it emits as string or number
 const search = ref<string | number>('')
 const onlyAffected = ref(true)
-// null means "let the server pick" — it counts the type keyed "sick".
-const type = ref<LeaveType | null>(null)
+// The type keyed "sick" is what the server counts without a type. null when
+// there is none, and the server then finds nothing to count either.
+const type = ref<LeaveType | null>(leaveTypesStore.leaveTypes.find((leaveType) => leaveType.key === 'sick') ?? null)
 const year = ref(y)
 const years = [y - 2, y - 1, y, y + 1]
 
@@ -368,11 +363,6 @@ async function reload(): Promise<void> {
 	display: flex;
 	flex-direction: column;
 	gap: calc(var(--default-grid-baseline, 4px) * 4);
-}
-
-.rank {
-	width: 3em;
-	color: var(--color-text-maxcontrast);
 }
 
 .strong {
