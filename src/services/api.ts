@@ -53,6 +53,7 @@ import type {
 	SettingsInput,
 	SickLeaveReport,
 	Trends,
+	UserRef,
 } from '../types/index.ts'
 
 import axios from '@nextcloud/axios'
@@ -190,6 +191,10 @@ export default {
 	// employees (§2.2). The endpoint wraps the same collaborator search, so the
 	// admin's user-enumeration settings still apply.
 	searchUsers: (search: string) => get<EmployeeSearchResult[]>('/api/employees/search', { search }),
+	// The teammates the replacement picker offers before anything is typed: mine, or an employee's for HR.
+	teammates: (uid?: string) => get<UserRef[]>('/api/employees/teammates', uid ? { uid } : {}),
+	// Whether a colleague is off on any day of the range, nothing more (§5.1).
+	isAway: (uid: string, from: string, to: string) => get<{ away: boolean | null }>(`/api/employees/${user(uid)}/away`, { from, to }),
 
 	// Group list for the HR report/export filters (HR-only endpoint).
 	listGroups: () => get<Group[]>('/api/groups'),

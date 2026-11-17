@@ -202,6 +202,9 @@
 				<p class="dialog__hint">
 					{{ replacementHint }}
 				</p>
+				<NcNoteCard v-if="replacementAway && selectedReplacement" type="warning">
+					{{ t('absence', '{name} is off on some of these days.', { name: selectedReplacement.displayName }, undefined, { escape: false, sanitize: false }) }}
+				</NcNoteCard>
 			</div>
 
 			<div class="dialog__field">
@@ -273,7 +276,7 @@ import { formatRegionCode, makeHolidayChecker } from '../utils/holidays.ts'
 import { missingYears } from '../utils/holidayYears.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { formatNumber } from '../utils/locale.ts'
-import { namesAndMore } from '../utils/people.ts'
+import { namesAndMore, replacementSuggestions } from '../utils/people.ts'
 import { defaultLeaveType, estimateMismatch, isStoredRange, prefilledWorkingDays } from '../utils/prefill.ts'
 import { offeredLeaveTypes, requestChanges, requestCreation } from '../utils/requestPayload.ts'
 import { restAfter, splitAtYearEnd } from '../utils/yearSplit.ts'
@@ -327,8 +330,16 @@ const selectedEmployee = ref<UserRef | null>(null)
 const employeeOptions = ref<UserRef[]>([])
 const employeeLoading = ref(false)
 const selectedReplacement = ref<UserRef | null>(null)
-const replacementOptions = ref<UserRef[]>([])
+// The search results while at least two letters are typed, null otherwise.
+const replacementResults = ref<UserRef[] | null>(null)
 const replacementLoading = ref(false)
+// The absent person's teammates, offered before anything is typed (§5.1).
+const teammates = ref<UserRef[]>([])
+const startTeammatesLoad = latestOnly()
+// Whether the picked replacement is off during the picked dates, checked as they change.
+const replacementAway = ref(false)
+let awaySeq = 0
+let awayTimer: ReturnType<typeof setTimeout> | undefined
 // Who else on the team is off during the picked dates (§8), fetched as the
 // dates change. `coverageSeq` discards answers overtaken by a newer range.
 const coverage = ref<Coverage | null>(null)
@@ -450,6 +461,14 @@ const replacementHint = computed(() => {
 		? t('absence', 'Optional. A colleague who covers for {name} while they are away, and is notified once this is recorded.', { name: subjectName.value }, undefined, { escape: false, sanitize: false })
 		: t('absence', 'Optional. A colleague who covers these duties while this employee is away, and is notified once this is recorded.')
 })
+
+/** Typed search results, else the colleagues chosen before and the teammates. */
+const replacementOptions = computed<UserRef[]>(() => replacementResults.value ?? replacementSuggestions({
+	past: isOwnLeave.value ? pastReplacements() : [],
+	teammates: teammates.value,
+	selected: selectedReplacement.value,
+	subjectUid: subjectUid.value,
+}))
 
 // Bridge the native date pickers (Date objects) to our ISO string state.
 const startDate = computed<Date | null>({
@@ -668,15 +687,22 @@ watch([startIso, endIso], () => {
 
 watch(subjectUid, () => {
 	loadSubject()
+	loadTeammates()
+})
+
+watch([selectedReplacement, startIso, endIso], () => {
+	scheduleAway()
 })
 
 onBeforeUnmount(() => {
 	clearTimeout(coverageTimer)
+	clearTimeout(awayTimer)
 })
 
 onMounted(async () => {
 	await initFromProps()
 	loadSubject()
+	loadTeammates()
 	if (!props.hrMode && !requestsStore.balance.balances.length) {
 		// No year on purpose: the server then answers every year, which balanceRow needs for leave booked in another year
 		await requestsStore.loadMyBalance()
@@ -709,6 +735,53 @@ async function loadCoverage() {
 		if (seq === coverageSeq) {
 			coverage.value = null
 		}
+	}
+}
+
+/** Debounced like the coverage note: the dates move a lot while a picker is being dragged. */
+function scheduleAway() {
+	replacementAway.value = false
+	clearTimeout(awayTimer)
+	awayTimer = setTimeout(() => loadAway(), 350)
+}
+
+/**
+ * Check whether the picked replacement is off on any of the picked days.
+ */
+async function loadAway() {
+	const replacement = selectedReplacement.value
+	const seq = ++awaySeq
+	if (!needsReplacement.value || !replacement || !startIso.value || !endIso.value || endIso.value < startIso.value) {
+		return
+	}
+	try {
+		const { away } = await api.isAway(replacement.uid, startIso.value, endIso.value)
+		if (seq === awaySeq) {
+			replacementAway.value = away === true
+		}
+	} catch {
+		// Advisory only, like the coverage note: a failed check leaves the warning out.
+	}
+}
+
+/**
+ * The teammates of the person whose absence this is: mine, or for HR the
+ * employee's. Only the last person picked lands.
+ */
+async function loadTeammates() {
+	const isLatest = startTeammatesLoad()
+	teammates.value = []
+	const uid = subjectUid.value
+	if (!uid) {
+		return
+	}
+	try {
+		const list = await api.teammates(isOwnLeave.value ? undefined : uid)
+		if (isLatest()) {
+			teammates.value = list
+		}
+	} catch {
+		// Suggestions only: typing still searches the whole company.
 	}
 }
 
@@ -875,15 +948,6 @@ async function initFromProps() {
 			selectedReplacement.value = pastReplacements()[0] || null
 		}
 	}
-	// Offer colleagues used before so the dropdown isn't empty (self-service).
-	if (!props.hrMode) {
-		replacementOptions.value = pastReplacements()
-		// Keep the current selection pickable even if it isn't in that list.
-		const selected = selectedReplacement.value
-		if (selected && !replacementOptions.value.some((o) => o.uid === selected.uid)) {
-			replacementOptions.value = [selected, ...replacementOptions.value]
-		}
-	}
 }
 
 // Distinct colleagues used as replacement in the user's past requests, newest first.
@@ -932,15 +996,16 @@ async function onEmployeeSearch(query: string) {
  */
 async function onReplacementSearch(query: string) {
 	if (!query || query.length < 2) {
+		replacementResults.value = null
 		return
 	}
 	replacementLoading.value = true
 	try {
 		const users = await api.searchUsers(query)
 		// A person can't be their own replacement.
-		replacementOptions.value = users.filter((u) => u.uid !== subjectUid.value)
+		replacementResults.value = users.filter((u) => u.uid !== subjectUid.value)
 	} catch {
-		replacementOptions.value = []
+		replacementResults.value = []
 	} finally {
 		replacementLoading.value = false
 	}

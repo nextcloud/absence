@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\Service\CoverageService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
@@ -42,6 +43,7 @@ class EmployeeController extends Controller {
 		private PermissionService $permission,
 		private LoggerInterface $logger,
 		private IL10N $l,
+		private CoverageService $coverage,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -175,6 +177,26 @@ class EmployeeController extends Controller {
 			}
 			return array_values($employees);
 		});
+	}
+
+	/**
+	 * The teammates the replacement picker offers before anything is typed
+	 * (§5.1), the caller's own unless HR asks for an employee's.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function teammates(?string $uid = null): DataResponse {
+		return $this->handle(fn (): array => $this->coverage->getTeammates((string)$this->userId, $uid ?? (string)$this->userId));
+	}
+
+	/**
+	 * Whether a colleague is off on any of the given days, for the warning
+	 * under the replacement picker (§5.1). Null when the caller may not know.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function away(string $uid, string $from, string $to): DataResponse {
+		return $this->handle(fn (): array => ['away' => $this->coverage->isAway((string)$this->userId, $uid, $from, $to)]);
 	}
 
 	/**

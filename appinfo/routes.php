@@ -31,6 +31,8 @@ return [
 		['name' => 'employee#remind', 'url' => '/api/employees/remind', 'verb' => 'POST'],
 		['name' => 'employee#index', 'url' => '/api/employees', 'verb' => 'GET'],
 		['name' => 'employee#search', 'url' => '/api/employees/search', 'verb' => 'GET'],
+		['name' => 'employee#teammates', 'url' => '/api/employees/teammates', 'verb' => 'GET'],
+		['name' => 'employee#away', 'url' => '/api/employees/{uid}/away', 'verb' => 'GET'],
 		['name' => 'employee#exportJson', 'url' => '/api/employees/json', 'verb' => 'GET'],
 		['name' => 'employee#importJson', 'url' => '/api/employees/json', 'verb' => 'POST'],
 		['name' => 'employee#groups', 'url' => '/api/groups', 'verb' => 'GET'],
