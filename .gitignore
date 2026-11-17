@@ -7,3 +7,4 @@
 tests/.phpunit.cache
 npm-debug.log*
 /build/
+/js/
