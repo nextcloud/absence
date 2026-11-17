@@ -149,14 +149,14 @@ function format(v: number): string {
 		gap: 2px;
 	}
 
+	// One size for numbers and the month name, so values and labels line up.
 	&__value {
-		font-size: 1.9rem;
-		font-weight: 700;
-		line-height: 1.1;
+		font-size: calc(var(--default-font-size) * 1.6);
+		font-weight: 600;
+		line-height: 1.2;
 		color: var(--color-main-text);
 
 		&--word {
-			font-size: 1.4rem;
 			// Long month names should not blow the tile width out.
 			overflow-wrap: anywhere;
 		}
