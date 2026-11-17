@@ -771,7 +771,7 @@ async function postComment() {
 
 	dd {
 		margin: 0;
-		font-weight: 600;
+		font-weight: 400;
 	}
 
 	&__decided {
