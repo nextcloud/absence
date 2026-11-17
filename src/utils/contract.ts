@@ -54,3 +54,14 @@ export function contractDiff<T extends PeriodPattern>(before: T[], after: T[]): 
 	const added = after.filter((period) => !before.some((other) => same(period, other)))
 	return { removed, added, kept: removed.length ? [] : before.slice(-1) }
 }
+
+/**
+ * The date since which today's working pattern runs, for a read-only contract.
+ *
+ * @param from the start of the period in force today
+ * @param start the start date of the contract, null when HR entered none
+ * @return null when the pattern began on the start date, which has a line of its own
+ */
+export function patternSince(from: string, start: string | null): string | null {
+	return from === start ? null : from
+}

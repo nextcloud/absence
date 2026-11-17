@@ -12,10 +12,10 @@
 				:modelValue="code"
 				:label="t('absence', 'My region code')"
 				:error="code !== '' && !codeValid"
-				:helperText="code !== '' && !codeValid ? t('absence', 'Use a country like DE or a region like DE-BY') : ''"
+				:helperText="code !== '' && !codeValid ? t('absence', 'Use a country like DE or a region like DE-BY') : t('absence', 'Sets your public holidays')"
 				@update:modelValue="code = String($event)" />
 			<NcButton :disabled="saving || !codeValid || code === savedCode" @click="save">
-				{{ t('absence', 'Change') }}
+				{{ t('absence', 'Save') }}
 			</NcButton>
 		</div>
 		<p v-if="knownCodes.length" class="region-code__hint">
