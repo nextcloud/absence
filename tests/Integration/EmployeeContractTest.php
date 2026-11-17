@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Tests\Integration;
 
 use OCA\Absence\Api\IAbsenceProvider;
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\ConfigController;
 use OCA\Absence\Controller\ProfileController;
 use OCA\Absence\Db\ContractPeriodMapper;
@@ -26,6 +27,7 @@ use OCA\Absence\Service\ProfileService;
 use OCA\Absence\Service\RequestService;
 use OCA\Absence\Service\SessionService;
 use OCP\AppFramework\Http;
+use OCP\IAppConfig;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -51,6 +53,8 @@ class EmployeeContractTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		$users = Server::get(IUserManager::class);
 		foreach ([self::HR, self::EMPLOYEE, self::MANAGER, self::OTHER] as $i => $uid) {
 			$users->createUser($uid, 'Itest-Password-' . ($i + 10));
@@ -71,6 +75,7 @@ class EmployeeContractTest extends TestCase {
 				$types->delete($type);
 			}
 		}
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 

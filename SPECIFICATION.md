@@ -54,7 +54,7 @@ There are four effective roles. A single user may hold several simultaneously
 |------|-------------|--------------|
 | **Employee** | Every logged-in user **except guest accounts** (§2.2) | Create/edit/cancel own requests, view own balance, view own history, see team who's-off calendar. |
 | **Line manager** | Derived from the LDAP `manager` attribute (see §2.1) — a user is a manager of everyone whose `manager` attribute points to them | Approve/reject/comment on direct reports' requests, view direct reports' calendars and balances, receive coverage-conflict warnings. |
-| **HR** | Membership of a configurable Nextcloud group (default group id `hr`, set by an admin on the in-app Settings page, §12) | Company-wide overview, statistics, exports, manage entitlements, manage public-holiday calendar, override any decision, act on escalated requests, edit/adjust any request and balance. |
+| **HR** | Membership of a configurable Nextcloud group (none until an admin chooses it on the in-app Settings page, §12; a group that happens to be called `hr` holds no role by itself) | Company-wide overview, statistics, exports, manage entitlements, manage public-holiday calendar, override any decision, act on escalated requests, edit/adjust any request and balance. |
 | **App admin** | Nextcloud server admins | Open the in-app Settings page (§12) without being in HR, and the only role that may change the HR group. |
 
 ### 2.1 Determining the line manager (LDAP)
@@ -1237,7 +1237,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 
 | Section | Setting | Default | Notes |
 |---------|---------|---------|-------|
-| Who is who | HR group id | `hr` | Which NC group is HR (§2). Admins only. |
+| Who is who | HR group id | none | **Required**: which NC group is HR (§2). Admins only. Installs that relied on the old default `hr` keep it: the upgrade stores it when that group exists. |
 | Who is who | Employees group | none | **Required**: only members count as employees (§2.2). Until one is chosen the app is closed (below). The select shows its member count. |
 | Vacation | Default annual entitlement (days) | 28 | The days of everyone HR hasn't set days for (§6.4). A change asks whether those on the old default follow (§6.1). |
 | Vacation | Carry-over policy | `capped` | `none` / `unlimited` / `capped`. |
@@ -1903,7 +1903,7 @@ mobile-tuned views.
 | HR reports | Per-employee balances, company trends/charts, CSV/Excel export, who's-off calendar |
 | Out-of-office | Independent — does NOT touch built-in user_status |
 | Lifecycle | Full edit workflow (edit/cancel/withdraw with re-approval + balance restore) |
-| HR role | Configurable Nextcloud group (default `hr`) |
+| HR role | Configurable Nextcloud group (none until an admin chooses it) |
 | Escalation | Auto-escalate to HR after a configurable pending window |
 | History | Per-request timeline (§3.7) shown to employee/manager/HR |
 | Dashboard | Role-aware API widget (§15.6) |

@@ -26,6 +26,7 @@ use OCA\Absence\Service\RegionReminderService;
 use OCP\AppFramework\Http;
 use OCP\Collaboration\Collaborators\ISearch;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IAppConfig;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -55,6 +56,8 @@ class EmployeeJsonTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		$users = Server::get(IUserManager::class);
 		foreach ([self::HR, self::MANAGER, self::ROBIN, self::SAM] as $uid) {
 			$users->createUser($uid, 'Itest-Password-' . strlen($uid) . 'json');
@@ -83,6 +86,7 @@ class EmployeeJsonTest extends TestCase {
 		if ($this->guests !== null) {
 			Server::get(IUserManager::class)->removeBackend($this->guests);
 		}
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 

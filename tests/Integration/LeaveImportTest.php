@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Tests\Integration;
 
 use OCA\Absence\Command\ImportLeave;
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Controller\ImportController;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
@@ -30,6 +31,7 @@ use OCP\Activity\IManager as IActivityManager;
 use OCP\AppFramework\Http;
 use OCP\Config\IUserConfig;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IRequest;
@@ -67,6 +69,8 @@ class LeaveImportTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		$this->service = Server::get(LeaveImportService::class);
 		$this->requests = Server::get(LeaveRequestMapper::class);
 		$this->users = Server::get(IUserManager::class);
@@ -114,6 +118,7 @@ class LeaveImportTest extends TestCase {
 		if ($this->createdHrGroup) {
 			Server::get(IGroupManager::class)->get(Server::get(ConfigService::class)->getHrGroup())?->delete();
 		}
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 

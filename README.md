@@ -276,7 +276,7 @@ group, so on a fresh install an admin picks it first.
 
 | Setting | Default | What it does |
 |---|---|---|
-| HR group | `hr` | Which Nextcloud group holds HR powers |
+| HR group | none | Which Nextcloud group holds HR powers. The app stays closed until an admin chooses it |
 | Employees group | empty (= everyone) | Optional: only members of this group count as employees — keeps service accounts out of leave, reports and pickers. Recommended on large instances: reports then read one group instead of enumerating the whole user directory |
 | Default annual entitlement | 28 days | Seed for new entitlement rows |
 | Escalation window | 3 working days | How long a manager may sit on a request before HR is pulled in |
@@ -307,7 +307,7 @@ country/region for public holidays). Notification preferences defer to Nextcloud
 |---|---|---|
 | **Employee** | every user account | Apply for leave, see own balances and history |
 | **Line manager** | the `manager` account property, from LDAP/AD or set on the account | Approve/decline reports' requests, team coverage, timeline and balances |
-| **HR** | membership of a configurable group (default `hr`) | Company-wide view, record and correct absences, entitlements, statistics, export |
+| **HR** | membership of a configurable group, chosen by an admin | Company-wide view, record and correct absences, entitlements, statistics, export |
 | **Administrator** | Nextcloud server admin | App configuration and leave types |
 
 Guest accounts are **not** employees: they have no entitlement, take no leave, appear

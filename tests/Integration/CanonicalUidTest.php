@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\EmploymentMapper;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveType;
@@ -21,6 +22,7 @@ use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\RequestService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -48,6 +50,8 @@ class CanonicalUidTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		$users = Server::get(IUserManager::class);
 		foreach ([self::HR, self::MANAGER, self::EMPLOYEE, self::COLLEAGUE] as $i => $uid) {
 			$users->createUser($uid, 'Itest-Password-cu-' . $i);
@@ -88,6 +92,7 @@ class CanonicalUidTest extends TestCase {
 		if ($this->createdHrGroup) {
 			Server::get(IGroupManager::class)->get(Server::get(ConfigService::class)->getHrGroup())?->delete();
 		}
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 

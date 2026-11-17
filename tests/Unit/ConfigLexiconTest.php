@@ -75,7 +75,7 @@ class ConfigLexiconTest extends TestCase {
 		$entries = $this->entriesByKey($this->lexicon->getAppConfigs());
 
 		$this->assertSame(ValueType::STRING, $entries[ConfigLexicon::KEY_HR_GROUP]->getValueType());
-		$this->assertSame('hr', $entries[ConfigLexicon::KEY_HR_GROUP]->getDefault(Preset::NONE));
+		$this->assertSame('', $entries[ConfigLexicon::KEY_HR_GROUP]->getDefault(Preset::NONE));
 
 		$this->assertSame(ValueType::FLOAT, $entries[ConfigLexicon::KEY_DEFAULT_ENTITLEMENT]->getValueType());
 		$this->assertSame('28', $entries[ConfigLexicon::KEY_DEFAULT_ENTITLEMENT]->getDefault(Preset::NONE));

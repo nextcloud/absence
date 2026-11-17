@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
@@ -17,6 +18,7 @@ use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\RequestService;
+use OCP\IAppConfig;
 use OCP\IGroupManager;
 use OCP\IUserManager;
 use OCP\Server;
@@ -39,6 +41,8 @@ class HrOwnLeaveTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		$users = Server::get(IUserManager::class);
 		$groups = Server::get(IGroupManager::class);
 		$hrGroup = Server::get(ConfigService::class)->getHrGroup();
@@ -69,6 +73,7 @@ class HrOwnLeaveTest extends TestCase {
 		if ($this->createdHrGroup) {
 			Server::get(IGroupManager::class)->get(Server::get(ConfigService::class)->getHrGroup())?->delete();
 		}
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 

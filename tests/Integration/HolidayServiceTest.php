@@ -19,6 +19,7 @@ use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PermissionService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IRequest;
@@ -44,6 +45,8 @@ class HolidayServiceTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		$this->service = Server::get(HolidayService::class);
 		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
 		$qb->select($qb->func()->max('id'))->from('absence_holiday_history');
@@ -65,6 +68,7 @@ class HolidayServiceTest extends TestCase {
 		$qb->delete('absence_holiday_history')
 			->where($qb->expr()->gt('id', $qb->createNamedParameter($this->historyFrom, IQueryBuilder::PARAM_INT)))
 			->executeStatement();
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 
