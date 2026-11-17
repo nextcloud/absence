@@ -226,4 +226,15 @@ class CarryOverTest extends TestCase {
 		self::assertSame(1, $result['skipped']);
 		self::assertSame(1.0, $this->stored(self::WITH_ROW, 2032)->getCarryOverDays());
 	}
+
+	public function testRolloverLeavesAnImportedCarryOverAlone(): void {
+		$this->entitlement(self::WITH_ROW, 2031, 20.0);
+		// the occ import records its changes without an actor
+		$this->service()->setForEmployee(null, self::WITH_ROW, 2032, $this->annual, ['carryOverDays' => 1.0]);
+
+		$result = $this->service()->rollover(2031);
+
+		self::assertSame(1, $result['skipped']);
+		self::assertSame(1.0, $this->stored(self::WITH_ROW, 2032)->getCarryOverDays());
+	}
 }

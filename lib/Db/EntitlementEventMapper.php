@@ -60,7 +60,8 @@ class EntitlementEventMapper extends QBMapper {
 
 	/**
 	 * The entitlements of a year whose carry-over was changed by anyone other
-	 * than the given actor.
+	 * than the given actor. A change without an actor, as occ records it, is
+	 * one of them.
 	 *
 	 * @return array<int,true> keyed by entitlement id
 	 */
@@ -71,7 +72,10 @@ class EntitlementEventMapper extends QBMapper {
 			->innerJoin('e', 'absence_entitlements', 't', $qb->expr()->eq('e.entitlement_id', 't.id'))
 			->where($qb->expr()->eq('t.year', $qb->createNamedParameter($year, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('e.field', $qb->createNamedParameter(EntitlementEvent::FIELD_CARRY_OVER_DAYS)))
-			->andWhere($qb->expr()->neq('e.actor_uid', $qb->createNamedParameter($actorUid)));
+			->andWhere($qb->expr()->orX(
+				$qb->expr()->isNull('e.actor_uid'),
+				$qb->expr()->neq('e.actor_uid', $qb->createNamedParameter($actorUid)),
+			));
 		$result = $qb->executeQuery();
 		$ids = [];
 		while ($row = $result->fetch()) {
