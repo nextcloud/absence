@@ -114,25 +114,24 @@ class ExportService {
 	 * @param list<list<string>> $rows
 	 */
 	private function toCsv(array $rows): string {
-		$handle = fopen('php://temp', 'r+');
 		// BOM so Excel opens UTF-8 correctly.
-		fwrite($handle, "\xEF\xBB\xBF");
+		$csv = "\xEF\xBB\xBF";
 		foreach ($rows as $row) {
-			// escape: '' disables PHP's legacy backslash escaping in favour of pure
-			// RFC-4180 quoting (and silences the 8.4 deprecation of the default).
-			fputcsv($handle, array_map([$this, 'sanitizeCell'], $row), ',', '"', '');
+			// Every field is quoted (RFC 4180), so no value is ever read as more than one cell.
+			$csv .= implode(',', array_map(
+				fn (string $value): string => '"' . str_replace('"', '""', $this->sanitizeCell($value)) . '"',
+				$row,
+			)) . "\n";
 		}
-		rewind($handle);
-		$content = stream_get_contents($handle);
-		fclose($handle);
-		return $content === false ? '' : $content;
+		return $csv;
 	}
 
 	/**
 	 * Neutralize spreadsheet formula injection: a cell that begins with a formula
-	 * trigger (=, +, -, @, tab or CR) is evaluated by Excel/LibreOffice/Sheets when
-	 * the export is opened. Employee display names, account ids, e-mail addresses
-	 * and leave-type labels are attacker-influenced free text, so prefix any such value with an apostrophe,
+	 * trigger (=, +, -, @, tab or CR), also after leading spaces or quotes, is
+	 * evaluated by Excel/LibreOffice/Sheets when the export is opened. Employee
+	 * display names, account ids, e-mail addresses and leave-type labels are
+	 * attacker-influenced free text, so prefix any such value with an apostrophe,
 	 * which forces the client to treat the whole cell as literal text.
 	 */
 	private function sanitizeCell(string $value): string {
@@ -141,7 +140,7 @@ class ExportService {
 		if (is_numeric($value)) {
 			return $value;
 		}
-		if ($value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+		if (preg_match('/^[ "\']*[=+\-@\t\r]/', $value) === 1) {
 			return "'" . $value;
 		}
 		return $value;
