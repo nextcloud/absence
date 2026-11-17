@@ -1682,7 +1682,8 @@ NcContent(app-name="absence")
 - **Absences** (`#/hr/absences`, HR only) — the counterpart to *Record absence*: the
   full list of recorded absences with filters for employee (user autocomplete), leave
   type, status and year, paged with a "Load more" button. Rows are the same
-  `RequestListItem` as elsewhere and open the detail sidebar, whose **Edit** and
+  `RequestListItem` as elsewhere (with the person's days of that type still to book,
+  "N available", for a single year) and open the detail sidebar, whose **Edit** and
   **Cancel** controls are what let HR correct a wrong vacation or sick day (§5.6).
   People are named, never printed as user ids: requests are serialized with an
   `employeeName` (display name, falling back to the uid for a deleted account),

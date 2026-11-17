@@ -46,14 +46,14 @@ const props = withDefaults(defineProps<{
 	request: LeaveRequest
 	active?: boolean
 	showEmployee?: boolean
-	// The employee's remaining days for this leave type and year, when the caller
-	// has them to hand. Null for leave that counts against no allowance, and while
-	// the figures are still loading.
-	remaining?: number | null
+	// The days the employee can still book of this leave type and year (after
+	// pending requests), when the caller has them to hand. Null for leave that
+	// counts against no allowance, and while the figures are still loading.
+	available?: number | null
 }>(), {
 	active: false,
 	showEmployee: false,
-	remaining: null,
+	available: null,
 })
 
 const emit = defineEmits<{
@@ -108,12 +108,12 @@ const subtitle = computed(() => {
 	if (after !== undefined && after !== null) {
 		return `${range} · ${days} · ${n('absence', '%n available after', '%n available after', Math.round(after * 10) / 10)}`
 	}
-	if (props.remaining === null) {
+	if (props.available === null) {
 		return `${range} · ${days}`
 	}
 	// Days taken alone does not answer the question the list is scanned for.
-	const left = n('absence', '%n day left', '%n days left', Math.round(props.remaining * 10) / 10)
-	return `${range} · ${days} · ${left}`
+	const available = n('absence', '%n available', '%n available', Math.round(props.available * 10) / 10)
+	return `${range} · ${days} · ${available}`
 })
 
 /**

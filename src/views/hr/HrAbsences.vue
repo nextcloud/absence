@@ -92,7 +92,7 @@
 					:key="r.id"
 					:request="r"
 					:showEmployee="true"
-					:remaining="remainingFor(r)"
+					:available="availableFor(r)"
 					:active="requestsStore.selectedId === r.id"
 					@select="requestsStore.select($event)" />
 			</TransitionGroup>
@@ -148,6 +148,7 @@ import api from '../../services/api.ts'
 import { useLeaveTypesStore } from '../../stores/leaveTypes.ts'
 import { useRequestsStore } from '../../stores/requests.ts'
 import { useSessionStore } from '../../stores/session.ts'
+import { availableByEmployeeAndType } from '../../utils/balances.ts'
 import { openRecordKey } from '../../utils/injectionKeys.ts'
 import { yearFromQuery } from '../../utils/numbers.ts'
 import { statusMeta } from '../../utils/status.ts'
@@ -190,7 +191,7 @@ const loadingMore = ref(false)
 const importing = ref(false)
 // Bumped on every reload; a fetch whose seq is stale on return is discarded.
 let reloadSeq = 0
-// employeeUid|typeId => remaining days, for the selected year.
+// employeeUid|typeId => available days, for the selected year.
 const balances = shallowRef<Record<string, number>>({})
 const rows = shallowRef<LeaveRequest[]>([])
 const hasMore = ref(false)
@@ -356,7 +357,7 @@ async function reload(): Promise<void> {
  * employee's balances in a fixed number of queries, which a request per
  * visible absence would not be.
  *
- * Only for a single reporting year: "remaining" is a per-year figure, so with
+ * Only for a single reporting year: "available" is a per-year figure, so with
  * the filter on "All years" there is no one answer and the rows simply omit
  * it. Silent on failure — the list is still perfectly usable without it.
  */
@@ -371,13 +372,7 @@ async function loadBalances(): Promise<void> {
 		if (seq !== reloadSeq) {
 			return
 		}
-		const index: Record<string, number> = {}
-		for (const row of report) {
-			if (row.remaining !== null) {
-				index[`${row.employeeUid}|${row.typeId}`] = row.remaining
-			}
-		}
-		balances.value = index
+		balances.value = availableByEmployeeAndType(report)
 	} catch {
 		if (seq === reloadSeq) {
 			balances.value = {}
@@ -386,11 +381,11 @@ async function loadBalances(): Promise<void> {
 }
 
 /**
- * The remaining days to show on a row, null when they are not known.
+ * The available days to show on a row, null when they are not known.
  *
  * @param request one absence row
  */
-function remainingFor(request: LeaveRequest): number | null {
+function availableFor(request: LeaveRequest): number | null {
 	const value = balances.value[`${request.employeeUid}|${request.typeId}`]
 	return value === undefined ? null : value
 }
