@@ -1,11 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# HR used Absence 1.0.12 (commit 0d84f4d) before the betas. This installs that
-# version, fills it with invented data, upgrades to the code of the pull request
-# with `occ upgrade` and checks that everything entered is still there.
+# Installs an older Absence, fills it with invented data, moves to the code of
+# the pull request and checks that everything entered is still there.
+#
+# From: 1.0.12 (commit 0d84f4d), which HR used before the betas, and 1.0.0-beta.1.
+# How: `occ upgrade` over the replaced folder, or app removed and enabled again.
 
-name: Upgrade from 1.0.12
+name: Upgrade from older versions
 
 on: pull_request
 
@@ -13,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: upgrade-from-1012-${{ github.head_ref || github.run_id }}
+  group: upgrade-from-older-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +37,7 @@ jobs:
         with:
           filters: |
             src:
-              - '.github/workflows/upgrade-from-1.0.12.yml'
+              - '.github/workflows/upgrade-from-older-versions.yml'
               - 'appinfo/**'
               - 'lib/**'
               - 'tests/Upgrade/**'
@@ -61,8 +63,15 @@ jobs:
       fail-fast: false
       matrix:
         database: ['sqlite', 'mysql', 'pgsql']
+        from: ['1.0.12', '1.0.0-beta.1']
+        how: ['upgrade', 'reinstall']
+        include:
+          - from: '1.0.12'
+            ref: 0d84f4da14aea8564ba666d3cfd31f60123302bc
+          - from: '1.0.0-beta.1'
+            ref: v1.0.0-beta.1
 
-    name: Upgrade from 1.0.12 on ${{ matrix.database }}
+    name: ${{ matrix.from }} ${{ matrix.how }} on ${{ matrix.database }}
 
     services:
       mysql:
@@ -91,11 +100,20 @@ jobs:
           repository: nextcloud/server
           ref: ${{ needs.changes-and-matrix.outputs.server-min }}
 
-      - name: Checkout Absence 1.0.12
+      - name: Add the viewer app where the server does not ship it
+        env:
+          SERVER_BRANCH: ${{ needs.changes-and-matrix.outputs.server-min }}
+        run: |
+          # `occ upgrade` refuses to run while an always-enabled app has no files
+          if [ ! -d apps/viewer ]; then
+            git clone --depth 1 --branch "$SERVER_BRANCH" https://github.com/nextcloud/viewer.git apps/viewer
+          fi
+
+      - name: Checkout Absence ${{ matrix.from }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: 0d84f4da14aea8564ba666d3cfd31f60123302bc
+          ref: ${{ matrix.ref }}
           path: apps/absence
 
       - name: Checkout the code to upgrade to
@@ -115,7 +133,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Nextcloud with Absence 1.0.12
+      - name: Install Nextcloud with Absence ${{ matrix.from }}
         env:
           DATABASE: ${{ matrix.database }}
         run: |
@@ -128,16 +146,31 @@ jobs:
           ./occ app:enable --force absence
           ./occ config:app:get absence installed_version
 
-      - name: Enter invented data on 1.0.12
+      - name: Enter invented data on ${{ matrix.from }}
         run: |
           php new-absence/tests/Upgrade/upgrade-check.php "$PWD" seed
           php new-absence/tests/Upgrade/upgrade-check.php "$PWD" snapshot before.json
 
-      - name: Upgrade to the new code
+      - name: Move to the new code
+        env:
+          HOW: ${{ matrix.how }}
         run: |
-          rm -rf apps/absence
-          mv new-absence apps/absence
-          ./occ upgrade
+          installed=$(./occ config:app:get absence installed_version)
+          new=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' new-absence/appinfo/info.xml)
+          if [ "$installed" = "$new" ]; then
+            # Unreleased code keeps the version of the last release, and Nextcloud only
+            # runs migrations for a new version: bump it here like the release will.
+            sed -i "s:<version>$new</version>:<version>$new.1</version>:" new-absence/appinfo/info.xml
+          fi
+          if [ "$HOW" = reinstall ]; then
+            ./occ app:remove absence
+            mv new-absence apps/absence
+            ./occ app:enable --force absence
+          else
+            rm -rf apps/absence
+            mv new-absence apps/absence
+            ./occ upgrade
+          fi
           ./occ config:app:get absence installed_version
 
       - name: Check the data
