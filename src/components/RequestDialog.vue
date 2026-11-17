@@ -48,11 +48,17 @@
 					:clearable="false"
 					required
 					:aria-label-combobox="t('absence', 'Leave type')">
-					<template #option="{ icon, label }">
-						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					<template #option="{ icon, label, enabled }">
+						<span class="opt">
+							<span class="opt__icon">{{ icon }}</span>{{ label }}
+							<span v-if="!enabled" class="dialog__optional">{{ t('absence', '(disabled)') }}</span>
+						</span>
 					</template>
-					<template #selected-option="{ icon, label }">
-						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					<template #selected-option="{ icon, label, enabled }">
+						<span class="opt">
+							<span class="opt__icon">{{ icon }}</span>{{ label }}
+							<span v-if="!enabled" class="dialog__optional">{{ t('absence', '(disabled)') }}</span>
+						</span>
 					</template>
 				</NcSelect>
 			</div>
@@ -65,11 +71,17 @@
 					label="label"
 					:clearable="false"
 					:aria-label-combobox="t('absence', 'Category')">
-					<template #option="{ icon, label }">
-						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					<template #option="{ icon, label, enabled }">
+						<span class="opt">
+							<span class="opt__icon">{{ icon }}</span>{{ label }}
+							<span v-if="!enabled" class="dialog__optional">{{ t('absence', '(disabled)') }}</span>
+						</span>
 					</template>
-					<template #selected-option="{ icon, label }">
-						<span class="opt"><span class="opt__icon">{{ icon }}</span>{{ label }}</span>
+					<template #selected-option="{ icon, label, enabled }">
+						<span class="opt">
+							<span class="opt__icon">{{ icon }}</span>{{ label }}
+							<span v-if="!enabled" class="dialog__optional">{{ t('absence', '(disabled)') }}</span>
+						</span>
 					</template>
 				</NcSelect>
 				<p class="dialog__hint">
@@ -243,10 +255,9 @@ import type {
 	HolidayRecord,
 	LeaveRequest,
 	LeaveType,
-	RequestCreateData,
-	RequestUpdateData,
 	UserRef,
 } from '../types/index.ts'
+import type { RequestFormValues } from '../utils/requestPayload.ts'
 import type { DateRange, YearSplit } from '../utils/yearSplit.ts'
 
 import { showError } from '@nextcloud/dialogs'
@@ -276,6 +287,7 @@ import { latestOnly } from '../utils/latest.ts'
 import { formatNumber } from '../utils/locale.ts'
 import { namesAndMore } from '../utils/people.ts'
 import { isStoredRange, prefilledWorkingDays } from '../utils/prefill.ts'
+import { offeredLeaveTypes, requestChanges, requestCreation } from '../utils/requestPayload.ts'
 import { restAfter, splitAtYearEnd } from '../utils/yearSplit.ts'
 
 const props = withDefaults(defineProps<{
@@ -299,6 +311,7 @@ interface SickCategoryOption {
 	id: number | null
 	icon: string
 	label: string
+	enabled: boolean
 }
 
 const selectedType = ref<LeaveType | null>(null)
@@ -357,6 +370,9 @@ const submitLabel = computed(() => {
 /** The type keyed 'sick' that the confidential categories nest under. */
 const sickType = computed<LeaveType | null>(() => leaveTypesStore.enabledLeaveTypes.find((type) => type.key === 'sick' && type.enabled) || null)
 
+/** The enabled types, and the type of the request being edited even when it was disabled since. */
+const offeredTypes = computed<LeaveType[]>(() => offeredLeaveTypes(leaveTypesStore.enabledLeaveTypes, leaveTypesStore.leaveTypes, props.request))
+
 const typeOptions = computed<LeaveType[]>(() => {
 	// HR may record any enabled type (incl. sick); employees only self-requestable ones.
 	// HR correcting an existing record needs the same full list — otherwise the
@@ -365,13 +381,13 @@ const typeOptions = computed<LeaveType[]>(() => {
 		// Confidential categories (hrOnly) are picked as a sub-option of sick
 		// leave, not as top-level types — unless no sick type exists to hang
 		// them off, in which case they stay listed directly.
-		return leaveTypesStore.enabledLeaveTypes.filter((type) => !type.hrOnly || !sickType.value)
+		return offeredTypes.value.filter((type) => !type.hrOnly || !sickType.value)
 	}
-	return leaveTypesStore.requestableLeaveTypes
+	return offeredLeaveTypes(leaveTypesStore.requestableLeaveTypes, leaveTypesStore.leaveTypes, props.request)
 })
 
 /** Confidential (HR-only) types — the server only sends these to HR. */
-const confidentialCategories = computed<LeaveType[]>(() => leaveTypesStore.enabledLeaveTypes.filter((type) => type.hrOnly))
+const confidentialCategories = computed<LeaveType[]>(() => offeredTypes.value.filter((type) => type.hrOnly))
 
 const showSickCategories = computed<boolean>(() => {
 	return (props.hrMode || (isEdit.value && sessionStore.session.isHr === true))
@@ -393,8 +409,8 @@ const showDisability = computed<boolean>(() => {
 
 const sickCategoryOptions = computed<[SickCategoryOption, ...SickCategoryOption[]]>(() => {
 	return [
-		{ id: null, icon: sickType.value ? sickType.value.icon : '🤒', label: t('absence', 'General sick leave') },
-		...confidentialCategories.value.map((c) => ({ id: c.id, icon: c.icon, label: c.label })),
+		{ id: null, icon: sickType.value ? sickType.value.icon : '🤒', label: t('absence', 'General sick leave'), enabled: true },
+		...confidentialCategories.value.map((c) => ({ id: c.id, icon: c.icon, label: c.label, enabled: c.enabled })),
 	]
 })
 
@@ -815,13 +831,14 @@ async function initFromProps() {
 	const types = typeOptions.value
 	const request = props.request
 	if (request) {
-		const requestType = leaveTypesStore.enabledLeaveTypes.find((x) => x.id === request.typeId) || null
+		const requestType = offeredTypes.value.find((x) => x.id === request.typeId) || null
 		if (requestType && requestType.hrOnly && sickType.value) {
 			// A confidential record edits as "Sick leave" + its category.
 			selectedType.value = sickType.value
-			sickCategory.value = { id: requestType.id, icon: requestType.icon, label: requestType.label }
+			sickCategory.value = { id: requestType.id, icon: requestType.icon, label: requestType.label, enabled: requestType.enabled }
 		} else {
-			selectedType.value = requestType || types[0] || null
+			// A type this page does not know stays unpicked: preselecting another one would save it.
+			selectedType.value = requestType
 		}
 		disability.value = !!request.disability
 		startIso.value = request.startDate
@@ -926,32 +943,26 @@ async function submit() {
 	submitting.value = true
 	// Read before the request is sent: the dates stay editable while it runs
 	const rest = pendingRest.value
-	const typeId = (showSickCategories.value && sickCategory.value && sickCategory.value.id !== null)
-		? sickCategory.value.id
-		: type.id
-	const changes: RequestUpdateData = {
-		typeId,
+	const form: RequestFormValues = {
+		typeId: (showSickCategories.value && sickCategory.value && sickCategory.value.id !== null)
+			? sickCategory.value.id
+			: type.id,
 		startDate,
 		endDate,
 		workingDays: workingDaysNum.value,
 		reason: reason.value,
+		asksReplacement: needsReplacement.value,
+		replacementUid: selectedReplacement.value ? selectedReplacement.value.uid : null,
 	}
 	if (showDisability.value) {
-		changes.disability = disability.value
-	}
-	if (needsReplacement.value && selectedReplacement.value) {
-		changes.replacementUid = selectedReplacement.value.uid
+		form.disability = disability.value
 	}
 	try {
 		if (props.request) {
-			await requestsStore.updateRequest(props.request.id, changes)
+			await requestsStore.updateRequest(props.request.id, requestChanges(form, props.request))
 		} else {
-			const creation: RequestCreateData = { ...changes, typeId, startDate, endDate }
 			// Whose absence it is only counts when it is recorded: the server does not read it on an update
-			if (props.hrMode && selectedEmployee.value) {
-				creation.employeeUid = selectedEmployee.value.uid
-			}
-			await requestsStore.createRequest(creation)
+			await requestsStore.createRequest(requestCreation(form, props.hrMode && selectedEmployee.value ? selectedEmployee.value.uid : null))
 			if (rest) {
 				openRest(rest)
 				return
