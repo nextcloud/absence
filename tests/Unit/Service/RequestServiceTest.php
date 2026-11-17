@@ -109,6 +109,7 @@ class RequestServiceTest extends TestCase {
 		$this->employees->method('isEmployee')->willReturnCallback(
 			fn (string $uid): bool => !in_array($uid, $this->guestUids, true),
 		);
+		$this->employees->method('canonicalUid')->willReturnArgument(0);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->eventDispatcher = $this->createMock(IEventDispatcher::class);

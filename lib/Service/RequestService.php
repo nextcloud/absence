@@ -224,11 +224,12 @@ class RequestService {
 		// is conditional; who may be named is not, and skipping these when the type
 		// happened not to require one let a guest — or the employee themselves — be
 		// recorded as covering.
+		$replacementUid = $this->employees->canonicalUid($replacementUid);
 		if ($replacementUid === $employeeUid) {
 			throw new ValidationException($this->l->t('You cannot be your own replacement.'));
 		}
 		// Also rejects guests: cover during an absence is a colleague's duty (§2.2).
-		if (!$this->employees->isEmployee($replacementUid)) {
+		if ($replacementUid === null || !$this->employees->isEmployee($replacementUid)) {
 			throw new ValidationException($this->l->t('The chosen replacement is not a valid user.'));
 		}
 		return $replacementUid;
@@ -548,7 +549,8 @@ class RequestService {
 		$type = $this->resolveType((int)($data['typeId'] ?? 0));
 
 		// Whose leave this is: HR may record leave on behalf of another employee.
-		$employeeUid = trim((string)($data['employeeUid'] ?? '')) ?: $actorUid;
+		$named = trim((string)($data['employeeUid'] ?? ''));
+		$employeeUid = $named === '' ? $actorUid : $this->employees->canonicalUid($named);
 		$onBehalf = $employeeUid !== $actorUid;
 		$isHr = $this->permission->isHr($actorUid);
 		if ($onBehalf && !$isHr) {
@@ -556,7 +558,7 @@ class RequestService {
 		}
 		// Guests are external accounts, not staff: they have no entitlement and take
 		// no leave, so no record may be created for one — including by HR (§2.2).
-		if (!$this->employees->isEmployee($employeeUid)) {
+		if ($employeeUid === null || !$this->employees->isEmployee($employeeUid)) {
 			throw new ValidationException($this->l->t('Leave can only be recorded for an employee.'));
 		}
 		// Some types (e.g. sick leave) are recorded by HR, not self-requested (§5.6).

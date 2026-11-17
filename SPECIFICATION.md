@@ -124,6 +124,13 @@ calendar forever, with an empty allowance and nothing to show.
   including by HR, who may otherwise record for anyone — nominating a guest as a
   replacement, and setting a guest's entitlement. Filtering only the UI would
   leave the rule one crafted request away from being bypassed.
+- **One spelling per person.** A user id that arrives in a request (the employee
+  HR records leave for, a replacement, the employee of an entitlement or a
+  contract) is replaced by the account's own spelling before it is compared or
+  stored: `EmployeeDirectory::canonicalUid()`. The user backend finds `alice`
+  for `ALICE`, so the value as typed would count as somebody other than the
+  caller and end up under a uid no list reads. An e-mail address is not taken
+  for a uid here, only the import files accept one (§6.3, §6.5).
 - **Pickers.** The people pickers call the app's own
   `GET /api/employees/search` rather than core's autocomplete, because only the
   server can tell a guest from a colleague. That endpoint wraps the same
