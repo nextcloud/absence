@@ -766,12 +766,12 @@ async function postComment() {
 
 	dt {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	dd {
 		margin: 0;
-		font-weight: 500;
+		font-weight: 600;
 	}
 
 	&__decided {
@@ -800,12 +800,12 @@ async function postComment() {
 
 	&__title {
 		margin: 0 0 6px;
-		font-size: 0.95rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__hint {
-		font-weight: normal;
-		font-size: 0.75rem;
+		font-weight: 400;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 		margin-inline-start: 6px;
 	}
@@ -835,7 +835,7 @@ async function postComment() {
 
 	&__meta {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.8rem;
+		font-size: var(--font-size-small);
 		flex-shrink: 0;
 	}
 
@@ -891,7 +891,7 @@ async function postComment() {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__time {
@@ -960,7 +960,7 @@ async function postComment() {
 	}
 
 	&__time {
-		font-size: 0.78rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 		white-space: nowrap;
 	}
@@ -969,7 +969,7 @@ async function postComment() {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 		margin-top: 2px;
 	}
@@ -979,7 +979,7 @@ async function postComment() {
 		padding: 6px 10px;
 		background: var(--color-background-hover);
 		border-radius: var(--border-radius, 8px);
-		font-size: 0.88rem;
+		font-size: var(--font-size-small);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}

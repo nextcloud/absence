@@ -29,7 +29,7 @@ const meta = computed(() => statusMeta(props.status))
 	gap: 4px;
 	padding: 2px 10px;
 	border-radius: var(--border-radius-pill, 16px);
-	font-size: 0.8rem;
+	font-size: var(--font-size-small);
 	font-weight: 600;
 	// Contrast-optimised text on a solid tinted background (not transparent), so
 	// readability doesn't depend on whatever surface sits behind the chip.

@@ -104,7 +104,7 @@ const steps = computed<Step[]>(() => {
 	}
 
 	&__label {
-		font-size: 0.75rem;
+		font-size: var(--font-size-small);
 		text-align: center;
 		color: var(--color-text-maxcontrast);
 	}

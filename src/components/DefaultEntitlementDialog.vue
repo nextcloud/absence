@@ -102,8 +102,8 @@ async function apply(): Promise<void> {
 	}
 
 	&__days {
-		font-size: 1.6rem;
-		font-weight: bold;
+		font-size: var(--absence-font-size-figure);
+		font-weight: 600;
 
 		&--old {
 			color: var(--color-text-maxcontrast);

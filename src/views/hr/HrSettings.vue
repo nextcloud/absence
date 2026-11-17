@@ -625,7 +625,7 @@ async function changeEmployeesGroup(): Promise<void> {
 
 	h3 {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__title {
@@ -678,12 +678,12 @@ async function changeEmployeesGroup(): Promise<void> {
 	&__hint {
 		margin: 4px 0 0;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.9em;
+		font-size: var(--font-size-small);
 	}
 
 	&__muted {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.9em;
+		font-size: var(--font-size-small);
 	}
 }
 </style>

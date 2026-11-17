@@ -1085,7 +1085,7 @@ async function submit() {
 
 	&__label {
 		font-weight: 600;
-		font-size: 0.9rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__req {
@@ -1093,14 +1093,14 @@ async function submit() {
 	}
 
 	&__optional {
-		font-weight: normal;
-		font-size: 0.8rem;
+		font-weight: 400;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 
 	&__hint {
 		margin: 4px 0 0;
-		font-size: 0.8rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 
@@ -1134,13 +1134,13 @@ async function submit() {
 	}
 
 	&__count {
-		font-size: 1.8rem;
+		font-size: var(--absence-font-size-figure);
 		font-weight: 600;
 		color: var(--type-color);
 	}
 
 	&__caption {
-		font-size: 0.8rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 
@@ -1150,7 +1150,7 @@ async function submit() {
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 4px;
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 		color: var(--color-text-maxcontrast);
 	}
 

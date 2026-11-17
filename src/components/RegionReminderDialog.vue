@@ -208,7 +208,7 @@ async function send() {
 	&__label {
 		margin-bottom: 6px;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__notification {
@@ -247,7 +247,7 @@ async function send() {
 		align-items: center;
 		gap: 8px;
 		margin: 0 0 8px;
-		font-size: 1rem;
+		font-size: var(--default-font-size);
 		font-weight: 600;
 	}
 
@@ -255,7 +255,7 @@ async function send() {
 		padding: 0 8px;
 		border-radius: var(--border-radius-pill);
 		background: var(--color-background-dark);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 
 		&--send {
 			color: var(--color-primary-element-text);
@@ -285,18 +285,18 @@ async function send() {
 
 	&__code {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__when {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85rem;
+		font-size: var(--font-size-small);
 	}
 
 	&__footer {
 		margin: 0;
 		color: var(--color-text-maxcontrast);
-		font-size: 0.9rem;
+		font-size: var(--font-size-small);
 	}
 }
 </style>

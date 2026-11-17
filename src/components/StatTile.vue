@@ -45,8 +45,8 @@ withDefaults(defineProps<{
 	}
 
 	&__value {
-		font-size: 2rem;
-		font-weight: 700;
+		font-size: var(--absence-font-size-figure);
+		font-weight: 600;
 		line-height: 1.1;
 		color: var(--color-main-text);
 		font-variant-numeric: tabular-nums;
@@ -54,12 +54,12 @@ withDefaults(defineProps<{
 
 	&__label {
 		color: var(--color-main-text);
-		font-size: 0.9rem;
+		font-size: var(--default-font-size);
 	}
 
 	&__caption {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.8rem;
+		font-size: var(--font-size-small);
 	}
 }
 </style>

@@ -141,18 +141,16 @@ function fmt(v: number): string {
 	}
 
 	&__total {
-		font-size: 26px;
-		font-weight: 700;
+		font-size: var(--absence-font-size-figure);
+		font-weight: 600;
 		text-anchor: middle;
 		fill: var(--color-main-text);
 	}
 
 	&__unit {
-		font-size: 11px;
+		font-size: var(--font-size-small);
 		text-anchor: middle;
 		fill: var(--color-text-maxcontrast);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
 	}
 
 	&__legend {
@@ -168,7 +166,7 @@ function fmt(v: number): string {
 			display: flex;
 			align-items: center;
 			gap: 8px;
-			font-size: 0.88rem;
+			font-size: var(--font-size-small);
 		}
 	}
 

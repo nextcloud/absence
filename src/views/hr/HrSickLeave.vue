@@ -376,7 +376,7 @@ async function reload(): Promise<void> {
 }
 
 .strong {
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .opt {

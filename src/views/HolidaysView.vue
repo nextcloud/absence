@@ -547,7 +547,7 @@ function download(): void {
 
 	&__region {
 		font-variant-numeric: tabular-nums;
-		font-weight: bold;
+		font-weight: 600;
 	}
 
 	&__who {
@@ -561,7 +561,7 @@ function download(): void {
 	&__byline,
 	&__when {
 		color: var(--color-text-maxcontrast);
-		font-size: 0.85em;
+		font-size: var(--font-size-small);
 	}
 
 	&__when {

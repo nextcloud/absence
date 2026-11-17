@@ -57,7 +57,7 @@ defineProps<{
 
 	&__title {
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: var(--default-font-size);
 	}
 }
 
