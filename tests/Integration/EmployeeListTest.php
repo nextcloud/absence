@@ -28,6 +28,7 @@ use OCA\Absence\Service\RegionReminderService;
 use OCP\AppFramework\Http;
 use OCP\Collaboration\Collaborators\ISearch;
 use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -52,6 +53,8 @@ class EmployeeListTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// No group holds the HR role until one is chosen (§12)
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, 'hr');
 		foreach ([self::HR, self::MANAGER, self::PART_TIME, self::BARE] as $uid) {
 			$this->createUser($uid);
 		}
@@ -64,6 +67,7 @@ class EmployeeListTest extends TestCase {
 		foreach ($this->created as $uid) {
 			Server::get(IUserManager::class)->get($uid)?->delete();
 		}
+		Server::get(IAppConfig::class)->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP);
 		parent::tearDown();
 	}
 

@@ -60,8 +60,8 @@ class ConfigLexicon implements ILexicon {
 	#[\Override]
 	public function getAppConfigs(): array {
 		return [
-			new Entry(self::KEY_HR_GROUP, ValueType::STRING, 'hr',
-				'Group whose members have the HR role'),
+			new Entry(self::KEY_HR_GROUP, ValueType::STRING, '',
+				'Group whose members have the HR role; empty = nobody until an admin chooses one'),
 			new Entry(self::KEY_EMPLOYEES_GROUP, ValueType::STRING, '',
 				'Group whose members count as employees; empty = every non-guest account'),
 			new Entry(self::KEY_DEFAULT_ENTITLEMENT, ValueType::FLOAT, 28.0,
