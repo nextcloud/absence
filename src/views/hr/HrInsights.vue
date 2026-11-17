@@ -230,7 +230,7 @@
 								{{ fmtDays(team.outstanding) }}
 							</td>
 							<td class="bar">
-								<MeterBar :value="team.outstanding" :max="liabilityMax" color="var(--color-warning)" />
+								<MeterBar :value="team.outstanding" :max="liabilityMax" color="var(--color-element-warning)" />
 							</td>
 						</tr>
 					</tbody>
@@ -367,9 +367,9 @@ function scoreColor(score: number): string {
 function rateColor(rate: number): string {
 	// Low utilisation is the thing to notice, so it reads warm.
 	if (rate < 0.4) {
-		return 'var(--color-warning, #c98a1e)'
+		return 'var(--color-element-warning)'
 	}
-	return 'var(--color-success, #4caf50)'
+	return 'var(--color-element-success)'
 }
 </script>
 
