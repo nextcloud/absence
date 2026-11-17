@@ -227,6 +227,11 @@
 								:size="24"
 								hideStatus />
 							<strong>{{ c.authorName || c.authorUid }}</strong>
+							<NcDateTime
+								v-if="c.createdAt"
+								class="comments__time"
+								:timestamp="new Date(c.createdAt)"
+								ignoreSeconds />
 						</div>
 						<p>{{ c.body }}</p>
 					</li>
@@ -237,7 +242,7 @@
 					</template>
 				</NcEmptyContent>
 				<div v-if="!withheld" class="comment-add">
-					<NcTextArea v-model="newComment" :placeholder="t('absence', 'Add a comment…')" rows="2" />
+					<NcTextArea v-model="newComment" :label="t('absence', 'Write a comment')" rows="2" />
 					<NcButton variant="secondary" :disabled="newComment.trim() === '' || busy" @click="postComment">
 						{{ t('absence', 'Send') }}
 					</NcButton>
@@ -324,6 +329,7 @@ import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDateTime from '@nextcloud/vue/components/NcDateTime'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
@@ -891,6 +897,12 @@ async function postComment() {
 		align-items: center;
 		gap: 8px;
 		font-size: 0.85rem;
+	}
+
+	&__time {
+		margin-inline-start: auto;
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small, 13px);
 	}
 }
 

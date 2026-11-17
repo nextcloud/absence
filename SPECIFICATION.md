@@ -1570,7 +1570,9 @@ NcContent(app-name="absence")
 - **Center `NcAppContent`** hosts the routed view.
 - **Right `NcAppSidebar`** opens when a request is selected, with tabbed detail
   (Details / Coverage / Comments / History) — the standard Nextcloud master-detail
-  pattern, used instead of a modal for *viewing* a request.
+  pattern, used instead of a modal for *viewing* a request. Each comment shows when it
+  was written (relative, the full date on hover); the box to add one is labelled
+  "Write a comment".
 - Route with `vue-router`; deep-link each view (`#/my`, `#/approvals`, `#/team`,
   `#/hr/balances`, …).
 
@@ -1590,7 +1592,8 @@ NcContent(app-name="absence")
   number **counts up** on load) beside a **breakdown ledger** (base allowance
   + carry-over ± adjustment = entitlement, minus used and pending → **available**).
   Below, two **monthly `BarChart`s** for the current year — approved leave taken per
-  month and sick days per month (always visible, empty months at zero) — then the
+  month and sick days per month (empty months at zero; a year without sick days shows
+  the line "No sick days in {year}" in place of an empty sick chart), then the
   list of my requests. Each row carries a
   leave-type **accent stripe** and a status chip, hover-lifts, and animates in/out via
   `<TransitionGroup>`. While loading, a **skeleton** placeholder shows instead of a
@@ -1662,7 +1665,11 @@ NcContent(app-name="absence")
   changes (the person and HR only). The person, their manager and HR may open it
   (`GET /api/profiles/{uid}`), the same rule as balances. An account that does not
   exist is refused with the same 403 as someone else's profile; only HR, who may open
-  every profile, gets a 404. Links to the person's card in
+  every profile, gets a 404. A refused profile is an `NcEmptyContent` with the person's
+  name, "Only {name}, their manager and HR can see this profile." and a link back to the
+  Team view. The name comes from the people search, which follows the admin's
+  user-enumeration settings; a person it does not reveal is named by their user id.
+  Links to the person's card in
   Contacts, where managers and teams are kept, when Contacts is enabled.
 - **Settings** (`#/hr/settings`, HR and admins, §12): One section per row, title and
   short description on the left, fields on the right: *Who is who*, *Vacation*,

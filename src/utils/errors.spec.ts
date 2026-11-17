@@ -9,7 +9,7 @@ vi.mock('@nextcloud/axios', () => ({
 	isAxiosError: (payload: unknown) => typeof payload === 'object' && payload !== null && 'isAxiosError' in payload && payload.isAxiosError === true,
 }))
 
-const { serverMessage } = await import('./errors.ts')
+const { isForbidden, serverMessage } = await import('./errors.ts')
 
 /**
  * What axios throws for an answer with an error status.
@@ -34,5 +34,13 @@ describe('serverMessage', () => {
 	it('is empty for anything that is not a failed request', () => {
 		expect(serverMessage(new Error('boom'))).toBe('')
 		expect(serverMessage(undefined)).toBe('')
+	})
+})
+
+describe('isForbidden', () => {
+	it('is true for a refused request only', () => {
+		expect(isForbidden({ isAxiosError: true, response: { status: 403, data: {} } })).toBe(true)
+		expect(isForbidden(failed({}))).toBe(false)
+		expect(isForbidden(new Error('offline'))).toBe(false)
 	})
 })

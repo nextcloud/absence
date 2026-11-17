@@ -40,9 +40,14 @@
 			<div v-if="leaveByMonth" class="surface">
 				<BarChart :title="t('absence', 'Leave taken by month ({year})', { year })" :data="leaveByMonth" />
 			</div>
-			<div v-if="sickByMonth" class="surface">
-				<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
-			</div>
+			<template v-if="sickByMonth">
+				<div v-if="sickByMonth.some((bar) => bar.value > 0)" class="surface">
+					<BarChart :title="t('absence', 'Sick days by month ({year})', { year })" :data="sickByMonth" />
+				</div>
+				<p v-else class="surface charts__empty">
+					{{ t('absence', 'No sick days in {year}', { year }) }}
+				</p>
+			</template>
 		</section>
 
 		<section class="requests">
@@ -403,6 +408,11 @@ function celebrateNewApprovals(): void {
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
 
+	&__empty {
+		align-self: start;
+		margin: 0;
+		color: var(--color-text-maxcontrast);
+	}
 }
 
 .requests {

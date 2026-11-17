@@ -7,7 +7,25 @@
 -->
 <template>
 	<div class="page page--narrow page--roomy">
-		<header class="page__header page__header--center">
+		<NcEmptyContent
+			v-if="refusedName !== null"
+			:name="refusedName"
+			:description="t('absence', 'Only {name}, their manager and HR can see this profile.', { name: refusedName }, { escape: false, sanitize: false })">
+			<template #icon>
+				<NcAvatar
+					:user="profileUid"
+					:displayName="refusedName"
+					:size="64"
+					:disableMenu="true"
+					hideStatus />
+			</template>
+			<template #action>
+				<NcButton :to="{ name: 'team' }">
+					{{ t('absence', 'Back to the team') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
+		<header v-else class="page__header page__header--center">
 			<div class="profile__who">
 				<NcAvatar :user="profileUid" :size="44" :disableMenu="true" />
 				<div>
@@ -46,8 +64,8 @@
 			@saved="onDaysSaved" />
 
 		<NcEmptyContent v-if="error" :name="error" />
-		<SkeletonList v-else-if="!profile" />
-		<div v-else class="profile__grid">
+		<SkeletonList v-else-if="!profile && refusedName === null" />
+		<div v-else-if="profile" class="profile__grid">
 			<section class="profile__card">
 				<h3>{{ t('absence', 'Vacation {year}', { year: profile.holidays.year }) }}</h3>
 				<BalanceCard v-for="row in balances" :key="row.typeId" :row="row" />
@@ -158,7 +176,8 @@ import SkeletonList from '../components/SkeletonList.vue'
 import api from '../services/api.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { formatDate, formatRange, toIso } from '../utils/dates.ts'
-import { serverMessage } from '../utils/errors.ts'
+import { displayNameOf } from '../utils/displayName.ts'
+import { isForbidden, serverMessage } from '../utils/errors.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { regionFlag } from '../utils/regions.ts'
 import { dayNames } from '../utils/weekdays.ts'
@@ -180,6 +199,8 @@ const startLoad = latestOnly()
 const profile = ref<Profile | null>(null)
 const balances = ref<BalanceRow[]>([])
 const error = ref<string | null>(null)
+// The name of the person whose profile the viewer may not see
+const refusedName = ref<string | null>(null)
 const contractKey = ref(0)
 // The balance row HR edits the vacation days of
 const editingDays = ref<BalanceRow | null>(null)
@@ -215,6 +236,7 @@ async function load(): Promise<void> {
 	const isLatest = startLoad()
 	profile.value = null
 	error.value = null
+	refusedName.value = null
 	try {
 		const [loaded, balance] = await Promise.all([
 			api.getProfile(profileUid.value),
@@ -227,6 +249,13 @@ async function load(): Promise<void> {
 		profile.value = loaded
 	} catch (e) {
 		if (!isLatest()) {
+			return
+		}
+		if (isForbidden(e)) {
+			const name = await displayNameOf(profileUid.value)
+			if (isLatest()) {
+				refusedName.value = name
+			}
 			return
 		}
 		error.value = serverMessage(e) || t('absence', 'Could not load this profile')
