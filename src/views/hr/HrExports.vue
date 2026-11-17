@@ -12,7 +12,10 @@
 
 		<div class="tiles tiles--wide">
 			<div class="surface card">
-				<h3><span aria-hidden="true">🗂️</span> {{ t('absence', 'Requests') }}</h3>
+				<h3>
+					<FileDelimitedOutline :size="20" />
+					{{ t('absence', 'Requests') }}
+				</h3>
 				<p>{{ t('absence', 'All leave requests overlapping the selected date range, as CSV.') }}</p>
 				<div class="card__row">
 					<NcDateTimePickerNative v-model="from" type="date" :label="t('absence', 'From')" />
@@ -40,7 +43,10 @@
 			</div>
 
 			<div class="surface card">
-				<h3><span aria-hidden="true">⚖️</span> {{ t('absence', 'Balances') }}</h3>
+				<h3>
+					<ScaleBalance :size="20" />
+					{{ t('absence', 'Balances') }}
+				</h3>
 				<p>{{ t('absence', 'Per-employee entitlement, used, remaining and carry-over for a year.') }}</p>
 				<div class="card__row">
 					<NcSelect
@@ -77,6 +83,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import Download from 'vue-material-design-icons/Download.vue'
+import FileDelimitedOutline from 'vue-material-design-icons/FileDelimitedOutline.vue'
+import ScaleBalance from 'vue-material-design-icons/ScaleBalance.vue'
 import api from '../../services/api.ts'
 import { toIso } from '../../utils/dates.ts'
 
@@ -125,7 +133,12 @@ onMounted(async () => {
 	flex-direction: column;
 	gap: 12px;
 
-	h3 { margin: 0; }
+	h3 {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0;
+	}
 	p { margin: 0; color: var(--color-text-maxcontrast); }
 
 	&__row {

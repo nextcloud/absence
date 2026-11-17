@@ -25,35 +25,44 @@
 		<template v-else-if="data">
 			<div class="tiles">
 				<StatTile
-					icon="⏱️"
 					:value="fmtHours(data.approval.medianHours)"
 					:label="t('absence', 'median time to a decision')"
-					:caption="t('absence', '95th percentile {p}', { p: fmtHours(data.approval.p95Hours) })"
-					accent="var(--color-primary-element)" />
+					:caption="t('absence', '95th percentile {p}', { p: fmtHours(data.approval.p95Hours) })">
+					<template #icon>
+						<TimerOutline :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="⏫"
 					:value="fmtPct(data.approval.escalationRate)"
 					:label="t('absence', 'of requests escalated')"
-					:caption="n('absence', '%n request needed a decision', '%n requests needed a decision', data.approval.needingDecision)"
-					accent="var(--color-warning)" />
+					:caption="n('absence', '%n request needed a decision', '%n requests needed a decision', data.approval.needingDecision)">
+					<template #icon>
+						<ArrowUpBoldCircleOutline :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="🌿"
 					:value="fmtPct(data.utilization.company.rate)"
 					:label="t('absence', 'annual leave used')"
-					:caption="n('absence', '{used} of {total} day', '{used} of {total} days', data.utilization.company.entitlement, { used: fmtDays(data.utilization.company.used), total: fmtDays(data.utilization.company.entitlement) })"
-					accent="var(--color-success)" />
+					:caption="n('absence', '{used} of {total} day', '{used} of {total} days', data.utilization.company.entitlement, { used: fmtDays(data.utilization.company.used), total: fmtDays(data.utilization.company.entitlement) })">
+					<template #icon>
+						<Leaf :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="💰"
 					:value="fmtDays(data.liability.outstanding)"
 					:label="t('absence', 'days of leave outstanding')"
-					:caption="expiryCaption"
-					accent="var(--color-error, var(--color-warning))" />
+					:caption="expiryCaption">
+					<template #icon>
+						<CashMultiple :size="20" />
+					</template>
+				</StatTile>
 			</div>
 
 			<!-- Approval health -->
 			<section class="surface">
 				<h3 class="surface__title">
-					⏱️ {{ t('absence', 'Approval health') }}
+					<TimerOutline :size="20" />
+					{{ t('absence', 'Approval health') }}
 				</h3>
 				<p class="surface__lead">
 					{{ t('absence', 'How long decisions take, and who is holding requests up. Only leave that goes to a manager is counted.') }}
@@ -97,7 +106,8 @@
 			<!-- Bradford Factor -->
 			<section class="surface">
 				<h3 class="surface__title">
-					🧩 {{ t('absence', 'Bradford Factor') }}
+					<PuzzleOutline :size="20" />
+					{{ t('absence', 'Bradford Factor') }}
 				</h3>
 				<p class="surface__lead">
 					{{ t('absence', 'Recorded sick leave scored as spells² × days, so frequent short absences weigh more heavily than one long illness. A prompt for a supportive conversation, not a verdict.') }}
@@ -144,7 +154,8 @@
 			<!-- Utilisation & well-being -->
 			<section class="surface">
 				<h3 class="surface__title">
-					🌿 {{ t('absence', 'Leave utilisation') }}
+					<Leaf :size="20" />
+					{{ t('absence', 'Leave utilisation') }}
 				</h3>
 				<p class="surface__lead">
 					{{ t('absence', 'How much of their annual leave people actually take. Persistently low use is an early burnout signal.') }}
@@ -178,7 +189,8 @@
 			<!-- Liability -->
 			<section class="surface">
 				<h3 class="surface__title">
-					💰 {{ t('absence', 'Leave liability') }}
+					<CashMultiple :size="20" />
+					{{ t('absence', 'Leave liability') }}
 				</h3>
 				<p class="surface__lead">
 					{{ t('absence', 'Accrued but untaken annual leave (a real cost on the books) and the carry-over about to expire if it is not used.') }}
@@ -217,6 +229,11 @@ import type { Insights, NeglectedRow } from '../../types/index.ts'
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import ArrowUpBoldCircleOutline from 'vue-material-design-icons/ArrowUpBoldCircleOutline.vue'
+import CashMultiple from 'vue-material-design-icons/CashMultiple.vue'
+import Leaf from 'vue-material-design-icons/Leaf.vue'
+import PuzzleOutline from 'vue-material-design-icons/PuzzleOutline.vue'
+import TimerOutline from 'vue-material-design-icons/TimerOutline.vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
@@ -386,6 +403,9 @@ function rateColor(rate: number): string {
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 4);
 
 	&__title {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		margin: 0 0 4px;
 		font-size: 1.05rem;
 	}

@@ -1766,6 +1766,9 @@ Signature components built on top of `@nextcloud/vue`:
   The line and bar charts size their view box to the measured width, so axis and value
   labels render at `--font-size-small` at any width; an axis skips labels only when
   neighbours would overlap.
+- **`StatTile`**: the headline figure tile of the HR pages. One neutral style for
+  every tile (no per-tile tint or accent), with a material design icon. HR section
+  headings use material design icons too; emoji stay for leave types, which HR picks.
 - **`StatusChip` / `LeaveTypeChip`** — contrast-optimised pills (§15.4).
 
 **Motion policy:** every animation (ring count-up, list `<TransitionGroup>`, timeline

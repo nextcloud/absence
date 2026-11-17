@@ -19,28 +19,36 @@
 		<template v-else>
 			<div class="tiles">
 				<StatTile
-					icon="🏖️"
 					:value="fmt(trends.total)"
 					:label="t('absence', 'approved leave days')"
-					:caption="rangeCaption"
-					accent="var(--color-success)" />
+					:caption="rangeCaption">
+					<template #icon>
+						<Beach :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="🤒"
 					:value="fmt(sickAvg)"
 					:label="t('absence', 'avg. sick days per employee')"
-					:caption="t('absence', 'calendar year {year}, counting everybody', { year: statsYear })"
-					accent="var(--color-primary-element)" />
+					:caption="t('absence', 'calendar year {year}, counting everybody', { year: statsYear })">
+					<template #icon>
+						<Thermometer :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="🗓️"
 					:value="fmt(busiestMonth.value)"
 					:label="t('absence', 'days in the busiest month')"
-					:caption="busiestMonth.label"
-					accent="var(--color-warning)" />
+					:caption="busiestMonth.label">
+					<template #icon>
+						<CalendarMonth :size="20" />
+					</template>
+				</StatTile>
 				<StatTile
-					icon="🗂️"
 					:value="trends.byType.length"
-					:label="t('absence', 'leave types used')"
-					accent="var(--color-info, var(--color-primary-element))" />
+					:label="t('absence', 'leave types used')">
+					<template #icon>
+						<ShapeOutline :size="20" />
+					</template>
+				</StatTile>
 			</div>
 
 			<NcEmptyContent
@@ -104,7 +112,11 @@ import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcDateTimePickerNative from '@nextcloud/vue/components/NcDateTimePickerNative'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import Beach from 'vue-material-design-icons/Beach.vue'
+import CalendarMonth from 'vue-material-design-icons/CalendarMonth.vue'
 import ChartLine from 'vue-material-design-icons/ChartLine.vue'
+import ShapeOutline from 'vue-material-design-icons/ShapeOutline.vue'
+import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import DonutChart from '../../components/DonutChart.vue'
 import LineChart from '../../components/LineChart.vue'
 import MeterBar from '../../components/MeterBar.vue'
