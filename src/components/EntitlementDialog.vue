@@ -6,7 +6,11 @@
 	<NcModal :name="t('absence', 'Edit entitlement')" @close="$emit('close')">
 		<div class="edit">
 			<h3>{{ displayName }} · {{ row.typeLabel }} · {{ year }}</h3>
-			<NcTextField v-model="form.baseDays" type="number" :label="t('absence', 'Base days')" />
+			<NcTextField
+				v-model="form.baseDays"
+				type="number"
+				step="1"
+				:label="t('absence', 'Base days')" />
 			<!-- What the contract would give. Never applied by itself: HR takes it over or not. -->
 			<div v-if="proRata" class="edit__prorata">
 				<p>
@@ -20,6 +24,7 @@
 			<NcTextField
 				v-model="form.adjustmentDelta"
 				type="number"
+				step="1"
 				:label="t('absence', 'Adjust by (+/−)')"
 				:placeholder="t('absence', 'e.g. 2 to add two days, -2 to take them back')" />
 			<!-- The running total, so it is clear the field above adds to this rather
@@ -220,7 +225,7 @@ function formatDateTime(iso: string | null): string {
 async function save() {
 	const data = entitlementPayload(form, storedBaseDays.value)
 	if (data === null) {
-		showError(t('absence', 'Enter the base days as a number.'))
+		showError(t('absence', 'Enter the base days and the adjustment as whole numbers.'))
 		return
 	}
 	saving.value = true

@@ -51,7 +51,7 @@ Directory already fills in.
 * 🔒 Strict server-side permissions, rate limiting and GDPR deletion handling
 * 📝 Every important action recorded in the admin audit log when the Auditing / Logging app is enabled
 
-Full days only for now (no half-days), CSV export only, and deliberately no payroll,
+Full days only (no half-days), CSV export only, and deliberately no payroll,
 time-tracking or shift-planning. This app manages leave and does that one thing
 properly. Every rule and design decision is documented in the
 [specification](https://github.com/nextcloud/absence/blob/main/SPECIFICATION.md).

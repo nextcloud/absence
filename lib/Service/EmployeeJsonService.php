@@ -347,8 +347,8 @@ class EmployeeJsonService {
 			if (!preg_match('/^\d{4}$/', (string)$year) || (int)$year < $current - self::PAST_YEARS || (int)$year > $current + self::FUTURE_YEARS) {
 				throw new ValidationException($this->l->t('vacation days can be set for %1$d to %2$d, not %3$s', [$current - self::PAST_YEARS, $current + self::FUTURE_YEARS, (string)$year]));
 			}
-			if ((!is_int($value) && !is_float($value)) || $value < 0 || $value > 366 || round((float)$value, 1) !== (float)$value) {
-				throw new ValidationException($this->l->t('the vacation days of %d are a number of days, like 30 or 27.5', [(int)$year]));
+			if ((!is_int($value) && !is_float($value)) || $value < 0 || $value > 366 || floor((float)$value) !== (float)$value) {
+				throw new ValidationException($this->l->t('the vacation days of %d are a whole number of days, like 30', [(int)$year]));
 			}
 			$days[(int)$year] = (float)$value;
 		}

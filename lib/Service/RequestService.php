@@ -823,7 +823,7 @@ class RequestService {
 		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? $request->getReason() ?? ''), (string)($data['attachmentNote'] ?? $request->getAttachmentNote() ?? ''));
 
 		$replacementUid = $this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'] ?? $request->getReplacementUid());
-		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays());
+		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays(), $request->getWorkingDays());
 		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
 
 		// Captured before the entity is mutated below — afterwards the old values are gone.
@@ -884,7 +884,7 @@ class RequestService {
 		$note = array_key_exists('attachmentNote', $data) ? $data['attachmentNote'] : $original->getAttachmentNote();
 		$this->validateRange($actorUid, $start, $end, $type, (string)$reason, (string)$note);
 		$replacementUid = $this->resolveReplacement($actorUid, $type, $data['replacementUid'] ?? $original->getReplacementUid());
-		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays());
+		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays(), $original->getWorkingDays());
 		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
 
 		$now = $this->clock->now();
@@ -966,7 +966,7 @@ class RequestService {
 		}
 		// HR may correct the working-day count (§5.5); otherwise it is kept as entered.
 		if (array_key_exists('workingDays', $data) && $data['workingDays'] !== null) {
-			$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays']));
+			$request->setWorkingDays($this->normaliseWorkingDays($data['workingDays'], $request->getWorkingDays()));
 		}
 		// HR-only flag (§5.8). Not part of describeChanges(): the history timeline
 		// is visible to the employee and manager, and the flag is not.

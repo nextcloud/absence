@@ -142,9 +142,9 @@ class EmployeeJsonTest extends TestCase {
 		$entry = ['user' => self::ROBIN, 'region' => 'DE-BY', 'start' => '2024-03-01', 'end' => null,
 			'contract' => [['from' => '2024-03-01', 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100]]];
 
-		$json = $this->json([[...$entry, 'vacation' => [(string)$year => 24.5, (string)($year + 1) => 20]]]);
+		$json = $this->json([[...$entry, 'vacation' => [(string)$year => 24, (string)($year + 1) => 20]]]);
 		self::assertSame([
-			['field' => 'vacation', 'year' => $year, 'before' => $default, 'after' => 24.5],
+			['field' => 'vacation', 'year' => $year, 'before' => $default, 'after' => 24.0],
 			['field' => 'vacation', 'year' => $year + 1, 'before' => $default, 'after' => 20.0],
 		], $this->service->plan($json)['changes'][0]['fields']);
 		$this->service->import($json, self::HR);
@@ -152,9 +152,9 @@ class EmployeeJsonTest extends TestCase {
 		// Leaving this year out keeps its days
 		$this->service->import($this->json([[...$entry, 'vacation' => [(string)($year + 1) => 22]]]), self::HR);
 
-		self::assertSame(24.5, $this->annual($year)['baseDays']);
+		self::assertSame(24.0, $this->annual($year)['baseDays']);
 		self::assertSame(22.0, $this->annual($year + 1)['baseDays']);
-		self::assertSame([$year => 24.5, $year + 1 => 22.0], $this->entry($this->service->export(), self::ROBIN)['vacation']);
+		self::assertSame([$year => 24.0, $year + 1 => 22.0], $this->entry($this->service->export(), self::ROBIN)['vacation']);
 	}
 
 	public function testWrongVacationDaysAreReported(): void {
@@ -163,9 +163,9 @@ class EmployeeJsonTest extends TestCase {
 		$errors = static fn (array $vacation): array => array_column(Server::get(EmployeeJsonService::class)->plan(json_encode([[...$entry, 'vacation' => $vacation]]))['errors'], 'message');
 
 		self::assertSame(['Sam Example: vacation days can be set for ' . ($year - 2) . ' to ' . ($year + 1) . ', not ' . ($year - 3)], $errors([(string)($year - 3) => 10]));
-		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a number of days, like 30 or 27.5'], $errors([(string)$year => -1]));
-		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a number of days, like 30 or 27.5'], $errors([(string)$year => 27.25]));
-		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a number of days, like 30 or 27.5'], $errors([(string)$year => '30']));
+		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a whole number of days, like 30'], $errors([(string)$year => -1]));
+		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a whole number of days, like 30'], $errors([(string)$year => 27.5]));
+		self::assertSame(['Sam Example: the vacation days of ' . $year . ' are a whole number of days, like 30'], $errors([(string)$year => '30']));
 		self::assertSame(['Sam Example: "vacation" is the days per year, like {"2026": 30}'], $errors([30]));
 	}
 
@@ -270,13 +270,13 @@ class EmployeeJsonTest extends TestCase {
 
 	public function testOccSetsVacationDaysWithoutAnActor(): void {
 		$file = tempnam(sys_get_temp_dir(), 'itest-employees');
-		file_put_contents($file, $this->json([['user' => self::SAM, 'region' => null, 'start' => null, 'end' => null, 'contract' => [], 'vacation' => [(string)$this->year() => 24.5]]]));
+		file_put_contents($file, $this->json([['user' => self::SAM, 'region' => null, 'start' => null, 'end' => null, 'contract' => [], 'vacation' => [(string)$this->year() => 24]]]));
 		$tester = new CommandTester(Server::get(ImportEmployees::class));
 
 		self::assertSame(0, $tester->execute(['file' => $file]));
 		unlink($file);
 		$history = Server::get(EntitlementEventMapper::class)->findForEmployee(self::SAM);
-		self::assertSame([24.5], array_map(static fn (EntitlementEvent $e): float => $e->getNewValue(), $history));
+		self::assertSame([24.0], array_map(static fn (EntitlementEvent $e): float => $e->getNewValue(), $history));
 		self::assertNull($history[0]->getActorUid());
 	}
 

@@ -20,11 +20,11 @@ export interface EntitlementPayload {
 /**
  * What saving the entitlement dialog sends. The base days go along only when
  * they changed, and the adjustment only when one was entered, so saving one
- * never rewrites the other.
+ * never rewrites the other. Both are whole days (§3.3).
  *
  * @param form the fields as typed
  * @param storedBaseDays the base days before the dialog opened
- * @return null when the base days are not a number
+ * @return null when the base days are not a number, or a changed figure is not a whole number
  */
 export function entitlementPayload(form: EntitlementForm, storedBaseDays: number): EntitlementPayload | null {
 	const baseDays = Number(form.baseDays)
@@ -33,10 +33,16 @@ export function entitlementPayload(form: EntitlementForm, storedBaseDays: number
 	}
 	const data: EntitlementPayload = { adjustmentNote: form.adjustmentNote }
 	if (baseDays !== storedBaseDays) {
+		if (!Number.isInteger(baseDays)) {
+			return null
+		}
 		data.baseDays = baseDays
 	}
 	const delta = Number(form.adjustmentDelta)
 	if (form.adjustmentDelta !== '' && !Number.isNaN(delta)) {
+		if (!Number.isInteger(delta)) {
+			return null
+		}
 		data.adjustmentDelta = delta
 	}
 	return data

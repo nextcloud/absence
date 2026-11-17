@@ -19,15 +19,23 @@ trait WorkingDaysGuardTrait {
 
 	/**
 	 * The employee enters the working-day count manually (§7). Validate it is a
-	 * positive, sane number. Halves are allowed (§3.3).
+	 * positive, sane number of full days (§3.3). A count saved before with a
+	 * half day is accepted unchanged, so editing such a request keeps working.
 	 *
+	 * @param ?float $stored the count saved for the request being edited
 	 * @throws ValidationException
 	 */
-	private function normaliseWorkingDays(mixed $value): float {
+	private function normaliseWorkingDays(mixed $value, ?float $stored = null): float {
 		if ($value === null || $value === '' || !is_numeric($value)) {
 			throw new ValidationException($this->l->t('Please enter the number of working days.'));
 		}
-		$days = round((float)$value, 1);
+		$days = (float)$value;
+		if ($stored !== null && $days === $stored) {
+			return $days;
+		}
+		if ($days !== floor($days)) {
+			throw new ValidationException($this->l->t('Enter the working days as a whole number: leave is taken in full days.'));
+		}
 		if ($days <= 0) {
 			throw new ValidationException($this->l->t('The number of working days must be greater than zero.'));
 		}

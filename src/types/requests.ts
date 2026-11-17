@@ -26,7 +26,7 @@ export interface LeaveRequestRecord {
 	typeId: number
 	startDate: string
 	endDate: string
-	/** Entered by hand, in half-day steps. */
+	/** Entered by hand, in full days. */
 	workingDays: number
 	status: RequestStatus
 	reason: string | null

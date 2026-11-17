@@ -23,11 +23,15 @@ class EntitlementValidatorTest extends TestCase {
 	public static function figures(): array {
 		return [
 			'whole days' => [['baseDays' => 28.0], true],
-			'half a day' => [['baseDays' => 27.5, 'carryOverDays' => 0.5], true],
-			'one decimal that is not exact in binary' => [['baseDays' => 28.3, 'adjustmentDelta' => -0.1], true],
+			'whole days sent as text' => [['baseDays' => '28', 'carryOverDays' => '3.0'], true],
 			'a negative adjustment' => [['manualAdjustment' => -3.0], true],
-			'the largest value the column holds' => [['manualAdjustment' => -9999.9, 'baseDays' => 9999.9], true],
+			'the largest whole values the column holds' => [['manualAdjustment' => -9999.0, 'baseDays' => 9999.0], true],
 			'a note and no figure' => [['adjustmentNote' => 'Wedding'], true],
+			'half a day of base' => [['baseDays' => 27.5], false],
+			'half a day carried over' => [['carryOverDays' => 0.5], false],
+			'half a day set as adjustment' => [['manualAdjustment' => 1.5], false],
+			'one decimal in a correction' => [['adjustmentDelta' => -0.1], false],
+			'the largest value with a decimal' => [['baseDays' => 9999.9], false],
 			'two decimals' => [['baseDays' => 28.25], false],
 			'two decimals in a correction' => [['adjustmentDelta' => 0.05], false],
 			'more than the column holds' => [['carryOverDays' => 10000.0], false],
