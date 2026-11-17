@@ -51,6 +51,12 @@ class LeaveTypeControllerTest extends TestCase {
 		self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
 	}
 
+	public function testCreateRejectsColorWithTrailingNewline(): void {
+		$this->mapper->expects(self::never())->method('insert');
+		$response = $this->controller->create('annual', 'Annual leave', "#0082c9\n");
+		self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
 	public function testCreateRejectsOverlongLabel(): void {
 		$this->mapper->expects(self::never())->method('insert');
 		$response = $this->controller->create('annual', str_repeat('a', 129));

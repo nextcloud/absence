@@ -766,7 +766,9 @@ becomes the request's reason.
 - Carry-over policy is configurable (admin setting): `none`, `unlimited`, or
   `capped` at N days, with an optional **expiry date** (e.g. carried days expire
   end of Q1). On that date the job removes the carry-over that was not used: what
-  stays is the part covered by taken leave starting on or before the date.
+  stays is the part covered by taken leave starting on or before the date. A day
+  the month does not have that year is its last day: `02-29` expires on 28 February
+  outside leap years.
 - The rollover creates the next year's `absence_entitlements` rows with the prior
   year's `base_days` (the configured default for employees without a row, annual
   type only) + computed `carry_over_days`. A carry-over somebody already set by hand
@@ -1201,9 +1203,12 @@ Everyone else gets 403 from its endpoints (`GET`/`PUT /api/settings`,
 
 HR and admins may change everything **except the HR group, which only admins may
 change** (HR sees it read-only, "Only admins can change this."). The server checks
-both rules and validates every value: day counts are integers ≥ 0, day amounts are
-numbers ≥ 0, switches are booleans, the policy and visibility are enums, the expiry
-is empty or `MM-DD`, and both groups must exist (the employees group may be empty).
+both rules and validates every value: day counts are integers from 0 to 365 (the
+concurrent-absences threshold up to 9999), day amounts are numbers from 0 to 9999.9
+(what the entitlement columns hold), switches are booleans, the policy and visibility
+are enums, the expiry is empty or a real `MM-DD` day (`02-29` counts, `02-30` does
+not), and both groups must exist (the employees group may be empty). A number
+stored above its maximum is read as the maximum.
 Each change is logged as `admin_config_updated` with the changed keys.
 
 | Section | Setting | Default | Notes |
@@ -1222,7 +1227,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Calendar | CalDAV: write shared team calendar | true | §10. |
 | Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal. |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
-| Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `https://` link or a path on this server; empty hides the entry. |
+| Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
 | Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
 
 **Changing the employees group** asks for confirmation first. The dialog shows, from
@@ -1336,7 +1341,8 @@ already shows it to whoever may decide. The endpoint is always scoped to the
 The app ships no handbook of its own. HR links one in the settings (§12): a
 handbook for everyone and one for HR, typically Collectives pages HR keeps up to
 date, or any `https://` link or path on this server. Each becomes a navigation
-entry (the HR one for HR only) that opens in a new tab, and is hidden while empty.
+entry (the HR one for HR only) that opens in a new tab, and is hidden while empty
+or when the browser cannot parse the stored link.
 
 ---
 

@@ -126,6 +126,8 @@ class EmployeeContractTest extends TestCase {
 		return [
 			'end before start' => ['2026-05-01', '2026-04-30', []],
 			'not a day' => ['2026-02-30', null, []],
+			'start with a trailing newline' => ["2026-05-01\n", null, []],
+			'period with a trailing newline' => [null, null, [['from' => "2026-07-01\n", 'weekdays' => [1], 'percent' => 80]]],
 			'twice the same date' => [null, null, [
 				['from' => '2026-07-01', 'weekdays' => [1], 'percent' => 80],
 				['from' => '2026-07-01', 'weekdays' => [2], 'percent' => 80],

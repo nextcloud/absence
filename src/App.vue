@@ -52,9 +52,9 @@
 					</template>
 				</NcAppNavigationItem>
 				<NcAppNavigationItem
-					v-if="session.handbookUrl"
+					v-if="handbookUrl"
 					:name="t('absence', 'Handbook')"
-					:href="newTabUrl(session.handbookUrl)"
+					:href="handbookUrl"
 					:ariaDescription="t('absence', 'Opens in a new tab')">
 					<template #icon>
 						<BookOpenVariant :size="20" />
@@ -105,9 +105,9 @@
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
-						v-if="session.hrHandbookUrl"
+						v-if="hrHandbookUrl"
 						:name="t('absence', 'HR handbook')"
-						:href="newTabUrl(session.hrHandbookUrl)"
+						:href="hrHandbookUrl"
 						:ariaDescription="t('absence', 'Opens in a new tab')">
 						<template #icon>
 							<BookOpenPageVariant :size="20" />
@@ -212,6 +212,7 @@ import RequestSidebar from './components/RequestSidebar.vue'
 import { useRequestsStore } from './stores/requests.ts'
 import { useSessionStore } from './stores/session.ts'
 import { openNewKey, openRecordKey } from './utils/injectionKeys.ts'
+import { newTabUrl } from './utils/links.ts'
 
 const requestsStore = useRequestsStore()
 const sessionStore = useSessionStore()
@@ -265,6 +266,10 @@ const pendingCount = computed(() => sessionStore.session.pendingApprovals || 0)
 
 const escalatedCount = computed(() => sessionStore.session.escalatedCount ?? 0)
 
+const handbookUrl = computed(() => newTabUrl(sessionStore.session.handbookUrl ?? '', window.location.origin))
+
+const hrHandbookUrl = computed(() => newTabUrl(sessionStore.session.hrHandbookUrl ?? '', window.location.origin))
+
 onMounted(() => {
 	window.addEventListener('absence:open-new', openNewRequest)
 	window.addEventListener('absence:open-record', openRecord)
@@ -274,16 +279,6 @@ onBeforeUnmount(() => {
 	window.removeEventListener('absence:open-new', openNewRequest)
 	window.removeEventListener('absence:open-record', openRecord)
 })
-
-/**
- * NcAppNavigationItem only opens links with a scheme in a new tab,
- * so a path on this server becomes a full URL
- *
- * @param url a handbook link from the settings
- */
-function newTabUrl(url: string): string {
-	return new URL(url, window.location.origin).href
-}
 
 /**
  * Open the form for a new request

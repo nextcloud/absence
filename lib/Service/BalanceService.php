@@ -129,7 +129,13 @@ class BalanceService {
 	 */
 	public function carryOverExpiryDate(int $year): ?string {
 		$expiry = $this->config->getCarryOverExpiry(); // 'MM-DD' or ''
-		return $expiry === '' ? null : sprintf('%04d-%s', $year, $expiry);
+		if ($expiry === '') {
+			return null;
+		}
+		[$month, $day] = array_map('intval', explode('-', $expiry));
+		// A day the month does not have in $year, like 02-29, is its last day
+		$lastDay = (int)(new \DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month)))->format('t');
+		return sprintf('%04d-%02d-%02d', $year, $month, min($day, $lastDay));
 	}
 
 	/**

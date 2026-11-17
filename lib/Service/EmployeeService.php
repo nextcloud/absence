@@ -32,7 +32,7 @@ use OCP\Log\Audit\CriticalActionPerformedEvent;
  * @psalm-type Contract = array{start: ?string, end: ?string, periods: list<Period>}
  */
 class EmployeeService {
-	private const DATE = '/^\d{4}-\d{2}-\d{2}$/';
+	private const DATE = '/^\d{4}-\d{2}-\d{2}\z/';
 	/** @var array<string, Contract> */
 	private array $contracts = [];
 

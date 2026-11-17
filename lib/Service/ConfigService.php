@@ -33,6 +33,14 @@ class ConfigService {
 	public const VISIBILITY_NEUTRAL = 'neutral';
 	public const VISIBILITY_REVEAL = 'reveal';
 
+	// Upper bounds of the number settings. A stored value above its bound is read as the bound.
+	/** The largest value the DECIMAL(5,1) entitlement columns store. */
+	public const MAX_DAYS = 9999.9;
+	/** The longest window, lead or notice period: a year. */
+	public const MAX_PERIOD_DAYS = 365;
+	/** The highest threshold of people off at once. */
+	public const MAX_CONCURRENT = 9999;
+
 	public function __construct(
 		private IAppConfig $appConfig,
 		private IUserConfig $userConfig,
@@ -64,15 +72,15 @@ class ConfigService {
 	}
 
 	public function getDefaultEntitlement(): float {
-		return $this->appConfig->getValueFloat(self::APP_ID, ConfigLexicon::KEY_DEFAULT_ENTITLEMENT);
+		return min(self::MAX_DAYS, $this->appConfig->getValueFloat(self::APP_ID, ConfigLexicon::KEY_DEFAULT_ENTITLEMENT));
 	}
 
 	public function getEscalationWindowDays(): int {
-		return $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_ESCALATION_WINDOW);
+		return min(self::MAX_PERIOD_DAYS, $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_ESCALATION_WINDOW));
 	}
 
 	public function getReminderLeadDays(): int {
-		return $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_REMINDER_LEAD);
+		return min(self::MAX_PERIOD_DAYS, $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_REMINDER_LEAD));
 	}
 
 	public function getCarryOverPolicy(): string {
@@ -80,7 +88,7 @@ class ConfigService {
 	}
 
 	public function getCarryOverCap(): float {
-		return $this->appConfig->getValueFloat(self::APP_ID, ConfigLexicon::KEY_CARRYOVER_CAP);
+		return min(self::MAX_DAYS, $this->appConfig->getValueFloat(self::APP_ID, ConfigLexicon::KEY_CARRYOVER_CAP));
 	}
 
 	/** @return string '' or 'MM-DD' expiry day within the new year. */
@@ -89,7 +97,7 @@ class ConfigService {
 	}
 
 	public function getMaxConcurrentAbsences(): int {
-		return $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_MAX_CONCURRENT);
+		return min(self::MAX_CONCURRENT, $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_MAX_CONCURRENT));
 	}
 
 	/**
@@ -97,7 +105,7 @@ class ConfigService {
 	 * disables the short-notice warning entirely.
 	 */
 	public function getNoticePeriodDays(): int {
-		return $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_NOTICE_PERIOD);
+		return min(self::MAX_PERIOD_DAYS, $this->appConfig->getValueInt(self::APP_ID, ConfigLexicon::KEY_NOTICE_PERIOD));
 	}
 
 	public function isCalDavPersonalEnabled(): bool {
@@ -271,16 +279,18 @@ class ConfigService {
 			case ConfigLexicon::KEY_MAX_CONCURRENT:
 			case ConfigLexicon::KEY_NOTICE_PERIOD:
 				$int = filter_var($value, FILTER_VALIDATE_INT);
-				if ($int === false || is_bool($value) || $int < 0) {
-					throw new ValidationException($this->l->t('This setting must be a whole number, zero or greater.'));
+				$max = $key === ConfigLexicon::KEY_MAX_CONCURRENT ? self::MAX_CONCURRENT : self::MAX_PERIOD_DAYS;
+				if ($int === false || is_bool($value) || $int < 0 || $int > $max) {
+					throw new ValidationException($this->l->t('This setting must be a whole number between 0 and %s.', [$max]));
 				}
 				return $int;
 			case ConfigLexicon::KEY_DEFAULT_ENTITLEMENT:
 			case ConfigLexicon::KEY_CARRYOVER_CAP:
-				if (!is_numeric($value) || (float)$value < 0.0) {
-					throw new ValidationException($this->l->t('This setting must be a number, zero or greater.'));
+				$float = is_numeric($value) ? (float)$value : NAN;
+				if (!is_finite($float) || $float < 0.0 || $float > self::MAX_DAYS) {
+					throw new ValidationException($this->l->t('This setting must be a number between 0 and %s.', [self::MAX_DAYS]));
 				}
-				return (float)$value;
+				return $float;
 			case ConfigLexicon::KEY_CALDAV_PERSONAL:
 			case ConfigLexicon::KEY_CALDAV_SHARED:
 			case ConfigLexicon::KEY_HOLIDAYS_EVERYONE:
@@ -300,13 +310,12 @@ class ConfigService {
 				return $value;
 			case ConfigLexicon::KEY_HANDBOOK_URL:
 			case ConfigLexicon::KEY_HR_HANDBOOK_URL:
-				// A web link or a path on this server, never javascript: or data:
-				if (!is_string($value) || ($value !== '' && !preg_match('#^(https?://[^\s]+|/[^/\s][^\s]*)$#i', $value))) {
+				if (!is_string($value) || ($value !== '' && !$this->isHandbookLink($value))) {
 					throw new ValidationException($this->l->t('The handbook must be a link starting with https:// or /, or empty.'));
 				}
 				return $value;
 			case ConfigLexicon::KEY_CARRYOVER_EXPIRY:
-				if (!is_string($value) || ($value !== '' && !preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/', $value))) {
+				if (!is_string($value) || ($value !== '' && !$this->isMonthDay($value))) {
 					throw new ValidationException($this->l->t('The carry-over expiry must be empty or a day in MM-DD format.'));
 				}
 				return $value;
@@ -332,5 +341,25 @@ class ConfigService {
 			default:
 				throw new ValidationException($this->l->t('Unknown setting: %s', [$key]));
 		}
+	}
+
+	/**
+	 * A day of the year as MM-DD. The month is checked in a leap year, so 02-29
+	 * is a day.
+	 */
+	private function isMonthDay(string $value): bool {
+		return preg_match('/^(\d{2})-(\d{2})\z/', $value, $parts) === 1 && checkdate((int)$parts[1], (int)$parts[2], 2000);
+	}
+
+	/**
+	 * A web link that parses and names a host, or a path on this server. Never
+	 * javascript: or data:
+	 */
+	private function isHandbookLink(string $value): bool {
+		if (preg_match('#^https?://\S+\z#i', $value) === 1) {
+			return filter_var($value, FILTER_VALIDATE_URL) !== false;
+		}
+		// A browser reads a second "/" or "\" as the start of another host
+		return preg_match('#^/[^/\\\\\s]\S*\z#', $value) === 1;
 	}
 }
