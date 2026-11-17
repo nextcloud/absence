@@ -224,7 +224,7 @@ class CalendarService {
 		if ($this->isHrOnly($request)) {
 			return $l->t('Absence');
 		}
-		return $this->typeLabel($request, $l) . ' — Absence';
+		return $this->typeLabel($request, $l) . ' · Absence';
 	}
 
 	private function sharedTitle(LeaveRequest $request): string {
@@ -234,9 +234,9 @@ class CalendarService {
 		$name = $this->displayName($request->getEmployeeUid());
 		// The admin's "reveal" setting does not extend to confidential types (§5.7).
 		if ($this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL && !$this->isHrOnly($request)) {
-			return $name . ' — ' . $this->typeLabel($request, $l);
+			return $name . ' · ' . $this->typeLabel($request, $l);
 		}
-		return $name . ' — ' . $l->t('Absent');
+		return $name . ' · ' . $l->t('Absent');
 	}
 
 	private function isHrOnly(LeaveRequest $request): bool {

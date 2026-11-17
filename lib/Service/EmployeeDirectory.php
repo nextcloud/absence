@@ -201,7 +201,7 @@ class EmployeeDirectory {
 		}
 		$group = $this->config->getEmployeesGroup();
 		if ($group !== '' && $this->groupManager->get($group) === null) {
-			$this->logger->error('Absence: the configured employees group does not exist — treating every account as an employee', [
+			$this->logger->error('Absence: the configured employees group does not exist, treating every account as an employee', [
 				'app' => 'absence',
 				'employeesGroup' => $group,
 			]);

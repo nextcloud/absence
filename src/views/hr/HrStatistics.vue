@@ -67,7 +67,7 @@
 					{{ t('absence', 'Most vacation still to take ({year})', { year: statsYear }) }}
 				</h3>
 				<p class="vacation__caption">
-					{{ t('absence', 'Days not yet taken or booked — the people to nudge about planning their leave.') }}
+					{{ t('absence', 'Days not yet taken or booked: the people to nudge about planning their leave.') }}
 				</p>
 				<ol class="vacation__list">
 					<li v-for="row in vacationRows" :key="row.employeeUid" class="vacation__row">

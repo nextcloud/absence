@@ -147,13 +147,13 @@
 								{{ fmt(row.days) }}
 							</td>
 							<td class="num">
-								{{ row.episodes || '—' }}
+								{{ row.episodes || '–' }}
 							</td>
 							<td class="num">
-								{{ row.longestEpisode ? fmt(row.longestEpisode) : '—' }}
+								{{ row.longestEpisode ? fmt(row.longestEpisode) : '–' }}
 							</td>
 							<td class="num">
-								{{ row.lastDate ? formatDate(row.lastDate) : '—' }}
+								{{ row.lastDate ? formatDate(row.lastDate) : '–' }}
 							</td>
 							<td class="bar-col">
 								<!-- relative to the worst case, so the column is readable
@@ -289,7 +289,7 @@ onMounted(() => {
  */
 function fmt(value: number | null | undefined): string {
 	return value === null || value === undefined
-		? '—'
+		? '–'
 		: formatNumber(value)
 }
 

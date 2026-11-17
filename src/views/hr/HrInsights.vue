@@ -181,7 +181,7 @@
 					💰 {{ t('absence', 'Leave liability') }}
 				</h3>
 				<p class="surface__lead">
-					{{ t('absence', 'Accrued-but-untaken annual leave — a real cost on the books — and the carry-over about to expire if it is not used.') }}
+					{{ t('absence', 'Accrued but untaken annual leave (a real cost on the books) and the carry-over about to expire if it is not used.') }}
 				</p>
 				<div class="liability">
 					<div class="liability__figure">
@@ -285,7 +285,7 @@ async function reload(): Promise<void> {
  */
 function fmtHours(h: number | null): string {
 	if (h === null || h === undefined) {
-		return '—'
+		return '–'
 	}
 	if (h < 48) {
 		return n('absence', '%n hour', '%n hours', Math.round(h))

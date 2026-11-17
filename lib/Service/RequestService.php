@@ -667,8 +667,8 @@ class RequestService {
 			$onBehalf => 'Recorded by HR on behalf',
 			$request->getStatus() === LeaveRequest::STATUS_APPROVED => 'Automatically approved',
 			$request->getStatus() === LeaveRequest::STATUS_ESCALATED => $request->getManagerUid() === null
-				? 'No line manager — routed to HR'
-				: 'Manager is away — routed to HR',
+				? 'No line manager, routed to HR'
+				: 'Manager is away, routed to HR',
 			default => null,
 		};
 		if ($how !== null) {

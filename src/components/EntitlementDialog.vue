@@ -162,7 +162,7 @@ onMounted(async () => {
  * @param v a day count, null or undefined for none
  */
 function fmt(v: number | null | undefined): string {
-	return v === null || v === undefined ? '—' : formatNumber(v)
+	return v === null || v === undefined ? '–' : formatNumber(v)
 }
 
 /**

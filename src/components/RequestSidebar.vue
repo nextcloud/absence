@@ -46,7 +46,7 @@
 						<dt>{{ t('absence', 'Disability') }}</dt>
 						<dd>
 							<span aria-hidden="true">♿</span>
-							{{ t('absence', 'Disability-related — visible to HR only') }}
+							{{ t('absence', 'Disability-related, visible to HR only') }}
 						</dd>
 					</template>
 					<template v-if="detail.balance">

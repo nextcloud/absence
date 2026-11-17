@@ -112,7 +112,7 @@
 			:name="t('absence', 'No absences found')"
 			:description="filtersActive
 				? t('absence', 'Nothing matches these filters. Try widening them.')
-				: t('absence', 'Recorded absences appear here — including the ones employees request themselves.')">
+				: t('absence', 'Recorded absences appear here, including the ones employees request themselves.')">
 			<template #icon>
 				<CalendarSearch :size="20" />
 			</template>

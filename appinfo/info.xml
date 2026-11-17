@@ -13,7 +13,7 @@ Absence is a self-service leave-management app: employees apply for vacation, li
 managers approve or decline, and HR gets a company-wide overview with statistics and
 exports.
 
-Everything stays on your own server — who is off, who is sick and why they asked is
+Everything stays on your own server: who is off, who is sick and why they asked is
 never replicated to a third party, and there is no per-seat licence. There is also no
 second org chart to maintain: employees are your Nextcloud users, HR is a Nextcloud
 group, and line managers come from the `manager` account property your LDAP or Active
@@ -52,7 +52,7 @@ Directory already fills in.
 * 📝 Every important action recorded in the admin audit log when the Auditing / Logging app is enabled
 
 Full days only for now (no half-days), CSV export only, and deliberately no payroll,
-time-tracking or shift-planning — this app manages leave and does that one thing
+time-tracking or shift-planning. This app manages leave and does that one thing
 properly. Every rule and design decision is documented in the
 [specification](https://github.com/nextcloud/absence/blob/main/SPECIFICATION.md).
 	]]></description>
