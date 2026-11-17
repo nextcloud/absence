@@ -1013,7 +1013,11 @@ days; a country does not get its regions' days.
 - **Out again:** the page downloads the shown list in the same format, and
   `occ absence:export-holidays [--year] [--region]` prints it.
 
-Everyone can read the list. HR always edits it, and HR or an admin can let every
+Everyone can read the list. The page opens on the viewer's own days (their code, its
+country and `*`) when they have a region code, and says which those are; without one it
+links to the profile to set it. HR, who keep the list for every region, open on all
+regions with the rule itself. Days already past in the shown year are muted.
+HR always edits the list, and HR or an admin can let every
 employee (§2.2) add, edit and delete single holidays, so HR does not become a bottleneck. That switch
 lives in the *Public holidays* section of the Settings page (§12); the *Public
 holidays* page only tells HR who may edit and links there. Importing a whole list

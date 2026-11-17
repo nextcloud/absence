@@ -47,12 +47,23 @@
 			</div>
 		</header>
 
-		<p class="holidays__intro">
-			{{ t('absence', 'People get the days of their region code, of its country, and the days entered for * (everywhere). DE-BY gets DE-BY, DE and * days.') }}
-			<template v-if="!canEdit">
+		<div class="holidays__intro">
+			<p v-if="session.isHr">
+				{{ t('absence', 'People get the days of their region code, its country and * (everywhere): DE-BY gets DE-BY, DE and *.') }}
+			</p>
+			<p v-else-if="ownCode">
+				{{ holidaySources(ownCode) }}
+			</p>
+			<p v-else>
+				{{ t('absence', 'You have no region code yet, so only the holidays for everyone apply.') }}
+				<RouterLink :to="{ name: 'profile' }">
+					{{ t('absence', 'Set it on your profile') }}
+				</RouterLink>
+			</p>
+			<p v-if="!canEdit">
 				{{ t('absence', 'Only HR edits public holidays.') }}
-			</template>
-		</p>
+			</p>
+		</div>
 		<p v-if="session.isHr" class="holidays__who">
 			{{ session.holidaysEveryoneEdits ? t('absence', 'Who may edit: everyone.') : t('absence', 'Who may edit: HR only.') }}
 			<RouterLink :to="{ name: 'hr-settings' }">
@@ -73,7 +84,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					<tr v-for="holiday in shown" :key="holiday.id + '-' + holiday.date">
+					<tr v-for="holiday in shown" :key="holiday.id + '-' + holiday.date" :class="{ holidays__past: holiday.date < today }">
 						<td>{{ formatDate(holiday.date) }}</td>
 						<td>
 							<span class="holidays__region"><span aria-hidden="true">{{ regionFlag(holiday.region) }}</span> {{ regionName(holiday.region) }}</span>
@@ -267,16 +278,22 @@ import api from '../services/api.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { formatDate, toIso } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
+import { formatRegionCode } from '../utils/holidays.ts'
 import { latestOnly } from '../utils/latest.ts'
 import { locale } from '../utils/locale.ts'
-import { EVERYWHERE, regionFlag } from '../utils/regions.ts'
+import { EVERYWHERE, holidayAppliesTo, holidaySources, regionFlag } from '../utils/regions.ts'
 
 const sessionStore = useSessionStore()
 
-/** An entry of the region filter: `id` is the region code, '' for all of them */
+/**
+ * An entry of the region filter. `code` is a region code, '' for all of them;
+ * `mine` shows every day that applies to the viewer's code, not only its own.
+ */
 interface RegionOption {
 	id: string
 	label: string
+	code: string
+	mine: boolean
 }
 
 /** The add and edit form: `id` is null for a new holiday */
@@ -289,13 +306,24 @@ interface HolidayForm {
 }
 
 const currentYear = new Date().getFullYear()
-const all: RegionOption = { id: '', label: t('absence', 'All regions') }
+const all: RegionOption = { id: '', label: t('absence', 'All regions'), code: '', mine: false }
+const today = toIso(new Date())
 
 const loading = ref(true)
 const holidays = shallowRef<Holiday[]>([])
 const year = ref(currentYear)
 const years = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
-const region = shallowRef<RegionOption>(all)
+const session = computed(() => sessionStore.session)
+
+/** The viewer's region code such as `DE-BY`, '' when they set none */
+const ownCode = computed(() => formatRegionCode(session.value.holidayCountry ?? '', session.value.holidayRegion ?? ''))
+
+const mine = computed<RegionOption | null>(() => (ownCode.value
+	? { id: 'mine', label: t('absence', 'Your holidays ({code})', { code: ownCode.value }), code: ownCode.value, mine: true }
+	: null))
+
+// HR keeps the list for every region; everyone else opens on their own days
+const region = shallowRef<RegionOption>((!session.value.isHr && mine.value) || all)
 const form = ref<HolidayForm | null>(null)
 const saving = ref(false)
 // The holiday whose deletion waits for a confirmation
@@ -314,16 +342,21 @@ const example = JSON.stringify([
 // Changing the year twice quickly: only the year picked last may land.
 const startLoad = latestOnly()
 
-const session = computed(() => sessionStore.session)
-
 const canEdit = computed(() => sessionStore.session.canEditHolidays)
 
 const regionOptions = computed<RegionOption[]>(() => {
 	const codes = [...new Set(holidays.value.map((h) => h.region))].sort()
-	return [all, ...codes.map((code) => ({ id: code, label: `${regionFlag(code)} ${regionName(code)}`.trim() }))]
+	const own = mine.value ? [mine.value] : []
+	return [all, ...own, ...codes.map((code) => ({ id: code, label: `${regionFlag(code)} ${regionName(code)}`.trim(), code, mine: false }))]
 })
 
-const shown = computed(() => (region.value.id === '' ? holidays.value : holidays.value.filter((h) => h.region === region.value.id)))
+const shown = computed(() => {
+	const { code, mine: applying } = region.value
+	if (code === '') {
+		return holidays.value
+	}
+	return holidays.value.filter((h) => (applying ? holidayAppliesTo(h.region, code) : h.region === code))
+})
 
 watch(year, () => {
 	load()
@@ -372,7 +405,7 @@ async function load(): Promise<void> {
 function edit(holiday: Holiday | null): void {
 	form.value = holiday
 		? { id: holiday.id, date: new Date(holiday.date + 'T00:00:00'), region: holiday.region, label: holiday.label, recurring: holiday.recurring }
-		: { id: null, date: new Date(`${year.value}-01-01T00:00:00`), region: region.value.id, label: '', recurring: false }
+		: { id: null, date: new Date(`${year.value}-01-01T00:00:00`), region: region.value.code, label: '', recurring: false }
 }
 
 /**
@@ -532,7 +565,7 @@ function download(): void {
 	const list = shown.value.map(({ date, region, label, recurring }) => ({ date, region, label, recurring }))
 	const link = document.createElement('a')
 	link.href = URL.createObjectURL(new Blob([JSON.stringify(list, null, '\t')], { type: 'application/json' }))
-	link.download = `holidays-${year.value}${region.value.id ? '-' + region.value.id : ''}.json`
+	link.download = `holidays-${year.value}${region.value.code ? '-' + region.value.code : ''}.json`
 	link.click()
 	URL.revokeObjectURL(link.href)
 }
@@ -550,12 +583,17 @@ function download(): void {
 		font-weight: 600;
 	}
 
+	&__intro a,
+	&__who a {
+		text-decoration: underline;
+	}
+
 	&__who {
 		margin-block-end: calc(2 * var(--default-grid-baseline));
+	}
 
-		a {
-			text-decoration: underline;
-		}
+	&__past td {
+		color: var(--color-text-maxcontrast);
 	}
 
 	&__byline,
