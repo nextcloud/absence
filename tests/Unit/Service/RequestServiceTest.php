@@ -945,6 +945,32 @@ class RequestServiceTest extends TestCase {
 		self::assertSame($request->getStartDate(), $rows[0]['startDate']);
 	}
 
+	public function testWhoRecordedAConfidentialAbsenceIsWithheldFromNonHr(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_APPROVED);
+		$request->setTypeId(9);
+		$request->setDecidedBy('hr1');
+		$this->requestMapper->method('find')->willReturn($request);
+		$this->requestMapper->method('findFiltered')->willReturn([$request]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([9]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => $uid === 'hr2');
+		$this->permission->method('isHrOnlyRequest')->willReturn(true);
+		$user = $this->createMock(IUser::class);
+		$user->method('getDisplayName')->willReturn('Robin Vale');
+		$this->userManager->method('get')->willReturn($user);
+
+		foreach ([
+			$this->service->getDetail('emp', 5),
+			$this->service->listSerialized('emp', ['scope' => 'mine'], null, null)[0],
+			$this->service->serializeForActor('emp', $request),
+		] as $data) {
+			self::assertNull($data['decidedBy']);
+			self::assertArrayNotHasKey('decidedByName', $data);
+		}
+		self::assertSame('Robin Vale', $this->service->serializeForActor('hr2', $request)['decidedByName']);
+	}
+
 	private function queued(int $id, string $employeeUid, string $status, string $start, string $createdAt, string $updatedAt): LeaveRequest {
 		$request = new LeaveRequest();
 		$request->setId($id);

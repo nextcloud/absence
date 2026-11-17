@@ -655,7 +655,8 @@ Rules, enforced server-side at every surface:
   approval workflow, HR-only edit and cancel paths.
 - **The category is visible to HR alone.** Everyone else — the line manager
   *and the employee's own views* — sees the absence as a neutral "Absent":
-  dates and status, no type, no reason, no notes, no comments, no history.
+  dates and status, no type, no reason, no notes, no comments, no history, and
+  not who recorded it (`decidedBy` is null, so no `decidedByName` either).
   Withholding happens at serialization (`typeId` is nulled; the client already
   renders a null type as "Absent"), in the coverage/timeline feeds (where the
   admin's "reveal" visibility setting deliberately does not extend to these
@@ -1446,7 +1447,7 @@ guarded by the appropriate middleware/attribute-based access checks
 the SPA). All list endpoints paginate and accept filters.
 
 **Attachments (§3.8)**
-- `GET  /api/requests/{id}/attachments` — list (HR + employee only; [] otherwise).
+- `GET  /api/requests/{id}/attachments`: list (HR + employee only; [] for the others who see the request).
 - `POST /api/requests/{id}/attachments` — multipart upload (field `file`).
 - `GET  /api/attachments/{id}` — download (plain link; permission is the gate).
 - `DELETE /api/attachments/{id}` — HR or the uploader.
@@ -1465,6 +1466,10 @@ the SPA). All list endpoints paginate and accept filters.
   allowance. Null for a type that counts against nothing. It is there because "took
   three days" says nothing about whether any are left, and finding out otherwise
   means abandoning the view for the Balances report).
+  A request the caller may not see is a 404 "Request not found", like an unknown id,
+  on every route of one request (detail, edit, cancel, decisions, comments and its
+  attachment list and upload): ids are sequential and would otherwise tell how many
+  requests exist. HR sees every request, so for HR a 404 means there is none.
 - `PUT  /api/requests/{id}` — edit (§5.3; behavior depends on current status).
   A field left out stays as it is; an empty `replacementUid` removes the replacement.
 - `POST /api/requests/{id}/cancel` — cancel / request withdrawal.

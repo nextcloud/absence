@@ -250,8 +250,10 @@ class RequestService {
 	// ---------------------------------------------------------------- reads ----
 
 	/**
+	 * A request the actor may not see is refused like one that does not exist:
+	 * ids are sequential, so a different answer would tell how many there are.
+	 *
 	 * @throws NotFoundException
-	 * @throws ForbiddenException
 	 */
 	public function get(string $actorUid, int $id): LeaveRequest {
 		try {
@@ -260,7 +262,7 @@ class RequestService {
 			throw new NotFoundException($this->l->t('Request not found'));
 		}
 		if (!$this->permission->canView($actorUid, $request)) {
-			throw new ForbiddenException($this->l->t('Not allowed to view this request'));
+			throw new NotFoundException($this->l->t('Request not found'));
 		}
 		return $request;
 	}
@@ -270,7 +272,6 @@ class RequestService {
 	 *
 	 * @return array<string,mixed>
 	 * @throws NotFoundException
-	 * @throws ForbiddenException
 	 */
 	public function getDetail(string $actorUid, int $id): array {
 		$request = $this->get($actorUid, $id);
@@ -465,8 +466,8 @@ class RequestService {
 	/**
 	 * Reduce a serialized confidential request (§5.7) to the bare fact of the
 	 * absence: dates and status stay (the calendar shows that much anyway); the
-	 * category and everything written about it go. The client renders a null
-	 * type as a neutral "Absent".
+	 * category, everything written about it and who decided or recorded it go.
+	 * The client renders a null type as a neutral "Absent".
 	 *
 	 * @param array<string,mixed> $data
 	 * @return array<string,mixed>
@@ -477,6 +478,7 @@ class RequestService {
 		$data['reason'] = null;
 		$data['attachmentNote'] = null;
 		$data['decisionComment'] = null;
+		$data['decidedBy'] = null;
 		return $data;
 	}
 
