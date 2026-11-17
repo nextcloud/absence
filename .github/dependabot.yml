@@ -40,3 +40,10 @@ updates:
   labels:
   - 3. to review
   - dependencies
+  ignore:
+  # TypeScript 7, the Go port, breaks our tooling: typescript-eslint only
+  # supports < 6.1 (typescript-eslint/typescript-eslint#10940) and vue-tsc loads
+  # typescript/lib/tsc, which 7 no longer ships. Drop this once both support it.
+  - dependency-name: typescript
+    update-types:
+    - version-update:semver-major
