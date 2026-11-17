@@ -1394,6 +1394,9 @@ The HR area (visible only to HR-group members) provides:
    (columns `Employee`, `Account ID`, `Email`, in that order), so two people with the
    same name can be told apart and payroll can match rows to its own records. The
    e-mail cell is empty when the account has none or was deleted; the account id stays.
+   Every CSV field is quoted. A text cell that starts with `=`, `+`, `-`, `@`, a tab
+   or a carriage return, also after leading spaces or quotes, gets a leading `'` so
+   spreadsheets show it as text instead of running it; numbers stay numbers.
 
 Managers get a scoped version (their reports only) of the who's-off calendar — the
 Team timeline — and, below it, a **scoped balances table** of their direct reports

@@ -18,6 +18,7 @@ use OCA\Absence\Service\ReportService;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IUser;
 use OCP\IUserManager;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -69,6 +70,51 @@ class ExportServiceTest extends TestCase {
 		// The dangerous cell must be prefixed with an apostrophe so spreadsheets treat it as text.
 		self::assertStringContainsString('\'=HYPERLINK', $csv);
 		self::assertStringNotContainsString(',=HYPERLINK', $csv);
+	}
+
+	/** @return array<string, array{string, string}> display name => the cell the export writes */
+	public static function formulaCells(): array {
+		return [
+			'equals' => ['=1+2', '"\'=1+2"'],
+			'plus' => ['+1+2', '"\'+1+2"'],
+			'minus' => ['-1+2', '"\'-1+2"'],
+			'at' => ['@SUM(A1)', '"\'@SUM(A1)"'],
+			'tab' => ["\t=1+2", "\"'\t=1+2\""],
+			'carriage return' => ["\r=1+2", "\"'\r=1+2\""],
+			'after spaces' => ['  =1+2', '"\'  =1+2"'],
+			'after a quote' => ['"=1+2', '"\'""=1+2"'],
+			'after a single quote' => ["'=1+2", "\"''=1+2\""],
+			'after a separator' => ['Sam,=1+2', '"Sam,=1+2"'],
+			'plain text' => ['Alex Sample', '"Alex Sample"'],
+			'a hyphen inside' => ['Anne-Marie Sample', '"Anne-Marie Sample"'],
+		];
+	}
+
+	/**
+	 * A cell that a spreadsheet would read as a formula, also after leading
+	 * spaces or quotes, is made text, and every field is quoted so no value
+	 * spills into the next cell.
+	 */
+	#[DataProvider('formulaCells')]
+	public function testRequestsCsvWritesEveryCellAsText(string $displayName, string $cell): void {
+		$this->leaveTypeMapper->method('findAll')->willReturn([]);
+		$this->requestMapper->method('findAllInRange')->willReturn([$this->approvedRequest(1, 'sam')]);
+		$this->userManager->method('get')->willReturn($this->user($displayName, null));
+
+		$lines = explode("\n", $this->service->requestsCsv('2026-01-01', '2026-01-31')['content']);
+
+		self::assertStringStartsWith('"ID","Employee","Account ID",', substr($lines[0], 3));
+		self::assertStringStartsWith('"1",' . $cell . ',"sam",""', $lines[1]);
+	}
+
+	public function testBalancesCsvKeepsNegativeNumbersNumeric(): void {
+		$row = $this->balanceRow('sam', 'Sam Okoro', 'Vacation');
+		$row['manualAdjustment'] = -2.0;
+		$this->reportService->method('balancesReport')->willReturn([$row]);
+
+		$lines = explode("\n", $this->service->balancesCsv(2026)['content']);
+
+		self::assertStringContainsString(',"-2",', $lines[1]);
 	}
 
 	public function testRequestsCsvRejectsInvalidDate(): void {
