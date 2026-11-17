@@ -16,9 +16,11 @@ use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\AppFramework\Db\DoesNotExistException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -30,6 +32,8 @@ class BalanceServiceTest extends TestCase {
 	private EntitlementMapper&MockObject $entitlementMapper;
 	private LeaveTypeMapper&MockObject $leaveTypeMapper;
 	private ConfigService&MockObject $config;
+	/** @var array{start: ?string, end: ?string, periods: list<array{from: string, weekdays: list<int>, percent: ?int}>} */
+	private array $contract = ['start' => null, 'end' => null, 'periods' => []];
 	private BalanceService $service;
 
 	protected function setUp(): void {
@@ -38,12 +42,15 @@ class BalanceServiceTest extends TestCase {
 		$this->entitlementMapper = $this->createMock(EntitlementMapper::class);
 		$this->leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$this->config = $this->createMock(ConfigService::class);
+		$employees = $this->createMock(EmployeeService::class);
+		$employees->method('getContract')->willReturnCallback(fn (): array => $this->contract);
 		$this->service = new BalanceService(
 			$this->requestMapper,
 			$this->entitlementMapper,
 			$this->leaveTypeMapper,
 			$this->config,
 			$this->clockAtRealTime(),
+			$employees,
 			$this->l10nMock(),
 		);
 	}
@@ -143,6 +150,32 @@ class BalanceServiceTest extends TestCase {
 
 		$entitlement = $this->service->ensureEntitlement('alice', 2027, 1);
 		$this->assertSame(25.0, $entitlement->getBaseDays());
+	}
+
+	/**
+	 * @return array<string, array{int, float}>
+	 */
+	public static function contractYears(): array {
+		return [
+			'year before the start' => [2026, 0.0],
+			'year of the start' => [2027, 25.0],
+			'year of the end' => [2028, 25.0],
+			'year after the end' => [2029, 0.0],
+		];
+	}
+
+	#[DataProvider('contractYears')]
+	public function testTheDefaultOnlyCoversTheYearsOfTheContract(int $year, float $expected): void {
+		$this->contract = ['start' => '2027-05-01', 'end' => '2028-01-31', 'periods' => []];
+		$this->entitlementMapper->method('findFor')->willThrowException(new DoesNotExistException(''));
+		$this->entitlementMapper->method('findForEmployee')->willReturn([]);
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($this->annualType());
+		$this->leaveTypeMapper->method('findAll')->willReturn([$this->annualType()]);
+		$this->config->method('getDefaultEntitlement')->willReturn(25.0);
+		$this->entitlementMapper->method('insert')->willReturnArgument(0);
+
+		$this->assertSame($expected, $this->service->getBalance('alice', $year)['balances'][0]['entitlement']);
+		$this->assertSame($expected, $this->service->ensureEntitlement('alice', $year, 1)->getBaseDays());
 	}
 
 	public function testEnsureEntitlementRejectsAnUnknownLeaveType(): void {

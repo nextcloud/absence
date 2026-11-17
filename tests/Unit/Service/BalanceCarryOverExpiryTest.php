@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeService;
 use OCP\IL10N;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -57,12 +58,15 @@ class BalanceCarryOverExpiryTest extends TestCase {
 		$clock->method('serverToday')->willReturnCallback(fn (): string => $this->today);
 		$clock->method('serverYear')->willReturnCallback(fn (): int => (int)substr($this->today, 0, 4));
 		$clock->method('userYear')->willReturnCallback(fn (): int => (int)substr($this->today, 0, 4));
+		$employees = $this->createMock(EmployeeService::class);
+		$employees->method('getContract')->willReturn(['start' => null, 'end' => null, 'periods' => []]);
 		$this->service = new BalanceService(
 			$this->requestMapper,
 			$this->entitlementMapper,
 			$typeMapper,
 			$config,
 			$clock,
+			$employees,
 			$this->createMock(IL10N::class),
 		);
 	}

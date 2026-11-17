@@ -16,6 +16,7 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeService;
 use OCP\IDBConnection;
 use OCP\L10N\IFactory;
 use OCP\Server;
@@ -66,6 +67,7 @@ class CarryOverExpiringTest extends TestCase {
 			Server::get(LeaveTypeMapper::class),
 			$config,
 			$clock,
+			Server::get(EmployeeService::class),
 			Server::get(IFactory::class)->get(ConfigService::APP_ID),
 		);
 	}
