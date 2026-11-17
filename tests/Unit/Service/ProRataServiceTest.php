@@ -27,14 +27,14 @@ class ProRataServiceTest extends TestCase {
 			// May to December: 28 × 8 / 12 = 18.67
 			'starts on the 15th: the month counts' => [['start' => '2026-05-15', 'end' => null, 'periods' => []], 19.0, 8, 5.0],
 			// June to December: 28 × 7 / 12 = 16.33
-			'starts on the 16th: the month does not' => [['start' => '2026-05-16', 'end' => null, 'periods' => []], 16.5, 7, 5.0],
+			'starts on the 16th: the month does not' => [['start' => '2026-05-16', 'end' => null, 'periods' => []], 17.0, 7, 5.0],
 			// January to September: 28 × 9 / 12 = 21
 			'leaves on the 15th: the month counts' => [['start' => null, 'end' => '2026-09-15', 'periods' => []], 21.0, 9, 5.0],
 			'leaves on the 14th: the month does not' => [['start' => null, 'end' => '2026-09-14', 'periods' => []], 19.0, 8, 5.0],
 			// 28 × 4 / 5 = 22.4
-			'four days a week all year' => [['start' => null, 'end' => null, 'periods' => [$period('2025-01-01', self::MON_TO_THU)]], 22.5, 12, 4.0],
+			'four days a week all year' => [['start' => null, 'end' => null, 'periods' => [$period('2025-01-01', self::MON_TO_THU)]], 23.0, 12, 4.0],
 			// 6 months at 5 days, 6 at 4: 28 × (30 + 24) / 60 = 25.2
-			'part time from July, periods in any order' => [['start' => null, 'end' => null, 'periods' => [$period('2026-07-01', self::MON_TO_THU), $period('2024-01-01', self::MON_TO_FRI)]], 25.5, 12, 4.5],
+			'part time from July, periods in any order' => [['start' => null, 'end' => null, 'periods' => [$period('2026-07-01', self::MON_TO_THU), $period('2024-01-01', self::MON_TO_FRI)]], 26.0, 12, 4.5],
 			'six days a week count as five' => [['start' => null, 'end' => null, 'periods' => [$period('2025-01-01', [1, 2, 3, 4, 5, 6])]], 28.0, 12, 5.0],
 			'not employed in the year' => [['start' => '2027-01-01', 'end' => null, 'periods' => []], 0.0, 0, 0.0],
 		];
@@ -51,8 +51,13 @@ class ProRataServiceTest extends TestCase {
 		);
 	}
 
-	public function testAnExactHalfDayIsNotRoundedUp(): void {
+	public function testAHalfDayIsRoundedUpToAWholeDay(): void {
 		// 30 × 7 / 12 = 17.5
-		self::assertSame(17.5, ProRataService::compute(30.0, 2026, ['start' => '2026-06-01', 'end' => null, 'periods' => []])['days']);
+		self::assertSame(18.0, ProRataService::compute(30.0, 2026, ['start' => '2026-06-01', 'end' => null, 'periods' => []])['days']);
+	}
+
+	public function testAnExactWholeDayIsNotRoundedUp(): void {
+		// 24 × 7 / 12 = 14
+		self::assertSame(14.0, ProRataService::compute(24.0, 2026, ['start' => '2026-06-01', 'end' => null, 'periods' => []])['days']);
 	}
 }

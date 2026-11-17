@@ -36,7 +36,7 @@ class ProRataService {
 	/**
 	 * A month counts when the person is employed on its 15th, by the days a
 	 * week they work on that day (5 without a working pattern, and never more
-	 * than 5). The result is rounded up to the next half day.
+	 * than 5). The result is rounded up to the next whole day.
 	 *
 	 * @param Contract $contract
 	 * @return array{days: float, fullDays: float, months: int, daysPerWeek: float} the
@@ -64,8 +64,8 @@ class ProRataService {
 		}
 		$exact = $fullDays * (float)$weekdays / (float)(12 * self::FULL_WEEK);
 		return [
-			// rounded first, so that 17.5 does not become 18 over a float's last digit
-			'days' => ceil(round($exact * 2.0, 6)) / 2.0,
+			// rounded first, so that 14 does not become 15 over a float's last digit
+			'days' => ceil(round($exact, 6)),
 			'fullDays' => $fullDays,
 			'months' => $months,
 			'daysPerWeek' => $months === 0 ? 0.0 : round((float)$weekdays / (float)$months, 1),

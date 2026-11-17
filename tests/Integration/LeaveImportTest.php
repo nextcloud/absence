@@ -191,9 +191,10 @@ class LeaveImportTest extends TestCase {
 			['user' => self::ROBIN, 'from' => '2025-01-06', 'to' => '2025-01-07', 'workingDays' => 3],
 			['user' => self::ROBIN, 'from' => '2025-01-06', 'to' => '2025-01-07', 'workingDays' => 0],
 			['user' => self::ROBIN, 'from' => '6.1.2025', 'to' => '2025-01-07', 'workingDays' => 1],
+			['user' => self::ROBIN, 'from' => '2025-01-06', 'to' => '2025-01-07', 'workingDays' => 1.5],
 		]));
 
-		self::assertSame([1, 2, 3, 4, 5], array_column($preview['errors'], 'entry'));
+		self::assertSame([1, 2, 3, 4, 5, 6], array_column($preview['errors'], 'entry'));
 		self::assertSame(0, $preview['entries']);
 	}
 

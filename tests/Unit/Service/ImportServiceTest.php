@@ -109,11 +109,11 @@ class ImportServiceTest extends TestCase {
 			$this->service->plan($csv, 2026);
 			self::fail('expected a ValidationException');
 		} catch (ValidationException $e) {
-			self::assertStringContainsString('line 2: Day counts must be between', $e->getMessage());
+			self::assertStringContainsString('line 2: Day counts must be whole numbers between', $e->getMessage());
 			self::assertStringContainsString('line 3: The base entitlement cannot be negative.', $e->getMessage());
-			self::assertStringContainsString('line 4: Day counts must be between', $e->getMessage());
+			self::assertStringContainsString('line 4: Day counts must be whole numbers between', $e->getMessage());
 			self::assertStringContainsString('line 5: The year must be between 2000 and 2100.', $e->getMessage());
-			self::assertStringNotContainsString('line 6', $e->getMessage());
+			self::assertStringContainsString('line 6: Day counts must be whole numbers between', $e->getMessage());
 		}
 	}
 

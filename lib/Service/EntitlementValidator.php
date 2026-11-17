@@ -15,8 +15,8 @@ use OCP\IL10N;
  * What an entitlement may hold (§6.1), for the API and the CSV import alike.
  */
 class EntitlementValidator {
-	/** The largest value the DECIMAL(5,1) columns store. */
-	private const MAX_DAYS = 9999.9;
+	/** The largest whole value the DECIMAL(5,1) columns store. */
+	private const MAX_DAYS = 9999.0;
 
 	public function __construct(
 		private IL10N $l,
@@ -33,8 +33,8 @@ class EntitlementValidator {
 	}
 
 	/**
-	 * Day counts are stored with one decimal: a finer value is refused rather
-	 * than rounded, so what was sent is what is stored.
+	 * Day counts are whole days (§3.3): any other value is refused rather than
+	 * rounded, so what was sent is what is stored.
 	 *
 	 * @param array<string,mixed> $data the figures by name, other keys are ignored
 	 * @throws ValidationException
@@ -44,9 +44,9 @@ class EntitlementValidator {
 			if (!array_key_exists($key, $data)) {
 				continue;
 			}
-			$tenths = (float)$data[$key] * 10.0;
-			if (!is_finite($tenths) || abs($tenths) > self::MAX_DAYS * 10.0 || abs($tenths - round($tenths)) > 0.0001) {
-				throw new ValidationException($this->l->t('Day counts must be between -9999.9 and 9999.9, with one decimal at most.'));
+			$days = (float)$data[$key];
+			if (!is_finite($days) || abs($days) > self::MAX_DAYS || $days !== floor($days)) {
+				throw new ValidationException($this->l->t('Day counts must be whole numbers between -9999 and 9999.'));
 			}
 		}
 		if ((float)($data['baseDays'] ?? 0.0) < 0.0) {

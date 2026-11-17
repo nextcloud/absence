@@ -133,9 +133,9 @@
 				<NcTextField
 					:modelValue="workingDays"
 					type="number"
-					min="0.5"
+					:min="keepsStoredFraction ? undefined : 1"
 					:max="calendarDays || undefined"
-					step="0.5"
+					:step="keepsStoredFraction ? 'any' : 1"
 					required
 					:label="t('absence', 'Working days')"
 					@update:modelValue="onWorkingDaysInput" />
@@ -488,6 +488,11 @@ const workingDaysNum = computed(() => {
 	const v = parseFloat(String(workingDays.value))
 	return Number.isFinite(v) ? v : 0
 })
+
+/** A half day saved before full days only stays accepted while the field still holds it (§3.3). */
+const keepsStoredFraction = computed(() => props.request !== null
+	&& !Number.isInteger(props.request.workingDays)
+	&& workingDaysNum.value === props.request.workingDays)
 
 /**
  * The weekdays the absent person works: mine from the session, somebody

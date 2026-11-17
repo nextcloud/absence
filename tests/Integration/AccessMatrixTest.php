@@ -123,8 +123,8 @@ class AccessMatrixTest extends TestCase {
 			'entitlement#update' => [$hr, ['id' => '{entitlement}', 'adjustmentDelta' => 1.0, 'adjustmentNote' => 'itest']],
 			'entitlement#bulk' => [$hr, ['year' => 2028, 'typeId' => '{type}', 'baseDays' => 1.0, 'group' => self::STAFF_GROUP]],
 			// days nobody has: the calls change nothing
-			'entitlement#onDefault' => [[self::HR, self::ADMIN], ['days' => 987.5]],
-			'entitlement#applyDefault' => [[self::HR, self::ADMIN], ['from' => 987.5, 'to' => 986.5]],
+			'entitlement#onDefault' => [[self::HR, self::ADMIN], ['days' => 987.0]],
+			'entitlement#applyDefault' => [[self::HR, self::ADMIN], ['from' => 987.0, 'to' => 986.0]],
 			'entitlement#proRata' => [$hr, ['employeeUid' => '{owner}', 'year' => 2028]],
 			'entitlement#history' => [$hr, ['id' => '{entitlement}']],
 

@@ -25,8 +25,17 @@ describe('entitlementPayload', () => {
 	})
 
 	it('sends changed base days, zero included', () => {
-		expect(entitlementPayload(form({ baseDays: '28.5' }), 30)).toEqual({ adjustmentNote: '', baseDays: 28.5 })
+		expect(entitlementPayload(form({ baseDays: '28' }), 30)).toEqual({ adjustmentNote: '', baseDays: 28 })
 		expect(entitlementPayload(form({ baseDays: '0' }), 30)).toEqual({ adjustmentNote: '', baseDays: 0 })
+	})
+
+	it('refuses half days, in the base days or the adjustment', () => {
+		expect(entitlementPayload(form({ baseDays: '28.5' }), 30)).toBeNull()
+		expect(entitlementPayload(form({ adjustmentDelta: '1.5', adjustmentNote: 'Wedding' }), 30)).toBeNull()
+	})
+
+	it('keeps half days stored before when the base days are left as they are', () => {
+		expect(entitlementPayload(form({ baseDays: 27.5 }), 27.5)).toEqual({ adjustmentNote: '' })
 	})
 
 	it('sends an adjustment on its own, without the base days', () => {

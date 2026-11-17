@@ -104,8 +104,8 @@
 						class="settings__field"
 						type="number"
 						min="0"
-						max="9999.9"
-						step="0.5"
+						max="9999"
+						step="1"
 						:label="t('absence', 'Default vacation days per year')"
 						@change="saveField('default_entitlement')" />
 					<div class="settings__field">
@@ -122,8 +122,8 @@
 						class="settings__field"
 						type="number"
 						min="0"
-						max="9999.9"
-						step="0.5"
+						max="9999"
+						step="1"
 						:disabled="form.carryover_policy !== 'capped'"
 						:label="t('absence', 'Carry-over limit (days)')"
 						@change="saveField('carryover_cap')" />

@@ -39,8 +39,8 @@ activity entries, email, and CalDAV integration.
 - Time tracking / attendance / clock-in.
 - Integration with the built-in `user_status` out-of-office / auto-responder
   feature (deliberately kept independent — see §12).
-- Hours, or a morning/afternoon marker on a leave (it always covers whole dates; only
-  its day count goes in half-day steps, see §3.3).
+- Hours, half days, or a morning/afternoon marker on a leave (it always covers whole
+  dates and full days, see §3.3).
 - Shift planning.
 
 ---
@@ -178,7 +178,7 @@ The central table: one row per leave request.
 | `type_id` | int, FK → `absence_leave_types.id`, indexed | Leave type. |
 | `start_date` | date | Inclusive. |
 | `end_date` | date | Inclusive. |
-| `working_days` | decimal(5,1) | **Entered manually** by the employee and verified by the manager (§7). Positive; stored as entered. |
+| `working_days` | decimal(5,1) | **Entered manually** by the employee and verified by the manager (§7). A positive whole number (§3.3); stored as entered. |
 | `status` | string(20), indexed | Enum, see §4. |
 | `reason` | text, nullable | Employee note. Optional unless the type has `requires_note` (§5.1). |
 | `replacement_uid` | string(64), nullable | The colleague nominated to cover (mandatory for types with `requires_replacement`, §5.1). |
@@ -231,12 +231,13 @@ so existing installations receive them without touching HR customisations.
 
 ### 3.3 Granularity
 
-**Whole dates, counted in half-day steps.** A leave runs from one date to another:
-there are no hours, and no morning or afternoon marker. Its `working_days` count is
-entered by hand in steps of 0.5 (`decimal(5,1)`), because half days are real: a half
-public holiday such as 24 or 31 December makes a 3.5-day week a correct count, and
-so does a single afternoon off. A half day takes 0.5 from the balance, while the
-calendar and the timeline show its whole date as absent.
+**Whole dates, full days only.** A leave runs from one date to another: there are
+no hours, no half days and no morning or afternoon marker. Its `working_days` count
+is entered by hand as a whole number, and entitlements (base days, carry-over,
+adjustments), the default vacation days and the carry-over limit are whole numbers
+too. The server refuses any other value, it never rounds. The columns stay
+`decimal(5,1)`: a half day stored before this rule stays as it is, still displays,
+and an edit that leaves it unchanged is accepted.
 
 ### 3.4 `absence_entitlements`
 
@@ -722,8 +723,8 @@ statutory entitlement for employees with a recognised disability. Rules:
     recorded in each entitlement history.
 - Manual adjustments (+/−) require an `adjustment_note`.
 - The API and the CSV import (§6.3) accept the same figures: a year from 2000 to
-  2100, day counts from -9999.9 to 9999.9 with one decimal at most (a finer value
-  is refused, not rounded), and a base that is not negative.
+  2100, day counts as whole numbers from -9999 to 9999 (a half day is refused, not
+  rounded, §3.3), and a base that is not negative.
 
 ### 6.3 CSV import (onboarding)
 
@@ -765,7 +766,7 @@ becomes the request's reason.
   entry with its 1-based position and user. While one entry is invalid nothing
   is written. An entry is valid when the user is an employee (§2.2, guests
   excluded), the type exists and is enabled, `from` ≤ `to` within 2000 to 2100,
-  and `workingDays` passes the same checks as a request (> 0, at most one per
+  and `workingDays` passes the same checks as a request (a whole number > 0, at most one per
   calendar day, §7). An entry that overlaps leave the person already has in
   force (as in §5.1), or an earlier entry of the list, is invalid.
 - **Not one's own leave.** An entry for the HR member who runs the import is
@@ -877,7 +878,7 @@ current data of every employee, *Download* saves the same text, and
   `contract` must all be there: `null` (or `[]` for the contract) empties them, so a
   forgotten key never wipes data. Employees not in the list are left alone.
 - `vacation` is optional: the annual leave base days (§6.4) of each year it lists, from
-  two years back to next year, in days or half days. Years it leaves out keep their
+  two years back to next year, in whole days. Years it leaves out keep their
   days. The export lists the current year (the default while HR set nothing) and next
   year once set. Each change goes through `EntitlementService`, so the entitlement
   history and the activity stream name the HR member.
@@ -910,7 +911,7 @@ only, `ProRataService`):
 - Each month counts by the days a week of the working pattern in force on that
   day, out of 5: 5 without a pattern, and never more than 5. The contract
   percentage is not used: five short days are five days of leave.
-- The result is rounded up to the next half day.
+- The result is rounded up to the next whole day.
 
 It is **a suggestion, never applied by itself**: the editor shows it with its
 reasons ("employed 8 months of 12 · 4 days a week") and a button that puts it in
@@ -929,7 +930,7 @@ public-holiday calendar for every region is impractical, so the app does not att
   request (`working_days`).
 - The **line manager reviews and verifies** this number when approving. HR may correct it
   via the HR edit path (§5.5).
-- The server validates only that it is a positive, sane number (`> 0`, `≤ 366`, and **at
+- The server validates only that it is a positive, sane whole number (`> 0`, `≤ 366`, full days only (§3.3), and **at
   most one working day per calendar day of the leave** — a 3-day range cannot carry 40
   working days; the typo guard never rejects a legitimate count); it never recomputes
   it. `working_days` is stored as entered and is authoritative.
@@ -1935,7 +1936,7 @@ synchronous on decision (§10), which is sufficient for phase 1.
 
 **Phase 2 (nice-to-have):** file attachments for doctor's notes (§3.8), ICS import
 for holidays, percentage-based coverage thresholds, department analytics dashboards,
-a morning/afternoon marker for half days (the count already goes in halves, §3.3), a richer custom-rendered Dashboard widget,
+a richer custom-rendered Dashboard widget,
 mobile-tuned views.
 
 ---
@@ -1955,7 +1956,7 @@ mobile-tuned views.
 | Holidays | A list HR maintains by region code, with a JSON import (§7.2); never used to recompute working days |
 | Working days | Entered manually by the employee, verified by the manager (no auto-calc, no region) |
 | Coverage | Team overlap view + conflict warnings for managers |
-| Granularity | Whole dates; the day count goes in half-day steps (§3.3) |
+| Granularity | Whole dates and full days only, no half days (§3.3) |
 | HR reports | Per-employee balances, company trends/charts, CSV/Excel export, who's-off calendar |
 | Out-of-office | Independent — does NOT touch built-in user_status |
 | Lifecycle | Full edit workflow (edit/cancel/withdraw with re-approval + balance restore) |

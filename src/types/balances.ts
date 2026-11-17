@@ -127,7 +127,7 @@ export interface EntitlementBulkResult {
 
 /** GET /api/entitlements/pro-rata: what the contract would give for a year. */
 export interface ProRataSuggestion {
-	/** The suggested base, rounded up to the next half day. */
+	/** The suggested base, rounded up to the next whole day. */
 	days: number
 	/** What a full year at full time gives: the default entitlement. */
 	fullDays: number

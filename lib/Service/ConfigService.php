@@ -35,7 +35,7 @@ class ConfigService {
 
 	// Upper bounds of the number settings. A stored value above its bound is read as the bound.
 	/** The largest value the DECIMAL(5,1) entitlement columns store. */
-	public const MAX_DAYS = 9999.9;
+	public const MAX_DAYS = 9999.0;
 	/** The longest window, lead or notice period: a year. */
 	public const MAX_PERIOD_DAYS = 365;
 	/** The highest threshold of people off at once. */
@@ -287,8 +287,8 @@ class ConfigService {
 			case ConfigLexicon::KEY_DEFAULT_ENTITLEMENT:
 			case ConfigLexicon::KEY_CARRYOVER_CAP:
 				$float = is_numeric($value) ? (float)$value : NAN;
-				if (!is_finite($float) || $float < 0.0 || $float > self::MAX_DAYS) {
-					throw new ValidationException($this->l->t('This setting must be a number between 0 and %s.', [self::MAX_DAYS]));
+				if (!is_finite($float) || $float < 0.0 || $float > self::MAX_DAYS || $float !== floor($float)) {
+					throw new ValidationException($this->l->t('This setting must be a whole number between 0 and %s.', [self::MAX_DAYS]));
 				}
 				return $float;
 			case ConfigLexicon::KEY_CALDAV_PERSONAL:

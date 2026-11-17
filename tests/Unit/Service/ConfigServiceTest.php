@@ -38,8 +38,8 @@ class ConfigServiceTest extends TestCase {
 
 	public function testFloatSettingsUseTypedSetter(): void {
 		$this->appConfig->expects($this->once())->method('setValueFloat')
-			->with(ConfigService::APP_ID, ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 27.5);
-		$this->service->setAdminValue(ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '27.5');
+			->with(ConfigService::APP_ID, ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 27.0);
+		$this->service->setAdminValue(ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '27');
 	}
 
 	public function testIntSettingsUseTypedSetter(): void {
@@ -125,6 +125,8 @@ class ConfigServiceTest extends TestCase {
 			'fraction for a day count' => [ConfigLexicon::KEY_NOTICE_PERIOD, 2.5],
 			'bool for a day count' => [ConfigLexicon::KEY_MAX_CONCURRENT, true],
 			'text for vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 'many'],
+			'half a vacation day' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '27.5'],
+			'half a day of carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, 2.5],
 			'text for a switch' => [ConfigLexicon::KEY_CALDAV_PERSONAL, 'false'],
 			'list for the expiry' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, ['03-31']],
 			'list for the employees group' => [ConfigLexicon::KEY_EMPLOYEES_GROUP, ['staff']],
@@ -147,8 +149,8 @@ class ConfigServiceTest extends TestCase {
 			'web link to an IPv6 host' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://[::1]/handbook', 'https://[::1]/handbook'],
 			'path on this server' => [ConfigLexicon::KEY_HANDBOOK_URL, '/apps/collectives/Handbook', '/apps/collectives/Handbook'],
 			'path with a later backslash' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, '/a\b', '/a\b'],
-			'largest vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '9999.9', 9999.9],
-			'largest carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, 9999.9, 9999.9],
+			'largest vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '9999', 9999.0],
+			'largest carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, 9999, 9999.0],
 			'no vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 0, 0.0],
 			'longest escalation window' => [ConfigLexicon::KEY_ESCALATION_WINDOW, 365, 365],
 			'longest reminder lead' => [ConfigLexicon::KEY_REMINDER_LEAD, '365', 365],
@@ -189,7 +191,7 @@ class ConfigServiceTest extends TestCase {
 			'vacation days that are no number' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, NAN],
 			'INF as text' => [ConfigLexicon::KEY_CARRYOVER_CAP, 'INF'],
 			'NAN as text' => [ConfigLexicon::KEY_CARRYOVER_CAP, 'NAN'],
-			'carry-over limit above the column' => [ConfigLexicon::KEY_CARRYOVER_CAP, 9999.95],
+			'carry-over limit above the column' => [ConfigLexicon::KEY_CARRYOVER_CAP, 10000.0],
 			'negative carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, -0.5],
 			'escalation window over a year' => [ConfigLexicon::KEY_ESCALATION_WINDOW, 366],
 			'reminder lead over a year' => [ConfigLexicon::KEY_REMINDER_LEAD, '366'],
@@ -213,8 +215,8 @@ class ConfigServiceTest extends TestCase {
 
 	public static function storedValuesAboveTheMaximum(): array {
 		return [
-			'vacation days' => ['getDefaultEntitlement', 'getValueFloat', 1.0e300, 9999.9],
-			'carry-over limit' => ['getCarryOverCap', 'getValueFloat', 20000.0, 9999.9],
+			'vacation days' => ['getDefaultEntitlement', 'getValueFloat', 1.0e300, 9999.0],
+			'carry-over limit' => ['getCarryOverCap', 'getValueFloat', 20000.0, 9999.0],
 			'escalation window' => ['getEscalationWindowDays', 'getValueInt', PHP_INT_MAX, 365],
 			'reminder lead' => ['getReminderLeadDays', 'getValueInt', 1000, 365],
 			'notice period' => ['getNoticePeriodDays', 'getValueInt', 366, 365],

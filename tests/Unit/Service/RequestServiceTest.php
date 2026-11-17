@@ -784,6 +784,74 @@ class RequestServiceTest extends TestCase {
 		]);
 	}
 
+	public function testHalfAWorkingDayIsRefused(): void {
+		// §3.3: leave is taken in full days only.
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($this->type(1, true));
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$end = date('Y-m-d', strtotime('+32 days'));
+		$this->expectException(ValidationException::class);
+		$this->expectExceptionMessage('whole number');
+		$this->service->create('emp', [
+			'typeId' => 1,
+			'startDate' => $start,
+			'endDate' => $end,
+			'workingDays' => 1.5,
+		]);
+	}
+
+	public function testEditingLeaveKeepsAHalfDayStoredBefore(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setWorkingDays(2.5);
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$end = date('Y-m-d', strtotime('+32 days'));
+		$edit = $this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $end, 'workingDays' => 2.5]);
+
+		self::assertSame(2.5, $edit->getWorkingDays());
+	}
+
+	public function testEditingLeaveToAnotherHalfDayIsRefused(): void {
+		$original = $this->pendingOwnRequest();
+		$original->setStatus(LeaveRequest::STATUS_APPROVED);
+		$original->setWorkingDays(2.5);
+		$this->decidable($original);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findBySupersedesId')->willReturn([]);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->expects(self::never())->method('insert');
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$end = date('Y-m-d', strtotime('+32 days'));
+		$this->expectException(ValidationException::class);
+		$this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $end, 'workingDays' => 1.5]);
+	}
+
+	public function testHrCorrectingLeaveKeepsAHalfDayStoredBefore(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setWorkingDays(2.5);
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+
+		$edit = $this->service->update('hr', 5, ['reason' => 'Corrected', 'workingDays' => 2.5]);
+
+		self::assertSame(2.5, $edit->getWorkingDays());
+	}
+
 	public function testAFullSpanOfWorkingDaysIsAccepted(): void {
 		// The boundary is inclusive: every calendar day a working day is legitimate.
 		$type = $this->type(1, true);
