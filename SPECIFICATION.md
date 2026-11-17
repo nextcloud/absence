@@ -739,8 +739,8 @@ becomes the request's reason.
   stays is the part covered by taken leave starting on or before the date.
 - The rollover creates the next year's `absence_entitlements` rows with the prior
   year's `base_days` (the configured default for employees without a row, annual
-  type only) + computed `carry_over_days`. A carry-over somebody already set by hand
-  for the new year is left alone.
+  type only) + computed `carry_over_days`. A carry-over somebody already set for
+  the new year, by hand or with the occ import (§6.3), is left alone.
 - Rollover and expiry are recorded in the entitlement history (§3.7b) with the actor
   `system`. A rollover with failed rows is tried again the next day, and
   `occ absence:rollover <year>` recomputes it by hand.
