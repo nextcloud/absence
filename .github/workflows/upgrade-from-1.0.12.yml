@@ -1,0 +1,144 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# HR used Absence 1.0.12 (commit 0d84f4d) before the betas. This installs that
+# version, fills it with invented data, upgrades to the code of the pull request
+# with `occ upgrade` and checks that everything entered is still there.
+
+name: Upgrade from 1.0.12
+
+on: pull_request
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-from-1012-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  changes-and-matrix:
+    runs-on: ubuntu-latest-low
+    permissions:
+      contents: read
+      pull-requests: read
+
+    outputs:
+      src: ${{ steps.changes.outputs.src }}
+      php-min: ${{ steps.versions.outputs.php-min }}
+      server-min: ${{ steps.versions.outputs.branches-min }}
+
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: changes
+        continue-on-error: true
+        with:
+          filters: |
+            src:
+              - '.github/workflows/upgrade-from-1.0.12.yml'
+              - 'appinfo/**'
+              - 'lib/**'
+              - 'tests/Upgrade/**'
+
+      - name: Checkout app
+        if: steps.changes.outputs.src != 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Get version matrix
+        if: steps.changes.outputs.src != 'false'
+        id: versions
+        uses: nextcloud-libraries/nextcloud-version-matrix@71959de73c244b11ecbf4503b87c41d65b0f64ae # v1.3.4
+
+  upgrade:
+    runs-on: ubuntu-latest
+
+    needs: changes-and-matrix
+    if: needs.changes-and-matrix.outputs.src != 'false'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database: ['sqlite', 'mysql', 'pgsql']
+
+    name: Upgrade from 1.0.12 on ${{ matrix.database }}
+
+    services:
+      mysql:
+        image: ghcr.io/nextcloud/continuous-integration-mysql-8.4:latest # zizmor: ignore[unpinned-images]
+        ports:
+          - 4444:3306/tcp
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+        options: --health-cmd="mysqladmin ping" --health-interval 5s --health-timeout 2s --health-retries 10
+      postgres:
+        image: ghcr.io/nextcloud/continuous-integration-postgres-16:latest # zizmor: ignore[unpinned-images]
+        ports:
+          - 4445:5432/tcp
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: rootpassword
+          POSTGRES_DB: nextcloud
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 2s --health-retries 5
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+          repository: nextcloud/server
+          ref: ${{ needs.changes-and-matrix.outputs.server-min }}
+
+      - name: Checkout Absence 1.0.12
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: 0d84f4da14aea8564ba666d3cfd31f60123302bc
+          path: apps/absence
+
+      - name: Checkout the code to upgrade to
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: new-absence
+
+      - name: Set up php ${{ needs.changes-and-matrix.outputs.php-min }}
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ needs.changes-and-matrix.outputs.php-min }}
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, mysql, pdo_mysql, pgsql, pdo_pgsql
+          coverage: none
+          ini-file: development
+          ini-values: disable_functions=
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Nextcloud with Absence 1.0.12
+        env:
+          DATABASE: ${{ matrix.database }}
+        run: |
+          mkdir data
+          case "$DATABASE" in
+            sqlite) ./occ maintenance:install --verbose --database=sqlite --admin-user admin --admin-pass admin ;;
+            mysql) ./occ maintenance:install --verbose --database=mysql --database-name=nextcloud --database-host=127.0.0.1 --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin ;;
+            pgsql) ./occ maintenance:install --verbose --database=pgsql --database-name=nextcloud --database-host=127.0.0.1 --database-port=4445 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin ;;
+          esac
+          ./occ app:enable --force absence
+          ./occ config:app:get absence installed_version
+
+      - name: Enter invented data on 1.0.12
+        run: |
+          php new-absence/tests/Upgrade/upgrade-check.php "$PWD" seed
+          php new-absence/tests/Upgrade/upgrade-check.php "$PWD" snapshot before.json
+
+      - name: Upgrade to the new code
+        run: |
+          rm -rf apps/absence
+          mv new-absence apps/absence
+          ./occ upgrade
+          ./occ config:app:get absence installed_version
+
+      - name: Check the data
+        run: php apps/absence/tests/Upgrade/upgrade-check.php "$PWD" verify before.json
