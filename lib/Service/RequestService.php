@@ -1301,7 +1301,7 @@ class RequestService {
 		$comment->setCreatedAt($this->clock->now());
 		$comment = $this->commentMapper->insert($comment);
 		$this->audit('comment_added', $request, ['actor' => $actorUid, 'detail' => $body]);
-		$this->notifications->notifyComment($request, $actorUid, $body, $this->commentRecipients($request));
+		$this->notifications->notifyComment($request, $comment, $this->commentRecipients($request));
 		return $comment;
 	}
 

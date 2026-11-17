@@ -8,7 +8,9 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\Db\CommentMailMapper;
 use OCA\Absence\Db\LeaveRequest;
+use OCA\Absence\Db\RequestComment;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -55,6 +57,7 @@ class NotificationService {
 		private IFactory $l10nFactory,
 		private NoticeService $notice,
 		private LoggerInterface $logger,
+		private CommentMailMapper $commentMails,
 	) {
 	}
 
@@ -119,15 +122,44 @@ class NotificationService {
 	 * this a comment only exists behind the request's Comments tab, which nobody
 	 * opens unless they already know there is something to read.
 	 *
+	 * The notification goes out right away. The e-mail waits in a queue, so that
+	 * a back-and-forth arrives as one mail per recipient once the thread is quiet
+	 * ({@see \OCA\Absence\BackgroundJob\CommentMailJob}).
+	 *
 	 * @param string[] $recipientUids
 	 */
-	public function notifyComment(LeaveRequest $request, string $authorUid, string $body, array $recipientUids): void {
+	public function notifyComment(LeaveRequest $request, RequestComment $comment, array $recipientUids): void {
+		$authorUid = $comment->getAuthorUid();
+		$queued = [];
 		foreach (array_unique(array_filter($recipientUids)) as $uid) {
-			if ($uid === $authorUid) {
+			// A disabled account cannot act on any of this.
+			if ($uid === $authorUid || $this->userManager->get($uid)?->isEnabled() === false) {
 				continue;
 			}
-			$this->send($uid, self::SUBJECT_COMMENT, $request, false, $body, $authorUid);
+			$this->sendNotification($uid, self::SUBJECT_COMMENT, $request, false, trim($comment->getBody()), $authorUid, null);
+			$queued[] = $uid;
 		}
+		try {
+			$this->commentMails->queue($comment, $queued);
+		} catch (\Throwable $e) {
+			$this->logger->warning('Absence: could not queue the comment email', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Mail one recipient the comments of a request they have not been mailed yet.
+	 *
+	 * @param list<RequestComment> $comments oldest first
+	 */
+	public function sendCommentMail(LeaveRequest $request, string $recipientUid, array $comments): void {
+		if ($comments === [] || $this->userManager->get($recipientUid)?->isEnabled() === false) {
+			return;
+		}
+		$notes = array_map(static fn (RequestComment $comment): array => [
+			'author' => $comment->getAuthorUid(),
+			'text' => trim($comment->getBody()),
+		], $comments);
+		$this->sendEmail($recipientUid, self::SUBJECT_COMMENT, $request, $notes, null);
 	}
 
 	/** Tell the nominated replacement they now cover for the employee (§5.1). */
@@ -175,7 +207,7 @@ class NotificationService {
 		}
 		$note = trim((string)$note);
 		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid, $notice);
-		$this->sendEmail($recipientUid, $subject, $request, $note, $noteAuthorUid, $notice);
+		$this->sendEmail($recipientUid, $subject, $request, $note !== '' ? [['author' => $noteAuthorUid, 'text' => $note]] : [], $notice);
 	}
 
 	/** @param ?array{days:int,noticePeriod:int} $notice */
@@ -217,8 +249,11 @@ class NotificationService {
 		return mb_substr($note, 0, self::NOTE_PREVIEW_LENGTH - 1) . '…';
 	}
 
-	/** @param ?array{days:int,noticePeriod:int} $notice */
-	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, string $note, ?string $noteAuthorUid, ?array $notice): void {
+	/**
+	 * @param list<array{author:?string,text:string}> $notes what people wrote, quoted in full
+	 * @param ?array{days:int,noticePeriod:int} $notice
+	 */
+	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, array $notes, ?array $notice): void {
 		$user = $this->userManager->get($recipientUid);
 		if (!$user instanceof IUser) {
 			return;
@@ -230,7 +265,7 @@ class NotificationService {
 		try {
 			$lang = $this->l10nFactory->getUserLanguage($user);
 			$l = $this->l10nFactory->get(ConfigService::APP_ID, $lang);
-			[$heading, $body] = $this->emailContent($l, $subject, $request, $noteAuthorUid, $notice !== null);
+			[$heading, $body] = $this->emailContent($l, $subject, $request, $notes, $notice !== null);
 
 			$template = $this->mailer->createEMailTemplate('absence.' . $subject);
 			$template->setSubject($heading);
@@ -242,14 +277,14 @@ class NotificationService {
 			if ($notice !== null) {
 				$template->addBodyText(NoticeService::sentence($l, $notice));
 			}
-			// Quote the note verbatim under the summary, attributed. addBodyListItem
+			// Quote the notes verbatim under the summary, attributed. addBodyListItem
 			// escapes the text and keeps its line breaks, so a comment written as
 			// several lines still reads as several lines.
-			if ($note !== '') {
+			foreach ($notes as $note) {
 				$template->addBodyListItem(
-					$note,
-					$noteAuthorUid !== null && $noteAuthorUid !== ''
-						? $l->t('%s wrote:', [$this->displayName($noteAuthorUid)])
+					$note['text'],
+					$note['author'] !== null && $note['author'] !== ''
+						? $l->t('%s wrote:', [$this->displayName($note['author'])])
 						: $l->t('Comment:'),
 				);
 			}
@@ -269,10 +304,12 @@ class NotificationService {
 	}
 
 	/**
+	 * @param list<array{author:?string,text:string}> $notes
 	 * @return array{0:string,1:string} heading and body
 	 */
-	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, ?string $noteAuthorUid, bool $shortNotice): array {
+	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, array $notes, bool $shortNotice): array {
 		$employee = $this->displayName($request->getEmployeeUid());
+		$noteAuthorUid = $notes[0]['author'] ?? null;
 		$author = $noteAuthorUid !== null && $noteAuthorUid !== '' ? $this->displayName($noteAuthorUid) : '';
 		$range = $request->getStartDate() . ' – ' . $request->getEndDate();
 		// The heading is also the mail's subject line, so a short-notice request says
@@ -329,7 +366,10 @@ class NotificationService {
 				$l->t('%s is absent', [$employee]),
 				$l->t('HR recorded an absence for %1$s for %2$s.', [$employee, $range]),
 			],
-			self::SUBJECT_COMMENT => [
+			self::SUBJECT_COMMENT => count($notes) > 1 ? [
+				$l->t('New comments on the leave request of %s', [$employee]),
+				$l->n('There is %n new comment on the leave request of %1$s for %2$s.', 'There are %n new comments on the leave request of %1$s for %2$s.', count($notes), [$employee, $range]),
+			] : [
 				$author !== '' ? $l->t('New comment from %s', [$author]) : $l->t('New comment on a leave request'),
 				$l->t('There is a new comment on the leave request of %1$s for %2$s.', [$employee, $range]),
 			],
