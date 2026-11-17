@@ -18,5 +18,5 @@ export function namesAndMore({ count, names }: { count: number, names: string[] 
 	if (rest <= 0) {
 		return listed
 	}
-	return n('absence', '{names} and {count} more', '{names} and {count} more', rest, { names: listed, count: rest }, { escape: false })
+	return n('absence', '{names} and {count} more', '{names} and {count} more', rest, { names: listed, count: rest }, { escape: false, sanitize: false })
 }

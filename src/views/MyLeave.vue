@@ -341,7 +341,7 @@ function celebrateNewApprovals(): void {
 	}
 	window.dispatchEvent(new CustomEvent('absence:celebrate'))
 	const type = leaveTypesStore.leaveType(first.typeId)
-	showSuccess(t('absence', 'Approved: {type}. Enjoy! ✈️', { type: type.label }))
+	showSuccess(t('absence', 'Approved: {type}. Enjoy! ✈️', { type: type.label }, { escape: false, sanitize: false }))
 }
 </script>
 

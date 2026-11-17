@@ -16,7 +16,7 @@
 					</h2>
 					<p v-if="profile && !error" class="profile__sub">
 						<template v-if="profile.manager">
-							{{ t('absence', 'Reports to {name}', { name: profile.manager.displayName }, undefined, { escape: false }) }}
+							{{ t('absence', 'Reports to {name}', { name: profile.manager.displayName }, undefined, { escape: false, sanitize: false }) }}
 						</template>
 						<template v-else>
 							{{ t('absence', 'No manager: requests go to HR') }}
@@ -76,7 +76,7 @@
 					· {{ n('absence', '{count} still to come', '{count} still to come', profile.holidays.remaining, { count: profile.holidays.remaining }) }}
 				</p>
 				<p v-if="profile.holidays.upcoming.length" class="profile__note">
-					{{ t('absence', 'Next: {days}', { days: profile.holidays.upcoming.map((day) => `${day.label}, ${formatDate(day.date)}`).join(' · ') }, undefined, { escape: false }) }}
+					{{ t('absence', 'Next: {days}', { days: profile.holidays.upcoming.map((day) => `${day.label}, ${formatDate(day.date)}`).join(' · ') }, undefined, { escape: false, sanitize: false }) }}
 				</p>
 				<router-link :to="{ name: 'holidays' }">
 					{{ t('absence', 'See the list') }}

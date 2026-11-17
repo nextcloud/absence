@@ -1779,6 +1779,11 @@ under `prefers-reduced-motion: reduce`.
   extraction via the standard Nextcloud transifex/`translationtool` setup.
 - Dates/numbers localized via Nextcloud locale APIs; week-start respects locale.
 - Seeded leave-type labels use translatable defaults.
+- A translation with a placeholder that carries user text (a name, a label, a search)
+  and that Vue renders as text (mustache, attribute, toast) passes
+  `{ escape: false, sanitize: false }`: Vue escapes it already. Escaping shows "R&D" as
+  "R&amp;D", and sanitizing drops anything that looks like a tag ("Ann <Lee>" becomes "Ann "). The app has no `v-html`; a string headed for HTML
+  would keep both.
 
 ---
 

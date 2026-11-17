@@ -15,7 +15,7 @@
 				</h2>
 				<p class="employees__sub">
 					{{ employeesGroup
-						? t('absence', 'Members of the group {group}, {year}', { group: employeesGroup, year }, undefined, { escape: false })
+						? t('absence', 'Members of the group {group}, {year}', { group: employeesGroup, year }, undefined, { escape: false, sanitize: false })
 						: t('absence', 'Everyone except guest accounts, {year}', { year }) }}
 				</p>
 			</div>
@@ -178,7 +178,7 @@
 								{{ fmt(row.sickDays) }}
 							</td>
 							<td>
-								<NcActions :ariaLabel="t('absence', 'Actions for {name}', { name: row.displayName }, undefined, { escape: false })">
+								<NcActions :ariaLabel="t('absence', 'Actions for {name}', { name: row.displayName }, undefined, { escape: false, sanitize: false })">
 									<NcActionButton
 										v-for="balance in row.balances"
 										:key="balance.typeId"
@@ -186,7 +186,7 @@
 										<template #icon>
 											<Pencil :size="20" />
 										</template>
-										{{ t('absence', 'Edit entitlement: {type}', { type: balance.typeLabel }, undefined, { escape: false }) }}
+										{{ t('absence', 'Edit entitlement: {type}', { type: balance.typeLabel }, undefined, { escape: false, sanitize: false }) }}
 									</NcActionButton>
 								</NcActions>
 							</td>

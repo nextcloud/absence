@@ -85,7 +85,7 @@ const emit = defineEmits<{
 const preview = ref<EmployeesPreview | null>(null)
 const typed = ref('')
 
-const title = computed(() => t('absence', 'Change the employees group to "{group}"?', { group: props.group.displayName }, undefined, { escape: false }))
+const title = computed(() => t('absence', 'Change the employees group to "{group}"?', { group: props.group.displayName }, undefined, { escape: false, sanitize: false }))
 
 const confirmed = computed(() => preview.value !== null && !props.saving && typed.value.trim() === props.group.displayName)
 

@@ -174,7 +174,7 @@
 				<!-- HR's cancel is immediate and notifies the employee, and it is reached
 				     from a browse list where a misclick is easy — so it is confirmed. -->
 				<NcNoteCard v-if="confirmingCancel" type="warning">
-					<p>{{ t('absence', 'Cancel this absence for {employee}? They are notified, and it is removed from the calendars. The record itself is kept, marked cancelled.', { employee: employeeName }, undefined, { escape: false }) }}</p>
+					<p>{{ t('absence', 'Cancel this absence for {employee}? They are notified, and it is removed from the calendars. The record itself is kept, marked cancelled.', { employee: employeeName }, undefined, { escape: false, sanitize: false }) }}</p>
 					<div class="confirm__actions">
 						<NcButton variant="tertiary" :disabled="busy" @click="confirmingCancel = false">
 							{{ t('absence', 'Back') }}
@@ -290,7 +290,7 @@
 
 		<NcDialog
 			v-if="removing"
-			:name="t('absence', 'Remove {name}?', { name: removing.name }, undefined, { escape: false })"
+			:name="t('absence', 'Remove {name}?', { name: removing.name }, undefined, { escape: false, sanitize: false })"
 			:open="true"
 			size="small"
 			@update:open="(open) => !open && !removingBusy && (removing = null)">
