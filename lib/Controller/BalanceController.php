@@ -11,6 +11,7 @@ namespace OCA\Absence\Controller;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Service\BalanceService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ReportService;
 use OCP\AppFramework\Controller;
@@ -34,6 +35,7 @@ class BalanceController extends Controller {
 		private LeaveTypeMapper $leaveTypeMapper,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private EntitlementValidator $validator,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -41,7 +43,12 @@ class BalanceController extends Controller {
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function mine(?int $year = null): DataResponse {
-		return $this->handle(fn () => $this->withheldForViewer($this->balanceService->getBalance((string)$this->userId, $year)));
+		return $this->handle(function () use ($year) {
+			if ($year !== null) {
+				$this->validator->assertYear($year);
+			}
+			return $this->withheldForViewer($this->balanceService->getBalance((string)$this->userId, $year));
+		});
 	}
 
 	#[NoAdminRequired]
@@ -50,6 +57,9 @@ class BalanceController extends Controller {
 		return $this->handle(function () use ($uid, $year) {
 			if (!$this->permission->canViewBalanceOf((string)$this->userId, $uid)) {
 				throw new ForbiddenException($this->l->t('Not allowed to view this balance'));
+			}
+			if ($year !== null) {
+				$this->validator->assertYear($year);
 			}
 			return $this->withheldForViewer($this->balanceService->getBalance($uid, $year));
 		});
@@ -65,10 +75,9 @@ class BalanceController extends Controller {
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function team(?int $year = null): DataResponse {
 		return $this->handle(function () use ($year): array {
-			$rows = $this->reportService->teamBalances(
-				(string)$this->userId,
-				$year ?? $this->balanceService->currentYear(),
-			);
+			$year ??= $this->balanceService->currentYear();
+			$this->validator->assertYear($year);
+			$rows = $this->reportService->teamBalances((string)$this->userId, $year);
 			return $this->stripHrOnlyRows($rows);
 		});
 	}

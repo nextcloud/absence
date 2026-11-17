@@ -11,6 +11,7 @@ namespace OCA\Absence\Tests\Unit\Controller;
 use OCA\Absence\Controller\EntitlementController;
 use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ProRataService;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
@@ -46,6 +47,7 @@ class EntitlementControllerTest extends TestCase {
 			$this->l10nMock(),
 			$this->createMock(LoggerInterface::class),
 			$userManager,
+			$this->createMock(EntitlementValidator::class),
 		);
 
 		$history = $controller->history(7)->getData();

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\Exception\ValidationException;
 use OCP\App\IAppManager;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -43,14 +44,17 @@ class EmployeeListService {
 		private IAppManager $appManager,
 		private ClockService $clock,
 		private HolidayService $holidays,
+		private EntitlementValidator $validator,
 	) {
 	}
 
 	/**
 	 * @return array{year: int, employeesGroup: string, employeesGroupName: string, contacts: bool, rows: list<array<string, mixed>>}
+	 * @throws ValidationException
 	 */
 	public function list(?int $year): array {
 		$year ??= $this->clock->userYear();
+		$this->validator->assertYear($year);
 		$group = $this->config->getEmployeesGroup();
 		return [
 			'year' => $year,

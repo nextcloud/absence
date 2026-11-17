@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\ExportService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ReportService;
@@ -43,6 +44,7 @@ class ExportControllerTest extends TestCase {
 			$permission,
 			$this->createMock(ClockService::class),
 			$this->l10nMock(),
+			$this->createMock(EntitlementValidator::class),
 		);
 
 		$response = $controller->requests('2027-02-01', '2027-01-01');

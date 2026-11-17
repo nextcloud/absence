@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\EntitlementService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ProRataService;
 use OCP\AppFramework\Controller;
@@ -33,6 +34,7 @@ class EntitlementController extends Controller {
 		private IL10N $l,
 		private LoggerInterface $logger,
 		private IUserManager $userManager,
+		private EntitlementValidator $validator,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -42,6 +44,9 @@ class EntitlementController extends Controller {
 	public function index(string $employeeUid, ?int $year = null): DataResponse {
 		return $this->handle(function () use ($employeeUid, $year) {
 			$this->permission->assertHr((string)$this->userId);
+			if ($year !== null) {
+				$this->validator->assertYear($year);
+			}
 			return array_map(static fn ($e) => $e->jsonSerialize(), $this->service->listForEmployee($employeeUid, $year));
 		});
 	}
@@ -133,6 +138,7 @@ class EntitlementController extends Controller {
 	public function proRata(string $employeeUid, int $year): DataResponse {
 		return $this->handle(function () use ($employeeUid, $year) {
 			$this->permission->assertHr((string)$this->userId);
+			$this->validator->assertYear($year);
 			return $this->proRata->suggest($employeeUid, $year);
 		});
 	}
