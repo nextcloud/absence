@@ -17,6 +17,7 @@ use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\CoverageService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
@@ -337,6 +338,6 @@ class EmployeeJsonTest extends TestCase {
 		return new EmployeeController('absence', Server::get(IRequest::class), $uid, Server::get(IUserManager::class),
 			Server::get(IGroupManager::class), Server::get(ISearch::class), Server::get(EmployeeDirectory::class),
 			Server::get(EmployeeListService::class), $this->service, Server::get(RegionReminderService::class), Server::get(PermissionService::class),
-			Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'), Server::get(CoverageService::class));
 	}
 }

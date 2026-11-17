@@ -49,6 +49,7 @@ class EmployeeControllerTest extends TestCase {
 			$permission,
 			$this->createMock(LoggerInterface::class),
 			$this->createMock(\OCP\IL10N::class),
+			$this->createMock(\OCA\Absence\Service\CoverageService::class),
 		);
 	}
 

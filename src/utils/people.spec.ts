@@ -30,7 +30,7 @@ vi.mock('@nextcloud/l10n', () => ({
 	},
 }))
 
-const { namesAndMore } = await import('./people.js')
+const { namesAndMore, replacementSuggestions } = await import('./people.js')
 
 describe('namesAndMore', () => {
 	it('lists everyone when all names are known', () => {
@@ -43,5 +43,36 @@ describe('namesAndMore', () => {
 
 	it('keeps names as typed: Vue renders the text, so nothing is stripped or escaped', () => {
 		expect(namesAndMore({ count: 3, names: ['R&D Team', 'Ann <Lee>'] })).toBe('R&D Team, Ann <Lee> and 1 more')
+	})
+})
+
+describe('replacementSuggestions', () => {
+	const alice = { uid: 'alice', displayName: 'Alice Martin' }
+	const bob = { uid: 'bob', displayName: 'Bob Keller' }
+	const charlie = { uid: 'charlie', displayName: 'Charlie Dubois' }
+	const dave = { uid: 'dave', displayName: 'Dave Novak' }
+	const eve = { uid: 'eve', displayName: 'Eve Laurent' }
+	const uids = (list: { uid: string }[]) => list.map((person) => person.uid)
+
+	it('offers the colleagues chosen before first, then the teammates by name', () => {
+		expect(uids(replacementSuggestions({ past: [dave, bob], teammates: [eve, charlie], selected: null, subjectUid: 'alice' })))
+			.toEqual(['dave', 'bob', 'charlie', 'eve'])
+	})
+
+	it('lists a teammate chosen before only once, where it was chosen', () => {
+		expect(uids(replacementSuggestions({ past: [eve], teammates: [eve, charlie, bob], selected: null, subjectUid: 'alice' })))
+			.toEqual(['eve', 'bob', 'charlie'])
+	})
+
+	it('never offers the person whose absence it is', () => {
+		expect(uids(replacementSuggestions({ past: [alice], teammates: [alice, bob], selected: null, subjectUid: 'alice' })))
+			.toEqual(['bob'])
+	})
+
+	it('keeps the current choice pickable when nobody else lists it', () => {
+		expect(uids(replacementSuggestions({ past: [], teammates: [bob], selected: dave, subjectUid: 'alice' })))
+			.toEqual(['dave', 'bob'])
+		expect(uids(replacementSuggestions({ past: [], teammates: [bob], selected: bob, subjectUid: 'alice' })))
+			.toEqual(['bob'])
 	})
 })

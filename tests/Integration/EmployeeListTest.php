@@ -18,6 +18,7 @@ use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\CoverageService;
 use OCA\Absence\Service\EmployeeDirectory;
 use OCA\Absence\Service\EmployeeJsonService;
 use OCA\Absence\Service\EmployeeListService;
@@ -255,6 +256,6 @@ class EmployeeListTest extends TestCase {
 		return new EmployeeController('absence', Server::get(IRequest::class), $uid, Server::get(IUserManager::class),
 			Server::get(IGroupManager::class), Server::get(ISearch::class), Server::get(EmployeeDirectory::class),
 			Server::get(EmployeeListService::class), Server::get(EmployeeJsonService::class), Server::get(RegionReminderService::class),
-			Server::get(PermissionService::class), Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'));
+			Server::get(PermissionService::class), Server::get(LoggerInterface::class), Server::get(IFactory::class)->get('absence'), Server::get(CoverageService::class));
 	}
 }

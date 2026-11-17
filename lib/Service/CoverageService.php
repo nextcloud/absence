@@ -11,6 +11,8 @@ namespace OCA\Absence\Service;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Exception\ForbiddenException;
+use OCA\Absence\Exception\ValidationException;
 use OCP\IL10N;
 use OCP\IUserManager;
 
@@ -22,6 +24,8 @@ class CoverageService {
 
 	public const SCOPE_TEAM = 'team';
 	public const SCOPE_COMPANY = 'company';
+	/** The longest range the away check answers for: the longest request (§5.1). */
+	private const MAX_AWAY_SPAN_DAYS = 366;
 
 	/** The statuses that put somebody on the timeline: booked or still asked for */
 	private const OFF_STATUSES = [LeaveRequest::STATUS_APPROVED, LeaveRequest::STATUS_PENDING, LeaveRequest::STATUS_ESCALATED, LeaveRequest::STATUS_WITHDRAWAL_PENDING];
@@ -203,6 +207,64 @@ class CoverageService {
 			$result[$request->getId()] = array_values($names);
 		}
 		return $result;
+	}
+
+	/**
+	 * The colleagues the replacement picker offers before anything is typed
+	 * (§5.1): who shares the person's manager, the manager, and the person's
+	 * direct reports. Employees only, never the person themselves. Anybody may
+	 * ask for their own, HR for anybody's.
+	 *
+	 * @return list<array{uid: string, displayName: string}>
+	 * @throws ForbiddenException
+	 */
+	public function getTeammates(string $actorUid, string $uid): array {
+		if ($uid !== $actorUid) {
+			$this->permission->assertHr($actorUid);
+		} elseif (!$this->permission->isEmployeeOrHr($actorUid)) {
+			throw new ForbiddenException($this->l->t('Only employees and HR can see this.'));
+		}
+		return array_map(fn (string $other): array => ['uid' => $other, 'displayName' => $this->displayName($other)], $this->teammateUids($uid));
+	}
+
+	/**
+	 * Who shares the person's manager, the manager, and the person's direct
+	 * reports: employees only, never the person themselves.
+	 *
+	 * @return list<string>
+	 */
+	private function teammateUids(string $uid): array {
+		$managerUid = $this->managerResolver->getManagerUid($uid);
+		$uids = array_unique([
+			...$this->managerResolver->getPeers($uid),
+			...($managerUid !== null ? [$managerUid] : []),
+			...$this->managerResolver->getDirectReports($uid),
+		]);
+		return $this->employees->filter(array_values(array_filter($uids, static fn (string $other): bool => $other !== $uid)));
+	}
+
+	/**
+	 * Whether an employee has leave in force or asked for on any day of a
+	 * range, for the warning under the replacement picker. Says nothing about
+	 * the type or the days. Null, no answer, unless the caller may see that
+	 * person's absences anyway: HR, their teammates, or everyone while the
+	 * shared team calendar shows all absences.
+	 *
+	 * @throws ForbiddenException
+	 * @throws ValidationException
+	 */
+	public function isAway(string $actorUid, string $uid, string $from, string $to): ?bool {
+		if (!$this->permission->isEmployeeOrHr($actorUid)) {
+			throw new ForbiddenException($this->l->t('Only employees and HR can see this.'));
+		}
+		if (!$this->employees->isEmployee($uid)) {
+			throw new ValidationException($this->l->t('Unknown employee.'));
+		}
+		[$from, $to] = $this->assertValidRange($from, $to, self::MAX_AWAY_SPAN_DAYS);
+		if (!$this->permission->isHr($actorUid) && !$this->config->isCalDavSharedEnabled() && !in_array($uid, $this->teammateUids($actorUid), true)) {
+			return null;
+		}
+		return $this->requestMapper->findForEmployeesInRange([$uid], $from, $to, LeaveRequest::ACTIVE_STATUSES) !== [];
 	}
 
 	/**

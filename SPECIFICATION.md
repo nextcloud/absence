@@ -450,8 +450,22 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
 3. **Replacement (mandatory for `requires_replacement` types).** For annual, unpaid and
    special leave the employee **must** nominate a **replacement** — a colleague who
    covers for them. The UI is a **user picker over the whole organisation**
-   (`NcSelect` + core autocomplete), excluding the employee themselves. Submit is blocked
-   until one is chosen. Sick leave (HR-recorded) needs none.
+   (`NcSelect` + `GET /api/employees/search`), excluding the employee themselves. Submit
+   is blocked until one is chosen. Sick leave (HR-recorded) needs none.
+
+   Before anything is typed the picker offers the **teammates** of the person whose
+   absence it is (`GET /api/employees/teammates`): the colleagues chosen as replacement
+   before come first, then who shares their manager, the manager, and their direct
+   reports, by name. Employees only, never the person themselves, nobody twice.
+   Anybody may ask for their own teammates, HR for any employee's (HR mode).
+   Once a replacement and both dates are set, the dialog asks whether that colleague
+   has leave pending, escalated, approved or awaiting withdrawal on any of those days
+   (`GET /api/employees/{uid}/away`, debounced like the coverage note) and if so warns
+   "*{name} is off on some of these days.*" without saying which days or what leave.
+   It answers only who may see that colleague's absences anyway: HR, their teammates
+   as above, or every employee while the shared team calendar is on (§10). Anybody
+   else gets `{away: null}` and no warning. It is a warning only: saving is never
+   blocked by it.
 
    **The requirement is on the employee, not on the record.** It exists because somebody
    arranging their own leave knows who can cover and is asked to sort it out before
@@ -1448,6 +1462,12 @@ the SPA). All list endpoints paginate and accept filters.
 
 **Coverage & calendar**
 - `GET  /api/coverage?from&to&scope=team|company` — overlaps + conflict count (§8).
+- `GET  /api/employees/teammates?uid`: the replacement picker's suggestions (§5.1):
+  `[{uid, displayName}]`. `uid` defaults to the caller; only HR may name somebody else.
+- `GET  /api/employees/{uid}/away?from&to`: `{away: bool|null}`, whether that employee
+  has leave in force or asked for on any day of the range, at most 366 days (§5.1).
+  Employees and HR only; `null` unless the caller is HR, a teammate, or the shared
+  team calendar is on.
 - `GET  /api/calendar?from&to&scope` — events for the in-app calendar/timeline, and
   the public holidays of the people in them (`holidays`, by uid).
 

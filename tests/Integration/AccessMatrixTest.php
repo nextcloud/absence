@@ -110,6 +110,8 @@ class AccessMatrixTest extends TestCase {
 
 			'employee#index' => [$hr, []],
 			'employee#search' => [[self::COLLEAGUE, self::OWNER, self::MANAGER, self::HR], ['search' => 'itest'], 'empty'],
+			'employee#teammates' => [[self::OWNER, self::HR], ['uid' => '{owner}']],
+			'employee#away' => [[self::COLLEAGUE, self::OWNER, self::MANAGER, self::HR], ['uid' => '{owner}'] + $from],
 			'employee#exportJson' => [$hr, []],
 			'employee#importJson' => [$hr, ['json' => '[]', 'dryRun' => true]],
 			'employee#remind' => [$hr, ['dryRun' => true]],
