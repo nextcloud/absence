@@ -895,7 +895,7 @@ class RequestService {
 	}
 
 	private function editInPlace(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
-		$type = $this->resolveType((int)($data['typeId'] ?? $request->getTypeId()));
+		$type = $this->editedType($request, $data);
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $request->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $request->getEndDate()));
@@ -954,7 +954,7 @@ class RequestService {
 		// Authoritative re-check happens under the lock below.
 		$this->assertNoPendingEdit($original);
 
-		$type = $this->resolveType((int)($data['typeId'] ?? $original->getTypeId()));
+		$type = $this->editedType($original, $data);
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $original->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $original->getEndDate()));
@@ -1568,6 +1568,25 @@ class RequestService {
 			throw new ValidationException($this->l->t('This leave type is disabled.'));
 		}
 		return $type;
+	}
+
+	/**
+	 * The type an employee's edit keeps or moves to. The request's own type may
+	 * have been disabled since it was asked for; a type to move to has to be enabled.
+	 *
+	 * @param array<string,mixed> $data
+	 * @throws ValidationException
+	 */
+	private function editedType(LeaveRequest $request, array $data): LeaveType {
+		$typeId = (int)($data['typeId'] ?? $request->getTypeId());
+		if ($typeId !== $request->getTypeId()) {
+			return $this->resolveType($typeId);
+		}
+		try {
+			return $this->leaveTypeMapper->find($typeId);
+		} catch (DoesNotExistException) {
+			throw new ValidationException($this->l->t('Unknown leave type.'));
+		}
 	}
 
 	/**
