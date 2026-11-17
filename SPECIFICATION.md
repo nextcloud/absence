@@ -1589,7 +1589,10 @@ generic form-over-table CRUD tool.
   `prefers-reduced-motion` and high-contrast themes. Playfulness decorates; it never
   carries meaning alone.
 - **Responsive.** Works from mobile width up; navigation collapses per Nextcloud
-  behavior; tables become card lists on narrow screens.
+  behavior; tables become card lists on narrow screens. A request row narrower than
+  512 px (a phone, or a list next to the open sidebar) stacks: the name and the
+  date line wrap instead of being cut, and the waiting time and the chips go under
+  them.
 
 ### 15.1 App shell & layout (standard three-region Nextcloud frame)
 

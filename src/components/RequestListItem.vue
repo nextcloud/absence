@@ -13,7 +13,10 @@
 				<span class="rli__icon" :style="{ background: colorSoft }" aria-hidden="true">{{ type.icon }}</span>
 			</template>
 			<template #subname>
-				{{ subtitle }}
+				<template v-for="(part, i) in subtitle" :key="i">
+					<span v-if="i > 0">&nbsp;· </span>
+					<span class="rli__part">{{ part }}</span>
+				</template>
 			</template>
 			<template v-if="waiting" #details>
 				<span :title="waiting.title">{{ waiting.label }}</span>
@@ -101,19 +104,20 @@ const title = computed(() => {
 	return type.value.label
 })
 
+/** The parts of the date line, each kept on one line when the row wraps. */
 const subtitle = computed(() => {
 	const range = formatRange(props.request.startDate, props.request.endDate)
 	const days = n('absence', '%n day', '%n days', props.request.workingDays)
 	const after = props.request.decision?.availableAfter
 	if (after !== undefined && after !== null) {
-		return `${range} · ${days} · ${n('absence', '%n available after', '%n available after', Math.round(after * 10) / 10)}`
+		return [range, days, n('absence', '%n available after', '%n available after', Math.round(after * 10) / 10)]
 	}
 	if (props.available === null) {
-		return `${range} · ${days}`
+		return [range, days]
 	}
 	// Days taken alone does not answer the question the list is scanned for.
 	const available = n('absence', '%n available', '%n available', Math.round(props.available * 10) / 10)
-	return `${range} · ${days} · ${available}`
+	return [range, days, available]
 })
 
 /**
@@ -136,6 +140,7 @@ function select(event?: MouseEvent) {
 <style scoped lang="scss">
 .rli {
 	position: relative;
+	container-type: inline-size;
 	border-radius: var(--border-radius-large, 12px);
 	transition: transform 150ms ease, background-color 150ms ease;
 
@@ -181,6 +186,10 @@ function select(event?: MouseEvent) {
 		white-space: nowrap;
 	}
 
+	&__part {
+		white-space: nowrap;
+	}
+
 	&__icon {
 		display: flex;
 		align-items: center;
@@ -189,6 +198,42 @@ function select(event?: MouseEvent) {
 		height: 40px;
 		border-radius: 50%;
 		font-size: 1.2rem;
+	}
+}
+
+// A narrow row stacks: the name and the date line wrap instead of being cut,
+// and the waiting time and the chips move under them.
+@container (max-width: 512px) {
+	.rli {
+		:deep(.list-item) {
+			--list-item-height: auto;
+		}
+
+		:deep(.list-item__anchor) {
+			flex-shrink: 1;
+		}
+
+		:deep(.list-item-content) {
+			flex-wrap: wrap;
+			gap: var(--default-grid-baseline);
+		}
+
+		:deep(.list-item-content__main) {
+			flex-basis: 100%;
+		}
+
+		:deep(.list-item-content__name),
+		:deep(.list-item-content__subname) {
+			white-space: normal;
+		}
+
+		:deep(.list-item-content__details) {
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: flex-start;
+			align-items: center;
+			gap: var(--default-grid-baseline);
+		}
 	}
 }
 
