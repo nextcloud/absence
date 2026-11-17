@@ -138,4 +138,93 @@ class ConfigServiceTest extends TestCase {
 		$this->expectException(ValidationException::class);
 		$this->service->setAdminValue($key, $value);
 	}
+
+	public static function acceptedValues(): array {
+		return [
+			'no handbook' => [ConfigLexicon::KEY_HANDBOOK_URL, '', ''],
+			'web link' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://example.org/handbook', 'https://example.org/handbook'],
+			'web link with port, query and fragment' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, 'http://example.org:8080/a?b=c#d', 'http://example.org:8080/a?b=c#d'],
+			'web link to an IPv6 host' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://[::1]/handbook', 'https://[::1]/handbook'],
+			'path on this server' => [ConfigLexicon::KEY_HANDBOOK_URL, '/apps/collectives/Handbook', '/apps/collectives/Handbook'],
+			'path with a later backslash' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, '/a\b', '/a\b'],
+			'largest vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '9999.9', 9999.9],
+			'largest carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, 9999.9, 9999.9],
+			'no vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 0, 0.0],
+			'longest escalation window' => [ConfigLexicon::KEY_ESCALATION_WINDOW, 365, 365],
+			'longest reminder lead' => [ConfigLexicon::KEY_REMINDER_LEAD, '365', 365],
+			'longest notice period' => [ConfigLexicon::KEY_NOTICE_PERIOD, 365, 365],
+			'most people off at once' => [ConfigLexicon::KEY_MAX_CONCURRENT, 9999, 9999],
+			'expiry on the leap day' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '02-29', '02-29'],
+			'expiry on the last day of a short month' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '04-30', '04-30'],
+			'expiry at the end of the year' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '12-31', '12-31'],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('acceptedValues')]
+	public function testValuesInRangeAreAccepted(string $key, mixed $value, int|float|string $stored): void {
+		self::assertSame([$key => $stored], $this->service->normalizeAdminValues([$key => $value]));
+	}
+
+	public static function refusedValues(): array {
+		return [
+			'link with an unclosed bracket' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://['],
+			'link with a percent sign for a host' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://%'],
+			'link with a port and no host' => [ConfigLexicon::KEY_HANDBOOK_URL, 'http://:80'],
+			'link with no host' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, 'https://'],
+			'link with a path and no host' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, 'https:///handbook'],
+			'link with a port out of range' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://example.org:99999/'],
+			'link with a space' => [ConfigLexicon::KEY_HANDBOOK_URL, 'https://example.org/a b'],
+			'link with a trailing newline' => [ConfigLexicon::KEY_HANDBOOK_URL, "https://example.org/handbook\n"],
+			'javascript link' => [ConfigLexicon::KEY_HANDBOOK_URL, 'javascript:alert(1)'],
+			'data link' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, 'data:text/html,hello'],
+			'link without a scheme' => [ConfigLexicon::KEY_HANDBOOK_URL, 'example.org/handbook'],
+			'path starting with two slashes' => [ConfigLexicon::KEY_HANDBOOK_URL, '//evil.example/x'],
+			'path starting with a slash and a backslash' => [ConfigLexicon::KEY_HANDBOOK_URL, '/\evil.example/x'],
+			'path with a trailing newline' => [ConfigLexicon::KEY_HR_HANDBOOK_URL, "/handbook\n"],
+			'a lone slash' => [ConfigLexicon::KEY_HANDBOOK_URL, '/'],
+			'vacation days above the column' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, 10000],
+			'huge vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '1e300'],
+			'vacation days that overflow a float' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '1e999'],
+			'infinite vacation days' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, INF],
+			'vacation days that are no number' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, NAN],
+			'INF as text' => [ConfigLexicon::KEY_CARRYOVER_CAP, 'INF'],
+			'NAN as text' => [ConfigLexicon::KEY_CARRYOVER_CAP, 'NAN'],
+			'carry-over limit above the column' => [ConfigLexicon::KEY_CARRYOVER_CAP, 9999.95],
+			'negative carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, -0.5],
+			'escalation window over a year' => [ConfigLexicon::KEY_ESCALATION_WINDOW, 366],
+			'reminder lead over a year' => [ConfigLexicon::KEY_REMINDER_LEAD, '366'],
+			'notice period over a year' => [ConfigLexicon::KEY_NOTICE_PERIOD, PHP_INT_MAX],
+			'too many people off at once' => [ConfigLexicon::KEY_MAX_CONCURRENT, 10000],
+			'expiry on 30 February' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '02-30'],
+			'expiry on 31 April' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '04-31'],
+			'expiry on day zero' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '03-00'],
+			'expiry in month 13' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '13-01'],
+			'expiry with a trailing newline' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, "03-31\n"],
+			'expiry with a year' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '2027-03-31'],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('refusedValues')]
+	public function testValuesOutOfRangeAreRefused(string $key, mixed $value): void {
+		$this->appConfig->expects($this->never())->method($this->anything());
+		$this->expectException(ValidationException::class);
+		$this->service->setAdminValue($key, $value);
+	}
+
+	public static function storedValuesAboveTheMaximum(): array {
+		return [
+			'vacation days' => ['getDefaultEntitlement', 'getValueFloat', 1.0e300, 9999.9],
+			'carry-over limit' => ['getCarryOverCap', 'getValueFloat', 20000.0, 9999.9],
+			'escalation window' => ['getEscalationWindowDays', 'getValueInt', PHP_INT_MAX, 365],
+			'reminder lead' => ['getReminderLeadDays', 'getValueInt', 1000, 365],
+			'notice period' => ['getNoticePeriodDays', 'getValueInt', 366, 365],
+			'people off at once' => ['getMaxConcurrentAbsences', 'getValueInt', 1000000, 9999],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('storedValuesAboveTheMaximum')]
+	public function testStoredValueAboveTheMaximumIsReadAsTheMaximum(string $getter, string $read, int|float $stored, int|float $expected): void {
+		$this->appConfig->method($read)->willReturn($stored);
+		self::assertSame($expected, $this->service->$getter());
+	}
 }

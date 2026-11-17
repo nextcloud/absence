@@ -168,7 +168,7 @@ class LeaveTypeController extends Controller {
 	 * @throws ValidationException
 	 */
 	private function assertValidColor(string $color): void {
-		if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $color) !== 1) {
+		if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z/', $color) !== 1) {
 			throw new ValidationException($this->l->t('The color must be a hex value like #0082c9.'));
 		}
 	}

@@ -147,4 +147,22 @@ class BalanceCarryOverExpiryTest extends TestCase {
 		);
 		self::assertSame([['2032-01-01', '2032-03-31', null]], $this->usageQueries);
 	}
+
+	public static function expiryDaysTheMonthMayNotHave(): array {
+		return [
+			'leap day in a leap year' => ['02-29', 2032, '2032-02-29'],
+			'leap day in another year' => ['02-29', 2031, '2031-02-28'],
+			'stored 30 February' => ['02-30', 2031, '2031-02-28'],
+			'stored 31 April' => ['04-31', 2031, '2031-04-30'],
+			'stored with a trailing newline' => ["03-31\n", 2031, '2031-03-31'],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('expiryDaysTheMonthMayNotHave')]
+	public function testExpiryDayTheMonthDoesNotHaveIsItsLastDay(string $expiry, int $year, string $date): void {
+		$this->expiry = $expiry;
+		$this->today = $year . '-01-15';
+		self::assertSame([5.0, $date], $this->expiring(5.0, $year));
+		self::assertSame([[$year . '-01-01', $date, 'robin']], $this->usageQueries);
+	}
 }

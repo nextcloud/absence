@@ -104,6 +104,7 @@
 						class="settings__field"
 						type="number"
 						min="0"
+						max="9999.9"
 						step="0.5"
 						:label="t('absence', 'Default vacation days per year')"
 						@change="saveField('default_entitlement')" />
@@ -121,6 +122,7 @@
 						class="settings__field"
 						type="number"
 						min="0"
+						max="9999.9"
 						step="0.5"
 						:disabled="form.carryover_policy !== 'capped'"
 						:label="t('absence', 'Carry-over limit (days)')"
@@ -129,7 +131,7 @@
 						v-model="form.carryover_expiry"
 						class="settings__field"
 						placeholder="03-31"
-						pattern="(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])"
+						pattern="(0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|[12][0-9])"
 						:disabled="form.carryover_policy === 'none'"
 						:label="t('absence', 'Carried days expire on')"
 						:helperText="t('absence', 'MM-DD. Empty keeps them all year.')"
@@ -153,6 +155,7 @@
 						class="settings__field"
 						type="number"
 						min="0"
+						:max="field.max"
 						step="1"
 						:label="field.label"
 						:helperText="field.hint"
@@ -336,6 +339,7 @@ interface CarryOverOption {
 interface ApprovalField {
 	key: 'escalation_window_days' | 'reminder_lead_days' | 'max_concurrent_absences' | 'notice_period_days'
 	label: string
+	max: number
 	hint?: string
 }
 
@@ -381,10 +385,10 @@ const carryOverOptions: CarryOverOption[] = [
 ]
 
 const approvalFields: ApprovalField[] = [
-	{ key: 'escalation_window_days', label: t('absence', 'Escalate to HR after (working days)') },
-	{ key: 'reminder_lead_days', label: t('absence', 'Remind the manager (days before)') },
-	{ key: 'max_concurrent_absences', label: t('absence', 'Too many people off at once (per team)') },
-	{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), hint: t('absence', '0 switches the warning off.') },
+	{ key: 'escalation_window_days', label: t('absence', 'Escalate to HR after (working days)'), max: 365 },
+	{ key: 'reminder_lead_days', label: t('absence', 'Remind the manager (days before)'), max: 365 },
+	{ key: 'max_concurrent_absences', label: t('absence', 'Too many people off at once (per team)'), max: 9999 },
+	{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), max: 365, hint: t('absence', '0 switches the warning off.') },
 ]
 
 const session = computed(() => sessionStore.session)
