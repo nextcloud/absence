@@ -8,7 +8,9 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Unit\Service;
 
+use OCA\Absence\Db\CommentMailMapper;
 use OCA\Absence\Db\LeaveRequest;
+use OCA\Absence\Db\RequestComment;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
 use OCP\IL10N;
@@ -47,6 +49,8 @@ class NotificationServiceTest extends TestCase {
 	private array $emailBody = [];
 	/** The email's subject line. */
 	private string $emailSubject = '';
+	/** Recipients whose comment email was queued. */
+	private array $queued = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -107,6 +111,13 @@ class NotificationServiceTest extends TestCase {
 		// recipient actually gets rather than a stub of it.
 		$this->notice = $this->createMock(NoticeService::class);
 
+		$commentMails = $this->createMock(CommentMailMapper::class);
+		$commentMails->method('queue')->willReturnCallback(
+			function (RequestComment $comment, array $recipientUids): void {
+				$this->queued = [...$this->queued, ...$recipientUids];
+			},
+		);
+
 		$this->service = new NotificationService(
 			$this->notificationManager,
 			$this->mailer,
@@ -115,6 +126,7 @@ class NotificationServiceTest extends TestCase {
 			$l10nFactory,
 			$this->notice,
 			$logger,
+			$commentMails,
 		);
 	}
 
@@ -148,33 +160,59 @@ class NotificationServiceTest extends TestCase {
 		return $request;
 	}
 
-	public function testACommentReachesTheOthersWithItsTextAndAuthor(): void {
-		$this->withUsers('emp', 'boss');
+	private function comment(string $authorUid, string $body): RequestComment {
+		$comment = new RequestComment();
+		$comment->setId(3);
+		$comment->setRequestId(7);
+		$comment->setAuthorUid($authorUid);
+		$comment->setBody($body);
+		return $comment;
+	}
 
-		$this->service->notifyComment($this->request(), 'boss', 'Can you move this a day later?', ['emp', 'boss']);
+	public function testACommentIsPushedToTheOthersWithItsTextAndAuthorAndMailedLater(): void {
+		$this->withUsers('emp', 'boss', 'hr-disabled');
+
+		$this->service->notifyComment($this->request(), $this->comment('boss', 'Can you move this a day later?'), ['emp', 'boss', 'hr-disabled']);
 
 		// One notification, to the employee: the author does not need telling.
 		self::assertCount(1, $this->pushed);
 		self::assertSame('Can you move this a day later?', $this->pushed[0]['note']);
 		self::assertSame('boss', $this->pushed[0]['noteAuthor']);
-		self::assertSame([['Can you move this a day later?', 'Boss wrote:']], $this->emailNotes);
+		self::assertSame([], $this->emailNotes);
+		self::assertSame(['emp'], $this->queued);
+	}
+
+	public function testTheCommentMailQuotesEveryCommentWithItsAuthor(): void {
+		$this->withUsers('emp', 'boss', 'hr');
+
+		$this->service->sendCommentMail($this->request(), 'emp', [
+			$this->comment('boss', 'Can you move this a day later?'),
+			$this->comment('hr', 'Or split it in two.'),
+		]);
+
+		self::assertSame('New comments on the leave request of Emp', $this->emailSubject);
+		self::assertSame([['Can you move this a day later?', 'Boss wrote:'], ['Or split it in two.', 'Hr wrote:']], $this->emailNotes);
 	}
 
 	public function testALongCommentIsShortenedForTheNotificationButNotForTheEmail(): void {
 		// A notification renders on one line; the email has room for the whole thing.
 		$this->withUsers('emp', 'boss');
-		$body = str_repeat('a', 500);
+		$comment = $this->comment('boss', str_repeat('a', 500));
 
-		$this->service->notifyComment($this->request(), 'boss', $body, ['emp']);
+		$this->service->notifyComment($this->request(), $comment, ['emp']);
+		$this->service->sendCommentMail($this->request(), 'emp', [$comment]);
 
 		self::assertSame(str_repeat('a', 199) . '…', $this->pushed[0]['note']);
-		self::assertSame($body, $this->emailNotes[0][0]);
+		self::assertSame(str_repeat('a', 500), $this->emailNotes[0][0]);
+		self::assertSame('New comment from Boss', $this->emailSubject);
 	}
 
 	public function testAMultilineCommentIsFlattenedForTheNotificationOnly(): void {
 		$this->withUsers('emp', 'boss');
+		$comment = $this->comment('boss', "First line.\n\nSecond line.");
 
-		$this->service->notifyComment($this->request(), 'boss', "First line.\n\nSecond line.", ['emp']);
+		$this->service->notifyComment($this->request(), $comment, ['emp']);
+		$this->service->sendCommentMail($this->request(), 'emp', [$comment]);
 
 		self::assertSame('First line. Second line.', $this->pushed[0]['note']);
 		self::assertSame("First line.\n\nSecond line.", $this->emailNotes[0][0]);

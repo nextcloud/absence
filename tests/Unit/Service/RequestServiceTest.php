@@ -724,7 +724,7 @@ class RequestServiceTest extends TestCase {
 		$this->permission->expects(self::never())->method('getHrUids');
 
 		$this->notifications->expects(self::once())->method('notifyComment')
-			->with($request, 'boss', 'Can you move this a day later?', ['emp', 'boss']);
+			->with($request, self::callback(static fn (RequestComment $c): bool => $c->getAuthorUid() === 'boss' && $c->getBody() === 'Can you move this a day later?'), ['emp', 'boss']);
 
 		$this->service->addComment('boss', 5, 'Can you move this a day later?');
 	}
@@ -742,7 +742,7 @@ class RequestServiceTest extends TestCase {
 		$this->commentMapper->method('insert')->willReturnArgument(0);
 
 		$this->notifications->expects(self::once())->method('notifyComment')
-			->with($request, 'emp', 'Any news on this?', ['emp', 'boss', 'hr1', 'hr2']);
+			->with($request, self::callback(static fn (RequestComment $c): bool => $c->getAuthorUid() === 'emp' && $c->getBody() === 'Any news on this?'), ['emp', 'boss', 'hr1', 'hr2']);
 
 		$this->service->addComment('emp', 5, 'Any news on this?');
 	}
@@ -1081,7 +1081,7 @@ class RequestServiceTest extends TestCase {
 		$this->commentMapper->method('insert')->willReturnArgument(0);
 
 		$this->notifications->expects(self::once())->method('notifyComment')
-			->with($request, 'hr1', 'Keep on file.', ['hr1', 'hr2']);
+			->with($request, self::callback(static fn (RequestComment $c): bool => $c->getAuthorUid() === 'hr1' && $c->getBody() === 'Keep on file.'), ['hr1', 'hr2']);
 
 		$this->service->addComment('hr1', 5, 'Keep on file.');
 	}

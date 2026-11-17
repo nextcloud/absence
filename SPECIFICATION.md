@@ -294,6 +294,10 @@ Threaded comments on a request (employee ↔ manager ↔ HR discussion).
 `confidential` is set when the comment is written on a request of a confidential
 type: it is then shown to HR alone, for good (§5.7).
 
+`absence_comment_mails` queues the comment e-mails (§11): one row per comment and
+recipient (`comment_id`, `request_id`, `recipient_uid`), deleted once mailed. It holds
+ids only; a purged user's rows go with their data (§17).
+
 ### 3.7 `absence_request_events` (history timeline)
 
 An immutable, append-only audit trail *per request*, surfaced in the request's
@@ -1090,6 +1094,8 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    and seeds next-year entitlements (§6.2); expires unused carry-over.
 4. **CalendarSyncJob** (optional, if async sync chosen): reconciles approved leave
    with the CalDAV target calendar (§10).
+5. **CommentMailJob** (every 5 minutes): mails the queued comments of every request
+   nobody has commented on for 10 minutes, one mail per recipient (§11).
 
 All jobs must be idempotent and safe to run repeatedly.
 
@@ -1175,6 +1181,14 @@ All four channels are required.
 - **Email:** via `OCP\Mail\IMailer` with templated messages
   (`OCP\Mail\IEMailTemplate`) for each of the above events. Respect the user's
   configured email + language.
+  - **Comment e-mails are batched.** The notification of a comment goes out right
+    away; its e-mail is queued (§3.6). Once nobody has commented on the request for
+    10 minutes, each recipient gets one mail with all the comments they have not been
+    mailed yet, so a back-and-forth or an escalated thread does not send a mail per
+    message. The recipients are the same as for the notification, so nobody is mailed
+    their own comments. When the mail is sent, comments written while the request was
+    confidential, and every comment of a request that is confidential by then, only go
+    to HR (§5.7).
 - **What people wrote travels with the message.** Free text on a request — the
   applicant's `reason`, the `decision_comment`, the body of a comment (§3.6) — is
   carried by the notification and the email that announce the event, attributed to

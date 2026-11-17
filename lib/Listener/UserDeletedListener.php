@@ -110,9 +110,12 @@ class UserDeletedListener implements IEventListener {
 		// the user authored elsewhere.
 		if ($requestIds !== []) {
 			$this->deleteWhereIn('absence_comments', 'request_id', $requestIds, IQueryBuilder::PARAM_INT_ARRAY);
+			$this->deleteWhereIn('absence_comment_mails', 'request_id', $requestIds, IQueryBuilder::PARAM_INT_ARRAY);
 			$this->deleteWhereIn('absence_request_events', 'request_id', $requestIds, IQueryBuilder::PARAM_INT_ARRAY);
 		}
 		$this->deleteWhereEquals('absence_comments', 'author_uid', $uid);
+		// Comment mails still waiting for the user
+		$this->deleteWhereEquals('absence_comment_mails', 'recipient_uid', $uid);
 
 		// Remove the user's requests and entitlements, and the record of who changed
 		// those entitlements — it names the employee and is about their allowance, so
