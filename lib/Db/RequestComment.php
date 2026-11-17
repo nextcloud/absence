@@ -17,6 +17,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setAuthorUid(string $authorUid)
  * @method string getBody()
  * @method void setBody(string $body)
+ * @method bool getConfidential()
+ * @method void setConfidential(bool $confidential)
  * @method \DateTime getCreatedAt()
  * @method void setCreatedAt(\DateTime $createdAt)
  */
@@ -24,10 +26,13 @@ class RequestComment extends Entity implements \JsonSerializable {
 	protected int $requestId = 0;
 	protected string $authorUid = '';
 	protected string $body = '';
+	/** Written while the request was confidential (§5.7): shown to HR alone, whatever the request's type is later. */
+	protected bool $confidential = false;
 	protected ?\DateTime $createdAt = null;
 
 	public function __construct() {
 		$this->addType('requestId', 'integer');
+		$this->addType('confidential', 'boolean');
 		$this->addType('createdAt', 'datetime');
 	}
 

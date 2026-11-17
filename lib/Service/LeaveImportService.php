@@ -194,6 +194,7 @@ class LeaveImportService {
 				$event->setActorUid($actorUid);
 				$event->setEventType('request_imported');
 				$event->setDetail($this->detail($row));
+				$event->setConfidential($row['type']->getHrOnly());
 				$event->setCreatedAt($now);
 				$this->eventMapper->insert($event);
 			}
