@@ -590,7 +590,8 @@ The app knows when the decider is away — it manages their leave too:
   own entitlement."), nor their own vacation days in the employees JSON (§6.5).
   A bulk change and handing on a changed default (§6.1) leave the actor's own
   entitlement out and answer `ownSkipped: true`. occ has no actor and changes
-  every entitlement.
+  every entitlement. Their own profile and their own row of the employees list
+  offer no entitlement editor and say "Somebody else from HR changes your own days."
 
 ### 5.6 HR-recorded leave (e.g. sick leave)
 
