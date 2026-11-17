@@ -23,7 +23,9 @@ use OCP\Migration\SimpleMigrationStep;
  * `_seq`, a table name over 23 characters gets a sequence the server cannot
  * find again, so nothing could be inserted there.
  *
- * The rows are copied here, and the next step drops the old tables.
+ * The rows are copied here, and the next step drops the old tables. Each table
+ * is copied in one transaction: a copy that fails leaves the new table empty, so
+ * running the upgrade again copies it from the start.
  */
 class Version1013Date20261111130000 extends SimpleMigrationStep {
 	/** Old name, new name and the columns to copy (every one but the id) */
@@ -100,9 +102,18 @@ class Version1013Date20261111130000 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 		foreach (self::RENAMED as [$old, $new, $columns]) {
-			if ($schema->hasTable($old) && $this->isEmpty($new)) {
-				$output->info(sprintf('Copied %d rows from %s to %s', $this->copy($old, $new, $columns), $old, $new));
+			if (!$schema->hasTable($old) || !$this->isEmpty($new)) {
+				continue;
 			}
+			$this->db->beginTransaction();
+			try {
+				$copied = $this->copy($old, $new, $columns);
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+			$output->info(sprintf('Copied %d rows from %s to %s', $copied, $old, $new));
 		}
 	}
 
