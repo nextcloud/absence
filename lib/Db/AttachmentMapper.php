@@ -57,6 +57,22 @@ class AttachmentMapper extends QBMapper {
 	}
 
 	/**
+	 * Bytes of the attachments on all requests of one employee, whoever
+	 * uploaded them.
+	 */
+	public function sumSizeForEmployee(string $employeeUid): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->sum('a.size'), 'bytes')
+			->from($this->getTableName(), 'a')
+			->innerJoin('a', 'absence_requests', 'r', $qb->expr()->eq('a.request_id', 'r.id'))
+			->where($qb->expr()->eq('r.employee_uid', $qb->createNamedParameter($employeeUid)));
+		$result = $qb->executeQuery();
+		$bytes = (int)$result->fetchOne();
+		$result->closeCursor();
+		return $bytes;
+	}
+
+	/**
 	 * All attachment rows on a set of requests — the GDPR purge path.
 	 *
 	 * @param int[] $requestIds
