@@ -13,6 +13,7 @@ use OCA\Absence\Api\IAbsenceProvider;
 use OCA\Absence\Controller\ConfigController;
 use OCA\Absence\Controller\ProfileController;
 use OCA\Absence\Db\ContractPeriodMapper;
+use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Exception\NotFoundException;
@@ -44,6 +45,7 @@ class EmployeeContractTest extends TestCase {
 	private const EMPLOYEE = 'itest-contract-emp';
 	private const MANAGER = 'itest-contract-mgr';
 	private const OTHER = 'itest-contract-other';
+	private const CONFIDENTIAL_KEY = 'itest_contract_conf';
 
 	private EmployeeService $service;
 
@@ -62,6 +64,12 @@ class EmployeeContractTest extends TestCase {
 	protected function tearDown(): void {
 		foreach ([self::HR, self::EMPLOYEE, self::MANAGER, self::OTHER] as $uid) {
 			Server::get(IUserManager::class)->get($uid)?->delete();
+		}
+		$types = Server::get(LeaveTypeMapper::class);
+		foreach ($types->findAll() as $type) {
+			if ($type->getKey() === self::CONFIDENTIAL_KEY) {
+				$types->delete($type);
+			}
 		}
 		parent::tearDown();
 	}
@@ -174,6 +182,55 @@ class EmployeeContractTest extends TestCase {
 
 		self::assertSame(['year' => $year, 'days' => 2.0, 'times' => 1], $profile['sick']);
 		self::assertSame($next->getId(), $profile['nextLeave']['id']);
+	}
+
+	public function testAnUnknownAccountIsRefusedLikeSomeoneElsesProfile(): void {
+		$someoneElses = $this->profileController(self::OTHER)->show(self::EMPLOYEE);
+		$unknown = $this->profileController(self::OTHER)->show('itest-contract-nobody');
+
+		self::assertSame(Http::STATUS_FORBIDDEN, $someoneElses->getStatus());
+		self::assertSame([$someoneElses->getStatus(), $someoneElses->getData()], [$unknown->getStatus(), $unknown->getData()]);
+		// HR may open every profile, so HR is told when there is none
+		self::assertSame(Http::STATUS_NOT_FOUND, $this->profileController(self::HR)->show('itest-contract-nobody')->getStatus());
+	}
+
+	public function testConfidentialLeaveIsOnTheProfileForHrOnly(): void {
+		$year = (int)date('Y');
+		$types = Server::get(LeaveTypeMapper::class);
+		$confidential = new LeaveType();
+		$confidential->setKey(self::CONFIDENTIAL_KEY);
+		$confidential->setLabel('itest confidential');
+		$confidential->setHrOnly(true);
+		$confidential->setEmployeeRequestable(false);
+		$confidential->setRequiresApproval(false);
+		$confidential = $types->insert($confidential);
+		$requests = Server::get(RequestService::class);
+		$record = fn (int $typeId, string $from, string $to) => $requests->create(self::HR, [
+			'employeeUid' => self::EMPLOYEE, 'typeId' => $typeId, 'startDate' => $from, 'endDate' => $to, 'workingDays' => 2,
+		]);
+		$record($this->typeId('sick'), $year . '-01-05', $year . '-01-06');
+		$next = $record($confidential->getId(), ($year + 1) . '-02-01', ($year + 1) . '-02-02');
+
+		$sick = $types->find($this->typeId('sick'));
+		$sick->setHrOnly(true);
+		$types->update($sick);
+		try {
+			$profiles = Server::get(ProfileService::class);
+			$seen = [];
+			foreach ([self::HR, self::MANAGER, self::EMPLOYEE] as $viewer) {
+				$profile = $profiles->get($viewer, self::EMPLOYEE);
+				$seen[$viewer] = [$profile['sick'], $profile['nextLeave']['id'] ?? null];
+			}
+		} finally {
+			$sick->setHrOnly(false);
+			$types->update($sick);
+		}
+
+		self::assertSame([
+			self::HR => [['year' => $year, 'days' => 2.0, 'times' => 1], $next->getId()],
+			self::MANAGER => [null, null],
+			self::EMPLOYEE => [null, null],
+		], $seen);
 	}
 
 	public function testTheHistoryShowsChangesToHrAndThePersonOnly(): void {

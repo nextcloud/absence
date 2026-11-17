@@ -116,7 +116,7 @@
 				</p>
 			</section>
 
-			<section class="profile__card">
+			<section v-if="profile.sick" class="profile__card">
 				<h3>{{ t('absence', 'Sick days {year}', { year: profile.sick.year }) }}</h3>
 				<p class="profile__figure">
 					{{ n('absence', '{count} day', '{count} days', profile.sick.days, { count: profile.sick.days }) }}
