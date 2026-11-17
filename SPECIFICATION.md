@@ -910,9 +910,12 @@ current data of every employee, *Download* saves the same text, and
   forgotten key never wipes data. Employees not in the list are left alone.
 - `vacation` is optional: the annual leave base days (§6.4) of each year it lists, from
   two years back to next year, in whole days. Years it leaves out keep their
-  days. The export lists the current year (the default while HR set nothing) and next
-  year once set. Each change goes through `EntitlementService`, so the entitlement
-  history and the activity stream name the HR member.
+  days. The export lists the current year (while HR set nothing, what the balance
+  shows: the default, or 0 in a year the contract does not cover, §6.1) and next
+  year once set. A listed year is compared with the same figure, so the default of a
+  year outside the contract is a change. Each change goes through
+  `EntitlementService`, so the entitlement history and the activity stream name the
+  HR member.
 - Region codes are read as everywhere else (`de_by` is `DE-BY`); `*` is for holidays,
   not people. Dates are `YYYY-MM-DD`, weekdays 1 (Monday) to 7, percent 1 to 100 or
   `null`.

@@ -54,9 +54,15 @@ class BalanceService {
 	 * the annual type in a year the person is employed in, 0 otherwise (§6.1).
 	 */
 	private function defaultBaseDays(string $employeeUid, int $year, LeaveType $type): float {
-		return $type->getKey() === 'annual' && $this->isEmployedIn($employeeUid, $year)
-			? $this->config->getDefaultEntitlement()
-			: 0.0;
+		return $type->getKey() === 'annual' ? $this->defaultAnnualDays($employeeUid, $year) : 0.0;
+	}
+
+	/**
+	 * The annual base days a year without a stored entitlement stands for: the
+	 * configured default in a year the person is employed in, 0 otherwise (§6.1).
+	 */
+	public function defaultAnnualDays(string $employeeUid, int $year): float {
+		return $this->isEmployedIn($employeeUid, $year) ? $this->config->getDefaultEntitlement() : 0.0;
 	}
 
 	/**

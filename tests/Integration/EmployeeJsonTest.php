@@ -163,6 +163,31 @@ class EmployeeJsonTest extends TestCase {
 		self::assertSame([$year => 24.0, $year + 1 => 22.0], $this->entry($this->service->export(), self::ROBIN)['vacation']);
 	}
 
+	public function testAYearOutsideTheContractHasNoDefaultDays(): void {
+		$year = $this->year();
+		$default = Server::get(ConfigService::class)->getDefaultEntitlement();
+		$start = ($year + 1) . '-03-01';
+		$entry = ['user' => self::SAM, 'region' => null, 'start' => $start, 'end' => null,
+			'contract' => [['from' => $start, 'weekdays' => [1, 2, 3, 4, 5], 'percent' => 100]]];
+		Server::get(EmployeeService::class)->saveContract(self::SAM, $start, null, $entry['contract'], self::HR);
+		$balance = array_values(array_filter(
+			Server::get(BalanceService::class)->getBalance(self::SAM, $year)['balances'],
+			static fn (array $balance): bool => $balance['typeKey'] === 'annual',
+		));
+
+		// Like the balance, which gives no default before the start date
+		self::assertSame(0.0, $balance[0]['entitlement']);
+		$entries = $this->service->export();
+		self::assertSame([$year => 0.0], $this->entry($entries, self::SAM)['vacation']);
+		self::assertSame([], $this->service->plan(EmployeeJsonService::format($entries))['changes']);
+
+		// The default days are a change for that year, not what is there
+		self::assertSame(
+			[['field' => 'vacation', 'year' => $year, 'before' => 0.0, 'after' => $default]],
+			$this->service->plan($this->json([[...$entry, 'vacation' => [(string)$year => (int)$default]]]))['changes'][0]['fields'],
+		);
+	}
+
 	public function testHrDoesNotSetTheirOwnVacationDays(): void {
 		$year = $this->year();
 		$entry = ['user' => self::HR, 'region' => null, 'start' => null, 'end' => null, 'contract' => []];
