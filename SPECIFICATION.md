@@ -180,9 +180,9 @@ The central table: one row per leave request.
 | `end_date` | date | Inclusive. |
 | `working_days` | decimal(5,1) | **Entered manually** by the employee and verified by the manager (§7). Positive; stored as entered. |
 | `status` | string(20), indexed | Enum, see §4. |
-| `reason` | text, nullable | Optional employee note. |
+| `reason` | text, nullable | Employee note. Optional unless the type has `requires_note` (§5.1). |
 | `replacement_uid` | string(64), nullable | The colleague nominated to cover (mandatory for types with `requires_replacement`, §5.1). |
-| `attachment_note` | text, nullable | e.g. reference to a doctor's note (free text; file attachment optional, see §3.7). |
+| `attachment_note` | text, nullable | e.g. reference to a doctor's note (free text; file attachment optional, see §3.7). API only, no screen shows it, and it does not count for `requires_note`. |
 | `decided_by` | string(64), nullable | Manager or HR user id who made the last decision. |
 | `decided_at` | datetime, nullable | |
 | `decision_comment` | text, nullable | Rejection reason / approval note. |
@@ -461,7 +461,8 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
      overlapping an existing non-terminal request for the same user — reject overlap
      with a clear error). Dates are real `YYYY-MM-DD` dates between 2000 and 2100,
      at most 366 days from start to end, 3660 when HR records the leave.
-   - Enforces `requires_note`, **`requires_replacement`** (the `replacement_uid` must be
+   - Enforces `requires_note` (a non-blank `reason`, nothing else counts, and HR
+     recording or editing needs it too), **`requires_replacement`** (the `replacement_uid` must be
      present, a valid user, and not the employee), and that **`working_days` is a positive
      number** — all 422 otherwise. `working_days` is stored as entered, not recomputed.
    - Resolves `manager_uid` (§2.1).
@@ -547,6 +548,11 @@ The app knows when the decider is away — it manages their leave too:
 
 - HR can approve/reject/cancel **any** request regardless of state, edit dates,
   adjust `working_days`, and edit any balance/entitlement (with an audit note).
+- HR edits a request in place while it is open (`PENDING`, `ESCALATED`, `APPROVED`,
+  `WITHDRAWAL_PENDING`). A `REJECTED` or `CANCELLED` request is closed: editing it
+  is a 409. The edit is applied to the row as it is under the employee lock, so one
+  that crosses a cancellation or a decision is a 409 too. `requires_note` (§5.1)
+  holds for the result of an HR edit.
 - All HR overrides are recorded in activity and `decision_comment` / `adjustment_note`.
 - **Not their own leave.** An HR member's own leave needs a second person, like
   everybody's. They cannot approve or reject their own request

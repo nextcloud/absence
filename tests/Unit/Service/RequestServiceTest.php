@@ -1343,6 +1343,35 @@ class RequestServiceTest extends TestCase {
 		self::assertSame(LeaveRequest::STATUS_CANCELLED, $this->service->cancel('hr', 5)->getStatus());
 	}
 
+	public function testAnHrEditOfARequestCancelledInTheMeantimeIsAConflict(): void {
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(true);
+		$this->changedTo($request, LeaveRequest::STATUS_CANCELLED);
+
+		$this->requestMapper->expects(self::never())->method('update');
+
+		$this->expectException(ConflictException::class);
+		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12']);
+	}
+
+	public function testAnHrEditLandsOnTheRequestAsItIsNow(): void {
+		// Approved while HR had it open: by now the leave has a calendar event.
+		$request = $this->pendingOwnRequest();
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$approved = $this->changedTo($request, LeaveRequest::STATUS_APPROVED);
+		$this->calendar->expects(self::once())->method('onRemoved')->with($approved);
+		$this->calendar->expects(self::once())->method('onApproved')->with($approved);
+
+		$edited = $this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12']);
+
+		self::assertSame($approved, $edited);
+		self::assertSame('2026-03-10', $approved->getStartDate());
+	}
+
 	/** @return array<string,array{0:string}> */
 	public static function lockedTransitions(): array {
 		return ['approve' => ['approve'], 'reject' => ['reject'], 'cancel' => ['cancel']];

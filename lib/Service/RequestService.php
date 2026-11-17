@@ -797,7 +797,7 @@ class RequestService {
 		}
 		$isHr = $this->permission->isHr($actorUid);
 
-		// HR override: edit in place on any status, keeping calendar in sync. This is
+		// HR override: edit in place on any open status, keeping calendar in sync. This is
 		// also the only edit path for HR-recorded leave (e.g. sick), even the HR
 		// member's own record — the employee path below would reject it (§5.6).
 		if ($isHr && ($actorUid !== $request->getEmployeeUid() || $this->isHrRecordedType($request))) {
@@ -928,18 +928,13 @@ class RequestService {
 		return $new;
 	}
 
-	private function hrEdit(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
-		// A WITHDRAWAL_PENDING request is still in force and already carries a
-		// calendar event (written when it was approved), so an HR date/type edit
-		// must rebuild it too — not only for a plain APPROVED request. Otherwise the
-		// calendar keeps the old dates and, if the withdrawal is later rejected, the
-		// leave stands on the wrong days.
-		$hadCalendarEvent = in_array($request->getStatus(), [
-			LeaveRequest::STATUS_APPROVED,
-			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
-		], true);
-		// Before the setters below overwrite them; the history reports the difference.
-		$before = $this->snapshot($request);
+	/**
+	 * Put the fields of an HR edit (§5.5) on the request and validate the result.
+	 *
+	 * @param array<string,mixed> $data
+	 * @throws ValidationException
+	 */
+	private function applyHrChanges(LeaveRequest $request, array $data): void {
 		if (isset($data['typeId'])) {
 			$request->setTypeId($this->resolveType((int)$data['typeId'])->getId());
 		}
@@ -955,15 +950,18 @@ class RequestService {
 			}
 			$request->setReason($data['reason']);
 		}
+		// Not resolveType(): that also rejects a disabled type, and HR must stay able
+		// to correct a historical request whose type has since been retired. Only the
+		// type's note and replacement rules are wanted here.
+		try {
+			$type = $this->leaveTypeMapper->find($request->getTypeId());
+		} catch (DoesNotExistException) {
+			throw new ValidationException($this->l->t('This request refers to a leave type that no longer exists.'));
+		}
+		if ($type->getRequiresNote() && trim((string)$request->getReason()) === '') {
+			throw new ValidationException($this->l->t('This leave type requires a note.'));
+		}
 		if (array_key_exists('replacementUid', $data)) {
-			// Not resolveType(): that also rejects a disabled type, and HR must stay able
-			// to correct a historical request whose type has since been retired. Only the
-			// type's replacement rule is wanted here.
-			try {
-				$type = $this->leaveTypeMapper->find($request->getTypeId());
-			} catch (DoesNotExistException) {
-				throw new ValidationException($this->l->t('This request refers to a leave type that no longer exists.'));
-			}
 			$request->setReplacementUid($this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'], required: false));
 		}
 		// HR may correct the working-day count (§5.5); otherwise it is kept as entered.
@@ -972,18 +970,38 @@ class RequestService {
 		}
 		// HR-only flag (§5.8). Not part of describeChanges(): the history timeline
 		// is visible to the employee and manager, and the flag is not.
-		$hadDisability = $request->getDisability();
 		if (array_key_exists('disability', $data) && $data['disability'] !== null) {
 			$request->setDisability((bool)$data['disability']);
 		}
 		$this->assertValidRange($request->getStartDate(), $request->getEndDate(), self::MAX_HR_SPAN_DAYS);
 		$this->assertWorkingDaysFitRange($request->getWorkingDays(), $request->getStartDate(), $request->getEndDate());
-		$request = $this->withEmployeeLock($request->getEmployeeUid(), fn (): LeaveRequest => $this->atomic(function () use ($request): LeaveRequest {
+	}
+
+	private function hrEdit(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
+		if (in_array($request->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
+			throw new ConflictException($this->l->t('This request can no longer be edited.'));
+		}
+		[$request, $before, $hadDisability] = $this->withEmployeeLock($request->getEmployeeUid(), fn (): array => $this->atomic(function () use ($request, $data): array {
+			// The changes go on the row as it is now, and only while it is still open.
+			$request = $this->freshForTransition((int)$request->getId(), LeaveRequest::ACTIVE_STATUSES, $request->getUpdatedAt());
+			// Before the setters overwrite them; the history reports the difference.
+			$before = $this->snapshot($request);
+			$hadDisability = $request->getDisability();
+			$this->applyHrChanges($request, $data);
 			$this->assertNoOverlap($request->getEmployeeUid(), $request->getStartDate(), $request->getEndDate(), $this->chainExcludeIds($request));
 			$request->setUpdatedAt($this->clock->now());
-			return $this->requestMapper->update($request);
+			return [$this->requestMapper->update($request), $before, $hadDisability];
 		}, $this->db));
 
+		// A WITHDRAWAL_PENDING request is still in force and already carries a
+		// calendar event (written when it was approved), so an HR date/type edit
+		// must rebuild it too, not only for a plain APPROVED request. Otherwise the
+		// calendar keeps the old dates and, if the withdrawal is later rejected, the
+		// leave stands on the wrong days.
+		$hadCalendarEvent = in_array($request->getStatus(), [
+			LeaveRequest::STATUS_APPROVED,
+			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
+		], true);
 		if ($hadCalendarEvent) {
 			// Rebuild the calendar entry for the new dates.
 			$this->calendar->onRemoved($request);
@@ -1535,7 +1553,7 @@ class RequestService {
 		if ($end < $today && !$isHr) {
 			throw new ValidationException($this->l->t('You cannot request leave entirely in the past.'));
 		}
-		if ($type->getRequiresNote() && trim($reason) === '' && trim($note) === '') {
+		if ($type->getRequiresNote() && trim($reason) === '') {
 			throw new ValidationException($this->l->t('This leave type requires a note.'));
 		}
 		if (mb_strlen($reason) > self::MAX_REASON_LENGTH) {
