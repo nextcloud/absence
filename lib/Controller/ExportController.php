@@ -10,6 +10,7 @@ namespace OCA\Absence\Controller;
 
 use OCA\Absence\Exception\AbsenceException;
 use OCA\Absence\Service\ClockService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\ExportService;
 use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Controller;
@@ -31,6 +32,7 @@ class ExportController extends Controller {
 		private PermissionService $permission,
 		private ClockService $clock,
 		private IL10N $l,
+		private EntitlementValidator $validator,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -57,7 +59,13 @@ class ExportController extends Controller {
 		if (!$this->permission->isHr((string)$this->userId)) {
 			return new DataResponse(['message' => $this->l->t('HR role required')], Http::STATUS_FORBIDDEN);
 		}
-		$export = $this->service->balancesCsv($year ?? $this->clock->userYear(), $group);
+		try {
+			$year ??= $this->clock->userYear();
+			$this->validator->assertYear($year);
+			$export = $this->service->balancesCsv($year, $group);
+		} catch (AbsenceException $e) {
+			return new DataResponse(['message' => $e->getMessage()], $e->getHttpStatus());
+		}
 		return new DataDownloadResponse($export['content'], $export['filename'], 'text/csv');
 	}
 }

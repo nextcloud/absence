@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Controller;
 
 use OCA\Absence\Service\ClockService;
+use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\InsightsService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Service\ReportService;
@@ -33,6 +34,7 @@ class ReportController extends Controller {
 		private ClockService $clock,
 		private IL10N $l,
 		private LoggerInterface $logger,
+		private EntitlementValidator $validator,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -46,7 +48,9 @@ class ReportController extends Controller {
 	public function insights(?int $year = null): DataResponse {
 		return $this->handle(function () use ($year) {
 			$this->permission->assertHr((string)$this->userId);
-			return $this->insights->getInsights($year ?? $this->clock->userYear());
+			$year ??= $this->clock->userYear();
+			$this->validator->assertYear($year);
+			return $this->insights->getInsights($year);
 		});
 	}
 
@@ -55,7 +59,9 @@ class ReportController extends Controller {
 	public function balances(?int $year = null, ?string $group = null): DataResponse {
 		return $this->handle(function () use ($year, $group) {
 			$this->permission->assertHr((string)$this->userId);
-			return $this->service->balancesReport($year ?? $this->clock->userYear(), $group);
+			$year ??= $this->clock->userYear();
+			$this->validator->assertYear($year);
+			return $this->service->balancesReport($year, $group);
 		});
 	}
 
@@ -69,7 +75,9 @@ class ReportController extends Controller {
 	public function sickLeave(?int $year = null, ?string $group = null, ?int $typeId = null): DataResponse {
 		return $this->handle(function () use ($year, $group, $typeId) {
 			$this->permission->assertHr((string)$this->userId);
-			return $this->service->sickLeaveReport($year ?? $this->clock->userYear(), $group, $typeId);
+			$year ??= $this->clock->userYear();
+			$this->validator->assertYear($year);
+			return $this->service->sickLeaveReport($year, $group, $typeId);
 		});
 	}
 

@@ -1550,6 +1550,9 @@ the SPA). All list endpoints paginate and accept filters.
 - `PUT  /api/settings`: `{ values: { key: value } }`; the HR group is admin-only.
 - `GET  /api/settings/employees-preview?group=`: who leaves and who joins if the employees group changes.
 
+On the read endpoints, `from` and `to` are real `YYYY-MM-DD` dates and `year` lies
+between 2000 and 2100. Anything else is a 422 with a message, before anything is read.
+
 All write endpoints require CSRF protection (default AppFramework) and validate role
 server-side. Never trust client-computed `working_days` or `manager_uid`.
 

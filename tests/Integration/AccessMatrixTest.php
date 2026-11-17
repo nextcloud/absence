@@ -404,6 +404,48 @@ class AccessMatrixTest extends TestCase {
 		self::assertSame([$this->ids['{request}']], array_column($response->getData()['events'], 'requestId'));
 	}
 
+	/** @return array<string, array{string, array<string,mixed>}> */
+	public static function invalidReadParameters(): array {
+		$march = ['from' => '2027-03-01', 'to' => '2027-03-31'];
+		return [
+			'request#index from' => ['request#index', ['from' => '2027-02-30']],
+			'request#index to' => ['request#index', ['to' => 'tomorrow']],
+			'request#index year' => ['request#index', ['scope' => 'hr', 'from' => '99999-01-01']],
+			'coverage#index' => ['coverage#index', ['from' => '2027-13-01'] + $march],
+			'calendar#index' => ['calendar#index', ['to' => '2027-03-32'] + $march],
+			'balance#mine' => ['balance#mine', ['year' => 99999]],
+			'balance#team' => ['balance#team', ['year' => 1]],
+			'balance#forEmployee' => ['balance#forEmployee', ['uid' => '{owner}', 'year' => -5]],
+			'employee#index' => ['employee#index', ['year' => 99999]],
+			'entitlement#index' => ['entitlement#index', ['employeeUid' => '{owner}', 'year' => 1999]],
+			'entitlement#proRata' => ['entitlement#proRata', ['employeeUid' => '{owner}', 'year' => 2101]],
+			'holiday#index' => ['holiday#index', ['year' => 99999]],
+			'holiday#applying' => ['holiday#applying', ['code' => self::HOLIDAY_REGION, 'from' => 'x'] + $march],
+			'report#balances' => ['report#balances', ['year' => 99999]],
+			'report#sickLeave' => ['report#sickLeave', ['year' => 99999]],
+			'report#insights' => ['report#insights', ['year' => 99999]],
+			'report#trends' => ['report#trends', ['from' => '2027-02-29'] + $march],
+			'export#requests' => ['export#requests', ['to' => '31.03.2027'] + $march],
+			'export#balances' => ['export#balances', ['year' => 99999]],
+		];
+	}
+
+	/**
+	 * Dates and years on the read routes are checked before anything is read:
+	 * an invalid date or a year outside 2000 to 2100 is refused with a message.
+	 *
+	 * @param array<string,mixed> $params
+	 */
+	#[DataProvider('invalidReadParameters')]
+	public function testInvalidReadParametersAreRefused(string $name, array $params): void {
+		$params = array_map(fn (mixed $value) => is_string($value) ? ($this->ids[$value] ?? $value) : $value, $params);
+
+		$response = $this->call(self::HR, $name, $params);
+
+		self::assertSame(422, $response->getStatus());
+		self::assertNotSame('', $response->getData()['message'] ?? '');
+	}
+
 	public function testOnlyEmployeesAndHrEditHolidaysWhenEveryoneMay(): void {
 		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_HOLIDAYS_EVERYONE, true);
 		$new = ['date' => '2027-05-05', 'region' => self::HOLIDAY_REGION, 'label' => 'itest access new'];

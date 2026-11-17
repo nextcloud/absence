@@ -571,10 +571,10 @@ class RequestService {
 			$query['typeId'] = (int)$filters['typeId'];
 		}
 		if (isset($filters['from'])) {
-			$query['from'] = (string)$filters['from'];
+			$query['from'] = $this->normaliseDate((string)$filters['from']);
 		}
 		if (isset($filters['to'])) {
-			$query['to'] = (string)$filters['to'];
+			$query['to'] = $this->normaliseDate((string)$filters['to']);
 		}
 		// The type filter ignores confidential types (§5.7) for anyone but HR, like
 		// every other surface where they see no category.
