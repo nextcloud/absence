@@ -123,6 +123,8 @@ export interface EntitlementBulkData {
 export interface EntitlementBulkResult {
 	/** Number of employees whose entitlement was set. */
 	affected: number
+	/** The caller's own entitlement was left out: somebody else from HR changes it. */
+	ownSkipped: boolean
 }
 
 /** GET /api/entitlements/pro-rata: what the contract would give for a year. */

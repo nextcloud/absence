@@ -15,6 +15,7 @@ use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\ClockService;
@@ -146,7 +147,7 @@ class EntitlementHistoryTest extends TestCase {
 		// Ben has no row yet and lives on the default
 		$default = Server::get(ConfigService::class)->getDefaultEntitlement();
 
-		self::assertSame(2, $this->service()->bulkSet(self::HR, self::YEAR, $this->annual, $default + 2.0, self::GROUP));
+		self::assertSame(['affected' => 2, 'ownSkipped' => false], $this->service()->bulkSet(self::HR, self::YEAR, $this->annual, $default + 2.0, self::GROUP));
 
 		self::assertSame($default + 2.0, $this->stored(self::BEN)->getBaseDays());
 		self::assertSame([[self::HR, EntitlementEvent::FIELD_BASE_DAYS, 20.0, $default + 2.0]], $this->history(self::ANA));
@@ -240,7 +241,7 @@ class EntitlementHistoryTest extends TestCase {
 		$service->setForEmployee(self::HR, self::BEN, $year, $this->annual, ['baseDays' => 25.0]);
 
 		self::assertSame(['year' => $year, 'count' => 1], $service->countOnDefault(28.0));
-		self::assertSame(1, $service->applyDefault(self::HR, 28.0, 30.0));
+		self::assertSame(['affected' => 1, 'ownSkipped' => false], $service->applyDefault(self::HR, 28.0, 30.0));
 
 		$mapper = Server::get(EntitlementMapper::class);
 		self::assertSame(30.0, $mapper->findFor(self::ANA, $year, $this->annual)->getBaseDays());
@@ -269,5 +270,56 @@ class EntitlementHistoryTest extends TestCase {
 		// The running year is not the past: it follows the default
 		$this->expectException(DoesNotExistException::class);
 		$mapper->findFor(self::BEN, $year, $this->annual);
+	}
+
+	public function testNobodyChangesTheirOwnEntitlement(): void {
+		$id = (int)$this->entitlement(self::ANA, 20.0)->getId();
+		$service = $this->service();
+		$refused = [
+			'update' => fn () => $service->update(self::ANA, $id, ['adjustmentDelta' => 5.0, 'adjustmentNote' => 'itest']),
+			'set' => fn () => $service->setForEmployee(self::ANA, self::ANA, self::YEAR, $this->annual, ['carryOverDays' => 5.0]),
+			'new row' => fn () => $service->setForEmployee(self::ANA, self::ANA, self::YEAR + 1, $this->annual, ['baseDays' => 40.0]),
+		];
+		foreach ($refused as $name => $change) {
+			try {
+				$change();
+				self::fail($name . ' was saved');
+			} catch (ForbiddenException $e) {
+				self::assertSame('Somebody else from HR has to change your own entitlement.', $e->getMessage());
+			}
+		}
+
+		$stored = $this->stored(self::ANA);
+		self::assertSame([20.0, 0.0, 0.0], [$stored->getBaseDays(), $stored->getCarryOverDays(), $stored->getManualAdjustment()]);
+		self::assertSame([], Server::get(EntitlementMapper::class)->findForEmployee(self::ANA, self::YEAR + 1));
+		self::assertSame([], $this->history(self::ANA));
+		// somebody else, and occ, still can
+		$service->update(self::BEN, $id, ['adjustmentDelta' => 1.0, 'adjustmentNote' => 'itest']);
+		$service->setForEmployee(null, self::ANA, self::YEAR, $this->annual, ['carryOverDays' => 2.0]);
+		self::assertSame([1.0, 2.0], [$this->stored(self::ANA)->getManualAdjustment(), $this->stored(self::ANA)->getCarryOverDays()]);
+	}
+
+	public function testABulkChangeLeavesTheOwnEntitlementOut(): void {
+		$this->entitlement(self::ANA, 20.0);
+		$this->entitlement(self::BEN, 20.0);
+
+		self::assertSame(['affected' => 1, 'ownSkipped' => true], $this->service()->bulkSet(self::ANA, self::YEAR, $this->annual, 30.0, self::GROUP));
+
+		self::assertSame([20.0, 30.0], [$this->stored(self::ANA)->getBaseDays(), $this->stored(self::BEN)->getBaseDays()]);
+		self::assertSame([], $this->history(self::ANA));
+	}
+
+	public function testAChangedDefaultIsNotHandedOnToTheOneWhoChangesIt(): void {
+		$this->onlyTheTeamIsEmployed();
+		$year = Server::get(ClockService::class)->serverYear();
+		$service = $this->service();
+		$service->setForEmployee(self::HR, self::ANA, $year, $this->annual, ['baseDays' => 28.0]);
+		$service->setForEmployee(self::HR, self::BEN, $year, $this->annual, ['baseDays' => 28.0]);
+
+		self::assertSame(['affected' => 1, 'ownSkipped' => true], $service->applyDefault(self::ANA, 28.0, 30.0));
+
+		$mapper = Server::get(EntitlementMapper::class);
+		self::assertSame(28.0, $mapper->findFor(self::ANA, $year, $this->annual)->getBaseDays());
+		self::assertSame(30.0, $mapper->findFor(self::BEN, $year, $this->annual)->getBaseDays());
 	}
 }

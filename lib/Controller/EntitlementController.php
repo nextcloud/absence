@@ -120,7 +120,7 @@ class EntitlementController extends Controller {
 	public function applyDefault(float $from, float $to): DataResponse {
 		return $this->handle(function () use ($from, $to) {
 			$this->permission->assertCanManageSettings((string)$this->userId);
-			return ['affected' => $this->service->applyDefault((string)$this->userId, $from, $to)];
+			return $this->service->applyDefault((string)$this->userId, $from, $to);
 		});
 	}
 
@@ -142,7 +142,7 @@ class EntitlementController extends Controller {
 	public function bulk(int $year, int $typeId, float $baseDays, ?string $group = null): DataResponse {
 		return $this->handle(function () use ($year, $typeId, $baseDays, $group) {
 			$this->permission->assertHr((string)$this->userId);
-			return ['affected' => $this->service->bulkSet((string)$this->userId, $year, $typeId, $baseDays, $group)];
+			return $this->service->bulkSet((string)$this->userId, $year, $typeId, $baseDays, $group);
 		});
 	}
 }

@@ -123,10 +123,11 @@ class EmployeeJsonService {
 	/**
 	 * What importing the list would change, without writing anything.
 	 *
+	 * @param ?string $actor the HR member importing, null from occ
 	 * @return Plan
 	 */
-	public function plan(string $json): array {
-		return $this->check($json)['plan'];
+	public function plan(string $json, ?string $actor = null): array {
+		return $this->check($json, $actor)['plan'];
 	}
 
 	/**
@@ -136,7 +137,7 @@ class EmployeeJsonService {
 	 * @throws ValidationException while an entry is wrong
 	 */
 	public function import(string $json, ?string $actor): array {
-		['plan' => $plan, 'writes' => $writes] = $this->check($json);
+		['plan' => $plan, 'writes' => $writes] = $this->check($json, $actor);
 		if ($plan['errors'] !== []) {
 			throw new ValidationException($this->l->n('Nothing was saved: %n entry is wrong.', 'Nothing was saved: %n entries are wrong.', count($plan['errors'])));
 		}
@@ -217,7 +218,7 @@ class EmployeeJsonService {
 	/**
 	 * @return array{plan: Plan, writes: array<string, array{contract: ?Contract, region: ?string, vacation: array<int, float>}>}
 	 */
-	private function check(string $json): array {
+	private function check(string $json, ?string $actor): array {
 		if (strlen($json) > self::SIZE_LIMIT) {
 			return $this->failed([$this->problem(null, null, $this->l->t('The list is too large: at most %d MB', [self::SIZE_LIMIT / 1024 / 1024]))]);
 		}
@@ -250,7 +251,7 @@ class EmployeeJsonService {
 		if ($errors !== []) {
 			return $this->failed($errors);
 		}
-		return $this->compare($wanted);
+		return $this->compare($wanted, $actor);
 	}
 
 	/**
@@ -360,7 +361,7 @@ class EmployeeJsonService {
 	 * @param array<string, array{line: ?int, after: array{region: string, contract: Contract, vacation: array<int, float>}}> $wanted
 	 * @return array{plan: Plan, writes: array<string, array{contract: ?Contract, region: ?string, vacation: array<int, float>}>}
 	 */
-	private function compare(array $wanted): array {
+	private function compare(array $wanted, ?string $actor): array {
 		$uids = array_map('strval', array_keys($wanted));
 		$this->employees->preload($uids);
 		$regions = $this->config->getRegionCodes();
@@ -370,6 +371,7 @@ class EmployeeJsonService {
 
 		$changes = [];
 		$writes = [];
+		$errors = [];
 		$unchanged = 0;
 		foreach ($wanted as $uid => ['line' => $line, 'after' => $after]) {
 			$uid = (string)$uid;
@@ -396,6 +398,10 @@ class EmployeeJsonService {
 					$fields[] = ['field' => 'vacation', 'year' => $year, 'before' => $current, 'after' => $wantedDays];
 				}
 			}
+			// Nobody changes their own entitlement (§5.5)
+			if ($days !== [] && $uid === $actor) {
+				$errors[] = $this->problem($line, null, $this->l->t('%1$s: %2$s', [$this->displayName($uid), $this->l->t('somebody else from HR has to change your own vacation days')]));
+			}
 			if ($fields === []) {
 				$unchanged++;
 				continue;
@@ -409,6 +415,9 @@ class EmployeeJsonService {
 			];
 		}
 
+		if ($errors !== []) {
+			return $this->failed($errors);
+		}
 		return ['plan' => ['changes' => $changes, 'unchanged' => $unchanged, 'errors' => []], 'writes' => $writes];
 	}
 

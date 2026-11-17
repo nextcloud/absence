@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import type { DefaultEntitlementChange } from '../types/index.ts'
 
-import { showError, showSuccess } from '@nextcloud/dialogs'
+import { showError, showSuccess, showWarning } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -68,8 +68,11 @@ const applying = ref(false)
 async function apply(): Promise<void> {
 	applying.value = true
 	try {
-		const { affected } = await api.applyDefaultEntitlement(props.change.from, props.change.to)
+		const { affected, ownSkipped } = await api.applyDefaultEntitlement(props.change.from, props.change.to)
 		showSuccess(n('absence', '{count} person now has {days} days', '{count} people now have {days} days', affected, { count: affected, days: props.change.to }))
+		if (ownSkipped) {
+			showWarning(t('absence', 'Your own days did not change: somebody else from HR has to change them.'))
+		}
 		emit('close')
 	} catch (e) {
 		showError(serverMessage(e) || t('absence', 'Could not change their days'))
