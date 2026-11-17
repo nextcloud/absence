@@ -801,6 +801,7 @@ class RequestService {
 		// also the only edit path for HR-recorded leave (e.g. sick), even the HR
 		// member's own record — the employee path below would reject it (§5.6).
 		if ($isHr && ($actorUid !== $request->getEmployeeUid() || $this->isHrRecordedType($request))) {
+			$this->assertNotOwnRequestedType($actorUid, $request, $data);
 			return $this->hrEdit($actorUid, $request, $data);
 		}
 
@@ -1490,6 +1491,20 @@ class RequestService {
 			return !$this->leaveTypeMapper->find($request->getTypeId())->getEmployeeRequestable();
 		} catch (DoesNotExistException) {
 			return false;
+		}
+	}
+
+	/**
+	 * Nobody decides their own leave: an HR edit keeps the request approved, so
+	 * on one's own record it only moves between the types HR records.
+	 *
+	 * @param array<string,mixed> $data
+	 * @throws ForbiddenException|ValidationException
+	 */
+	private function assertNotOwnRequestedType(string $actorUid, LeaveRequest $request, array $data): void {
+		if ($actorUid === $request->getEmployeeUid() && isset($data['typeId'])
+			&& $this->resolveType((int)$data['typeId'])->getEmployeeRequestable()) {
+			throw new ForbiddenException($this->l->t('Somebody else from HR has to change your own absence to this leave type.'));
 		}
 	}
 

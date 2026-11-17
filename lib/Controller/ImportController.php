@@ -44,7 +44,7 @@ class ImportController extends Controller {
 	public function leave(string $json, bool $dryRun = false): DataResponse {
 		return $this->handle(function () use ($json, $dryRun) {
 			$this->permission->assertHr((string)$this->userId);
-			return $dryRun ? $this->service->preview($json) : $this->service->import($json, (string)$this->userId);
+			return $dryRun ? $this->service->preview($json, (string)$this->userId) : $this->service->import($json, (string)$this->userId);
 		});
 	}
 }

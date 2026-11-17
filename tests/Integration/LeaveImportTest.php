@@ -352,6 +352,32 @@ class LeaveImportTest extends TestCase {
 		self::assertNull(Server::get(RequestEventMapper::class)->findForRequest((int)$request->getId())[0]->getActorUid());
 	}
 
+	public function testAnHrMemberCannotImportTheirOwnLeave(): void {
+		$json = self::json([
+			['user' => self::ROBIN, 'from' => '2025-04-14', 'to' => '2025-04-16', 'workingDays' => 3],
+			['user' => self::HR, 'from' => '2025-07-01', 'to' => '2025-07-04', 'workingDays' => 4],
+		]);
+		$own = [['entry' => 2, 'user' => self::HR, 'message' => 'Somebody else from HR has to import your own leave']];
+
+		$preview = $this->controller(self::HR)->leave($json, true);
+		self::assertSame(Http::STATUS_OK, $preview->getStatus());
+		self::assertSame($own, $preview->getData()['errors']);
+
+		self::assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $this->controller(self::HR)->leave($json, false)->getStatus());
+		self::assertSame(0, $this->countFor(self::HR));
+		self::assertSame(0, $this->countFor(self::ROBIN));
+	}
+
+	public function testOccImportsTheLeaveOfAnHrMember(): void {
+		$file = tempnam(sys_get_temp_dir(), 'itest-leave');
+		file_put_contents($file, self::json([['user' => self::HR, 'from' => '2025-07-01', 'to' => '2025-07-04', 'workingDays' => 4]]));
+		$tester = new CommandTester(Server::get(ImportLeave::class));
+
+		self::assertSame(0, $tester->execute(['file' => $file]));
+		unlink($file);
+		self::assertSame(1, $this->countFor(self::HR));
+	}
+
 	public function testImportHasNoSideEffects(): void {
 		Server::get(INotificationManager::class)->registerApp(SpyNotificationApp::class);
 		$activity = Server::get(IActivityManager::class);

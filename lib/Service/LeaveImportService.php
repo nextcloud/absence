@@ -33,7 +33,7 @@ use Psr\Log\LoggerInterface;
  * Leave already in the app (same person, type and dates, still in force) is
  * skipped, so the same file can be imported twice. An entry that overlaps other
  * leave of that person, in the app and still in force or earlier in the file,
- * is invalid.
+ * is invalid. So is an entry for the HR member who imports the list.
  *
  * The leave already sits in the old calendar and its owners know about it, so
  * the import has no side effects: no notification, e-mail, activity, CalDAV
@@ -71,18 +71,19 @@ class LeaveImportService {
 	 * person, what is skipped as already there, and every invalid entry with its
 	 * 1-based position. While `errors` is not empty, {@see import()} refuses to write.
 	 *
+	 * @param ?string $actorUid the HR member importing, null from occ
 	 * @return array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>}
 	 * @throws ValidationException when the input is not a list of entries at all
 	 */
-	public function preview(string $json): array {
-		return $this->analyse($json)[0];
+	public function preview(string $json, ?string $actorUid = null): array {
+		return $this->analyse($json, $actorUid)[0];
 	}
 
 	/**
 	 * @return array{0: array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>}, 1: list<array{uid: string, type: LeaveType, from: string, to: string, workingDays: float, note: ?string}>}
 	 * @throws ValidationException
 	 */
-	private function analyse(string $json): array {
+	private function analyse(string $json, ?string $actorUid): array {
 		$entries = $this->decode($json);
 		$types = [];
 		foreach ($this->leaveTypeMapper->findAll() as $type) {
@@ -97,7 +98,7 @@ class LeaveImportService {
 		foreach ($entries as $i => $entry) {
 			$user = is_array($entry) && is_scalar($entry['user'] ?? null) ? trim((string)$entry['user']) : '';
 			try {
-				$row = $this->validate($entry, $types);
+				$row = $this->validate($entry, $types, $actorUid);
 			} catch (ValidationException $e) {
 				$errors[] = ['entry' => $i + 1, 'user' => $user, 'message' => $e->getMessage()];
 				continue;
@@ -155,7 +156,7 @@ class LeaveImportService {
 	 * @throws ValidationException if any entry is invalid; nothing is written then
 	 */
 	public function import(string $json, ?string $actorUid): array {
-		[$preview, $plan] = $this->analyse($json);
+		[$preview, $plan] = $this->analyse($json, $actorUid);
 		if ($preview['errors'] !== []) {
 			throw new ValidationException($this->l->n(
 				'Nothing was imported: %n entry is invalid.',
@@ -246,7 +247,7 @@ class LeaveImportService {
 	 * @return array{uid: string, type: LeaveType, from: string, to: string, workingDays: float, note: ?string}
 	 * @throws ValidationException
 	 */
-	private function validate(mixed $entry, array $types): array {
+	private function validate(mixed $entry, array $types, ?string $actorUid): array {
 		if (!is_array($entry)) {
 			throw new ValidationException($this->l->t('Not an object'));
 		}
@@ -257,6 +258,10 @@ class LeaveImportService {
 		}
 		if (!$this->employees->isEmployee($uid)) {
 			throw new ValidationException($this->l->t('"%s" is not an employee', [$uid]));
+		}
+		// Imported leave is approved as it is booked, and nobody approves their own.
+		if ($uid === $actorUid) {
+			throw new ValidationException($this->l->t('Somebody else from HR has to import your own leave'));
 		}
 
 		$key = is_string($entry['type'] ?? null) && trim($entry['type']) !== '' ? trim($entry['type']) : 'annual';
