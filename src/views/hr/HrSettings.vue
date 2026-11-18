@@ -206,6 +206,26 @@
 				</div>
 			</section>
 
+			<section id="settings-emails" class="settings">
+				<div class="settings__intro">
+					<h3 class="settings__title" tabindex="-1">
+						{{ t('absence', 'Emails') }}
+						<SavedCheck :savedAt="savedAt.emails" />
+					</h3>
+					<p>{{ t('absence', 'Emails may go to private inboxes. Notifications show the start of the text either way.') }}</p>
+				</div>
+				<div class="settings__fields settings__fields--stacked">
+					<NcCheckboxRadioSwitch
+						type="switch"
+						:modelValue="form.mail_quote_text"
+						:disabled="saving"
+						@update:modelValue="(on: boolean) => save({ mail_quote_text: on })">
+						{{ t('absence', 'Quote reasons and comments in emails') }}
+						<span class="settings__muted">{{ t('absence', '(otherwise just what happened, with a link)') }}</span>
+					</NcCheckboxRadioSwitch>
+				</div>
+			</section>
+
 			<section id="settings-holidays" class="settings">
 				<div class="settings__intro">
 					<h3 class="settings__title" tabindex="-1">
@@ -381,6 +401,7 @@ const SECTION_OF: Record<SettingsKey, Section> = {
 	caldav_personal: 'calendar',
 	caldav_shared: 'calendar',
 	shared_calendar_visibility: 'calendar',
+	mail_quote_text: 'emails',
 	holidays_everyone_edits: 'holidays',
 	handbook_url: 'handbooks',
 	hr_handbook_url: 'handbooks',
@@ -419,6 +440,7 @@ const sections: SectionLink[] = [
 	{ id: 'vacation', label: t('absence', 'Vacation') },
 	{ id: 'approvals', label: t('absence', 'Approvals') },
 	{ id: 'calendar', label: t('absence', 'Calendar') },
+	{ id: 'emails', label: t('absence', 'Emails') },
 	{ id: 'holidays', label: t('absence', 'Public holidays') },
 	{ id: 'handbooks', label: t('absence', 'Handbooks') },
 	{ id: 'leave-types', label: t('absence', 'Leave types') },

@@ -1889,7 +1889,7 @@ NcContent(app-name="absence")
   Contacts, where managers and teams are kept, when Contacts is enabled.
 - **Settings** (`#/hr/settings`, HR and admins, §12): One section per row, title and
   short description on the left, fields on the right: *Who is who*, *Vacation*,
-  *Approvals*, *Calendar*, *Public holidays*, *Leave types*. Fields save on change (`NcTextField`,
+  *Approvals*, *Calendar*, *Emails*, *Public holidays*, *Leave types*. Fields save on change (`NcTextField`,
   `NcSelect`, `NcCheckboxRadioSwitch`); the employees group goes through the
   confirmation `NcDialog` of §12; *Manage leave types* opens an `NcModal` listing every
   type with an edit form (key on creation only, emoji, name, colour, flags, enabled).
