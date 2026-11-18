@@ -154,14 +154,11 @@ class AttachmentService {
 
 	/**
 	 * @return array{attachment:Attachment,content:string}
-	 * @throws NotFoundException|ForbiddenException
+	 * @throws NotFoundException
 	 */
 	public function download(string $actorUid, int $attachmentId): array {
 		$attachment = $this->loadAttachment($attachmentId);
-		$request = $this->loadRequest($attachment->getRequestId());
-		if (!$this->canSee($actorUid, $request)) {
-			throw new ForbiddenException($this->l->t('Not allowed to read this attachment'));
-		}
+		$this->loadVisibleAttachmentRequest($actorUid, $attachment);
 		try {
 			$content = $this->storage()->getFile((string)$attachment->getId())->getContent();
 		} catch (FilesNotFoundException) {
@@ -179,9 +176,8 @@ class AttachmentService {
 	public function delete(string $actorUid, int $attachmentId): void {
 		$attachment = $this->loadAttachment($attachmentId);
 		if (!$this->permission->isHr($actorUid)) {
-			$request = $this->loadRequest($attachment->getRequestId());
+			$request = $this->loadVisibleAttachmentRequest($actorUid, $attachment);
 			if ($attachment->getUploaderUid() !== $actorUid
-				|| !$this->canSee($actorUid, $request)
 				|| in_array($request->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
 				throw new ForbiddenException($this->l->t('Not allowed to remove this attachment'));
 			}
@@ -251,6 +247,20 @@ class AttachmentService {
 		$request = $this->loadRequest($requestId);
 		if (!$this->permission->canView($actorUid, $request)) {
 			throw new NotFoundException($this->l->t('Request not found'));
+		}
+		return $request;
+	}
+
+	/**
+	 * The request an attachment is on, when the actor may see its files. An
+	 * attachment the actor may not see is refused like one that does not exist.
+	 *
+	 * @throws NotFoundException
+	 */
+	private function loadVisibleAttachmentRequest(string $actorUid, Attachment $attachment): LeaveRequest {
+		$request = $this->loadRequest($attachment->getRequestId());
+		if (!$this->canSee($actorUid, $request)) {
+			throw new NotFoundException($this->l->t('Attachment not found'));
 		}
 		return $request;
 	}

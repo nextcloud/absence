@@ -13,11 +13,13 @@ use OCA\Absence\Db\AttachmentMapper;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Exception\ForbiddenException;
+use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
+use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
@@ -198,13 +200,49 @@ class AttachmentServiceTest extends TestCase {
 		return $attachment;
 	}
 
-	public function testOnlyHrOrTheUploaderMayDelete(): void {
+	public static function hiddenAttachmentCalls(): array {
+		return [
+			'download' => ['download'],
+			'delete' => ['delete'],
+		];
+	}
+
+	#[DataProvider('hiddenAttachmentCalls')]
+	public function testAFileTheCallerMayNotSeeIsNotFoundLikeAnUnknownId(string $call): void {
 		$this->request();
-		$this->attachment('emp');
+		$this->attachmentMapper->method('find')->willReturnCallback(function (int $id): Attachment {
+			if ($id !== 9) {
+				throw new DoesNotExistException('');
+			}
+			$attachment = new Attachment();
+			$attachment->setId(9);
+			$attachment->setRequestId(5);
+			$attachment->setUploaderUid('emp');
+			return $attachment;
+		});
 		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$refusals = [];
+		foreach ([9, 10] as $id) {
+			try {
+				$this->service->$call('boss', $id);
+			} catch (NotFoundException $e) {
+				$refusals[$id] = $e->getMessage();
+			}
+		}
+
+		self::assertSame([9 => 'Attachment not found', 10 => 'Attachment not found'], $refusals);
+	}
+
+	public function testTheEmployeeMayNotDeleteAFileHrAdded(): void {
+		$this->request();
+		$this->attachment('hr');
+		$this->permission->method('isHr')->willReturn(false);
+		$this->attachmentMapper->expects(self::never())->method('delete');
 
 		$this->expectException(ForbiddenException::class);
-		$this->service->delete('boss', 9);
+		$this->service->delete('emp', 9);
 	}
 
 	public function testTheUploaderDeletesTheirFileOnAnOpenRequest(): void {
@@ -238,7 +276,7 @@ class AttachmentServiceTest extends TestCase {
 		$this->permission->method('isHr')->willReturn(false);
 		$this->attachmentMapper->expects(self::never())->method('delete');
 
-		$this->expectException(ForbiddenException::class);
+		$this->expectException(NotFoundException::class);
 		$this->service->delete('former-hr', 9);
 	}
 

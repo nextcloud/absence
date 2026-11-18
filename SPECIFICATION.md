@@ -1468,6 +1468,9 @@ the SPA). All list endpoints paginate and accept filters.
 - `POST /api/requests/{id}/attachments` — multipart upload (field `file`).
 - `GET  /api/attachments/{id}` — download (plain link; permission is the gate).
 - `DELETE /api/attachments/{id}` — HR or the uploader.
+- An attachment the caller may not see is a 404 "Attachment not found", like an
+  unknown id, on download and delete. Only somebody who sees the file but may not
+  remove it gets a 403 on delete.
 
 **Requests**
 - `GET  /api/requests` — list (scoped by role: own / reports / all-for-HR; filters: status (one, or several separated by commas), type, date range, employee, group).
@@ -2217,3 +2220,6 @@ Recorded during the build so the spec matches the code:
   leave in force or asked for. Everyone else gets leave in force only, what the team
   calendar carries, and only while that calendar is shared (switched on and the app
   set up). A uid that is no employee gets `null`, like any question left unanswered.
+- **Hidden attachments are not found** (§14): downloading or deleting an attachment
+  the caller may not see answered 403 while an unknown id answered 404, which told
+  how many attachments exist. Both are now a 404 "Attachment not found".
