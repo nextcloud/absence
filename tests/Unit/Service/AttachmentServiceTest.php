@@ -24,6 +24,7 @@ use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException as FilesNotFoundException;
+use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
@@ -423,6 +424,44 @@ class AttachmentServiceTest extends TestCase {
 		$this->attachmentMapper->expects(self::once())->method('delete')->with($attachment);
 
 		$this->service->delete('hr', 9);
+	}
+
+	public function testAnAttachmentStaysWhenItsFileCouldNotBeDeleted(): void {
+		$this->request(LeaveRequest::STATUS_REJECTED);
+		$this->attachment('emp');
+		$this->permission->method('isHr')->willReturn(true);
+		$this->folder->method('getFile')->willReturn($this->storedFile(new NotPermittedException('read-only')));
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$this->expectException(NotPermittedException::class);
+		$this->service->delete('hr', 9);
+	}
+
+	public function testThePurgeKeepsTheRowOfAFileItCouldNotDelete(): void {
+		$attachment = new Attachment();
+		$attachment->setId(9);
+		$this->attachmentMapper->method('findForRequests')->with([5])->willReturn([$attachment]);
+		$this->folder->method('getFile')->with('9')->willReturn($this->storedFile(new NotPermittedException('read-only')));
+		$this->attachmentMapper->expects(self::never())->method('delete');
+
+		$this->expectException(NotPermittedException::class);
+		$this->service->purgeForRequests([5]);
+	}
+
+	public function testThePurgeDropsTheRowOfAFileThatIsAlreadyGone(): void {
+		$attachment = new Attachment();
+		$attachment->setId(9);
+		$this->attachmentMapper->method('findForRequests')->with([5])->willReturn([$attachment]);
+		$this->folder->method('getFile')->willThrowException(new FilesNotFoundException());
+		$this->attachmentMapper->expects(self::once())->method('delete')->with($attachment);
+
+		$this->service->purgeForRequests([5]);
+	}
+
+	private function storedFile(\Throwable $onDelete): ISimpleFile {
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('delete')->willThrowException($onDelete);
+		return $file;
 	}
 
 	public function testAddingAndRemovingGoToTheLogsWithIdsOnly(): void {

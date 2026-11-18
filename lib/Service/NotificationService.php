@@ -297,7 +297,7 @@ class NotificationService {
 					$template->addBodyListItem(
 						$note['text'],
 						$note['author'] !== null && $note['author'] !== ''
-							? $l->t('%s wrote:', [$this->displayName($note['author'])])
+							? $l->t('%s wrote:', [$this->displayName($l, $note['author'])])
 							: $l->t('Comment:'),
 					);
 				}
@@ -322,9 +322,9 @@ class NotificationService {
 	 * @return array{0:string,1:string} heading and body
 	 */
 	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, #[\SensitiveParameter] array $notes, bool $shortNotice): array {
-		$employee = $this->displayName($request->getEmployeeUid());
+		$employee = $this->displayName($l, $request->getEmployeeUid());
 		$noteAuthorUid = $notes[0]['author'] ?? null;
-		$author = $noteAuthorUid !== null && $noteAuthorUid !== '' ? $this->displayName($noteAuthorUid) : '';
+		$author = $noteAuthorUid !== null && $noteAuthorUid !== '' ? $this->displayName($l, $noteAuthorUid) : '';
 		$range = $request->getStartDate() . ' – ' . $request->getEndDate();
 		// The heading is also the mail's subject line, so a short-notice request says
 		// so in the inbox — where the decider still has time to act on it.
@@ -391,9 +391,8 @@ class NotificationService {
 		};
 	}
 
-	private function displayName(string $uid): string {
-		$user = $this->userManager->get($uid);
-		return $user !== null ? $user->getDisplayName() : $uid;
+	private function displayName(\OCP\IL10N $l, string $uid): string {
+		return $this->userManager->get($uid)?->getDisplayName() ?? $l->t('Deleted account');
 	}
 
 	/**
@@ -505,6 +504,23 @@ class NotificationService {
 			} catch (\Throwable $e) {
 				$this->logger->warning('Absence: notification failed', ['exception' => $e]);
 			}
+		}
+	}
+
+	/**
+	 * Takes back the comment notifications on a request. The notifications app
+	 * picks them by request and subject, not by who wrote the comment, so this
+	 * covers every comment on it; the comments themselves stay on the request.
+	 */
+	public function dismissComments(int $requestId): void {
+		try {
+			$notification = $this->notificationManager->createNotification();
+			$notification->setApp(ConfigService::APP_ID)
+				->setObject('absence_request', (string)$requestId)
+				->setSubject(self::SUBJECT_COMMENT);
+			$this->notificationManager->markProcessed($notification);
+		} catch (\Throwable $e) {
+			$this->logger->debug('Absence: could not dismiss notifications', ['exception' => $e]);
 		}
 	}
 

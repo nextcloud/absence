@@ -192,7 +192,7 @@ class LeaveImportService {
 				$event = new RequestEvent();
 				$event->setRequestId((int)$request->getId());
 				$event->setActorUid($actorUid);
-				$event->setEventType('request_imported');
+				$event->setEventType(RequestEvent::TYPE_IMPORTED);
 				$event->setDetail($this->detail($row, false));
 				$event->setHrDetail($row['note'] !== null ? $this->detail($row, true) : null);
 				$event->setConfidential($row['type']->getHrOnly());

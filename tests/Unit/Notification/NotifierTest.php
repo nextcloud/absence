@@ -54,7 +54,7 @@ class NotifierTest extends TestCase {
 		$userManager = $this->createMock(IUserManager::class);
 		$userManager->method('get')->willReturnCallback(
 			function (string $uid): ?IUser {
-				if ($uid === '') {
+				if ($uid === '' || $uid === 'gone') {
 					return null;
 				}
 				$user = $this->createMock(IUser::class);
@@ -290,6 +290,14 @@ class NotifierTest extends TestCase {
 
 		$this->prepare(NotificationService::SUBJECT_COMMENT, ['employee' => 'emp', 'requestId' => '7']);
 		self::assertSame([], $this->actions);
+	}
+
+	public function testADeletedAccountIsNamedAsSuchNotByItsUid(): void {
+		$this->prepare(NotificationService::SUBJECT_COMMENT, ['employee' => 'emp', 'requestId' => '7', 'noteAuthor' => 'gone']);
+		self::assertSame('Deleted account commented on a leave request', $this->parsedSubject);
+
+		$this->prepare(NotificationService::SUBJECT_WITHDRAWAL, ['employee' => 'gone', 'requestId' => '7']);
+		self::assertSame('Deleted account asked to withdraw approved leave', $this->parsedSubject);
 	}
 
 	public function testAnAbsenceRecordedByHrSaysWhoAndWhenOnly(): void {

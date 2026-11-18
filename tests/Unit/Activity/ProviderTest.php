@@ -57,6 +57,20 @@ class ProviderTest extends TestCase {
 		$this->provider->parse('en', $event);
 	}
 
+	public function testADeletedEmployeeIsNamedAsSuchNotByTheirUid(): void {
+		$this->userManager->method('get')->with('gone')->willReturn(null);
+		$event = $this->createMock(IEvent::class);
+		$event->method('getApp')->willReturn(ConfigService::APP_ID);
+		$event->method('getSubject')->willReturn(ActivityPublisher::SUBJECT_APPROVED);
+		$event->method('getSubjectParameters')->willReturn(['employee' => 'gone', 'start' => '2026-08-03', 'end' => '2026-08-07']);
+
+		$event->expects($this->once())->method('setParsedSubject')
+			->with('Leave for Deleted account (2026-08-03 – 2026-08-07) was approved')
+			->willReturnSelf();
+
+		$this->provider->parse('en', $event);
+	}
+
 	public function testParseSetsSubjectIconAndLink(): void {
 		$user = $this->createMock(IUser::class);
 		$user->method('getDisplayName')->willReturn('Alice Doe');

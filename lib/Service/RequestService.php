@@ -513,8 +513,12 @@ class RequestService {
 	 */
 	private function withAuthorNames(#[\SensitiveParameter] array $detail): array {
 		$names = [];
-		// A history entry written without a user (occ) has no actor to name
-		foreach (array_filter([...array_column($detail['comments'], 'authorUid'), ...array_column($detail['history'], 'actorUid')]) as $uid) {
+		// The escalation job's actor is no account, even where an account has its uid
+		$actors = array_filter(
+			array_column($detail['history'], 'actorUid'),
+			static fn (?string $uid): bool => $uid !== null && $uid !== RequestEvent::ACTOR_SYSTEM,
+		);
+		foreach ([...array_column($detail['comments'], 'authorUid'), ...$actors] as $uid) {
 			$names[$uid] ??= $this->displayName($uid);
 		}
 		$detail['comments'] = array_map(
@@ -522,16 +526,31 @@ class RequestService {
 			$detail['comments'],
 		);
 		$detail['history'] = array_map(
-			static fn (array $event): array => [...$event, 'actorName' => $names[$event['actorUid'] ?? ''] ?? null],
+			fn (array $event): array => [...$event, 'actorName' => $this->actorName($event, $names)],
 			$detail['history'],
 		);
 		return $detail;
 	}
 
-	/** A user's display name, falling back to the uid for a deleted account. */
+	/**
+	 * Who made a history entry, by name. Null for the escalation job and for an
+	 * import from occ: neither is an account.
+	 *
+	 * @param array<string,mixed> $event
+	 * @param array<string,string> $names uid => display name
+	 */
+	private function actorName(array $event, array $names): ?string {
+		$uid = $event['actorUid'];
+		if ($uid === null) {
+			// Any other entry lost its actor with the account
+			return $event['eventType'] === RequestEvent::TYPE_IMPORTED ? null : $this->l->t('Deleted account');
+		}
+		return $names[$uid] ?? null;
+	}
+
+	/** A user's display name, or "Deleted account" when no account has the uid. */
 	private function displayName(string $uid): string {
-		$user = $this->userManager->get($uid);
-		return $user !== null ? $user->getDisplayName() : $uid;
+		return $this->userManager->get($uid)?->getDisplayName() ?? $this->l->t('Deleted account');
 	}
 
 	/**
@@ -1343,7 +1362,7 @@ class RequestService {
 		$hrUids = $this->permission->getHrUids();
 		$this->notifications->notifyEscalation($request, $hrUids);
 		$this->activity->publish(ActivityPublisher::SUBJECT_ESCALATED, $this->activityParams($request), [$request->getEmployeeUid(), ...$hrUids], $request);
-		$this->audit('request_escalated', $request, ['actor' => 'system']);
+		$this->audit('request_escalated', $request, ['actor' => RequestEvent::ACTOR_SYSTEM]);
 	}
 
 	/**
@@ -1444,7 +1463,7 @@ class RequestService {
 	 * @param bool $history false when the history entry would have nothing to say
 	 */
 	private function audit(string $action, LeaveRequest $request, #[\SensitiveParameter] array $extra = [], #[\SensitiveParameter] ?array $before = null, bool $history = true): void {
-		$actor = (string)($extra['actor'] ?? 'system');
+		$actor = (string)($extra['actor'] ?? RequestEvent::ACTOR_SYSTEM);
 		$detail = isset($extra['detail']) && $extra['detail'] !== null && $extra['detail'] !== ''
 			? (string)$extra['detail']
 			: null;

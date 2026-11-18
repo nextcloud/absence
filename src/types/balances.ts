@@ -65,7 +65,7 @@ export interface EntitlementEventRecord {
 	id: number
 	entitlementId: number
 	employeeUid: string
-	/** A uid, 'system' for the year rollover and the carry-over expiry, or null for a change made from occ. */
+	/** A uid, 'system' for the year rollover and the carry-over expiry, or null for a change made from occ and once the actor's account is deleted. */
 	actorUid: string | null
 	field: EntitlementField
 	oldValue: number
@@ -78,7 +78,7 @@ export interface EntitlementEventRecord {
 
 /** One entry of GET /api/entitlements/{id}/history (HR only). */
 export interface EntitlementEvent extends EntitlementEventRecord {
-	/** Null when actorUid is null; the uid itself when no account has it ('system'). */
+	/** Null when actorUid is null or 'system'; "Deleted account" when no account has the uid. */
 	actorName: string | null
 }
 

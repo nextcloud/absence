@@ -325,7 +325,7 @@ alone: everyone else reads the entry without it.
 |--------|------|-------|
 | `id` | bigint, PK | |
 | `request_id` | bigint FK, indexed | The request this event belongs to. |
-| `actor_uid` | string(64), nullable | Who performed the action; the literal `system` for automated events (e.g. escalation), null for an import from occ. |
+| `actor_uid` | string(64), nullable | Who performed the action; the literal `system` for automated events (e.g. escalation), null for an import from occ and once the actor's account is deleted (§17). |
 | `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`, `request_imported` (§6.5). |
 | `detail` | text, nullable | Human-readable extra, without free text. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason changed`. Recording only the resulting state cannot answer what anybody opens the history to ask (what changed and by how much), and a day count means nothing without the number it replaced. On creation it carries the type, dates and day count, since the request itself only ever shows its *current* state. A reason change reads `Reason added`, `Reason changed` or `Reason cleared`; a comment or a decision comment leaves it null. |
 | `hr_detail` | text, nullable | The same entry with its free text, served to HR instead of `detail`: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`, the reason on creation (`… · Reason: “…” · …`), the note of imported leave (`… · Note: “…” · …`), the comment or decision comment itself. Null when the entry has none. Deleting an account clears it on the `comment_added` entries the person wrote on other people's requests, whose comments go with the account (§17). |
@@ -350,7 +350,7 @@ by the next adjustment.
 | `id` | bigint, PK | |
 | `entitlement_id` | bigint, indexed | The entitlement this change belongs to. |
 | `employee_uid` | string(64), indexed | Denormalised from the entitlement so the GDPR purge (§17) and per-person views need no join to a row that is about to be deleted. |
-| `actor_uid` | string(64), nullable | Who made the change; null from occ. |
+| `actor_uid` | string(64), nullable | Who made the change; `system` for the year rollover and the carry-over expiry, null from occ and once the actor's account is deleted (§17). |
 | `field` | string(32) | `base_days`, `carry_over_days` or `manual_adjustment`. |
 | `old_value` / `new_value` | float | The figure before and after; the delta is derived. |
 | `note` | text, nullable | The reason given, attached to every figure that save touched. |
@@ -384,7 +384,10 @@ past 200 MB is refused with a validation error naming the limit. The cap is a
 constant, not a setting: the bytes sit in app data, outside any user quota.
 Attachments never appear in the request-history timeline (it is
 manager-visible); adds and removals go to the admin audit log (§11). The GDPR
-purge removes rows and bytes. API: §14.
+purge removes rows and bytes, each file before its row: a file that cannot be
+deleted keeps its row and stops the purge, which is retried (§17). Removing one
+attachment keeps it the same way. `uploader_uid` is null once the uploader's
+account is deleted. API: §14.
 
 **Encrypted at rest.** Server-side encryption never covers appdata
 (`server/lib/private/Encryption/Util.php`), so the app encrypts the bytes with
@@ -1227,6 +1230,8 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
      entitlements and former employees.
    - A run that deletes something writes one admin audit log entry and one
      `nextcloud.log` line (`retention_applied`) with the counts only.
+7. **PurgeRetryJob** (daily): runs the purges of deleted accounts that failed again
+   (§17).
 
 All jobs must be idempotent and safe to run repeatedly.
 
@@ -1885,7 +1890,7 @@ NcContent(app-name="absence")
   "N available", for a single year) and open the detail sidebar, whose **Edit** and
   **Cancel** controls are what let HR correct a wrong vacation or sick day (§5.6).
   People are named, never printed as user ids: requests are serialized with an
-  `employeeName` (display name, falling back to the uid for a deleted account),
+  `employeeName` (display name, or *Deleted account* when no account has the uid),
   and the sidebar names the employee under its title whenever the leave is not
   the viewer's own.
   An **Import leave** button next to *Record absence* opens the leave import (§6.5):
@@ -2070,9 +2075,15 @@ under `prefers-reduced-motion: reduce`.
   balance edits.
 - Input validation and rate-limiting on create/edit endpoints
   (`#[UserRateLimit]` where appropriate).
-- GDPR: provide data via Nextcloud's user data export/deletion hooks — implement
-  `OCP\User\Events\BeforeUserDeletedEvent` handling to anonymize/remove a deleted
-  user's requests per policy.
+- GDPR: a `OCP\User\Events\UserDeletedEvent` listener purges a deleted user's leave
+  data, takes back the notifications about their requests and the comment
+  notifications that quote them, and nulls them where they acted on other people's
+  records; names are then shown as *Deleted account*. A purge that fails is kept in
+  `absence_purge_retry` and run again daily until it goes through, unless an account
+  has that uid again. `occ absence:purge-deleted-users` lists the uids the tables
+  still name that no account has (an account deleted while the app was disabled) and
+  purges them with `--force`. It never runs on its own: while a user backend such as
+  LDAP cannot be reached, every account it holds looks deleted.
 - Personal data export: a user migrator (`OCP\UserMigration\IMigrator`, id `absence`)
   adds the person's own Absence data to the export of the *User migration* app
   (`occ user:export`, or *Data migration* in the personal settings), as JSON under
@@ -2440,3 +2451,18 @@ Recorded during the build so the spec matches the code:
   reasons, notes and comments passed down from the controllers whenever
   `zend.exception_ignore_args` was off. Those parameters are now
   `#[\SensitiveParameter]`.
+- **Purge of deleted accounts** (§17): the purge moved from the listener into
+  `UserPurgeService`. It ran once; now a failed purge is kept in `absence_purge_retry`
+  (`Version1020…`) and retried daily. A file that cannot be deleted keeps its row, and
+  the purge waits for it instead of leaving the file behind. It wrote the valid uid
+  `deleted_user` as the actor on other people's records; the actor is now null
+  (`Version1020…` also makes `absence_attachments.uploader_uid` nullable, and turns
+  the old `deleted_user` into null when no account has that uid). The request history
+  tells a deleted actor from an occ import by the event type. The entitlement,
+  contract and holiday histories cannot, so a null actor there keeps its label (*An
+  administrator*, *Import*). The jobs' actor `system` is never looked up as an
+  account, and purging an account with that uid leaves the jobs' history rows alone.
+  Comment notifications are taken back per request: the notifications app matches app,
+  user, object and subject, not who wrote the comment, so the other comment
+  notifications on those requests go too. `occ absence:purge-deleted-users` finds what
+  accounts deleted while the app was disabled left behind.

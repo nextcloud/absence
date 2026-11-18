@@ -109,8 +109,9 @@ export type RequestEventType = 'request_created'
 export interface RequestEvent {
 	id: number
 	requestId: number
-	/** A uid, 'system' for background jobs, or null for an import run from occ. */
+	/** A uid, 'system' for background jobs, or null for an import run from occ and once the actor's account is deleted. */
 	actorUid: string | null
+	/** Null for 'system' and for an import run from occ; "Deleted account" once the actor's account is gone. */
 	actorName: string | null
 	eventType: RequestEventType
 	/** English text written by the server, not translated. Reasons, notes and comments are only in HR's copy. */
@@ -122,7 +123,8 @@ export interface RequestEvent {
 export interface Attachment {
 	id: number
 	requestId: number
-	uploaderUid: string
+	/** Null once the uploader's account is deleted. */
+	uploaderUid: string | null
 	name: string
 	mime: string
 	/** In bytes. */

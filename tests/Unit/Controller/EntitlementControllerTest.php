@@ -25,7 +25,7 @@ class EntitlementControllerTest extends TestCase {
 
 	public function testHistoryNamesWhoMadeEachChange(): void {
 		$events = [];
-		foreach (['itest-hr', 'itest-gone', 'itest-hr', null] as $actorUid) {
+		foreach (['itest-hr', 'itest-gone', 'itest-hr', null, EntitlementEvent::ACTOR_SYSTEM] as $actorUid) {
 			$event = new EntitlementEvent();
 			$event->setActorUid($actorUid);
 			$events[] = $event;
@@ -33,9 +33,14 @@ class EntitlementControllerTest extends TestCase {
 		$service = $this->createMock(EntitlementService::class);
 		$service->method('historyFor')->with(7)->willReturn($events);
 		$userManager = $this->createMock(IUserManager::class);
-		// One lookup per person, however many changes they made.
+		// One lookup per person, however many changes they made, and none for
+		// the jobs' actor, although an account has its uid.
 		$userManager->expects(self::exactly(2))->method('getDisplayName')->willReturnCallback(
-			static fn (string $uid): ?string => $uid === 'itest-hr' ? 'Robin Vale' : null,
+			static fn (string $uid): ?string => match ($uid) {
+				'itest-hr' => 'Robin Vale',
+				EntitlementEvent::ACTOR_SYSTEM => 'Sam Okoro',
+				default => null,
+			},
 		);
 		$controller = new EntitlementController(
 			'absence',
@@ -52,10 +57,10 @@ class EntitlementControllerTest extends TestCase {
 
 		$history = $controller->history(7)->getData();
 
-		// An account that no longer exists keeps its uid as the name, and a
-		// change made without a user has none.
+		// An account that no longer exists is named as such, and a change made
+		// without a user or by a job has no name.
 		self::assertSame(
-			['Robin Vale', 'itest-gone', 'Robin Vale', null],
+			['Robin Vale', 'Deleted account', 'Robin Vale', null, null],
 			array_map(static fn (array $event): ?string => $event['actorName'], $history),
 		);
 	}

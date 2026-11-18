@@ -177,7 +177,7 @@ class HolidayController extends Controller {
 	}
 
 	private function name(?string $uid): ?string {
-		return $uid === null ? null : ($this->userManager->getDisplayName($uid) ?? $uid);
+		return $uid === null ? null : ($this->userManager->getDisplayName($uid) ?? $this->l->t('Deleted account'));
 	}
 
 	private function log(string $action, Holiday $holiday): void {
