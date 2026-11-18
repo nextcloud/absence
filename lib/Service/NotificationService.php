@@ -508,6 +508,21 @@ class NotificationService {
 	}
 
 	/**
+	 * Takes back the notifications about changes of an employee's manager (§2.1),
+	 * once the history they point to is gone with the employee's data.
+	 */
+	public function dismissManagerChanges(string $employeeUid): void {
+		try {
+			$notification = $this->notificationManager->createNotification();
+			$notification->setApp(ConfigService::APP_ID)
+				->setObject(self::OBJECT_MANAGER, $employeeUid);
+			$this->notificationManager->markProcessed($notification);
+		} catch (\Throwable $e) {
+			$this->logger->debug('Absence: could not dismiss notifications', ['exception' => $e]);
+		}
+	}
+
+	/**
 	 * Takes back the comment notifications on a request. The notifications app
 	 * picks them by request and subject, not by who wrote the comment, so this
 	 * covers every comment on it; the comments themselves stay on the request.

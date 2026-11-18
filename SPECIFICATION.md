@@ -1216,12 +1216,12 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
      and notifications go with it.
    - **A former employee** goes once the set number of full years have passed since
      the contract end date (§6.4): all their requests as above, their entitlements and
-     the entitlement history, the contract periods and the employee history. The
-     employment row stays with its start and end dates: without them someone still in
-     the employees group would count as a current employee again, and the year
-     rollover would give them the default days. Nobody without an end date is a former
-     employee, and one with nothing but that row left is neither counted nor touched
-     again.
+     the entitlement history, the contract periods and the employee history, with HR's
+     notifications about their manager changes. The employment row stays with its start
+     and end dates: without them someone still in the employees group would count as a
+     current employee again, and the year rollover would give them the default days.
+     Nobody without an end date is a former employee, and one with nothing but that row
+     left is neither counted nor touched again.
    - On 29 February, the same day N years back is 28 February when that year has
      no 29th.
    - It works in batches of 100 requests or people, at most 50 batches of each rule
@@ -2079,14 +2079,14 @@ under `prefers-reduced-motion: reduce`.
 - Input validation and rate-limiting on create/edit endpoints
   (`#[UserRateLimit]` where appropriate).
 - GDPR: a `OCP\User\Events\UserDeletedEvent` listener purges a deleted user's leave
-  data, takes back the notifications about their requests and the comment
-  notifications that quote them, and nulls them where they acted on other people's
-  records; names are then shown as *Deleted account*. A purge that fails is kept in
-  `absence_purge_retry` and run again daily until it goes through, unless an account
-  has that uid again. `occ absence:purge-deleted-users` lists the uids the tables
-  still name that no account has (an account deleted while the app was disabled) and
-  purges them with `--force`. It never runs on its own: while a user backend such as
-  LDAP cannot be reached, every account it holds looks deleted.
+  data, takes back the notifications about their requests and their manager changes and
+  the comment notifications that quote them, and nulls them where they acted on other
+  people's records; names are then shown as *Deleted account*. A purge that fails is
+  kept in `absence_purge_retry` and run again daily until it goes through, unless an
+  account has that uid again. `occ absence:purge-deleted-users` lists the uids the
+  tables still name that no account has (an account deleted while the app was disabled)
+  and purges them with `--force`. It never runs on its own: while a user backend such
+  as LDAP cannot be reached, every account it holds looks deleted.
 - Personal data export: a user migrator (`OCP\UserMigration\IMigrator`, id `absence`)
   adds the person's own Absence data to the export of the *User migration* app
   (`occ user:export`, or *Data migration* in the personal settings), as JSON under

@@ -237,7 +237,25 @@ class NotificationServiceTest extends TestCase {
 		$manager = $this->createMock(INotificationManager::class);
 		$manager->method('createNotification')->willReturn($notification);
 		$manager->expects(self::once())->method('markProcessed')->with($notification);
-		$service = new NotificationService(
+
+		$this->serviceWith($manager)->dismissComments(7);
+	}
+
+	public function testTheManagerChangeNotificationsAboutSomeoneAreTakenBackFromEveryone(): void {
+		$notification = $this->createMock(INotification::class);
+		$notification->expects(self::once())->method('setApp')->with('absence')->willReturnSelf();
+		$notification->expects(self::once())->method('setObject')->with('absence_manager', 'carol')->willReturnSelf();
+		$notification->expects(self::never())->method('setSubject');
+		$notification->expects(self::never())->method('setUser');
+		$manager = $this->createMock(INotificationManager::class);
+		$manager->method('createNotification')->willReturn($notification);
+		$manager->expects(self::once())->method('markProcessed')->with($notification);
+
+		$this->serviceWith($manager)->dismissManagerChanges('carol');
+	}
+
+	private function serviceWith(INotificationManager $manager): NotificationService {
+		return new NotificationService(
 			$manager,
 			$this->mailer,
 			$this->userManager,
@@ -249,8 +267,6 @@ class NotificationServiceTest extends TestCase {
 			$this->createMock(PermissionService::class),
 			$this->createMock(ConfigService::class),
 		);
-
-		$service->dismissComments(7);
 	}
 
 	public function testTheCommentMailQuotesEveryCommentWithItsAuthor(): void {

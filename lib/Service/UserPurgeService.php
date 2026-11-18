@@ -80,6 +80,8 @@ class UserPurgeService {
 		foreach ($this->commentedRequestIds($uid) as $requestId) {
 			$this->notifications->dismissComments($requestId);
 		}
+		// HR's notifications about changes of the user's manager name them too.
+		$this->notifications->dismissManagerChanges($uid);
 
 		// Attachments carry the most sensitive payload of all (§3.8). Files cannot be
 		// rolled back, so they go first and outside the transaction: one that cannot
