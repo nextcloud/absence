@@ -45,12 +45,14 @@ class ConfigLexiconTest extends TestCase {
 			ConfigLexicon::KEY_DEFAULT_ENTITLEMENT,
 			ConfigLexicon::KEY_EMPLOYEES_GROUP,
 			ConfigLexicon::KEY_ESCALATION_WINDOW,
+			ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION,
 			ConfigLexicon::KEY_HANDBOOK_URL,
 			ConfigLexicon::KEY_HOLIDAYS_EVERYONE,
 			ConfigLexicon::KEY_HR_GROUP,
 			ConfigLexicon::KEY_HR_HANDBOOK_URL,
 			ConfigLexicon::KEY_LAST_ROLLOVER_YEAR,
 			ConfigLexicon::KEY_MAIL_QUOTE_TEXT,
+			ConfigLexicon::KEY_LEAVE_RETENTION,
 			ConfigLexicon::KEY_MAX_CONCURRENT,
 			ConfigLexicon::KEY_NOTICE_PERIOD,
 			ConfigLexicon::KEY_REMINDER_CUTOFF,
@@ -97,5 +99,11 @@ class ConfigLexiconTest extends TestCase {
 		// E-mails keep quoting what people wrote until an admin turns it off.
 		$this->assertSame(ValueType::BOOL, $entries[ConfigLexicon::KEY_MAIL_QUOTE_TEXT]->getValueType());
 		$this->assertSame('1', $entries[ConfigLexicon::KEY_MAIL_QUOTE_TEXT]->getDefault(Preset::NONE));
+
+		// Nothing is deleted until somebody chooses a retention period.
+		foreach ([ConfigLexicon::KEY_LEAVE_RETENTION, ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION] as $key) {
+			$this->assertSame(ValueType::INT, $entries[$key]->getValueType());
+			$this->assertSame('0', $entries[$key]->getDefault(Preset::NONE));
+		}
 	}
 }

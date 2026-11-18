@@ -32,6 +32,22 @@ class EmploymentMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
+	/**
+	 * The employments whose end date lies before a day, by id, the ones after
+	 * $afterId only. Never one without an end date.
+	 *
+	 * @return list<Employment>
+	 */
+	public function findEndedBefore(string $date, int $afterId, int $limit): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->lt('end_date', $qb->createNamedParameter($date)))
+			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
+			->orderBy('id', 'ASC')
+			->setMaxResults($limit);
+		return $this->findEntities($qb);
+	}
+
 	public function findForEmployee(string $uid): ?Employment {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->getTableName())

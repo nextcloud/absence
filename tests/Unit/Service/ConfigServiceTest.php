@@ -139,6 +139,8 @@ class ConfigServiceTest extends TestCase {
 			'number for the mail quote switch' => [ConfigLexicon::KEY_MAIL_QUOTE_TEXT, 0],
 			'list for the expiry' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, ['03-31']],
 			'list for the employees group' => [ConfigLexicon::KEY_EMPLOYEES_GROUP, ['staff']],
+			'half a year of retention' => [ConfigLexicon::KEY_LEAVE_RETENTION, 1.5],
+			'switch for a retention' => [ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION, true],
 		];
 	}
 
@@ -168,6 +170,9 @@ class ConfigServiceTest extends TestCase {
 			'expiry on the leap day' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '02-29', '02-29'],
 			'expiry on the last day of a short month' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '04-30', '04-30'],
 			'expiry at the end of the year' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '12-31', '12-31'],
+			'leave kept forever' => [ConfigLexicon::KEY_LEAVE_RETENTION, 0, 0],
+			'longest leave retention' => [ConfigLexicon::KEY_LEAVE_RETENTION, '30', 30],
+			'former employees kept six years' => [ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION, 6, 6],
 		];
 	}
 
@@ -212,6 +217,9 @@ class ConfigServiceTest extends TestCase {
 			'expiry in month 13' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '13-01'],
 			'expiry with a trailing newline' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, "03-31\n"],
 			'expiry with a year' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, '2027-03-31'],
+			'leave retention over the maximum' => [ConfigLexicon::KEY_LEAVE_RETENTION, 31],
+			'negative leave retention' => [ConfigLexicon::KEY_LEAVE_RETENTION, '-1'],
+			'former employee retention over the maximum' => [ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION, 100],
 		];
 	}
 
@@ -230,6 +238,8 @@ class ConfigServiceTest extends TestCase {
 			'reminder lead' => ['getReminderLeadDays', 'getValueInt', 1000, 365],
 			'notice period' => ['getNoticePeriodDays', 'getValueInt', 366, 365],
 			'people off at once' => ['getMaxConcurrentAbsences', 'getValueInt', 1000000, 9999],
+			'leave retention' => ['getLeaveRetentionYears', 'getValueInt', 100, 30],
+			'former employee retention' => ['getFormerEmployeeRetentionYears', 'getValueInt', PHP_INT_MAX, 30],
 		];
 	}
 
@@ -237,5 +247,19 @@ class ConfigServiceTest extends TestCase {
 	public function testStoredValueAboveTheMaximumIsReadAsTheMaximum(string $getter, string $read, int|float $stored, int|float $expected): void {
 		$this->appConfig->method($read)->willReturn($stored);
 		self::assertSame($expected, $this->service->$getter());
+	}
+
+	public static function retentionGetters(): array {
+		return [
+			'leave' => ['getLeaveRetentionYears'],
+			'former employees' => ['getFormerEmployeeRetentionYears'],
+		];
+	}
+
+	/** A negative period would put the cutoff in the future and delete current leave */
+	#[\PHPUnit\Framework\Attributes\DataProvider('retentionGetters')]
+	public function testANegativeStoredRetentionIsReadAsNever(string $getter): void {
+		$this->appConfig->method('getValueInt')->willReturn(-2);
+		self::assertSame(0, $this->service->$getter());
 	}
 }

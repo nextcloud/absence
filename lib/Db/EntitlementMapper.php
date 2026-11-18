@@ -72,6 +72,13 @@ class EntitlementMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
+	public function deleteForEmployee(string $employeeUid): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete($this->getTableName())
+			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($employeeUid)))
+			->executeStatement();
+	}
+
 	/**
 	 * The first year anybody has an entitlement for, null without any.
 	 */

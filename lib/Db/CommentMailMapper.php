@@ -56,6 +56,18 @@ class CommentMailMapper extends QBMapper {
 	}
 
 	/**
+	 * @param list<int> $requestIds
+	 */
+	public function deleteForRequests(array $requestIds): void {
+		foreach (array_chunk($requestIds, 1000) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete($this->getTableName())
+				->where($qb->expr()->in('request_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeStatement();
+		}
+	}
+
+	/**
 	 * @param list<int> $ids
 	 */
 	public function deleteIds(array $ids): void {
