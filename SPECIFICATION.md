@@ -2252,3 +2252,6 @@ Recorded during the build so the spec matches the code:
 - **Region changes in the audit log** (§6.5, §11): the admin audit log entry for a
   region code change named the codes before and after. It names the person and who
   changed it, like every other entry; the codes stay in the person's history.
+- **Approvals remembered in the browser** (§15.2): *My leave* keeps in localStorage
+  which of the person's approvals it has celebrated. It kept every approved request;
+  it keeps those not over yet now, so the browser holds no list of past approvals.

@@ -108,6 +108,7 @@ import YearInReview from '../components/YearInReview.vue'
 import { useLeaveTypesStore } from '../stores/leaveTypes.ts'
 import { useRequestsStore } from '../stores/requests.ts'
 import { useSessionStore } from '../stores/session.ts'
+import { celebratedIds } from '../utils/celebrations.ts'
 import { addWorkingDaysByMonth, formatCountdown, formatRange, toIso } from '../utils/dates.ts'
 import { openNewKey } from '../utils/injectionKeys.ts'
 import { locale } from '../utils/locale.ts'
@@ -299,10 +300,11 @@ function celebrateNewApprovals(): void {
 	} catch {
 		return // no storage (private mode, etc.) — skip quietly.
 	}
-	const approvedIds = requestsStore.requests.filter((r) => r.status === 'APPROVED').map((r) => r.id)
+	const today = toIso(new Date())
+	const remembered = celebratedIds(requestsStore.requests, today)
 	const persist = () => {
 		try {
-			window.localStorage.setItem(key, JSON.stringify(approvedIds))
+			window.localStorage.setItem(key, JSON.stringify(remembered))
 		} catch { /* ignore */ }
 	}
 	// First run on this browser: adopt the existing approvals silently so the
@@ -322,7 +324,6 @@ function celebrateNewApprovals(): void {
 		persist()
 		return
 	}
-	const today = toIso(new Date())
 	const fresh = requestsStore.requests.filter((r) => {
 		if (r.status !== 'APPROVED' || seen.has(r.id) || r.endDate < today) {
 			return false
