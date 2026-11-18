@@ -21,6 +21,7 @@ use OCA\Absence\Tests\Unit\L10nMockTrait;
 use OCP\IGroupManager;
 use OCP\IUser;
 use OCP\IUserManager;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -262,5 +263,70 @@ class CoverageServiceTest extends TestCase {
 		$result = $this->service->getCoverage(['colleague'], '2026-01-01', '2026-01-31', null, 'hr');
 
 		self::assertSame(3, $result['events'][0]['typeId']);
+	}
+
+	/**
+	 * Bob's leave status, whether the caller is HR, whether Bob is their peer,
+	 * whether the team calendar is on and the app set up, and the answer.
+	 *
+	 * @return array<string, array{string, bool, bool, bool, bool, ?bool}>
+	 */
+	public static function awayCases(): array {
+		return [
+			'HR, leave asked for' => [LeaveRequest::STATUS_PENDING, true, false, false, true, true],
+			'a teammate, leave asked for' => [LeaveRequest::STATUS_ESCALATED, false, true, false, true, true],
+			'anybody else, shared calendar, approved' => [LeaveRequest::STATUS_APPROVED, false, false, true, true, true],
+			'anybody else, shared calendar, withdrawal pending' => [LeaveRequest::STATUS_WITHDRAWAL_PENDING, false, false, true, true, true],
+			'anybody else, shared calendar, leave asked for' => [LeaveRequest::STATUS_PENDING, false, false, true, true, false],
+			'anybody else, shared calendar, escalated' => [LeaveRequest::STATUS_ESCALATED, false, false, true, true, false],
+			'anybody else, team calendar off' => [LeaveRequest::STATUS_APPROVED, false, false, false, true, null],
+			'anybody else, app not set up' => [LeaveRequest::STATUS_APPROVED, false, false, true, false, null],
+		];
+	}
+
+	#[DataProvider('awayCases')]
+	public function testAwayCountsOnlyWhatTheCallerSeesElsewhere(string $status, bool $hr, bool $peer, bool $shared, bool $configured, ?bool $expected): void {
+		$this->givenEmployees();
+		$this->permission->method('isHr')->willReturn($hr);
+		$this->managerResolver->method('getPeers')->with('alice')->willReturn($peer ? ['bob'] : []);
+		$this->config->method('isCalDavSharedEnabled')->willReturn($shared);
+		$this->config->method('isConfigured')->willReturn($configured);
+		$bob = $this->leave(1, 'bob', '2027-03-08', '2027-03-10');
+		$bob->setStatus($status);
+		$this->requestMapper->method('findForEmployeesInRange')->willReturnCallback(
+			static fn (array $uids, string $from, string $to, array $statuses): array => in_array($bob->getStatus(), $statuses, true) ? [$bob] : [],
+		);
+
+		self::assertSame($expected, $this->service->isAway('alice', 'bob', '2027-03-08', '2027-03-12'));
+	}
+
+	public function testNobodyIsToldWhetherSomebodyIsAnEmployee(): void {
+		$this->givenEmployees();
+		$this->permission->method('isHr')->willReturn(true);
+		$this->requestMapper->expects(self::never())->method('findForEmployeesInRange');
+
+		self::assertNull($this->service->isAway('hr', 'nobody', '2027-03-08', '2027-03-12'));
+	}
+
+	public function testABadRangeIsRefusedAlikeForEmployeesAndOthers(): void {
+		$this->givenEmployees();
+		$messages = [];
+		foreach (['bob', 'nobody'] as $uid) {
+			try {
+				$this->service->isAway('alice', $uid, '2027-01-01', '2028-01-03');
+			} catch (ValidationException $e) {
+				$messages[$uid] = $e->getMessage();
+			}
+		}
+
+		self::assertSame(['bob' => 'The selected date range is too large.', 'nobody' => 'The selected date range is too large.'], $messages);
+	}
+
+	/**
+	 * Every caller is an employee, and every uid but "nobody" is one.
+	 */
+	private function givenEmployees(): void {
+		$this->permission->method('isEmployeeOrHr')->willReturn(true);
+		$this->userManager->method('get')->willReturnCallback(fn (string $uid): ?IUser => $uid === 'nobody' ? null : $this->createMock(IUser::class));
 	}
 }
