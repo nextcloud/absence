@@ -1584,6 +1584,19 @@ class RequestServiceTest extends TestCase {
 		self::assertSame(LeaveRequest::STATUS_CANCELLED, $this->service->cancel('hr', 5)->getStatus());
 	}
 
+	public function testACancellationIsShownToTheCurrentManagerNotTheOneAskedAtTheTime(): void {
+		$request = $this->pendingOwnRequest();
+		$request->setManagerUid('former-boss');
+		$this->decidable($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->managerResolver->method('getManagerUid')->with('emp')->willReturn('boss');
+
+		$this->activity->expects(self::once())->method('publish')
+			->with(ActivityPublisher::SUBJECT_CANCELLED, self::anything(), ['emp', 'boss'], self::anything());
+
+		$this->service->cancel('emp', 5);
+	}
+
 	public function testAnHrEditOfARequestCancelledInTheMeantimeIsAConflict(): void {
 		$request = $this->pendingOwnRequest();
 		$this->decidable($request);
