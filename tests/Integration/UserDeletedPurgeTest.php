@@ -70,6 +70,7 @@ class UserDeletedPurgeTest extends TestCase {
 		$this->insert('absence_holiday_history', ['action' => self::HISTORY_ACTION, 'actor_uid' => self::GONE, 'detail' => '{"region":"' . self::REGION . '"}', 'created_at' => '2026-03-01 09:00:00']);
 		$this->insert('absence_emp_history', ['employee_uid' => self::OTHER, 'actor_uid' => self::GONE, 'field' => 'contract', 'detail' => '{}', 'created_at' => '2026-03-01 09:00:00']);
 		// What they did on the other employee's request and entitlement
+		$this->insert('absence_comments', ['request_id' => $this->decided->getId(), 'author_uid' => self::GONE, 'body' => 'itest', 'created_at' => '2026-03-01 09:00:00']);
 		$this->insert('absence_request_events', ['request_id' => $this->decided->getId(), 'actor_uid' => self::GONE, 'event_type' => 'request_approved', 'created_at' => '2026-03-01 09:00:00']);
 		$this->insert('absence_request_events', ['request_id' => $this->decided->getId(), 'actor_uid' => RequestEvent::ACTOR_SYSTEM, 'event_type' => 'request_escalated', 'created_at' => '2026-03-01 09:00:00']);
 		$this->insert('absence_ent_events', ['entitlement_id' => self::ENTITLEMENT, 'employee_uid' => self::OTHER, 'actor_uid' => self::GONE, 'field' => 'base_days', 'old_value' => 20, 'new_value' => 25, 'created_at' => '2026-03-01 09:00:00']);
@@ -83,7 +84,7 @@ class UserDeletedPurgeTest extends TestCase {
 		}
 		// What the listener keeps, and what a failed purge leaves behind
 		$this->deleteWhere('absence_requests', 'id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
-		$this->deleteWhere('absence_comments', 'request_id', [$this->own->getId()], IQueryBuilder::PARAM_INT_ARRAY);
+		$this->deleteWhere('absence_comments', 'request_id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_request_events', 'request_id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_attachments', 'request_id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_ent_events', 'entitlement_id', [self::ENTITLEMENT], IQueryBuilder::PARAM_INT_ARRAY);
@@ -105,6 +106,17 @@ class UserDeletedPurgeTest extends TestCase {
 		self::assertSame([null], $this->column('absence_ent_events', 'actor_uid', 'entitlement_id', self::ENTITLEMENT));
 		self::assertSame([null], $this->column('absence_attachments', 'uploader_uid', 'request_id', $this->decided->getId()));
 		self::assertEqualsCanonicalizing([null, RequestEvent::ACTOR_SYSTEM], $this->column('absence_request_events', 'actor_uid', 'request_id', $this->decided->getId()));
+	}
+
+	public function testTheCommentNotificationsQuotingThemAreTakenBack(): void {
+		Server::get(IUserManager::class)->get(self::GONE)->delete();
+
+		$taken = array_map(
+			static fn (INotification $n): array => [$n->getApp(), $n->getUser(), $n->getObjectType(), $n->getObjectId(), $n->getSubject()],
+			RecordingNotifications::$processed,
+		);
+		self::assertContains(['absence', '', 'absence_request', (string)$this->decided->getId(), NotificationService::SUBJECT_COMMENT], $taken);
+		self::assertSame([], $this->column('absence_comments', 'author_uid', 'request_id', $this->decided->getId()));
 	}
 
 	public function testPurgingAnAccountWithTheJobsUidKeepsTheJobsEntries(): void {
@@ -150,11 +162,11 @@ class UserDeletedPurgeTest extends TestCase {
 		Server::get(IUserManager::class)->get(self::GONE)->delete();
 
 		$taken = array_map(
-			static fn (INotification $n): array => [$n->getApp(), $n->getUser(), $n->getObjectType(), $n->getObjectId()],
+			static fn (INotification $n): array => [$n->getApp(), $n->getUser(), $n->getObjectType(), $n->getObjectId(), $n->getSubject()],
 			RecordingNotifications::$processed,
 		);
-		self::assertContains(['absence', '', 'absence_request', (string)$this->own->getId()], $taken);
-		self::assertNotContains(['absence', '', 'absence_request', (string)$this->decided->getId()], $taken);
+		self::assertContains(['absence', '', 'absence_request', (string)$this->own->getId(), ''], $taken);
+		self::assertNotContains(['absence', '', 'absence_request', (string)$this->decided->getId(), ''], $taken);
 	}
 
 	public function testThePurgeGoesToTheAuditLogOnceItIsDone(): void {

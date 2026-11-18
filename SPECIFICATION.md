@@ -2076,10 +2076,11 @@ under `prefers-reduced-motion: reduce`.
 - Input validation and rate-limiting on create/edit endpoints
   (`#[UserRateLimit]` where appropriate).
 - GDPR: a `OCP\User\Events\UserDeletedEvent` listener purges a deleted user's leave
-  data, takes back the notifications about their requests, and nulls them where they
-  acted on other people's records; names are then shown as *Deleted account*. A purge
-  that fails is kept in `absence_purge_retry` and run again daily until it goes
-  through, unless an account has that uid again.
+  data, takes back the notifications about their requests and the comment
+  notifications that quote them, and nulls them where they acted on other people's
+  records; names are then shown as *Deleted account*. A purge that fails is kept in
+  `absence_purge_retry` and run again daily until it goes through, unless an account
+  has that uid again.
 - Personal data export: a user migrator (`OCP\UserMigration\IMigrator`, id `absence`)
   adds the person's own Absence data to the export of the *User migration* app
   (`occ user:export`, or *Data migration* in the personal settings), as JSON under
@@ -2458,3 +2459,6 @@ Recorded during the build so the spec matches the code:
   contract and holiday histories cannot, so a null actor there keeps its label (*An
   administrator*, *Import*). The jobs' actor `system` is never looked up as an
   account, and purging an account with that uid leaves the jobs' history rows alone.
+  Comment notifications are taken back per request: the notifications app matches app,
+  user, object and subject, not who wrote the comment, so the other comment
+  notifications on those requests go too.

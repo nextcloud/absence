@@ -59,6 +59,10 @@ class UserPurgeService {
 		foreach ($this->requestMapper->findAllForEmployee($uid) as $request) {
 			$this->notifications->dismiss($request);
 		}
+		// The comment notifications on other people's requests quote what the user wrote.
+		foreach ($this->commentedRequestIds($uid) as $requestId) {
+			$this->notifications->dismissComments($requestId);
+		}
 
 		// Attachments carry the most sensitive payload of all (§3.8). Files cannot be
 		// rolled back, so they go first and outside the transaction: one that cannot
@@ -166,6 +170,20 @@ class UserPurgeService {
 			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)));
 		$result = $qb->executeQuery();
 		$ids = array_map('intval', $result->fetchAll(\PDO::FETCH_COLUMN));
+		$result->closeCursor();
+		return $ids;
+	}
+
+	/**
+	 * @return list<int>
+	 */
+	private function commentedRequestIds(string $uid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('request_id')
+			->from('absence_comments')
+			->where($qb->expr()->eq('author_uid', $qb->createNamedParameter($uid)));
+		$result = $qb->executeQuery();
+		$ids = array_map(intval(...), $result->fetchFirstColumn());
 		$result->closeCursor();
 		return $ids;
 	}

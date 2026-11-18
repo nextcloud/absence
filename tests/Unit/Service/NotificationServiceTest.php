@@ -228,6 +228,31 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame([['Can you move this a day later?', 'Deleted account wrote:']], $this->emailNotes);
 	}
 
+	public function testTheCommentNotificationsOfARequestAreTakenBackFromEveryone(): void {
+		$notification = $this->createMock(INotification::class);
+		$notification->expects(self::once())->method('setApp')->with('absence')->willReturnSelf();
+		$notification->expects(self::once())->method('setObject')->with('absence_request', '7')->willReturnSelf();
+		$notification->expects(self::once())->method('setSubject')->with(NotificationService::SUBJECT_COMMENT)->willReturnSelf();
+		$notification->expects(self::never())->method('setUser');
+		$manager = $this->createMock(INotificationManager::class);
+		$manager->method('createNotification')->willReturn($notification);
+		$manager->expects(self::once())->method('markProcessed')->with($notification);
+		$service = new NotificationService(
+			$manager,
+			$this->mailer,
+			$this->userManager,
+			$this->createMock(IURLGenerator::class),
+			$this->createMock(IFactory::class),
+			$this->notice,
+			$this->createMock(LoggerInterface::class),
+			$this->createMock(CommentMailMapper::class),
+			$this->createMock(PermissionService::class),
+			$this->createMock(ConfigService::class),
+		);
+
+		$service->dismissComments(7);
+	}
+
 	public function testTheCommentMailQuotesEveryCommentWithItsAuthor(): void {
 		$this->withUsers('emp', 'boss', 'hr');
 

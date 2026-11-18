@@ -507,6 +507,23 @@ class NotificationService {
 		}
 	}
 
+	/**
+	 * Takes back the comment notifications on a request. The notifications app
+	 * picks them by request and subject, not by who wrote the comment, so this
+	 * covers every comment on it; the comments themselves stay on the request.
+	 */
+	public function dismissComments(int $requestId): void {
+		try {
+			$notification = $this->notificationManager->createNotification();
+			$notification->setApp(ConfigService::APP_ID)
+				->setObject('absence_request', (string)$requestId)
+				->setSubject(self::SUBJECT_COMMENT);
+			$this->notificationManager->markProcessed($notification);
+		} catch (\Throwable $e) {
+			$this->logger->debug('Absence: could not dismiss notifications', ['exception' => $e]);
+		}
+	}
+
 	public function dismiss(LeaveRequest $request): void {
 		try {
 			$notification = $this->notificationManager->createNotification();
