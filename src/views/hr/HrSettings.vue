@@ -483,7 +483,7 @@ const retentionFields: RetentionField[] = [
 	{
 		key: 'former_employee_retention_years',
 		label: t('absence', 'Delete former employees after (years)'),
-		hint: t('absence', 'Counted from the contract end date. All their leave, days and contract data go. People without an end date are never deleted.'),
+		hint: t('absence', 'Counted from the contract end date. All their leave, days and contract history go, only the contract dates stay. People without an end date are never deleted.'),
 	},
 ]
 

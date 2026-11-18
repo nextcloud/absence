@@ -34,7 +34,9 @@ class RetentionTest extends TestCase {
 	private const OWN = 'itest-retention-own';
 	private const LEFT = 'itest-retention-left';
 	private const STAYED = 'itest-retention-stayed';
-	private const UIDS = [self::OWN, self::LEFT, self::STAYED];
+	/** Left long ago, and only the contract dates are left of them */
+	private const DATES_ONLY = 'itest-retention-dates-only';
+	private const UIDS = [self::OWN, self::LEFT, self::STAYED, self::DATES_ONLY];
 
 	private IDBConnection $db;
 	/** @var array{0: int, 1: int} */
@@ -55,7 +57,7 @@ class RetentionTest extends TestCase {
 		$appConfig->setValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION, ConfigService::MAX_RETENTION_YEARS);
 
 		$this->cutoff = (string)Server::get(RetentionService::class)->leaveCutoff();
-		$dayBefore = (new \DateTimeImmutable($this->cutoff))->modify('-1 day')->format('Y-m-d');
+		$dayBefore = $this->dayBefore();
 
 		$this->old = $this->request(self::OWN, $dayBefore);
 		$this->kept = $this->request(self::OWN, $this->cutoff);
@@ -69,6 +71,7 @@ class RetentionTest extends TestCase {
 
 		$this->insert('absence_employments', ['employee_uid' => self::LEFT, 'start_date' => '1990-01-01', 'end_date' => $dayBefore]);
 		$this->insert('absence_employments', ['employee_uid' => self::STAYED, 'start_date' => '1990-01-01', 'end_date' => $this->cutoff]);
+		$this->insert('absence_employments', ['employee_uid' => self::DATES_ONLY, 'start_date' => '1980-01-01', 'end_date' => '1985-12-31']);
 		foreach ([self::LEFT, self::STAYED] as $uid) {
 			$entitlement = $this->insert('absence_entitlements', ['employee_uid' => $uid, 'year' => 1995, 'type_id' => 1, 'base_days' => 28, 'created_at' => '1995-01-01 00:00:00', 'updated_at' => '1995-01-01 00:00:00']);
 			$this->insert('absence_ent_events', ['entitlement_id' => $entitlement, 'employee_uid' => $uid, 'actor_uid' => 'system', 'field' => 'base_days', 'created_at' => '1995-01-01 00:00:00']);
@@ -108,7 +111,7 @@ class RetentionTest extends TestCase {
 		self::assertStringContainsString('1 entitlements', $output);
 		self::assertStringContainsString('1 former employees', $output);
 		self::assertSame(3, $this->rows('absence_requests', 'employee_uid', self::UIDS));
-		self::assertSame(2, $this->rows('absence_employments', 'employee_uid', self::UIDS));
+		self::assertSame(3, $this->rows('absence_employments', 'employee_uid', self::UIDS));
 		self::assertSame(1, $this->rows('absence_attachments', 'request_id', [$this->old]));
 		self::assertTrue($this->attachments()->fileExists((string)$this->attachment));
 	}
@@ -124,7 +127,7 @@ class RetentionTest extends TestCase {
 		self::assertFalse($this->attachments()->fileExists((string)$this->attachment));
 	}
 
-	public function testAFormerEmployeeGoesAfterTheirContractEndAndNobodyElse(): void {
+	public function testAFormerEmployeeKeepsOnlyTheirContractDatesAndNobodyElseIsTouched(): void {
 		$messages = new \ArrayObject();
 		Server::get(IEventDispatcher::class)->addListener(CriticalActionPerformedEvent::class, static function (CriticalActionPerformedEvent $event) use ($messages): void {
 			$messages->append(vsprintf($event->getLogMessage(), $event->getParameters()));
@@ -132,11 +135,39 @@ class RetentionTest extends TestCase {
 
 		Server::get(RetentionService::class)->apply();
 
-		foreach (['absence_employments', 'absence_entitlements', 'absence_ent_events', 'absence_periods', 'absence_emp_history'] as $table) {
+		foreach (['absence_entitlements', 'absence_ent_events', 'absence_periods', 'absence_emp_history'] as $table) {
 			self::assertSame([self::STAYED], $this->column($table, 'employee_uid', 'employee_uid', [self::LEFT, self::STAYED]), $table);
 		}
 		self::assertSame(0, $this->rows('absence_requests', 'employee_uid', [self::LEFT]));
+		// Without the dates, someone still in the employees group would be a current employee again
+		self::assertSame(['1990-01-01', $this->dayBefore()], $this->dates(self::LEFT));
+		self::assertSame(['1990-01-01', $this->cutoff], $this->dates(self::STAYED));
+		self::assertSame(['1980-01-01', '1985-12-31'], $this->dates(self::DATES_ONLY));
 		self::assertContains('Absence retention deleted 2 requests, 1 attachments, 1 entitlements and the data of 1 former employees', $messages->getArrayCopy());
+	}
+
+	public function testSomeoneWithOnlyTheirContractDatesLeftIsNotCountedAgain(): void {
+		$retention = Server::get(RetentionService::class);
+		$retention->apply();
+
+		$none = ['requests' => 0, 'attachments' => 0, 'entitlements' => 0, 'people' => 0];
+		self::assertSame($none, $retention->apply(true));
+		self::assertSame($none, $retention->apply());
+		self::assertSame(3, $this->rows('absence_employments', 'employee_uid', self::UIDS));
+	}
+
+	private function dayBefore(): string {
+		return (new \DateTimeImmutable($this->cutoff))->modify('-1 day')->format('Y-m-d');
+	}
+
+	/**
+	 * @return list<mixed> start and end date
+	 */
+	private function dates(string $uid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('start_date', 'end_date')->from('absence_employments')
+			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)));
+		return array_values((array)$qb->executeQuery()->fetch());
 	}
 
 	private function request(string $uid, string $end): int {

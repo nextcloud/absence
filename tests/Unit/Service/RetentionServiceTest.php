@@ -11,6 +11,8 @@ namespace OCA\Absence\Tests\Unit\Service;
 use OCA\Absence\Db\Attachment;
 use OCA\Absence\Db\AttachmentMapper;
 use OCA\Absence\Db\CommentMailMapper;
+use OCA\Absence\Db\ContractPeriodMapper;
+use OCA\Absence\Db\EmployeeChangeMapper;
 use OCA\Absence\Db\Employment;
 use OCA\Absence\Db\EmploymentMapper;
 use OCA\Absence\Db\Entitlement;
@@ -23,7 +25,6 @@ use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
-use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\RetentionService;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -47,7 +48,8 @@ class RetentionServiceTest extends TestCase {
 	private EntitlementMapper&MockObject $entitlementMapper;
 	private EntitlementEventMapper&MockObject $entitlementEventMapper;
 	private EmploymentMapper&MockObject $employmentMapper;
-	private EmployeeService&MockObject $employees;
+	private ContractPeriodMapper&MockObject $periodMapper;
+	private EmployeeChangeMapper&MockObject $employeeChangeMapper;
 	private IEventDispatcher&MockObject $dispatcher;
 	private RetentionService $service;
 	private string $today = '2026-11-18';
@@ -67,7 +69,8 @@ class RetentionServiceTest extends TestCase {
 		$this->entitlementMapper = $this->createMock(EntitlementMapper::class);
 		$this->entitlementEventMapper = $this->createMock(EntitlementEventMapper::class);
 		$this->employmentMapper = $this->createMock(EmploymentMapper::class);
-		$this->employees = $this->createMock(EmployeeService::class);
+		$this->periodMapper = $this->createMock(ContractPeriodMapper::class);
+		$this->employeeChangeMapper = $this->createMock(EmployeeChangeMapper::class);
 		$this->dispatcher = $this->createMock(IEventDispatcher::class);
 		$this->service = new RetentionService(
 			$this->config,
@@ -82,7 +85,8 @@ class RetentionServiceTest extends TestCase {
 			$this->entitlementMapper,
 			$this->entitlementEventMapper,
 			$this->employmentMapper,
-			$this->employees,
+			$this->periodMapper,
+			$this->employeeChangeMapper,
 			$this->createMock(IDBConnection::class),
 			$this->dispatcher,
 			$this->createMock(LoggerInterface::class),
@@ -195,7 +199,7 @@ class RetentionServiceTest extends TestCase {
 
 	public function testADryRunCountsAndDeletesNothing(): void {
 		$this->retention(2, 5);
-		$this->employmentMapper->method('findEndedBefore')->with('2021-11-18', 0, RetentionService::BATCH_SIZE)
+		$this->employmentMapper->method('findEndedBeforeWithData')->with('2021-11-18', 0, RetentionService::BATCH_SIZE)
 			->willReturn([$this->employment(3, 'carol')]);
 		$this->requestMapper->method('findAllForEmployee')->with('carol')->willReturn([$this->request(7, 'carol')]);
 		$this->entitlementMapper->method('findForEmployee')->with('carol')->willReturn([new Entitlement(), new Entitlement()]);
@@ -212,31 +216,35 @@ class RetentionServiceTest extends TestCase {
 		$this->notifications->expects(self::never())->method($this->anything());
 		$this->entitlementMapper->expects(self::never())->method('deleteForEmployee');
 		$this->entitlementEventMapper->expects(self::never())->method($this->anything());
-		$this->employees->expects(self::never())->method($this->anything());
+		$this->periodMapper->expects(self::never())->method($this->anything());
+		$this->employeeChangeMapper->expects(self::never())->method($this->anything());
 		$this->dispatcher->expects(self::never())->method('dispatchTyped');
 
 		// Carol's request 7 is old leave too, and counted once
 		self::assertSame(['requests' => 2, 'attachments' => 2, 'entitlements' => 2, 'people' => 1], $this->service->apply(true));
 	}
 
-	public function testAFormerEmployeeLosesAllTheirData(): void {
+	public function testAFormerEmployeeLosesEverythingButTheirContractDates(): void {
 		$this->retention(0, 5);
 		$this->requestMapper->expects(self::never())->method('findEndedBefore');
-		$this->employmentMapper->method('findEndedBefore')->willReturn([$this->employment(3, 'carol')]);
+		$this->employmentMapper->method('findEndedBeforeWithData')->willReturn([$this->employment(3, 'carol')]);
 		$this->requestMapper->method('findAllForEmployee')->with('carol')->willReturn([$this->request(7, 'carol'), $this->request(12, 'carol')]);
 		$this->entitlementMapper->method('findForEmployee')->with('carol')->willReturn([new Entitlement()]);
 		$this->attachments->expects(self::once())->method('purgeForRequests')->with([7, 12]);
 		$this->requestMapper->expects(self::once())->method('deleteByIds')->with([7, 12]);
 		$this->entitlementMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
 		$this->entitlementEventMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
-		$this->employees->expects(self::once())->method('purge')->with('carol');
+		$this->periodMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
+		$this->employeeChangeMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
+		// The employment keeps carol out of balances and the year rollover
+		$this->employmentMapper->expects(self::never())->method('delete');
 
 		self::assertSame(['requests' => 2, 'attachments' => 0, 'entitlements' => 1, 'people' => 1], $this->service->apply());
 	}
 
 	public function testNothingToDeleteWritesNoAuditEntry(): void {
 		$this->retention(3, 3);
-		$this->employmentMapper->method('findEndedBefore')->willReturn([]);
+		$this->employmentMapper->method('findEndedBeforeWithData')->willReturn([]);
 		$this->requestMapper->method('findEndedBefore')->willReturn([]);
 		$this->dispatcher->expects(self::never())->method('dispatchTyped');
 

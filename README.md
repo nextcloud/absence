@@ -292,7 +292,7 @@ group, so on a fresh install an admin picks it first.
 | Quote text in emails | on | Off: emails say what happened and link to the request; notifications keep a short preview |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |
 | Delete leave after | 0 (never) | Full years after a leave's last day; its comments, history and attachments go with it |
-| Delete former employees after | 0 (never) | Full years after the contract end date; all their Absence data goes. Nobody without an end date |
+| Delete former employees after | 0 (never) | Full years after the contract end date; all their Absence data goes but the contract start and end dates. Nobody without an end date |
 
 **Who can change a manager.** The manager is the account's `manager` property, and
 Nextcloud lets admins, delegated admins and the subadmins of any group the person is
@@ -309,9 +309,8 @@ year) and retention (daily, doing nothing while both periods are 0).
 
 `occ absence:retention --dry-run` counts what the retention periods would delete
 right now; without `--dry-run` it deletes all of it at once instead of a few
-thousand records a day. Deleting is permanent. Someone whose data was deleted as a
-former employee has no end date any more, so take people who left out of the
-employees group, or they come back as employees without contract data.
+thousand records a day. Deleting is permanent. A former employee keeps only their
+contract start and end dates, so they don't count as a current employee again.
 
 **Attachments are encrypted at rest.** Server-side encryption never covers app data,
 where the app keeps attachments, so the app encrypts each file itself with Nextcloud's
@@ -383,9 +382,9 @@ Built for a European works council to be comfortable with:
 - **Retention is yours to set.** Out of the box nothing is deleted while an account
   exists, also not for people who left but whose account is only disabled. Two
   settings delete leave N full years after it ended, with its comments, history and
-  doctor's notes, and everything about a former employee N years after their
-  contract end date. Agree on the periods with HR and your works council; until then
-  the records stay.
+  doctor's notes, and everything about a former employee but their contract dates N
+  years after their contract end date. Agree on the periods with HR and your works
+  council; until then the records stay.
 - **Rate limiting and input validation** on every create/edit endpoint.
 - **No surprise presence signals.** The app deliberately does not touch the built-in
   out-of-office auto-responder or user status. The busy time of a person's own

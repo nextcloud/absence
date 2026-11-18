@@ -1213,8 +1213,12 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
      and notifications go with it.
    - **A former employee** goes once the set number of full years have passed since
      the contract end date (§6.4): all their requests as above, their entitlements and
-     the entitlement history, the employment, the contract periods and the employee
-     history. Nobody without an end date is a former employee.
+     the entitlement history, the contract periods and the employee history. The
+     employment row stays with its start and end dates: without them someone still in
+     the employees group would count as a current employee again, and the year
+     rollover would give them the default days. Nobody without an end date is a former
+     employee, and one with nothing but that row left is neither counted nor touched
+     again.
    - On 29 February, the same day N years back is 28 February when that year has
      no 29th.
    - It works in batches of 100 requests or people, at most 50 batches of each rule
@@ -1423,7 +1427,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
 | Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
 | Retention | Delete leave after (years) | 0 (never) | Full years after a request's last day; its comments, history and attachments go with it (§9). Deleting is permanent, and the page says so. |
-| Retention | Delete former employees after (years) | 0 (never) | Full years after the contract end date; all their Absence data goes (§9). Never anyone without an end date. |
+| Retention | Delete former employees after (years) | 0 (never) | Full years after the contract end date; all their Absence data goes but the contract start and end dates (§9). Never anyone without an end date. |
 | Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
 
 **Changing the employees group** asks for confirmation first. The dialog shows, from
@@ -2078,8 +2082,8 @@ under `prefers-reduced-motion: reduce`.
   nothing: leave records belong to the employer's instance, so it only says so and
   never fails the migration.
 - Storage limitation: two retention settings (§12) delete leave a set number of
-  years after it ended, and everything about a former employee a set number of years
-  after their contract end date (§9). Both are 0 by default: until someone chooses a
+  years after it ended, and everything about a former employee but their contract
+  dates a set number of years after their contract end date (§9). Both are 0 by default: until someone chooses a
   period, records stay until the account is deleted. The periods are a decision for
   HR and the works council, not a default the app can pick. Deleting is permanent:
   backups aside, nothing brings the records back, and past balances, reports and
@@ -2423,7 +2427,7 @@ Recorded during the build so the spec matches the code:
   leave and former employees, from a daily job in batches and from
   `occ absence:retention [--dry-run]`. The year rollover already gave nobody an
   entitlement for a year after their contract end date (§6.2), so it is unchanged.
-  Deleting a former employee deletes their end date too: an account that is still in
-  the employees group then counts as an employee without contract data again, and
-  the rollover gives it the default days. Take people who left out of the employees
-  group.
+  A former employee keeps their employment row with its start and end dates, the
+  least that keeps an account still in the employees group from counting as a
+  current employee again and getting the default days from the rollover. Once only
+  that row is left, later runs and dry runs skip the person.

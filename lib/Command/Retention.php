@@ -47,7 +47,7 @@ class Retention extends Command {
 			: sprintf('Leave: what ended before %s goes.', $leaveCutoff));
 		$output->writeln($formerCutoff === null
 			? 'Former employees: kept forever.'
-			: sprintf('Former employees: everything of those whose contract ended before %s goes.', $formerCutoff));
+			: sprintf('Former employees: everything but the contract dates of those whose contract ended before %s goes.', $formerCutoff));
 
 		$dryRun = (bool)$input->getOption('dry-run');
 		$counts = $this->retention->apply($dryRun);

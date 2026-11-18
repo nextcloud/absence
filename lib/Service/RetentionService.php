@@ -10,6 +10,8 @@ namespace OCA\Absence\Service;
 
 use OCA\Absence\Db\AttachmentMapper;
 use OCA\Absence\Db\CommentMailMapper;
+use OCA\Absence\Db\ContractPeriodMapper;
+use OCA\Absence\Db\EmployeeChangeMapper;
 use OCA\Absence\Db\EmploymentMapper;
 use OCA\Absence\Db\EntitlementEventMapper;
 use OCA\Absence\Db\EntitlementMapper;
@@ -30,7 +32,10 @@ use Psr\Log\LoggerInterface;
  *  - leave once a set number of full years have passed since its last day, with
  *    its comments, history, attachments, queued comment mails and notifications;
  *  - all the data of a former employee once a set number of full years have
- *    passed since their contract end date. Nobody without an end date is one.
+ *    passed since their contract end date, but the employment with its start
+ *    and end dates: they keep the person out of balances and the year rollover.
+ *    Nobody without an end date is a former employee, and one with nothing but
+ *    the employment left is not counted or touched again.
  *
  * A setting of 0 keeps the records forever, and both are 0 by default.
  *
@@ -57,7 +62,8 @@ class RetentionService {
 		private EntitlementMapper $entitlementMapper,
 		private EntitlementEventMapper $entitlementEventMapper,
 		private EmploymentMapper $employmentMapper,
-		private EmployeeService $employees,
+		private ContractPeriodMapper $periodMapper,
+		private EmployeeChangeMapper $employeeChangeMapper,
 		private IDBConnection $db,
 		private IEventDispatcher $dispatcher,
 		private LoggerInterface $logger,
@@ -93,7 +99,7 @@ class RetentionService {
 
 		$formerCutoff = $this->formerEmployeeCutoff();
 		if ($formerCutoff !== null) {
-			$employments = fn (int $afterId): array => $this->employmentMapper->findEndedBefore($formerCutoff, $afterId, self::BATCH_SIZE);
+			$employments = fn (int $afterId): array => $this->employmentMapper->findEndedBeforeWithData($formerCutoff, $afterId, self::BATCH_SIZE);
 			foreach ($this->batches($employments, $maxBatches) as $batch) {
 				foreach ($batch as $employment) {
 					$former[$employment->getEmployeeUid()] = true;
@@ -198,7 +204,8 @@ class RetentionService {
 			$this->atomic(function () use ($uid): void {
 				$this->entitlementMapper->deleteForEmployee($uid);
 				$this->entitlementEventMapper->deleteForEmployee($uid);
-				$this->employees->purge($uid);
+				$this->periodMapper->deleteForEmployee($uid);
+				$this->employeeChangeMapper->deleteForEmployee($uid);
 			}, $this->db);
 		}
 		return $counts;

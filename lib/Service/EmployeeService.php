@@ -85,9 +85,9 @@ class EmployeeService {
 	}
 
 	/**
-	 * Removes someone's contract data and its history when their account goes or
-	 * their retention period ends, and their uid from the manager changes of other
-	 * people: those keep null in its place.
+	 * Removes someone's contract data and its history when their account goes,
+	 * and their uid from the manager changes of other people: those keep null
+	 * in its place.
 	 */
 	public function purge(string $uid): void {
 		unset($this->contracts[$uid]);
