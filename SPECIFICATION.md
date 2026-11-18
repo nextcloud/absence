@@ -946,9 +946,10 @@ current data of every employee, *Download* saves the same text, and
   employee each field that changes, now and after, plus how many stay the same. *Apply*
   writes the whole list in one transaction, or nothing while one entry is wrong
   ("Nothing was saved. Fix these N entries and review again.").
-- Every change goes through `EmployeeService`: the person's history and the admin
-  audit log record it with the HR member who applied it, region codes included (the
-  person's own changes, §7.2, keep going to the history). `occ
+- Every change goes through `EmployeeService`: the person's history records it with
+  the HR member who applied it, region codes included (the person's own changes,
+  §7.2, keep going to the history), and the admin audit log who changed whose data,
+  with ids only. `occ
   absence:import-employees <file> [--dry-run]` does the same with no author, like the
   holiday import.
 
@@ -2248,3 +2249,6 @@ Recorded during the build so the spec matches the code:
   alone wrote an empty "HR edited" history entry the employee and manager read, and
   an activity for the employee. An HR edit now writes a history entry only when it
   has something to say, and an activity only when the employee sees a change.
+- **Region changes in the audit log** (§6.5, §11): the admin audit log entry for a
+  region code change named the codes before and after. It names the person and who
+  changed it, like every other entry; the codes stay in the person's history.

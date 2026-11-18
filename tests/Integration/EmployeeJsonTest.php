@@ -133,7 +133,7 @@ class EmployeeJsonTest extends TestCase {
 		self::assertSame([self::HR, self::HR], array_column($history, 'actor'));
 		$messages = array_map(static fn (CriticalActionPerformedEvent $e): array => [$e->getLogMessage(), $e->getParameters()], $this->audit);
 		self::assertContains(['Contract of %s changed by %s', [self::ROBIN, self::HR]], $messages);
-		self::assertContains(['Region code of %s changed from "%s" to "%s" by %s', [self::ROBIN, 'DE-BY', 'FR', self::HR]], $messages);
+		self::assertContains(['Region code of %s changed by %s', [self::ROBIN, self::HR]], $messages);
 	}
 
 	public function testAnOversizedListIsRefusedBeforeReading(): void {

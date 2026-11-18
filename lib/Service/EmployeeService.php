@@ -182,7 +182,7 @@ class EmployeeService {
 		]);
 		$this->recordRegionChange($uid, $before, $code, $actor);
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
-			'Region code of %s changed from "%s" to "%s" by %s', [$uid, $before, $code, $actor ?? 'occ'],
+			'Region code of %s changed by %s', [$uid, $actor ?? 'occ'],
 		));
 	}
 
