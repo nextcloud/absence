@@ -4,7 +4,7 @@
  */
 
 /** The sections of the settings page, in page order. */
-export const SETTINGS_SECTIONS = ['who', 'vacation', 'approvals', 'calendar', 'emails', 'holidays', 'handbooks', 'leave-types'] as const
+export const SETTINGS_SECTIONS = ['who', 'vacation', 'approvals', 'calendar', 'emails', 'holidays', 'handbooks', 'retention', 'leave-types'] as const
 
 export type SettingsSection = typeof SETTINGS_SECTIONS[number]
 

@@ -271,6 +271,33 @@
 				</div>
 			</section>
 
+			<section id="settings-retention" class="settings">
+				<div class="settings__intro">
+					<h3 class="settings__title" tabindex="-1">
+						{{ t('absence', 'Retention') }}
+						<SavedCheck :savedAt="savedAt.retention" />
+					</h3>
+					<p>{{ t('absence', 'How long Absence keeps records. Once a day it deletes what is older. 0 keeps everything.') }}</p>
+				</div>
+				<div class="settings__fields">
+					<NcNoteCard type="warning" class="settings__field--wide">
+						{{ t('absence', 'Deleting is permanent: nothing can bring the records back, and reports and past balances no longer count them. An admin can see what would go first with occ absence:retention --dry-run.') }}
+					</NcNoteCard>
+					<NcTextField
+						v-for="field in retentionFields"
+						:key="field.key"
+						v-model="form[field.key]"
+						class="settings__field settings__field--wide"
+						type="number"
+						min="0"
+						:max="MAX_RETENTION_YEARS"
+						step="1"
+						:label="field.label"
+						:helperText="field.hint"
+						@change="saveField(field.key)" />
+				</div>
+			</section>
+
 			<section id="settings-leave-types" class="settings">
 				<div class="settings__intro">
 					<h3 tabindex="-1">
@@ -362,7 +389,7 @@ interface SectionLink {
 }
 
 /** The settings a text field edits */
-type TextKey = 'default_entitlement' | 'carryover_cap' | 'carryover_expiry' | 'handbook_url' | 'hr_handbook_url' | ApprovalField['key']
+type TextKey = 'default_entitlement' | 'carryover_cap' | 'carryover_expiry' | 'handbook_url' | 'hr_handbook_url' | ApprovalField['key'] | RetentionField['key']
 
 /** The settings as the fields hold them: a text field hands back a string or a number, whatever the setting is */
 type SettingsForm = {
@@ -386,6 +413,13 @@ interface ApprovalField {
 	hint?: string
 }
 
+/** A number field of the retention section */
+interface RetentionField {
+	key: 'leave_retention_years' | 'former_employee_retention_years'
+	label: string
+	hint: string
+}
+
 // The section each setting is shown in, to flash its check once saved
 const SECTION_OF: Record<SettingsKey, Section> = {
 	hr_group: 'who',
@@ -405,7 +439,12 @@ const SECTION_OF: Record<SettingsKey, Section> = {
 	holidays_everyone_edits: 'holidays',
 	handbook_url: 'handbooks',
 	hr_handbook_url: 'handbooks',
+	leave_retention_years: 'retention',
+	former_employee_retention_years: 'retention',
 }
+
+// ConfigService::MAX_RETENTION_YEARS
+const MAX_RETENTION_YEARS = 30
 
 // Not written in the template: vue-tsc 3.3 takes the `//` of a static attribute for a comment and breaks its generated code
 const URL_PLACEHOLDER = 'https://'
@@ -435,6 +474,19 @@ const approvalFields: ApprovalField[] = [
 	{ key: 'notice_period_days', label: t('absence', 'Short notice under (days)'), max: 365, hint: t('absence', '0 switches the warning off.') },
 ]
 
+const retentionFields: RetentionField[] = [
+	{
+		key: 'leave_retention_years',
+		label: t('absence', 'Delete leave after (years)'),
+		hint: t('absence', 'Counted from the last day of the leave. Its comments, history and attachments go with it.'),
+	},
+	{
+		key: 'former_employee_retention_years',
+		label: t('absence', 'Delete former employees after (years)'),
+		hint: t('absence', 'Counted from the contract end date. All their leave, days and contract data go. People without an end date are never deleted.'),
+	},
+]
+
 const sections: SectionLink[] = [
 	{ id: 'who', label: t('absence', 'Who is who') },
 	{ id: 'vacation', label: t('absence', 'Vacation') },
@@ -443,6 +495,7 @@ const sections: SectionLink[] = [
 	{ id: 'emails', label: t('absence', 'Emails') },
 	{ id: 'holidays', label: t('absence', 'Public holidays') },
 	{ id: 'handbooks', label: t('absence', 'Handbooks') },
+	{ id: 'retention', label: t('absence', 'Retention') },
 	{ id: 'leave-types', label: t('absence', 'Leave types') },
 ]
 

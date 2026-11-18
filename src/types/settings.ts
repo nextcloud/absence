@@ -40,6 +40,10 @@ export interface SettingsValues {
 	/** A link starting with http(s):// or /, '' for none. */
 	handbook_url: string
 	hr_handbook_url: string
+	/** Full years after its end that leave is deleted, 0 for never. */
+	leave_retention_years: number
+	/** Full years after their contract end that a former employee's data is deleted, 0 for never. */
+	former_employee_retention_years: number
 }
 
 export type SettingsKey = keyof SettingsValues
