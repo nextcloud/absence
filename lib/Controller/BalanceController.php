@@ -8,7 +8,6 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
-use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Exception\ForbiddenException;
 use OCA\Absence\Service\BalanceService;
 use OCA\Absence\Service\EntitlementValidator;
@@ -32,7 +31,6 @@ class BalanceController extends Controller {
 		private BalanceService $balanceService,
 		private ReportService $reportService,
 		private PermissionService $permission,
-		private LeaveTypeMapper $leaveTypeMapper,
 		private IL10N $l,
 		private LoggerInterface $logger,
 		private EntitlementValidator $validator,
@@ -78,36 +76,16 @@ class BalanceController extends Controller {
 			$year ??= $this->balanceService->currentYear();
 			$this->validator->assertYear($year);
 			$rows = $this->reportService->teamBalances((string)$this->userId, $year);
-			return $this->stripHrOnlyRows($rows);
+			return $this->permission->filterVisibleBalanceRows((string)$this->userId, $rows);
 		});
 	}
 
 	/**
-	 * Balance rows of confidential leave types (§5.7) carry the category in
-	 * their labels, so they are stripped for non-HR viewers — including the
-	 * employee's own balance view. Their absence changes no number: confidential
-	 * types never count against a balance.
-	 *
 	 * @param array{employeeUid:string,balances:list<array<string,mixed>>} $balance
 	 * @return array{employeeUid:string,balances:list<array<string,mixed>>}
 	 */
 	private function withheldForViewer(array $balance): array {
-		$balance['balances'] = $this->stripHrOnlyRows($balance['balances']);
+		$balance['balances'] = $this->permission->filterVisibleBalanceRows((string)$this->userId, $balance['balances']);
 		return $balance;
-	}
-
-	/**
-	 * @param list<array<string,mixed>> $rows
-	 * @return list<array<string,mixed>>
-	 */
-	private function stripHrOnlyRows(array $rows): array {
-		if ($this->permission->isHr((string)$this->userId)) {
-			return $rows;
-		}
-		$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
-		return array_values(array_filter(
-			$rows,
-			static fn (array $row): bool => !in_array($row['typeId'] ?? null, $hrOnlyIds, true),
-		));
 	}
 }
