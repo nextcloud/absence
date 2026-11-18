@@ -15,6 +15,7 @@ use OCA\Absence\Dashboard\AbsenceWidget;
 use OCA\Absence\Listener\ManagerChangedListener;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Notification\Notifier;
+use OCA\Absence\UserMigration\AbsenceMigrator;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -36,6 +37,7 @@ class Application extends App implements IBootstrap {
 		$context->registerDashboardWidget(AbsenceWidget::class);
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
 		$context->registerEventListener(UserChangedEvent::class, ManagerChangedListener::class);
+		$context->registerUserMigrator(AbsenceMigrator::class);
 		// Integration API for other apps (§14b)
 		$context->registerServiceAlias(IAbsenceProvider::class, AbsenceProvider::class);
 	}

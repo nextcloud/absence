@@ -2041,8 +2041,20 @@ under `prefers-reduced-motion: reduce`.
   (`#[UserRateLimit]` where appropriate).
 - GDPR: provide data via Nextcloud's user data export/deletion hooks — implement
   `OCP\User\Events\BeforeUserDeletedEvent` handling to anonymize/remove a deleted
-  user's requests per policy, and register with the privacy/personal-data-export
-  mechanism.
+  user's requests per policy.
+- Personal data export: a user migrator (`OCP\UserMigration\IMigrator`, id `absence`)
+  adds the person's own Absence data to the export of the *User migration* app
+  (`occ user:export`, or *Data migration* in the personal settings), as JSON under
+  `absence/`: `requests.json` (each request as its detail reads for them, with the
+  comments, history and attachment list they see), the files of those attachments
+  under `attachments/<id>/`, `balances.json` (this year and every year with
+  entitlements or leave), `contract.json` (employment, contract periods and their
+  history), `leave-types.json` (the types they may know) and `settings.json` (their
+  region code). What the API withholds from them stays out: the category and content of a
+  confidential absence and its files (§5.7), the disability flag (§5.8) and the
+  entitlement history. HR answers requests for that part. The import brings in
+  nothing: leave records belong to the employer's instance, so it only says so and
+  never fails the migration.
 
 ---
 
@@ -2370,3 +2382,9 @@ Recorded during the build so the spec matches the code:
   entries along the formats the app writes. An entry whose text cannot be told apart
   from the rest (a closing quote inside the text, a quote in a type label or a name)
   goes to `hr_detail` whole, and the others then see the event without a detail.
+- **Personal data export** (§17): the spec asked for it, and nothing provided it; HR
+  exports leave out reasons, comments, history and attachments. A user migrator now
+  puts what the person sees in the app into the *User migration* export, withheld
+  where the API withholds it. The HR-only rows of the balances moved from
+  `BalanceController` to `PermissionService::filterVisibleBalanceRows()`, so the API
+  and the export share them.

@@ -288,4 +288,16 @@ class PermissionServiceTest extends TestCase {
 		self::assertSame([$plain], $this->service->filterVisibleTypes('emp', [$plain, $confidential]));
 		self::assertSame([$plain, $confidential], $this->service->filterVisibleTypes('hr-user', [$plain, $confidential]));
 	}
+
+	public function testConfidentialBalanceRowsAreFilteredForNonHrViewers(): void {
+		$this->groupManager->method('isInGroup')->willReturnCallback(
+			static fn (string $uid): bool => $uid === 'hr-user',
+		);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([9]);
+		$annual = ['year' => 2026, 'typeId' => 1, 'used' => 3.0];
+		$confidential = ['year' => 2026, 'typeId' => 9, 'used' => 10.0];
+
+		self::assertSame([$annual], $this->service->filterVisibleBalanceRows('emp', [$confidential, $annual]));
+		self::assertSame([$confidential, $annual], $this->service->filterVisibleBalanceRows('hr-user', [$confidential, $annual]));
+	}
 }

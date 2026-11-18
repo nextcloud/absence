@@ -94,6 +94,26 @@ class PermissionService {
 	}
 
 	/**
+	 * Balance rows of confidential leave types (§5.7) carry the category in
+	 * their labels, so they are stripped for non-HR viewers, the employee's own
+	 * balance included. Their absence changes no number: confidential types never
+	 * count against a balance.
+	 *
+	 * @param list<array<string,mixed>> $rows
+	 * @return list<array<string,mixed>>
+	 */
+	public function filterVisibleBalanceRows(string $viewerUid, array $rows): array {
+		if ($this->isHr($viewerUid)) {
+			return $rows;
+		}
+		$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
+		return array_values(array_filter(
+			$rows,
+			static fn (array $row): bool => !in_array($row['typeId'] ?? null, $hrOnlyIds, true),
+		));
+	}
+
+	/**
 	 * May the actor approve/reject this request. The employee can never decide
 	 * their own; the assigned manager can; HR can always (override, §5.5).
 	 */

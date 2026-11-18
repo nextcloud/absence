@@ -366,6 +366,12 @@ Built for a European works council to be comfortable with:
 - **GDPR deletion.** When a user account is deleted, their leave is gone from both
   calendars at once, they are detached as anybody's replacement, and their personal
   data is purged, with the purge itself recorded.
+- **Personal data export.** With the *User migration* app, a person's export holds
+  their Absence data in an `absence/` folder: their requests with the comments,
+  history and attachments they see, their days per year, their contract and their
+  region code. What the app withholds from them stays out of it too (the content of
+  confidential absences, the disability flag, the entitlement history), so HR answers
+  for that part. Importing the archive brings no leave records along.
 - **Rate limiting and input validation** on every create/edit endpoint.
 - **No surprise presence signals.** The app deliberately does not touch the built-in
   out-of-office auto-responder or user status. The busy time of a person's own
@@ -470,7 +476,7 @@ rule, workflow and design decision — including the ones deliberately not taken
   - `lib/BackgroundJob` — `EscalationJob` (hourly), `ReminderJob` (daily),
     `YearRolloverJob` (daily, idempotent per year).
   - `lib/Notification`, `lib/Activity`, `lib/Dashboard`, `lib/Settings`,
-    `lib/Listener`, `lib/Migration`.
+    `lib/Listener`, `lib/Migration`, `lib/UserMigration` (the personal data export).
 - **Frontend** — Vue 3 SPA in `src/`, built with `@nextcloud/vite-config` into `js/`.
   Charts and illustrations are hand-written SVG components with no charting
   dependency.
