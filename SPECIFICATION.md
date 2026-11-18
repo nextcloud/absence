@@ -1205,6 +1205,28 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    and seeds next-year entitlements (§6.2); expires unused carry-over.
 4. **CommentMailJob** (every 5 minutes): mails the queued comments of every request
    nobody has commented on for 10 minutes, one mail per recipient (§11).
+6. **RetentionJob** (daily): deletes what the two retention settings (§12) no longer
+   keep. Both are 0 (never) by default, and the job does nothing while they are.
+   - **Leave** goes once the set number of full years have passed since its last day:
+     with 3 years, on 2026-11-18 everything that ended before 2023-11-18, in any
+     status. Its comments, history, attachments (rows and files), queued comment mails
+     and notifications go with it.
+   - **A former employee** goes once the set number of full years have passed since
+     the contract end date (§6.4): all their requests as above, their entitlements and
+     the entitlement history, the contract periods and the employee history. The
+     employment row stays with its start and end dates: without them someone still in
+     the employees group would count as a current employee again, and the year
+     rollover would give them the default days. Nobody without an end date is a former
+     employee, and one with nothing but that row left is neither counted nor touched
+     again.
+   - On 29 February, the same day N years back is 28 February when that year has
+     no 29th.
+   - It works in batches of 100 requests or people, at most 50 batches of each rule
+     a day, so a long backlog takes a few days. `occ absence:retention` deletes all of
+     it at once, and `--dry-run` only counts what would go: requests, attachments,
+     entitlements and former employees.
+   - A run that deletes something writes one admin audit log entry and one
+     `nextcloud.log` line (`retention_applied`) with the counts only.
 
 All jobs must be idempotent and safe to run repeatedly.
 
@@ -1381,8 +1403,9 @@ both rules and validates every value: day counts are integers from 0 to 365 (the
 concurrent-absences threshold up to 9999), day amounts are numbers from 0 to 9999.9
 (what the entitlement columns hold), switches are booleans, the policy and visibility
 are enums, the expiry is empty or a real `MM-DD` day (`02-29` counts, `02-30` does
-not), and both groups must exist (the employees group may be empty). A number
-stored above its maximum is read as the maximum.
+not), the retention periods are whole years from 0 to 30, and both groups must exist
+(the employees group may be empty). A number stored above its maximum is read as the
+maximum, and a negative retention period as 0 (never).
 Each change is logged as `admin_config_updated` with the changed keys.
 
 | Section | Setting | Default | Notes |
@@ -1403,6 +1426,8 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Emails | Quote reasons and comments in emails | true | §11. Off: a mail says what happened and links to the request; notifications keep their preview. |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
 | Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
+| Retention | Delete leave after (years) | 0 (never) | Full years after a request's last day; its comments, history and attachments go with it (§9). Deleting is permanent, and the page says so. |
+| Retention | Delete former employees after (years) | 0 (never) | Full years after the contract end date; all their Absence data goes but the contract start and end dates (§9). Never anyone without an end date. |
 | Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
 
 **Changing the employees group** asks for confirmation first. The dialog shows, from
@@ -1892,7 +1917,8 @@ NcContent(app-name="absence")
   Contacts, where managers and teams are kept, when Contacts is enabled.
 - **Settings** (`#/hr/settings`, HR and admins, §12): One section per row, title and
   short description on the left, fields on the right: *Who is who*, *Vacation*,
-  *Approvals*, *Calendar*, *Emails*, *Public holidays*, *Leave types*. Fields save on change (`NcTextField`,
+  *Approvals*, *Calendar*, *Emails*, *Public holidays*, *Handbooks*, *Retention* (with a
+  warning that deleting is permanent), *Leave types*. Fields save on change (`NcTextField`,
   `NcSelect`, `NcCheckboxRadioSwitch`); the employees group goes through the
   confirmation `NcDialog` of §12; *Manage leave types* opens an `NcModal` listing every
   type with an edit form (key on creation only, emoji, name, colour, flags, enabled).
@@ -2055,6 +2081,13 @@ under `prefers-reduced-motion: reduce`.
   entitlement history. HR answers requests for that part. The import brings in
   nothing: leave records belong to the employer's instance, so it only says so and
   never fails the migration.
+- Storage limitation: two retention settings (§12) delete leave a set number of
+  years after it ended, and everything about a former employee but their contract
+  dates a set number of years after their contract end date (§9). Both are 0 by default: until someone chooses a
+  period, records stay until the account is deleted. The periods are a decision for
+  HR and the works council, not a default the app can pick. Deleting is permanent:
+  backups aside, nothing brings the records back, and past balances, reports and
+  statistics no longer count them.
 
 ---
 
@@ -2388,3 +2421,13 @@ Recorded during the build so the spec matches the code:
   where the API withholds it. The HR-only rows of the balances moved from
   `BalanceController` to `PermissionService::filterVisibleBalanceRows()`, so the API
   and the export share them.
+- **Retention** (§9, §12, §17): records were only ever deleted with the account, so
+  sick leave, reasons and doctor's notes stayed forever, also for people who left but
+  whose account is only disabled. Two settings, 0 (never) by default, now delete old
+  leave and former employees, from a daily job in batches and from
+  `occ absence:retention [--dry-run]`. The year rollover already gave nobody an
+  entitlement for a year after their contract end date (§6.2), so it is unchanged.
+  A former employee keeps their employment row with its start and end dates, the
+  least that keeps an account still in the employees group from counting as a
+  current employee again and getting the default days from the rollover. Once only
+  that row is left, later runs and dry runs skip the person.

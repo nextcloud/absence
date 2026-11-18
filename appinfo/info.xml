@@ -86,6 +86,7 @@ properly. Every rule and design decision is documented in the
 		<job>OCA\Absence\BackgroundJob\YearRolloverJob</job>
 		<job>OCA\Absence\BackgroundJob\CommentMailJob</job>
 		<job>OCA\Absence\BackgroundJob\EncryptAttachmentsJob</job>
+		<job>OCA\Absence\BackgroundJob\RetentionJob</job>
 	</background-jobs>
 	<repair-steps>
 		<post-migration>
@@ -106,6 +107,7 @@ properly. Every rule and design decision is documented in the
 		<command>OCA\Absence\Command\ExportEmployees</command>
 		<command>OCA\Absence\Command\ImportLeave</command>
 		<command>OCA\Absence\Command\Rollover</command>
+		<command>OCA\Absence\Command\Retention</command>
 	</commands>
 	<activity>
 		<settings>

@@ -108,7 +108,7 @@ class LeaveImportTest extends TestCase {
 		$events = Server::get(RequestEventMapper::class);
 		foreach ([self::HR, self::ROBIN, self::SAM] as $uid) {
 			foreach ($this->requests->findAllForEmployee($uid) as $request) {
-				$events->deleteForRequest((int)$request->getId());
+				$events->deleteForRequests([(int)$request->getId()]);
 				$this->requests->delete($request);
 			}
 			$this->users->get($uid)?->delete();

@@ -30,4 +30,11 @@ class EmployeeChangeMapper extends QBMapper {
 			->setMaxResults($limit);
 		return $this->findEntities($qb);
 	}
+
+	public function deleteForEmployee(string $uid): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete($this->getTableName())
+			->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))
+			->executeStatement();
+	}
 }

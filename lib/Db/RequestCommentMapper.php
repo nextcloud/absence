@@ -32,10 +32,16 @@ class RequestCommentMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
-	public function deleteForRequest(int $requestId): void {
-		$qb = $this->db->getQueryBuilder();
-		$qb->delete($this->getTableName())
-			->where($qb->expr()->eq('request_id', $qb->createNamedParameter($requestId, IQueryBuilder::PARAM_INT)));
-		$qb->executeStatement();
+	/**
+	 * @param list<int> $requestIds
+	 */
+	public function deleteForRequests(array $requestIds): void {
+		// Oracle accepts at most 1000 values in one IN() list.
+		foreach (array_chunk($requestIds, 1000) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete($this->getTableName())
+				->where($qb->expr()->in('request_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeStatement();
+		}
 	}
 }

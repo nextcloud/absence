@@ -291,6 +291,8 @@ group, so on a fresh install an admin picks it first.
 | Shared calendar type-visibility | neutral | Whether colleagues see *"Absent"* or *"Sick leave"* |
 | Quote text in emails | on | Off: emails say what happened and link to the request; notifications keep a short preview |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |
+| Delete leave after | 0 (never) | Full years after a leave's last day; its comments, history and attachments go with it |
+| Delete former employees after | 0 (never) | Full years after the contract end date; all their Absence data goes but the contract start and end dates. Nobody without an end date |
 
 **Who can change a manager.** The manager is the account's `manager` property, and
 Nextcloud lets admins, delegated admins and the subadmins of any group the person is
@@ -301,9 +303,14 @@ and HR get a notification. Changes made without one (occ, background jobs, an ac
 sync) are recorded but notify nobody. A value written straight into the preference
 with `occ user:setting` is not seen.
 
-**Three background jobs** keep it running unattended, all idempotent and safe to
-re-run: escalation (hourly), reminders (daily) and the year rollover (daily, acting
-once per year).
+**Background jobs** keep it running unattended, all idempotent and safe to re-run:
+escalation (hourly), reminders (daily), the year rollover (daily, acting once per
+year) and retention (daily, doing nothing while both periods are 0).
+
+`occ absence:retention --dry-run` counts what the retention periods would delete
+right now; without `--dry-run` it deletes all of it at once instead of a few
+thousand records a day. Deleting is permanent. A former employee keeps only their
+contract start and end dates, so they don't count as a current employee again.
 
 **Attachments are encrypted at rest.** Server-side encryption never covers app data,
 where the app keeps attachments, so the app encrypts each file itself with Nextcloud's
@@ -372,6 +379,12 @@ Built for a European works council to be comfortable with:
   region code. What the app withholds from them stays out of it too (the content of
   confidential absences, the disability flag, the entitlement history), so HR answers
   for that part. Importing the archive brings no leave records along.
+- **Retention is yours to set.** Out of the box nothing is deleted while an account
+  exists, also not for people who left but whose account is only disabled. Two
+  settings delete leave N full years after it ended, with its comments, history and
+  doctor's notes, and everything about a former employee but their contract dates N
+  years after their contract end date. Agree on the periods with HR and your works
+  council; until then the records stay.
 - **Rate limiting and input validation** on every create/edit endpoint.
 - **No surprise presence signals.** The app deliberately does not touch the built-in
   out-of-office auto-responder or user status. The busy time of a person's own
@@ -429,10 +442,11 @@ the employee decides, and the manager verifies.
 Every important action (request created / edited / approved / rejected / cancelled,
 withdrawal requested/approved/rejected, escalation, comments, attachments, entitlement
 changes, carry-over rollover and expiry, leave-type and holiday changes, admin-config
-changes, manager changes, and GDPR user-data purge) goes to the **admin audit log** when the
-*Auditing / Logging* app (`admin_audit`) is enabled. The entry names the action, who
-did it and the id of the request or entitlement. Reasons, comments, leave types and
-file names are not logged: they stay in the app, where access is controlled.
+changes, manager changes, GDPR user-data purge, and what retention deleted, as counts)
+goes to the **admin audit log** when the *Auditing / Logging* app (`admin_audit`) is
+enabled. The entry names the action, who did it and the id of the request or
+entitlement. Reasons, comments, leave types and file names are not logged: they stay
+in the app, where access is controlled.
 
 The same actions are written to **`nextcloud.log`** at info level, tagged
 `"app":"absence"` with a machine-readable `action`, so they show up when your log level

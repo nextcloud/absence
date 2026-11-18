@@ -40,6 +40,8 @@ class ConfigService {
 	public const MAX_PERIOD_DAYS = 365;
 	/** The highest threshold of people off at once. */
 	public const MAX_CONCURRENT = 9999;
+	/** The longest retention period, in years. */
+	public const MAX_RETENTION_YEARS = 30;
 
 	public function __construct(
 		private IAppConfig $appConfig,
@@ -130,6 +132,26 @@ class ConfigService {
 		return $this->appConfig->getValueBool(self::APP_ID, ConfigLexicon::KEY_MAIL_QUOTE_TEXT);
 	}
 
+	/**
+	 * Full years after its end date that a leave request is deleted (§9), 0 for
+	 * never. A negative stored value is read as never.
+	 */
+	public function getLeaveRetentionYears(): int {
+		return $this->retentionYears(ConfigLexicon::KEY_LEAVE_RETENTION);
+	}
+
+	/**
+	 * Full years after their contract end date that a former employee's data is
+	 * deleted (§9), 0 for never. A negative stored value is read as never.
+	 */
+	public function getFormerEmployeeRetentionYears(): int {
+		return $this->retentionYears(ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION);
+	}
+
+	private function retentionYears(string $key): int {
+		return max(0, min(self::MAX_RETENTION_YEARS, $this->appConfig->getValueInt(self::APP_ID, $key)));
+	}
+
 	/** Where the handbook for everyone lives, '' when there is none. */
 	public function getHandbookUrl(): string {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_HANDBOOK_URL);
@@ -164,6 +186,8 @@ class ConfigService {
 			ConfigLexicon::KEY_MAIL_QUOTE_TEXT => $this->isMailQuoteTextEnabled(),
 			ConfigLexicon::KEY_HANDBOOK_URL => $this->getHandbookUrl(),
 			ConfigLexicon::KEY_HR_HANDBOOK_URL => $this->getHrHandbookUrl(),
+			ConfigLexicon::KEY_LEAVE_RETENTION => $this->getLeaveRetentionYears(),
+			ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION => $this->getFormerEmployeeRetentionYears(),
 		];
 	}
 
@@ -284,8 +308,14 @@ class ConfigService {
 			case ConfigLexicon::KEY_REMINDER_LEAD:
 			case ConfigLexicon::KEY_MAX_CONCURRENT:
 			case ConfigLexicon::KEY_NOTICE_PERIOD:
+			case ConfigLexicon::KEY_LEAVE_RETENTION:
+			case ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION:
 				$int = filter_var($value, FILTER_VALIDATE_INT);
-				$max = $key === ConfigLexicon::KEY_MAX_CONCURRENT ? self::MAX_CONCURRENT : self::MAX_PERIOD_DAYS;
+				$max = match ($key) {
+					ConfigLexicon::KEY_MAX_CONCURRENT => self::MAX_CONCURRENT,
+					ConfigLexicon::KEY_LEAVE_RETENTION, ConfigLexicon::KEY_FORMER_EMPLOYEE_RETENTION => self::MAX_RETENTION_YEARS,
+					default => self::MAX_PERIOD_DAYS,
+				};
 				if ($int === false || is_bool($value) || $int < 0 || $int > $max) {
 					throw new ValidationException($this->l->t('This setting must be a whole number between 0 and %s.', [$max]));
 				}

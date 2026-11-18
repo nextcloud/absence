@@ -535,6 +535,35 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Requests of any status that ended before a day, by id, the ones after
+	 * $afterId only.
+	 *
+	 * @return list<LeaveRequest>
+	 */
+	public function findEndedBefore(string $date, int $afterId, int $limit): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->lt('end_date', $qb->createNamedParameter($date)))
+			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
+			->orderBy('id', 'ASC')
+			->setMaxResults($limit);
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * @param list<int> $ids
+	 */
+	public function deleteByIds(array $ids): void {
+		foreach (array_chunk($ids, self::IN_CHUNK) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete($this->getTableName())
+				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeStatement();
+		}
+	}
+
+	/**
 	 * All requests overlapping a range across the whole instance (HR reporting).
 	 *
 	 * @return LeaveRequest[]
