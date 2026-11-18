@@ -198,9 +198,9 @@
 					<NcCheckboxRadioSwitch
 						type="switch"
 						:modelValue="form.shared_calendar_visibility === 'reveal'"
-						:disabled="saving || !form.caldav_shared"
+						:disabled="saving"
 						@update:modelValue="(on: boolean) => save({ shared_calendar_visibility: on ? 'reveal' : 'neutral' })">
-						{{ t('absence', 'Show the leave type on the shared calendar') }}
+						{{ t('absence', 'Show colleagues and other apps the leave type') }}
 						<span class="settings__muted">{{ t('absence', '(otherwise "Absent")') }}</span>
 					</NcCheckboxRadioSwitch>
 				</div>

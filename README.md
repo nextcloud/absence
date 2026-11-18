@@ -288,7 +288,7 @@ group, so on a fresh install an admin picks it first.
 | Expected notice period | 14 calendar days | Short-notice threshold; `0` switches it off |
 | CalDAV: personal events | on | Show approved leave in a read-only Absence calendar of the employee's own |
 | CalDAV: team calendar | on | A read-only calendar of everybody's approved leave for each employee and HR member |
-| Shared calendar type-visibility | neutral | Whether colleagues see *"Absent"* or *"Sick leave"* |
+| Leave type for colleagues and other apps | neutral | Whether the team calendar, the who's-off timeline and other apps show colleagues *"Sick leave"* or *"Absent"*. HR-only types always read *"Absent"* |
 | Quote text in emails | on | Off: emails say what happened and link to the request; notifications keep a short preview |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |
 | Delete leave after | 0 (never) | Full years after a leave's last day; its comments, history and attachments go with it |
