@@ -104,9 +104,9 @@ class RequestControllerTest extends TestCase {
 	}
 
 	public function testUpdateOmitsUnsetFieldsButPassesExplicitOnes(): void {
-		// null means "not sent" for typeId/dates/workingDays, but reason,
-		// attachmentNote and replacementUid may be intentionally cleared, so the
-		// controller forwards them only when present.
+		// null means "not sent" for typeId/dates/workingDays, but reason and
+		// replacementUid may be intentionally cleared, so the controller
+		// forwards them only when present.
 		$this->service->expects(self::once())->method('update')
 			->with('emp', 5, ['reason' => ''])
 			->willReturn($this->request());

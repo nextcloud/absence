@@ -34,7 +34,6 @@ export interface LeaveRequestRecord {
 	status: RequestStatus
 	reason: string | null
 	replacementUid: string | null
-	attachmentNote: string | null
 	decidedBy: string | null
 	decidedAt: string | null
 	decisionComment: string | null
@@ -52,7 +51,7 @@ export interface LeaveRequestRecord {
 /**
  * A request as served to a viewer: the list, update, cancel, approve and reject.
  * For a confidential request (§5.7) seen by anyone but HR the type and the free
- * text about it (reason, attachmentNote, decisionComment) are null. The
+ * text about it (reason, decisionComment) are null. The
  * disability flag is null for every non-HR viewer.
  */
 export interface LeaveRequest extends Omit<LeaveRequestRecord, 'typeId' | 'disability'> {
@@ -199,7 +198,6 @@ export interface RequestCreateData {
 	endDate: string
 	workingDays?: number | null
 	reason?: string | null
-	attachmentNote?: string | null
 	/** HR records leave on behalf of this person. */
 	employeeUid?: string | null
 	replacementUid?: string | null
@@ -208,7 +206,7 @@ export interface RequestCreateData {
 
 /**
  * Body of PUT /api/requests/{id}. Omitted or null fields are left unchanged;
- * send '' to clear reason, attachmentNote or replacementUid.
+ * send '' to clear reason or replacementUid.
  */
 export type RequestUpdateData = Partial<Omit<RequestCreateData, 'employeeUid'>>
 

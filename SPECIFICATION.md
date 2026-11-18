@@ -182,7 +182,6 @@ The central table: one row per leave request.
 | `status` | string(20), indexed | Enum, see §4. |
 | `reason` | text, nullable | Employee note. Optional unless the type has `requires_note` (§5.1). |
 | `replacement_uid` | string(64), nullable | The colleague nominated to cover (mandatory for types with `requires_replacement`, §5.1). |
-| `attachment_note` | text, nullable | e.g. reference to a doctor's note (free text; file attachment optional, see §3.7). API only, no screen shows it, and it does not count for `requires_note`. |
 | `decided_by` | string(64), nullable | Manager or HR user id who made the last decision. |
 | `decided_at` | datetime, nullable | |
 | `decision_comment` | text, nullable | Rejection reason / approval note. |
@@ -252,8 +251,7 @@ entitlement + used + remaining + carry-over.
 | `type_id` | int, FK | Entitlement is per leave-type-that-counts (primarily `annual`). |
 | `base_days` | decimal(5,1) | Annual allotment for that year. |
 | `carry_over_days` | decimal(5,1), default 0 | Carried from previous year (§6.2). |
-| `manual_adjustment` | decimal(5,1), default 0 | HR correction (+/−), with `adjustment_note`. |
-| `adjustment_note` | text, nullable | |
+| `manual_adjustment` | decimal(5,1), default 0 | HR correction (+/−). Its required note goes to the entitlement history (§3.7b). |
 | `created_at` / `updated_at` | datetime | |
 
 Unique constraint: `(employee_uid, year, type_id)`.
@@ -367,8 +365,7 @@ past 200 MB is refused with a validation error naming the limit. The cap is a
 constant, not a setting: the bytes sit in app data, outside any user quota.
 Attachments never appear in the request-history timeline (it is
 manager-visible); adds and removals go to the admin audit log (§11). The GDPR
-purge removes rows and bytes. API: §14; the earlier `attachment_note`
-free-text field remains for a quick remark.
+purge removes rows and bytes. API: §14.
 
 ### 3.9 Which "today" applies (`ClockService`)
 
@@ -581,7 +578,7 @@ The app knows when the decider is away — it manages their leave too:
   is a 409. The edit is applied to the row as it is under the employee lock, so one
   that crosses a cancellation or a decision is a 409 too. `requires_note` (§5.1)
   holds for the result of an HR edit.
-- All HR overrides are recorded in activity and `decision_comment` / `adjustment_note`.
+- All HR overrides are recorded in activity and `decision_comment` / the entitlement history (§3.7b).
 - **Not their own leave.** An HR member's own leave needs a second person, like
   everybody's. They cannot approve or reject their own request
   (`PermissionService::canDecide`), change an absence they recorded for
@@ -683,9 +680,9 @@ Rules, enforced server-side at every surface:
   after an HR edit of the request or after the type itself stopped being
   `hr_only`. Entries and comments written after the change show as usual.
   The upgrade flags the rows of every request that is confidential at that
-  time. The request's own fields are not covered: its current `reason`,
-  `attachment_note` and `decision_comment`, and for the employee its
-  attachments (§3.8), follow the current type. HR can clear the reason in
+  time. The request's own fields are not covered: its current `reason` and
+  `decision_comment`, and for the employee its attachments (§3.8), follow
+  the current type. HR can clear the reason in
   the edit that changes the type.
 - **Presentation:** in the Record absence dialog the confidential categories do
   not appear as top-level leave types. HR picks **Sick leave** and a *Category*
@@ -761,7 +758,8 @@ statutory entitlement for employees with a recognised disability. Rules:
   year the contract (§6.4) covers at least one day of. A year that ends before the
   start date or begins after the end date stands for 0 days. Stored entitlements
   count as they are.
-- Manual adjustments (+/−) require an `adjustment_note`.
+- Manual adjustments (+/−) require a note, kept in the entitlement history (§3.7b) and
+  the activity entry.
 - The API and the CSV import (§6.3) accept the same figures: a year from 2000 to
   2100, day counts as whole numbers from -9999 to 9999 (a half day is refused, not
   rounded, §3.3), and a base that is not negative.
@@ -2289,3 +2287,9 @@ Recorded during the build so the spec matches the code:
   the request, and its cancellation showed in that manager's activity. After a change
   of manager, the new one saw the old team's names and dates. Both follow the
   employee's current manager now; `manager_uid` stays the record of who was asked.
+- **Two unread notes dropped** (`Version1023…`): `absence_requests.attachment_note`
+  (§3.1) had no screen, and `absence_entitlements.adjustment_note` (§3.4) was a third
+  copy of the adjustment note, shown nowhere and overwritten by the next adjustment.
+  Both columns and their API fields are gone. The note HR gives with an adjustment
+  stays in the entitlement history (§3.7b) and the activity entry. A client that
+  still sends `attachmentNote` is not refused: the parameter is ignored.

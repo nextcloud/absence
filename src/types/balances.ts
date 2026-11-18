@@ -54,7 +54,6 @@ export interface Entitlement {
 	baseDays: number
 	carryOverDays: number
 	manualAdjustment: number
-	adjustmentNote: string | null
 	/** baseDays + carryOverDays + manualAdjustment. */
 	entitlement: number
 }

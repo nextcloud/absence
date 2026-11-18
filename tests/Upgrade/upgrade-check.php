@@ -324,8 +324,8 @@ function snapshot(IDBConnection $db): array {
 
 	$entitlements = array_map(static fn (array $r): array => [
 		'id' => (int)$r['id'], 'employee' => $r['employee_uid'], 'year' => (int)$r['year'], 'type' => $types[(int)$r['type_id']] ?? null,
-		'base' => number($r['base_days']), 'carryOver' => number($r['carry_over_days']), 'adjustment' => number($r['manual_adjustment']), 'note' => $r['adjustment_note'],
-	], rows($db, 'absence_entitlements', ['id', 'employee_uid', 'year', 'type_id', 'base_days', 'carry_over_days', 'manual_adjustment', 'adjustment_note']));
+		'base' => number($r['base_days']), 'carryOver' => number($r['carry_over_days']), 'adjustment' => number($r['manual_adjustment']),
+	], rows($db, 'absence_entitlements', ['id', 'employee_uid', 'year', 'type_id', 'base_days', 'carry_over_days', 'manual_adjustment']));
 
 	$eventsTable = $db->tableExists('absence_ent_events') ? 'absence_ent_events' : 'absence_entitlement_events';
 	$entitlementEvents = array_map(static fn (array $r): array => [

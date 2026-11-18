@@ -115,15 +115,12 @@ class EntitlementService {
 			if (array_key_exists('carryOverDays', $data)) {
 				$ent->setCarryOverDays((float)$data['carryOverDays']);
 			}
-			if ($delta !== 0.0) {
-				$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
-			} elseif (array_key_exists('manualAdjustment', $data)) {
+			if (array_key_exists('manualAdjustment', $data)) {
 				$adjustment = (float)$data['manualAdjustment'];
 				if ($adjustment !== $ent->getManualAdjustment() && $note === '') {
 					throw new ValidationException($this->l->t('A note is required when adjusting an entitlement.'));
 				}
 				$ent->setManualAdjustment($adjustment);
-				$ent->setAdjustmentNote($data['adjustmentNote'] ?? $ent->getAdjustmentNote());
 			}
 			$ent->setUpdatedAt($this->clock->now());
 			$ent = $this->entitlementMapper->update($ent);

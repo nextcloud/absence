@@ -23,8 +23,6 @@ use OCP\AppFramework\Db\Entity;
  * @method void setCarryOverDays(float $carryOverDays)
  * @method float getManualAdjustment()
  * @method void setManualAdjustment(float $manualAdjustment)
- * @method string|null getAdjustmentNote()
- * @method void setAdjustmentNote(?string $adjustmentNote)
  * @method \DateTime getCreatedAt()
  * @method void setCreatedAt(\DateTime $createdAt)
  * @method \DateTime getUpdatedAt()
@@ -37,7 +35,6 @@ class Entitlement extends Entity implements \JsonSerializable {
 	protected float $baseDays = 0.0;
 	protected float $carryOverDays = 0.0;
 	protected float $manualAdjustment = 0.0;
-	protected ?string $adjustmentNote = null;
 	protected ?\DateTime $createdAt = null;
 	protected ?\DateTime $updatedAt = null;
 
@@ -66,7 +63,6 @@ class Entitlement extends Entity implements \JsonSerializable {
 			'baseDays' => $this->baseDays,
 			'carryOverDays' => $this->carryOverDays,
 			'manualAdjustment' => $this->manualAdjustment,
-			'adjustmentNote' => $this->adjustmentNote,
 			'entitlement' => $this->getEntitlement(),
 		];
 	}
