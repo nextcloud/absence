@@ -9,7 +9,6 @@ declare(strict_types=1);
 namespace OCA\Absence\Listener;
 
 use OCA\Absence\Db\LeaveRequestMapper;
-use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\RequestService;
@@ -37,7 +36,6 @@ class UserDeletedListener implements IEventListener {
 	public function __construct(
 		private IDBConnection $db,
 		private LeaveRequestMapper $requestMapper,
-		private CalendarService $calendar,
 		private \OCA\Absence\Service\AttachmentService $attachments,
 		private LoggerInterface $logger,
 		private EmployeeService $employees,
@@ -59,18 +57,9 @@ class UserDeletedListener implements IEventListener {
 			'employee' => $uid,
 		]);
 
-		// Remove the calendar events of the user's leave *before* the request rows go:
-		// they hold the calendar_event_uri references, and the shared team calendar
-		// would otherwise keep "Name — Absent" events forever. Best-effort: a calendar
-		// failure must not block the purge.
+		// Other people's notifications about the user's requests go with them.
 		foreach ($this->requestMapper->findAllForEmployee($uid) as $request) {
-			// Other people's notifications about these requests go with them.
 			$this->notifications->dismiss($request);
-			try {
-				$this->calendar->onRemoved($request);
-			} catch (\Throwable $e) {
-				$this->logger->warning('Absence: could not remove calendar events for purged user', ['exception' => $e]);
-			}
 		}
 
 		// Attachments carry the most sensitive payload of all (§3.8): purge the
@@ -87,8 +76,7 @@ class UserDeletedListener implements IEventListener {
 
 		$awaitingDecision = $this->atomic(fn (): array => $this->purgeRows($uid, $requestIds), $this->db);
 		// The requests the user was still to decide go to HR, once the purge is
-		// committed. Best-effort, like the calendar cleanup: the escalation job
-		// picks up what fails here.
+		// committed. Best-effort: the escalation job picks up what fails here.
 		foreach ($awaitingDecision as $request) {
 			// As the row now reads, so that the audit log does not name the user
 			$request->setManagerUid(null);

@@ -363,25 +363,6 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
-	 * Approved requests without calendar events that end on $today ('Y-m-d') or
-	 * later, with an id above $afterId, oldest first (§10).
-	 *
-	 * @return LeaveRequest[]
-	 */
-	public function findApprovedWithoutCalendarEvent(int $afterId, int $limit, string $today): array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')
-			->from($this->getTableName())
-			->where($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_APPROVED)))
-			->andWhere($qb->expr()->isNull('calendar_event_uri'))
-			->andWhere($qb->expr()->gte('end_date', $qb->createNamedParameter($today)))
-			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
-			->orderBy('id', 'ASC')
-			->setMaxResults($limit);
-		return $this->findEntities($qb);
-	}
-
-	/**
 	 * The employee's leave in force (approved, or with a withdrawal still
 	 * pending), by start date.
 	 *
@@ -416,23 +397,6 @@ class LeaveRequestMapper extends QBMapper {
 			->orderBy('start_date', 'ASC')
 			->addOrderBy('id', 'ASC');
 		return $this->findEntities($qb);
-	}
-
-	/**
-	 * Store the calendar reference of a request if it is still approved. Returns
-	 * whether it was stored.
-	 *
-	 * The calendar sync job writes events for a list read moments earlier; a
-	 * request cancelled in between must not keep a reference to an event its
-	 * cancellation never saw. See {@see markEscalated()}.
-	 */
-	public function setCalendarEventUriIfApproved(int $id, string $uri): bool {
-		$qb = $this->db->getQueryBuilder();
-		$qb->update($this->getTableName())
-			->set('calendar_event_uri', $qb->createNamedParameter($uri))
-			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
-			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(LeaveRequest::STATUS_APPROVED)));
-		return $qb->executeStatement() === 1;
 	}
 
 	/**

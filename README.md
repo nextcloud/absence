@@ -74,7 +74,7 @@ Absence puts it on infrastructure you already run and already trust:
 | ⏰ **Nothing gets stuck** | Ignored requests are reminded, then escalated to HR — immediately when the app knows the manager is on leave themselves |
 | 📎 **Attachments** | Doctor's notes and other documents on the request — visible to HR and the employee, never the manager |
 | 👥 **Coverage warnings** | Both the employee booking and the manager approving are told who else is already off |
-| 📅 **Calendar sync** | Approved leave in a read-only personal calendar for each employee and a shared team calendar over CalDAV |
+| 📅 **Calendar sync** | Approved leave in two read-only calendars over CalDAV: each employee's own, and a team calendar for every employee and HR member |
 | 🔔 **Four channels** | Notification, email, Activity feed and audit log — carrying what people actually wrote |
 | 📊 **HR overview** | Company-wide balances, statistics, sick-leave ranking, who's-off timeline and CSV export |
 | 🔁 **Year rollover** | Carry-over computed automatically, with a cap and an optional expiry date |
@@ -186,7 +186,7 @@ default). Only HR ever sees what they are.
 To the line manager and even in the employee's own app, such an absence is a
 neutral *"Absent"* — dates and status, no category, no notes. The team timeline
 and coverage warnings still count the absence (colleagues plan around the person
-being away, not the reason), the shared calendar says *"Absent"* even when the
+being away, not the reason), the team calendar says *"Absent"* even when the
 admin chose to reveal ordinary leave types, and non-HR browsers never receive so
 much as the category names. Enforced by the API, not merely hidden in the UI.
 
@@ -287,7 +287,7 @@ group, so on a fresh install an admin picks it first.
 | Max concurrent team absences | 2 | The coverage-warning threshold |
 | Expected notice period | 14 calendar days | Short-notice threshold; `0` switches it off |
 | CalDAV: personal events | on | Show approved leave in a read-only Absence calendar of the employee's own |
-| CalDAV: shared team calendar | on | Write approved leave to a shared company calendar |
+| CalDAV: team calendar | on | A read-only calendar of everybody's approved leave for each employee and HR member |
 | Shared calendar type-visibility | neutral | Whether colleagues see *"Absent"* or *"Sick leave"* |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |
 
@@ -353,17 +353,22 @@ Built for a European works council to be comfortable with:
 - **Sensitive text stays sensitive.** Reasons and notes are never shown to peers. The
   nominated replacement is told the dates only — covering for someone does not come
   with a right to read why they are away. Whether a colleague's leave *type* is
-  visible on the shared calendar and the who's-off timeline is an admin decision, and
+  visible on the team calendar and the who's-off timeline is an admin decision, and
   the default is a neutral *"Absent"*.
+- **No stored copy of the team calendar.** Each employee and HR member gets their
+  own, built from the leave whenever it is read, and nobody else can read it, not
+  even their calendar delegates. A visibility change, a cancellation or a deleted
+  account shows at once, switching it off takes it away, and it only covers last
+  year, this year and next year. It never makes anybody look busy.
 - **A three-level audit trail**: per-request history, the Nextcloud Activity feed,
   and an entry per action in the admin audit log.
-- **GDPR deletion.** When a user account is deleted, their events are removed from
-  the shared calendar, they are detached as anybody's replacement, and their personal
-  data is purged — with the purge itself recorded.
+- **GDPR deletion.** When a user account is deleted, their leave is gone from both
+  calendars at once, they are detached as anybody's replacement, and their personal
+  data is purged, with the purge itself recorded.
 - **Rate limiting and input validation** on every create/edit endpoint.
 - **No surprise presence signals.** The app deliberately does not touch the built-in
-  out-of-office auto-responder or user status. Calendar busy state is the only
-  presence it sets, and you can switch that off too.
+  out-of-office auto-responder or user status. The busy time of a person's own
+  Absence calendar is the only presence it sets, and you can switch that off too.
 - **Correctness under concurrency.** Requests are written under a per-employee lock,
   so two edits racing each other cannot both be approved into an overlapping,
   double-counted absence.

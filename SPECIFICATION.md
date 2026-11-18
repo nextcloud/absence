@@ -203,7 +203,7 @@ The central table: one row per leave request.
 | `decision_comment` | text, nullable | Rejection reason / approval note. |
 | `escalated` | boolean, default false | True once auto-escalated to HR (§5.4). |
 | `supersedes_id` | bigint, nullable | For the edit workflow: points to the request this one replaces (§5.3). |
-| `calendar_event_uri` | string(255), nullable | Reference to the team calendar event created on approval, for cleanup (§10). |
+| `calendar_event_uri` | string(255), nullable | Unused: earlier versions kept the reference to the request's event in the stored team calendar here, which `Version1019…` cleared (§10). |
 | `created_at` | datetime | |
 | `updated_at` | datetime | |
 
@@ -649,7 +649,7 @@ employees — sick leave is the canonical example (`employee_requestable = false
   recorded straight to approved (`decided_by = the HR user`, `decided_at = now`).
 - **Fully visible & on the calendar.** Because it is approved, it appears for the
   employee (My leave), their line manager (Team) and HR (overview), counts in stats, and
-  is written to the shared/personal **CalDAV** calendar exactly like any approved leave
+  shows in the personal and team **CalDAV** calendars exactly like any approved leave
   (§10). Sick leave does not count against the balance (`counts_against_balance = false`).
 - **The line manager is told.** When HR records leave for somebody else, that person's
   current line manager (§2.1) gets a notification and an e-mail saying who is absent
@@ -861,9 +861,8 @@ becomes the request's reason.
   one transaction for the whole file.
 - **No side effects.** The leave already sits in the old calendar and the
   people know about it: no notification, e-mail, activity, CalDAV event or
-  `LeaveRequestChangedEvent` (§14b). Only imported leave that has not ended
-  yet gets team calendar events, later, from `CalendarSyncJob` (§10); the
-  personal calendar shows all of it at once. Each request gets one
+  `LeaveRequestChangedEvent` (§14b). The personal and team calendars (§10)
+  show it at once, as they are built from the leave. Each request gets one
   `request_imported` history event (§3.7) and the import as a whole one
   `leave_imported` server-log entry (§11) with the actor and the counts.
 
@@ -1201,9 +1200,7 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    It also sends the yearly carry-over expiry reminder to employees (§6.2).
 3. **YearRolloverJob** (daily, acts once per year / idempotent): computes carry-over
    and seeds next-year entitlements (§6.2); expires unused carry-over.
-4. **CalendarSyncJob** (optional, if async sync chosen): reconciles approved leave
-   with the CalDAV target calendar (§10).
-5. **CommentMailJob** (every 5 minutes): mails the queued comments of every request
+4. **CommentMailJob** (every 5 minutes): mails the queued comments of every request
    nobody has commented on for 10 minutes, one mail per recipient (§11).
 
 All jobs must be idempotent and safe to run repeatedly.
@@ -1212,66 +1209,51 @@ All jobs must be idempotent and safe to run repeatedly.
 
 ## 10. Calendar Integration (CalDAV)
 
-Approved leave appears in Nextcloud Calendar via CalDAV.
+Leave in force (`APPROVED` or `WITHDRAWAL_PENDING`) appears in Nextcloud Calendar via
+CalDAV, in read-only calendars that are not stored: the app registers a DAV calendar
+plugin (`<sabre><calendar-plugins>` in `info.xml`, `OCA\Absence\DAV\CalendarPlugin`)
+that puts them in the users' calendar homes and builds them from the requests on
+every read, so they always match the app and need no write, clean-up or sync. A type
+or visibility change, a cancellation or a deleted account shows at once. Their ACL
+grants the owner `write-properties` (colour, visibility, stored per user by the
+server); creating, changing, moving or deleting events and deleting the calendar are
+refused.
 
-- **Three targets (the personal and the team calendars can each be switched off on the Settings page, §12):**
-  1. **Personal:** a read-only "Absence" calendar in each employee's calendar home,
-     with an all-day `VEVENT` (`TRANSP: OPAQUE`, so it counts as busy) per leave in
-     force (`APPROVED` or `WITHDRAWAL_PENDING`). It is not stored: the app registers a
-     DAV calendar plugin (`<sabre><calendar-plugins>` in `info.xml`,
-     `OCA\Absence\DAV\CalendarPlugin`) that builds the calendar from the requests on
-     every read, so it always matches the app and needs no write, clean-up or sync.
-     Its ACL grants the owner and their calendar delegates read access and the owner
-     `write-properties` (colour, visibility); creating, changing, moving or deleting
-     events and deleting the calendar are refused. It is offered for every user
+- **Two calendars (either can be switched off on the Settings page, §12):**
+  1. **Personal:** an "Absence" calendar in each employee's calendar home, with an
+     all-day `VEVENT` (`TRANSP: OPAQUE`, so it counts as busy) per leave in force.
+     The owner and their calendar delegates read it. It is offered for every user
      principal with leave in force, so free/busy lookups by colleagues see it, while
      the ACL keeps everyone else out. Event titles follow the employee's language and
      never name a confidential type (§5.7).
-  2. **Team absences:** a read-only calendar in the calendar home of every employee
-     and HR member (`PermissionService::isEmployeeOrHr()`), while *Keep a shared team
-     calendar* is on and the app is set up (§12). Like the personal calendar it is
-     not stored but built by the plugin on every read, so a type or visibility
-     change, a cancellation or a deleted account shows at once. It holds the leave
-     in force of every employee (§2.2) that overlaps the previous, the current or
-     the next calendar year of the server (§3.9), from January 1 of last year to
-     December 31 of next year: the leave colleagues plan around, next year's
-     bookings included, without the calendar becoming everybody's absence history.
-     Titles read "Name · Absent", or "Name · <type>" when the admin reveals the type
-     (§12), never with a confidential type (§5.7), in the viewer's language. Only
-     the owner reads it, not their calendar delegates: a delegate's access follows
-     the owner's, and would show every colleague's leave to people who need not be
-     employees or HR themselves. It is transparent
-     (`schedule-calendar-transp: transparent`, and `TRANSP: TRANSPARENT` on every
-     event): Sabre's free/busy lookup (`Schedule\Plugin::getFreeBusyForEmail()`)
-     skips transparent calendars and the free/busy generator skips transparent
-     events, so colleagues' leave never makes anybody busy. One read costs a fixed
-     number of queries: the leave in the window, the employees with their display
-     names (one read of the employees group, `EmployeeDirectory::displayNames()`)
-     and the leave types. Event ETags are a hash of the event, which changes only
-     with the leave, its title or the settings behind the title, and `getctag` is a
-     hash of all of them.
-  3. **Shared team "Absences" calendar:** a company/team calendar showing everyone's
-     approved leave (all-day events titled with employee + leave type, colored by
-     type). Auto-provisioned under `principals/system/absence` and shared read-only
-     with the employees group and the HR group, and nobody else: the share follows
-     when either group or the *Keep a shared team calendar* switch changes in the
-     settings, and the `ShareTeamCalendar` repair step shares calendars created
-     before (`CalendarService::shareTeamCalendar()`).
-- **Lifecycle (team calendar):** create the event on approval; delete/update it on
-  cancellation/withdrawal/edit. Store the created event's URI/UID on the request
-  (add nullable `calendar_event_uri` column to `absence_requests`) so it can be
-  cleaned up. It is written with the CalDAV backend
-  (`OCA\DAV\CalDAV\CalDavBackend`).
-- Sick-leave / private types: allow admin to configure whether the event title on
-  the shared calendar reveals the type or shows a neutral "Absent".
-- Team calendar events are written when the request is approved. `CalendarSyncJob`
-  (every 15 minutes, time-insensitive) writes them for approved leave that has none
-  and has not ended yet (end date today or later): imported leave, leave approved
-  while the team calendar was off, and writes that failed. Leave that is over
-  never gets events from the job. It
-  takes 200 requests per run in id order and keeps its place
-  (`calendar_sync_cursor`), so a request that keeps failing never holds the others
-  back; it is tried again on the next pass. Nothing runs while the team calendar is off.
+  2. **Team absences:** a calendar in the calendar home of every employee and HR
+     member (`PermissionService::isEmployeeOrHr()`), while *Keep a shared team
+     calendar* is on and the app is set up (§12). It holds the leave in force of
+     every employee (§2.2) that overlaps the previous, the current or the next
+     calendar year of the server (§3.9), from January 1 of last year to December 31
+     of next year: the leave colleagues plan around, next year's bookings included,
+     without the calendar becoming everybody's absence history. Titles read
+     "Name · Absent", or "Name · <type>" when the admin reveals the type (§12), never
+     with a confidential type (§5.7), in the viewer's language. Only the owner reads
+     it, not their calendar delegates: a delegate's access follows the owner's, and
+     would show every colleague's leave to people who need not be employees or HR
+     themselves. It is transparent (`schedule-calendar-transp: transparent`, and
+     `TRANSP: TRANSPARENT` on every event): Sabre's free/busy lookup
+     (`Schedule\Plugin::getFreeBusyForEmail()`) skips transparent calendars and the
+     free/busy generator skips transparent events, so colleagues' leave never makes
+     anybody busy.
+- **Cost:** one read of the team calendar costs a fixed number of queries: the leave
+  in the window, the employees with their display names (one read of the employees
+  group, `EmployeeDirectory::displayNames()`) and the leave types. Event ETags are a
+  hash of the event, which changes only with the leave, its title or the settings
+  behind the title, and `getctag` is a hash of all of them.
+- **The stored team calendar of earlier versions** lived under
+  `principals/system/absence`, shared with the employees and HR groups, with one
+  event written per approval and referenced in `calendar_event_uri`. The
+  `Version1019…` migration deletes it for good, with its events, those in the trash
+  bin and its shares, clears `calendar_event_uri`, and removes `CalendarSyncJob` and
+  its `calendar_sync_cursor`. It marks the calendar as in the trash bin first, so the
+  dav app deletes it without an activity for every member of those groups.
 
 ---
 
@@ -1408,7 +1390,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Approvals | Max concurrent team absences | 2 | Conflict threshold (§8). |
 | Approvals | Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
 | Calendar | CalDAV: personal read-only Absence calendar | true | §10. |
-| Calendar | CalDAV: write shared team calendar | true | §10. |
+| Calendar | CalDAV: read-only team calendar of each employee and HR member | true | §10. |
 | Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal., and to other apps (§14b). |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
 | Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
@@ -2115,8 +2097,8 @@ apps/absence/
 └── SPECIFICATION.md        # this file
 ```
 
-Note: `CalendarSyncJob` from the original plan was not needed — calendar writes are
-synchronous on decision (§10), which is sufficient for phase 1.
+Note: `CalendarSyncJob` from the original plan is not needed: the calendars are built
+from the leave on every read (§10).
 
 **Definition of done for phase 1 — all met:**
 - ✅ Employee can apply; manager can approve/reject; HR sees overview, stats, export.
@@ -2125,7 +2107,7 @@ synchronous on decision (§10), which is sufficient for phase 1.
 - ✅ Notifications (bell), email, activity, **and the admin audit log** for all state changes.
 - ✅ Escalation to HR on manager non-response.
 - ✅ Edit/cancel/withdraw workflow with balance restoration.
-- ✅ Approved leave written to Nextcloud Calendar (personal + shared team), removed on cancellation.
+- ✅ Approved leave shown in Nextcloud Calendar (personal + team), gone on cancellation.
 - ✅ Coverage conflict warnings for managers.
 - ✅ Per-request history timeline visible to employee/manager/HR (§3.7, §15.1).
 - ✅ Role-aware Dashboard widget (§15.6).
@@ -2145,10 +2127,10 @@ mobile-tuned views.
 | Approval flow | Manager approves; HR escalation & override; HR handles no-manager cases |
 | Manager source | `IUser::getManagerUids()` — the NC 34 manager account field (denormalized per request); no `IAccountManager::PROPERTY_MANAGER` exists |
 | Leave types | Annual/paid, sick, unpaid, special (configurable; color + emoji icon; `employee_requestable` flag) |
-| Sick leave | HR-recorded (no approval, not self-requested); visible to employee/manager/HR and on the shared calendar (§5.6) |
+| Sick leave | HR-recorded (no approval, not self-requested); visible to employee/manager/HR and on the team calendar (§5.6) |
 | Replacement | Mandatory for annual/unpaid/special (org-wide picker); replacement gets a push notification on approval and on cancellation (§5.1) |
 | Balances | Full tracking: entitlement, used, pending, remaining, available, carry-over |
-| Calendar | Nextcloud Calendar via CalDAV (personal + shared team) |
+| Calendar | Nextcloud Calendar via CalDAV (personal + team), built from the leave on every read |
 | Notifications | Nextcloud notifications + email + activity stream + admin audit log |
 | Holidays | A list HR maintains by region code, with a JSON import (§7.2); never used to recompute working days |
 | Working days | Entered manually by the employee, verified by the manager (no auto-calc, no region) |
@@ -2335,12 +2317,18 @@ Recorded during the build so the spec matches the code:
 - **Approvals remembered in the browser** (§15.2): *My leave* keeps in localStorage
   which of the person's approvals it has celebrated. It kept every approved request;
   it keeps those not over yet now, so the browser holds no list of past approvals.
-- **Team calendar per viewer** (§10): the shared team calendar is stored under
+- **Team calendar per viewer** (§10): the team calendar was stored under
   `principals/system/absence`, a principal the server does not serve, so the
-  Calendar app waits forever on its owner. Every employee and HR member now also
-  gets a read-only team calendar in their own calendar home, built from the leave on
-  every read like the personal calendar: three calendar years, current titles,
-  transparent, and read by its owner only.
+  Calendar app waited forever on its owner. It was shared with the employees and HR
+  groups: switching it off unshared nothing, titles kept the visibility of the day
+  they were written, past leave stayed, deleted events spent 30 days in the CalDAV
+  trash, and every write put an activity in the stream of everybody it was shared
+  with. Every employee and HR member now gets a read-only team calendar in their own
+  calendar home, built from the leave on every read like the personal calendar:
+  three calendar years, current titles, transparent, and read by its owner only.
+  `Version1019…` deletes the stored calendar; `CalendarSyncJob`, the
+  `ShareTeamCalendar` repair step and the `calendar_sync_cursor` key are gone, and
+  `calendar_event_uri` is no longer used.
 - **Coverage counts the current team** (§8): the coverage of a request and the
   decision queue's list of who else is off counted the team of the manager stored on
   the request, and its cancellation showed in that manager's activity. After a change

@@ -43,7 +43,6 @@ class ConfigLexicon implements ILexicon {
 
 	// Internal state.
 	public const KEY_LAST_ROLLOVER_YEAR = 'last_rollover_year';
-	public const KEY_CALENDAR_SYNC_CURSOR = 'calendar_sync_cursor';
 	public const KEY_REMINDER_CUTOFF = 'reminder_cutoff';
 	public const KEY_CARRYOVER_REMINDER_YEAR = 'carryover_reminder_year';
 
@@ -83,7 +82,7 @@ class ConfigLexicon implements ILexicon {
 			new Entry(self::KEY_CALDAV_PERSONAL, ValueType::BOOL, true,
 				'Show approved leave in a read-only personal calendar of each employee', lazy: true),
 			new Entry(self::KEY_CALDAV_SHARED, ValueType::BOOL, true,
-				'Write approved leave to the shared team calendar', lazy: true),
+				'Show approved leave of all employees in a read-only team calendar of each employee and HR member', lazy: true),
 			new Entry(self::KEY_HOLIDAYS_EVERYONE, ValueType::BOOL, false,
 				'Everyone, not only HR, may add, edit and delete public holidays', lazy: true),
 			new Entry(self::KEY_HANDBOOK_URL, ValueType::STRING, '',
@@ -94,8 +93,6 @@ class ConfigLexicon implements ILexicon {
 				'Shared-calendar event titles: neutral ("Absent") or reveal the leave type', lazy: true),
 			new Entry(self::KEY_LAST_ROLLOVER_YEAR, ValueType::INT, 0,
 				'Internal marker: last year already processed by the rollover job', lazy: true),
-			new Entry(self::KEY_CALENDAR_SYNC_CURSOR, ValueType::INT, 0,
-				'Internal marker: last request the calendar sync job looked at', lazy: true),
 			new Entry(self::KEY_REMINDER_CUTOFF, ValueType::INT, 0,
 				'Internal marker: creation time (Unix time) up to which the reminder job has reminded pending requests', lazy: true),
 			new Entry(self::KEY_CARRYOVER_REMINDER_YEAR, ValueType::INT, 0,

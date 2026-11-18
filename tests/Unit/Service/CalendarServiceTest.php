@@ -25,8 +25,6 @@ use OCP\L10N\IFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\Log\LoggerInterface;
 use Sabre\VObject\Reader;
 
 class CalendarServiceTest extends TestCase {
@@ -86,13 +84,11 @@ class CalendarServiceTest extends TestCase {
 			return $user;
 		});
 		return new CalendarService(
-			$this->createMock(ContainerInterface::class),
 			$this->config,
 			$this->requestMapper,
 			$types,
 			$users,
 			$this->l10nFactory,
-			$this->createMock(LoggerInterface::class),
 			$this->permission,
 			$this->employees,
 			$this->clock,
