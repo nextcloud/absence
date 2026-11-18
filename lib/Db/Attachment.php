@@ -13,8 +13,8 @@ use OCP\AppFramework\Db\Entity;
 /**
  * @method int getRequestId()
  * @method void setRequestId(int $requestId)
- * @method string getUploaderUid()
- * @method void setUploaderUid(string $uploaderUid)
+ * @method ?string getUploaderUid() null once the uploader's account is deleted
+ * @method void setUploaderUid(?string $uploaderUid)
  * @method string getName()
  * @method void setName(string $name)
  * @method string getMime()
@@ -28,7 +28,7 @@ use OCP\AppFramework\Db\Entity;
  */
 class Attachment extends Entity implements \JsonSerializable {
 	protected int $requestId = 0;
-	protected string $uploaderUid = '';
+	protected ?string $uploaderUid = null;
 	protected string $name = '';
 	protected string $mime = 'application/octet-stream';
 	protected int $size = 0;

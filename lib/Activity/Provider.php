@@ -32,7 +32,7 @@ class Provider implements IProvider {
 		}
 		$l = $this->l10nFactory->get(ConfigService::APP_ID, $language);
 		$params = $event->getSubjectParameters();
-		$employee = $this->displayName((string)($params['employee'] ?? ''));
+		$employee = $this->displayName($l, (string)($params['employee'] ?? ''));
 		$range = trim((string)($params['start'] ?? '') . ' – ' . (string)($params['end'] ?? ''), ' –');
 
 		$subject = match ($event->getSubject()) {
@@ -77,11 +77,10 @@ class Provider implements IProvider {
 		return $l->t('Leave balance of %1$s was adjusted: %2$s (%3$s)', [$employee, $summary, $note]);
 	}
 
-	private function displayName(string $uid): string {
+	private function displayName(\OCP\IL10N $l, string $uid): string {
 		if ($uid === '') {
 			return '';
 		}
-		$user = $this->userManager->get($uid);
-		return $user !== null ? $user->getDisplayName() : $uid;
+		return $this->userManager->get($uid)?->getDisplayName() ?? $l->t('Deleted account');
 	}
 }

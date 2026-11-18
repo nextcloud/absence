@@ -13,6 +13,7 @@ use OCA\Absence\BackgroundJob\PurgeRetryJob;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\PurgeRetryMapper;
+use OCA\Absence\Db\RequestEvent;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\EmployeeService;
@@ -42,6 +43,8 @@ class UserDeletedPurgeTest extends TestCase {
 	private const REGION = 'ZZ-ITEST-PURGE';
 	/** Marks this test's row of the holiday history: Oracle cannot filter on its text column */
 	private const HISTORY_ACTION = 'itest_purge';
+	/** No entitlement has this id: the history row stands alone */
+	private const ENTITLEMENT = 990017;
 	private static bool $registered = false;
 
 	private IDBConnection $db;
@@ -66,6 +69,11 @@ class UserDeletedPurgeTest extends TestCase {
 		$this->insert('absence_holidays', ['region' => self::REGION, 'date' => '2026-05-01', 'label' => 'itest', 'created_by' => self::GONE, 'updated_by' => self::GONE]);
 		$this->insert('absence_holiday_history', ['action' => self::HISTORY_ACTION, 'actor_uid' => self::GONE, 'detail' => '{"region":"' . self::REGION . '"}', 'created_at' => '2026-03-01 09:00:00']);
 		$this->insert('absence_emp_history', ['employee_uid' => self::OTHER, 'actor_uid' => self::GONE, 'field' => 'contract', 'detail' => '{}', 'created_at' => '2026-03-01 09:00:00']);
+		// What they did on the other employee's request and entitlement
+		$this->insert('absence_request_events', ['request_id' => $this->decided->getId(), 'actor_uid' => self::GONE, 'event_type' => 'request_approved', 'created_at' => '2026-03-01 09:00:00']);
+		$this->insert('absence_request_events', ['request_id' => $this->decided->getId(), 'actor_uid' => RequestEvent::ACTOR_SYSTEM, 'event_type' => 'request_escalated', 'created_at' => '2026-03-01 09:00:00']);
+		$this->insert('absence_ent_events', ['entitlement_id' => self::ENTITLEMENT, 'employee_uid' => self::OTHER, 'actor_uid' => self::GONE, 'field' => 'base_days', 'old_value' => 20, 'new_value' => 25, 'created_at' => '2026-03-01 09:00:00']);
+		$this->insert('absence_attachments', ['request_id' => $this->decided->getId(), 'uploader_uid' => self::GONE, 'name' => 'itest.pdf', 'mime' => 'application/pdf', 'size' => 1, 'created_at' => '2026-03-01 09:00:00']);
 	}
 
 	protected function tearDown(): void {
@@ -76,7 +84,9 @@ class UserDeletedPurgeTest extends TestCase {
 		// What the listener keeps, and what a failed purge leaves behind
 		$this->deleteWhere('absence_requests', 'id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_comments', 'request_id', [$this->own->getId()], IQueryBuilder::PARAM_INT_ARRAY);
-		$this->deleteWhere('absence_request_events', 'request_id', [$this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
+		$this->deleteWhere('absence_request_events', 'request_id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
+		$this->deleteWhere('absence_attachments', 'request_id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
+		$this->deleteWhere('absence_ent_events', 'entitlement_id', [self::ENTITLEMENT], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_holidays', 'region', [self::REGION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_holiday_history', 'action', [self::HISTORY_ACTION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_emp_history', 'employee_uid', [self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
@@ -92,6 +102,15 @@ class UserDeletedPurgeTest extends TestCase {
 		self::assertSame([null], $this->column('absence_holidays', 'updated_by', 'region', self::REGION));
 		self::assertSame([null], $this->column('absence_holiday_history', 'actor_uid', 'action', self::HISTORY_ACTION));
 		self::assertSame([null], $this->column('absence_emp_history', 'actor_uid', 'employee_uid', self::OTHER));
+		self::assertSame([null], $this->column('absence_ent_events', 'actor_uid', 'entitlement_id', self::ENTITLEMENT));
+		self::assertSame([null], $this->column('absence_attachments', 'uploader_uid', 'request_id', $this->decided->getId()));
+		self::assertEqualsCanonicalizing([null, RequestEvent::ACTOR_SYSTEM], $this->column('absence_request_events', 'actor_uid', 'request_id', $this->decided->getId()));
+	}
+
+	public function testPurgingAnAccountWithTheJobsUidKeepsTheJobsEntries(): void {
+		Server::get(UserPurgeService::class)->purge(RequestEvent::ACTOR_SYSTEM);
+
+		self::assertContains(RequestEvent::ACTOR_SYSTEM, $this->column('absence_request_events', 'actor_uid', 'request_id', $this->decided->getId()));
 	}
 
 	public function testTheHistoryOfOtherRequestsKeepsTheirDecisionsButNotTheirComments(): void {
@@ -101,7 +120,9 @@ class UserDeletedPurgeTest extends TestCase {
 
 		Server::get(IUserManager::class)->get(self::GONE)->delete();
 
-		self::assertEqualsCanonicalizing([null, 'itest decision'], $this->column('absence_request_events', 'hr_detail', 'request_id', $this->decided->getId()));
+		$details = $this->column('absence_request_events', 'hr_detail', 'request_id', $this->decided->getId());
+		self::assertContains('itest decision', $details);
+		self::assertNotContains('itest comment', $details);
 	}
 
 	public function testAFailedPurgeIsRetriedByTheJob(): void {

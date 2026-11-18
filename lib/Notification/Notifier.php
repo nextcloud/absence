@@ -70,11 +70,11 @@ class Notifier implements INotifier {
 			return $this->prepareManagerChange($notification, $l);
 		}
 		$params = $notification->getSubjectParameters();
-		$employee = $this->displayName((string)($params['employee'] ?? ''));
+		$employee = $this->displayName($l, (string)($params['employee'] ?? ''));
 		$requestId = (string)($params['requestId'] ?? $notification->getObjectId());
 		// Notifications stored before notes were carried have none of these keys.
 		$note = trim((string)($params['note'] ?? ''));
-		$noteAuthor = $this->displayName((string)($params['noteAuthor'] ?? ''));
+		$noteAuthor = $this->displayName($l, (string)($params['noteAuthor'] ?? ''));
 		$notice = isset($params['noticeDays'], $params['noticePeriod'])
 			? ['days' => (int)$params['noticeDays'], 'noticePeriod' => (int)$params['noticePeriod']]
 			: null;
@@ -231,9 +231,9 @@ class Notifier implements INotifier {
 		$own = $notification->getUser() === $employeeUid;
 		return $notification->setParsedSubject($own
 			? $l->t('Your manager was changed')
-			: $l->t('The manager of %s was changed', [$this->displayName($employeeUid)]))
+			: $l->t('The manager of %s was changed', [$this->displayName($l, $employeeUid)]))
 			->setParsedMessage($l->t('%1$s changed it from %2$s to %3$s.', [
-				$this->displayName((string)($params['actor'] ?? '')),
+				$this->displayName($l, (string)($params['actor'] ?? '')),
 				$this->names($l, $params['before'] ?? []),
 				$this->names($l, $params['after'] ?? []),
 			]))
@@ -242,7 +242,7 @@ class Notifier implements INotifier {
 	}
 
 	private function names(IL10N $l, mixed $uids): string {
-		$names = array_map(fn (mixed $uid): string => $this->displayName((string)$uid), is_array($uids) ? $uids : []);
+		$names = array_map(fn (mixed $uid): string => $this->displayName($l, (string)$uid), is_array($uids) ? $uids : []);
 		return $names === [] ? $l->t('nobody') : implode(', ', $names);
 	}
 
@@ -260,11 +260,10 @@ class Notifier implements INotifier {
 		return (string)$l->l('date', new \DateTime($date), ['width' => 'medium']);
 	}
 
-	private function displayName(string $uid): string {
+	private function displayName(IL10N $l, string $uid): string {
 		if ($uid === '') {
 			return '';
 		}
-		$user = $this->userManager->get($uid);
-		return $user !== null ? $user->getDisplayName() : $uid;
+		return $this->userManager->get($uid)?->getDisplayName() ?? $l->t('Deleted account');
 	}
 }

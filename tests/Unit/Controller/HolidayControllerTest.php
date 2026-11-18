@@ -24,21 +24,40 @@ class HolidayControllerTest extends TestCase {
 	use L10nMockTrait;
 
 	private HolidayService&MockObject $service;
+	private PermissionService&MockObject $permission;
+	private IUserManager&MockObject $userManager;
 	private HolidayController $controller;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->service = $this->createMock(HolidayService::class);
+		$this->permission = $this->createMock(PermissionService::class);
+		$this->userManager = $this->createMock(IUserManager::class);
 		$this->controller = new HolidayController(
 			'absence',
 			$this->createMock(IRequest::class),
 			'itest-employee',
 			$this->service,
-			$this->createMock(PermissionService::class),
+			$this->permission,
 			$this->l10nMock(),
-			$this->createMock(IUserManager::class),
+			$this->userManager,
 			$this->createMock(LoggerInterface::class),
 		);
+	}
+
+	public function testHistoryNamesADeletedAccountAsSuch(): void {
+		$this->permission->method('isEmployeeOrHr')->willReturn(true);
+		$this->service->method('history')->willReturn([
+			['action' => 'added', 'actorUid' => 'itest-hr', 'at' => '2026-03-01T09:00:00+00:00', 'detail' => []],
+			['action' => 'added', 'actorUid' => 'itest-gone', 'at' => '2026-03-01T09:00:00+00:00', 'detail' => []],
+		]);
+		$this->userManager->method('getDisplayName')->willReturnCallback(
+			static fn (string $uid): ?string => $uid === 'itest-hr' ? 'Robin Vale' : null,
+		);
+
+		$history = $this->controller->history()->getData();
+
+		self::assertSame(['Robin Vale', 'Deleted account'], array_column($history, 'actorName'));
 	}
 
 	/**

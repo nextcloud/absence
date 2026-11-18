@@ -169,6 +169,6 @@ class ProfileService {
 	}
 
 	private function displayName(string $uid): string {
-		return $this->userManager->get($uid)?->getDisplayName() ?? $uid;
+		return $this->userManager->get($uid)?->getDisplayName() ?? $this->l->t('Deleted account');
 	}
 }

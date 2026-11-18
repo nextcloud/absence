@@ -270,7 +270,7 @@
 									{{ ev.actorName || ev.actorUid }}
 								</template>
 								<template v-else>
-									{{ t('absence', 'An administrator') }}
+									{{ ev.actorName || t('absence', 'An administrator') }}
 								</template>
 							</div>
 							<p v-if="ev.detail" class="timeline__detail">

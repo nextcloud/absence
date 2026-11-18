@@ -8,8 +8,10 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Service;
 
+use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Db\RequestEvent;
 use OCP\AppFramework\Db\TTransactional;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -24,8 +26,11 @@ use Psr\Log\LoggerInterface;
 class UserPurgeService {
 	use TTransactional;
 
-	/** Replaces a purged user's uid on history/attachment rows about other people, where the column cannot be null. */
-	private const DELETED_ACTOR = 'deleted_user';
+	/** The actor columns that also hold the jobs' own actor, which is no account. */
+	private const JOB_ACTORS = [
+		'absence_request_events' => RequestEvent::ACTOR_SYSTEM,
+		'absence_ent_events' => EntitlementEvent::ACTOR_SYSTEM,
+	];
 
 	public function __construct(
 		private IDBConnection $db,
@@ -125,24 +130,28 @@ class UserPurgeService {
 		// another employee's request, adjusted their entitlement, uploaded a note to
 		// their request. Those history/attachment rows belong to the other employee's
 		// audit trail and must stay, but they still name the deleted person as actor/
-		// uploader, so that identity is removed: null where the column allows it, the
-		// sentinel where it is notnull. Mirrors the comment cleanup above (§17).
-		$this->anonymizeActor('absence_request_events', 'actor_uid', $uid, self::DELETED_ACTOR);
-		$this->anonymizeActor('absence_ent_events', 'actor_uid', $uid, self::DELETED_ACTOR);
-		$this->anonymizeActor('absence_attachments', 'uploader_uid', $uid, self::DELETED_ACTOR);
-		$this->anonymizeActor('absence_emp_history', 'actor_uid', $uid, null);
-		$this->anonymizeActor('absence_requests', 'decided_by', $uid, null);
-		$this->anonymizeActor('absence_holidays', 'created_by', $uid, null);
-		$this->anonymizeActor('absence_holidays', 'updated_by', $uid, null);
-		$this->anonymizeActor('absence_holiday_history', 'actor_uid', $uid, null);
+		// uploader, so that identity is removed. Mirrors the comment cleanup above (§17).
+		// The two histories cannot tell an account with the jobs' own uid from
+		// the jobs, so those rows stay as the jobs'.
+		foreach (self::JOB_ACTORS as $table => $jobActor) {
+			if ($uid !== $jobActor) {
+				$this->anonymizeActor($table, 'actor_uid', $uid);
+			}
+		}
+		$this->anonymizeActor('absence_attachments', 'uploader_uid', $uid);
+		$this->anonymizeActor('absence_emp_history', 'actor_uid', $uid);
+		$this->anonymizeActor('absence_requests', 'decided_by', $uid);
+		$this->anonymizeActor('absence_holidays', 'created_by', $uid);
+		$this->anonymizeActor('absence_holidays', 'updated_by', $uid);
+		$this->anonymizeActor('absence_holiday_history', 'actor_uid', $uid);
 		return $awaitingDecision;
 	}
 
-	/** Replace a deleted user's uid, where they are the actor on a surviving row. */
-	private function anonymizeActor(string $table, string $column, string $uid, ?string $marker): void {
+	/** Null a deleted user's uid, where they are the actor on a surviving row. */
+	private function anonymizeActor(string $table, string $column, string $uid): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->update($table)
-			->set($column, $qb->createNamedParameter($marker))
+			->set($column, $qb->createNamedParameter(null))
 			->where($qb->expr()->eq($column, $qb->createNamedParameter($uid)));
 		$qb->executeStatement();
 	}

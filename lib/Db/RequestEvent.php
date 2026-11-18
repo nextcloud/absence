@@ -15,7 +15,7 @@ use OCP\AppFramework\Db\Entity;
  *
  * @method int getRequestId()
  * @method void setRequestId(int $requestId)
- * @method ?string getActorUid()
+ * @method ?string getActorUid() null for an import from occ, and once the actor's account is deleted
  * @method void setActorUid(?string $actorUid)
  * @method string getEventType()
  * @method void setEventType(string $eventType)
@@ -29,6 +29,11 @@ use OCP\AppFramework\Db\Entity;
  * @method void setCreatedAt(\DateTime $createdAt)
  */
 class RequestEvent extends Entity implements \JsonSerializable {
+	/** Actor of the steps no person took: the escalation job. */
+	public const ACTOR_SYSTEM = 'system';
+	/** A request imported as past leave (§6.5); from occ it has no actor. */
+	public const TYPE_IMPORTED = 'request_imported';
+
 	protected int $requestId = 0;
 	protected ?string $actorUid = null;
 	protected string $eventType = '';

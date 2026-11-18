@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Controller;
 
+use OCA\Absence\Db\EntitlementEvent;
 use OCA\Absence\Service\EntitlementService;
 use OCA\Absence\Service\EntitlementValidator;
 use OCA\Absence\Service\PermissionService;
@@ -96,12 +97,14 @@ class EntitlementController extends Controller {
 			$names = [];
 			$history = [];
 			foreach ($this->service->historyFor($id) as $event) {
-				// A change made without a user (occ) has no actor to name
 				$uid = $event->getActorUid();
-				if ($uid !== null) {
-					$names[$uid] ??= $this->userManager->getDisplayName($uid) ?? $uid;
+				$name = null;
+				// A change made without a user (occ) has no actor to name, and the
+				// jobs' actor is no account, even where an account has its uid
+				if ($uid !== null && $uid !== EntitlementEvent::ACTOR_SYSTEM) {
+					$name = $names[$uid] ??= $this->userManager->getDisplayName($uid) ?? $this->l->t('Deleted account');
 				}
-				$history[] = [...$event->jsonSerialize(), 'actorName' => $uid !== null ? $names[$uid] : null];
+				$history[] = [...$event->jsonSerialize(), 'actorName' => $name];
 			}
 			return $history;
 		});

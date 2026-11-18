@@ -319,11 +319,34 @@ class RequestServiceTest extends TestCase {
 		self::assertSame('Robin Vale', $detail['decidedByName']);
 		self::assertSame(['Robin Vale', 'Sam Okoro', 'Robin Vale'], array_column($detail['comments'], 'authorName'));
 		self::assertSame(['lead', 'emp', 'lead'], array_column($detail['comments'], 'authorUid'));
-		// An account that no longer exists keeps its uid as the name.
-		self::assertSame(['Sam Okoro', 'gone', 'Robin Vale'], array_column($detail['history'], 'actorName'));
+		// An account that no longer exists is named as such, not by its uid.
+		self::assertSame(['Sam Okoro', 'Deleted account', 'Robin Vale'], array_column($detail['history'], 'actorName'));
 		// The six comments and events cost one lookup per person.
 		$forThreads = array_slice($lookups, 2);
 		self::assertEqualsCanonicalizing(['lead', 'emp', 'gone'], $forThreads);
+	}
+
+	public function testHistoryWithoutAnActorNamesADeletedAccountUnlessItWasImportedAndNeverTheJobsAccount(): void {
+		$this->requestMapper->method('find')->with(5)->willReturn($this->pendingOwnRequest());
+		$this->permission->method('canView')->willReturn(true);
+		$events = [];
+		foreach ([[null, 'request_approved'], [null, RequestEvent::TYPE_IMPORTED], [RequestEvent::ACTOR_SYSTEM, 'request_escalated']] as [$actorUid, $type]) {
+			$event = new RequestEvent();
+			$event->setActorUid($actorUid);
+			$event->setEventType($type);
+			$events[] = $event;
+		}
+		$this->eventMapper->method('findForRequest')->willReturn($events);
+		// Somebody has the uid the escalation job writes
+		$this->userManager->method('get')->willReturnCallback(function (string $uid): IUser {
+			$user = $this->createMock(IUser::class);
+			$user->method('getDisplayName')->willReturn('Account ' . $uid);
+			return $user;
+		});
+
+		$detail = $this->service->getDetail('emp', 5);
+
+		self::assertSame(['Deleted account', null, null], array_column($detail['history'], 'actorName'));
 	}
 
 	public function testApplyingForOwnLeaveStillDemandsAReplacement(): void {

@@ -219,6 +219,15 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame(['emp'], $this->queued);
 	}
 
+	public function testTheCommentMailNamesADeletedAuthorAsSuch(): void {
+		$this->withUsers('emp');
+
+		$this->service->sendCommentMail($this->request(), 'emp', [$this->comment('gone', 'Can you move this a day later?')]);
+
+		self::assertSame('New comment from Deleted account', $this->emailSubject);
+		self::assertSame([['Can you move this a day later?', 'Deleted account wrote:']], $this->emailNotes);
+	}
+
 	public function testTheCommentMailQuotesEveryCommentWithItsAuthor(): void {
 		$this->withUsers('emp', 'boss', 'hr');
 
