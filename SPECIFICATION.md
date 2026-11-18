@@ -1227,6 +1227,8 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
      entitlements and former employees.
    - A run that deletes something writes one admin audit log entry and one
      `nextcloud.log` line (`retention_applied`) with the counts only.
+7. **PurgeRetryJob** (daily): runs the purges of deleted accounts that failed again
+   (§17).
 
 All jobs must be idempotent and safe to run repeatedly.
 
@@ -2070,9 +2072,11 @@ under `prefers-reduced-motion: reduce`.
   balance edits.
 - Input validation and rate-limiting on create/edit endpoints
   (`#[UserRateLimit]` where appropriate).
-- GDPR: provide data via Nextcloud's user data export/deletion hooks — implement
-  `OCP\User\Events\BeforeUserDeletedEvent` handling to anonymize/remove a deleted
-  user's requests per policy.
+- GDPR: a `OCP\User\Events\UserDeletedEvent` listener purges a deleted user's leave
+  data, takes back the notifications about their requests, and anonymises them where
+  they acted on other people's records. A purge that fails is kept in
+  `absence_purge_retry` and run again daily until it goes through, unless an account
+  has that uid again.
 - Personal data export: a user migrator (`OCP\UserMigration\IMigrator`, id `absence`)
   adds the person's own Absence data to the export of the *User migration* app
   (`occ user:export`, or *Data migration* in the personal settings), as JSON under
@@ -2440,3 +2444,6 @@ Recorded during the build so the spec matches the code:
   reasons, notes and comments passed down from the controllers whenever
   `zend.exception_ignore_args` was off. Those parameters are now
   `#[\SensitiveParameter]`.
+- **Purge of deleted accounts** (§17): the purge moved from the listener into
+  `UserPurgeService`. It ran once; now a failed purge is kept in `absence_purge_retry`
+  (`Version1020…`) and retried daily.

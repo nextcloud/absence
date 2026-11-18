@@ -9,13 +9,16 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Integration;
 
+use OCA\Absence\BackgroundJob\PurgeRetryJob;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
+use OCA\Absence\Db\PurgeRetryMapper;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\RequestService;
+use OCA\Absence\Service\UserPurgeService;
 use OCA\Absence\Tests\Integration\Fixtures\RecordingNotifications;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -77,6 +80,7 @@ class UserDeletedPurgeTest extends TestCase {
 		$this->deleteWhere('absence_holidays', 'region', [self::REGION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_holiday_history', 'action', [self::HISTORY_ACTION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_emp_history', 'employee_uid', [self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
+		$this->deleteWhere('absence_purge_retry', 'uid', [self::GONE, self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
 		parent::tearDown();
 	}
 
@@ -98,6 +102,27 @@ class UserDeletedPurgeTest extends TestCase {
 		Server::get(IUserManager::class)->get(self::GONE)->delete();
 
 		self::assertEqualsCanonicalizing([null, 'itest decision'], $this->column('absence_request_events', 'hr_detail', 'request_id', $this->decided->getId()));
+	}
+
+	public function testAFailedPurgeIsRetriedByTheJob(): void {
+		$purge = $this->createMock(UserPurgeService::class);
+		$purge->method('purge')->willThrowException(new \RuntimeException('itest'));
+		$listener = new UserDeletedListener($purge, Server::get(PurgeRetryMapper::class), Server::get(LoggerInterface::class));
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn(self::GONE);
+		Server::get(IUserManager::class)->get(self::GONE)->delete();
+		$this->insert('absence_purge_retry', ['uid' => self::OTHER]);
+
+		$listener->handle(new UserDeletedEvent($user));
+		self::assertSame([self::GONE], $this->column('absence_purge_retry', 'uid', 'uid', self::GONE));
+
+		$job = Server::get(PurgeRetryJob::class);
+		(new \ReflectionMethod($job, 'run'))->invoke($job, null);
+
+		self::assertSame([], $this->column('absence_purge_retry', 'uid', 'uid', self::GONE));
+		// Somebody has that uid: dropped from the list, and their data kept
+		self::assertSame([], $this->column('absence_purge_retry', 'uid', 'uid', self::OTHER));
+		self::assertSame([self::OTHER], $this->column('absence_requests', 'employee_uid', 'id', $this->decided->getId()));
 	}
 
 	public function testNotificationsAboutTheirRequestsAreTakenBackFromEveryone(): void {
@@ -123,7 +148,7 @@ class UserDeletedPurgeTest extends TestCase {
 		$messages = $this->auditMessages();
 		$employees = $this->createMock(EmployeeService::class);
 		$employees->method('purge')->willThrowException(new \RuntimeException('itest'));
-		$listener = new UserDeletedListener(
+		$purge = new UserPurgeService(
 			$this->db,
 			Server::get(LeaveRequestMapper::class),
 			Server::get(AttachmentService::class),
@@ -133,11 +158,9 @@ class UserDeletedPurgeTest extends TestCase {
 			Server::get(NotificationService::class),
 			Server::get(IEventDispatcher::class),
 		);
-		$user = $this->createMock(IUser::class);
-		$user->method('getUID')->willReturn(self::GONE);
 
 		try {
-			$listener->handle(new UserDeletedEvent($user));
+			$purge->purge(self::GONE);
 			self::fail('The purge was expected to fail');
 		} catch (\RuntimeException) {
 		}
