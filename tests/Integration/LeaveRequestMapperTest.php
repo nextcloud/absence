@@ -138,6 +138,22 @@ class LeaveRequestMapperTest extends TestCase {
 		self::assertFalse($this->mapper->hasApprovedAbsenceCovering(self::MANAGER, '2026-09-01', '2026-09-01'));
 	}
 
+	public function testFindInForceBetweenKeepsTheLeaveInForceThatOverlapsTheDates(): void {
+		$approved = $this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2024-12-30', '2025-01-02', 3.0);
+		$withdrawing = $this->seed(self::MANAGER, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2027-12-31', '2028-01-03', 1.0);
+		$this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-03-02', '2026-03-03', 2.0);
+		$this->seed(self::UID, LeaveRequest::STATUS_CANCELLED, '2026-04-06', '2026-04-07', 2.0);
+		$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2024-12-01', '2024-12-31', 20.0);
+		$this->seed(self::UID, LeaveRequest::STATUS_APPROVED, '2028-01-01', '2028-01-05', 3.0);
+
+		$found = array_map(static fn (LeaveRequest $r): int => $r->getId(), array_filter(
+			$this->mapper->findInForceBetween('2025-01-01', '2027-12-31'),
+			static fn (LeaveRequest $r): bool => in_array($r->getEmployeeUid(), [self::UID, self::MANAGER], true),
+		));
+
+		self::assertSame([$approved->getId(), $withdrawing->getId()], array_values($found));
+	}
+
 	public function testCountPendingForEmployeesCountsPendingAndWithdrawals(): void {
 		$this->seed(self::UID, LeaveRequest::STATUS_PENDING, '2026-11-02', '2026-11-06', 5.0);
 		$this->seed(self::UID, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2026-11-16', '2026-11-20', 5.0);

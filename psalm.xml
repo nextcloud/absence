@@ -36,6 +36,12 @@
 				<referencedClass name="Sabre\VObject\Reader" />
 			</errorLevel>
 		</UndefinedClass>
+		<!-- The DAV calendars extend the dav app's ExternalCalendar through a base class of their own. -->
+		<MissingDependency>
+			<errorLevel type="suppress">
+				<directory name="lib/DAV" />
+			</errorLevel>
+		</MissingDependency>
 		<UndefinedDocblockClass>
 			<errorLevel type="suppress">
 				<referencedClass name="Doctrine\DBAL\Schema\Schema" />

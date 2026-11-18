@@ -1174,7 +1174,7 @@ All jobs must be idempotent and safe to run repeatedly.
 
 Approved leave appears in Nextcloud Calendar via CalDAV.
 
-- **Two targets (both configurable, either can be disabled on the Settings page, §12):**
+- **Three targets (the personal and the team calendars can each be switched off on the Settings page, §12):**
   1. **Personal:** a read-only "Absence" calendar in each employee's calendar home,
      with an all-day `VEVENT` (`TRANSP: OPAQUE`, so it counts as busy) per leave in
      force (`APPROVED` or `WITHDRAWAL_PENDING`). It is not stored: the app registers a
@@ -1187,7 +1187,30 @@ Approved leave appears in Nextcloud Calendar via CalDAV.
      principal with leave in force, so free/busy lookups by colleagues see it, while
      the ACL keeps everyone else out. Event titles follow the employee's language and
      never name a confidential type (§5.7).
-  2. **Shared team "Absences" calendar:** a company/team calendar showing everyone's
+  2. **Team absences:** a read-only calendar in the calendar home of every employee
+     and HR member (`PermissionService::isEmployeeOrHr()`), while *Keep a shared team
+     calendar* is on and the app is set up (§12). Like the personal calendar it is
+     not stored but built by the plugin on every read, so a type or visibility
+     change, a cancellation or a deleted account shows at once. It holds the leave
+     in force of every employee (§2.2) that overlaps the previous, the current or
+     the next calendar year of the server (§3.9), from January 1 of last year to
+     December 31 of next year: the leave colleagues plan around, next year's
+     bookings included, without the calendar becoming everybody's absence history.
+     Titles read "Name · Absent", or "Name · <type>" when the admin reveals the type
+     (§12), never with a confidential type (§5.7), in the viewer's language. Only
+     the owner reads it, not their calendar delegates: a delegate's access follows
+     the owner's, and would show every colleague's leave to people who need not be
+     employees or HR themselves. It is transparent
+     (`schedule-calendar-transp: transparent`, and `TRANSP: TRANSPARENT` on every
+     event): Sabre's free/busy lookup (`Schedule\Plugin::getFreeBusyForEmail()`)
+     skips transparent calendars and the free/busy generator skips transparent
+     events, so colleagues' leave never makes anybody busy. One read costs a fixed
+     number of queries: the leave in the window, the employees with their display
+     names (one read of the employees group, `EmployeeDirectory::displayNames()`)
+     and the leave types. Event ETags are a hash of the event, which changes only
+     with the leave, its title or the settings behind the title, and `getctag` is a
+     hash of all of them.
+  3. **Shared team "Absences" calendar:** a company/team calendar showing everyone's
      approved leave (all-day events titled with employee + leave type, colored by
      type). Auto-provisioned under `principals/system/absence` and shared read-only
      with the employees group and the HR group, and nobody else: the share follows
@@ -2255,3 +2278,9 @@ Recorded during the build so the spec matches the code:
 - **Approvals remembered in the browser** (§15.2): *My leave* keeps in localStorage
   which of the person's approvals it has celebrated. It kept every approved request;
   it keeps those not over yet now, so the browser holds no list of past approvals.
+- **Team calendar per viewer** (§10): the shared team calendar is stored under
+  `principals/system/absence`, a principal the server does not serve, so the
+  Calendar app waits forever on its owner. Every employee and HR member now also
+  gets a read-only team calendar in their own calendar home, built from the leave on
+  every read like the personal calendar: three calendar years, current titles,
+  transparent, and read by its owner only.
