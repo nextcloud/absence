@@ -400,6 +400,25 @@ class LeaveRequestMapper extends QBMapper {
 	}
 
 	/**
+	 * Everybody's leave in force (approved, or with a withdrawal still pending)
+	 * that overlaps the dates from $from to $to ('Y-m-d', inclusive), by start
+	 * date.
+	 *
+	 * @return LeaveRequest[]
+	 */
+	public function findInForceBetween(string $from, string $to): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->in('status', $qb->createNamedParameter(LeaveRequest::USED_STATUSES, IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($qb->expr()->lte('start_date', $qb->createNamedParameter($to)))
+			->andWhere($qb->expr()->gte('end_date', $qb->createNamedParameter($from)))
+			->orderBy('start_date', 'ASC')
+			->addOrderBy('id', 'ASC');
+		return $this->findEntities($qb);
+	}
+
+	/**
 	 * Store the calendar reference of a request if it is still approved. Returns
 	 * whether it was stored.
 	 *

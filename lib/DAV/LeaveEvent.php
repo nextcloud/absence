@@ -13,11 +13,11 @@ use Sabre\DAV\Exception\Forbidden;
 use Sabre\DAVACL\IACL;
 
 /**
- * One leave in the personal Absence calendar. Read-only.
+ * One leave in an Absence calendar. Read-only.
  */
 class LeaveEvent implements ICalendarObject, IACL {
 	public function __construct(
-		private PersonalCalendar $calendar,
+		private LeaveCalendar $calendar,
 		private string $name,
 		private string $ics,
 		private ?int $lastModified,

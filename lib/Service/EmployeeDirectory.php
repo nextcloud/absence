@@ -10,6 +10,7 @@ namespace OCA\Absence\Service;
 
 use OCP\IGroupManager;
 use OCP\IUser;
+use OCP\IUserBackend;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 
@@ -68,6 +69,26 @@ class EmployeeDirectory {
 	 */
 	public function listAll(): array {
 		return $this->listForEmployeesGroup($this->effectiveEmployeesGroup());
+	}
+
+	/**
+	 * Every employee's display name, by uid. Where {@see listAll()} resolves the
+	 * accounts one by one, this reads the employees group (or every account,
+	 * without one) and the guest accounts once each.
+	 *
+	 * @return array<string, string>
+	 */
+	public function displayNames(): array {
+		$group = $this->effectiveEmployeesGroup();
+		if ($group !== '') {
+			$names = $this->groupManager->displayNamesInGroup($group);
+		} else {
+			$names = [];
+			foreach ($this->userManager->searchDisplayName('') as $user) {
+				$names[$user->getUID()] = $user->getDisplayName();
+			}
+		}
+		return array_diff_key($names, array_flip($this->guestUids()));
 	}
 
 	/**
@@ -188,6 +209,20 @@ class EmployeeDirectory {
 		}
 		$group = $this->effectiveEmployeesGroup();
 		return $group === '' || $this->groupManager->isInGroup($user->getUID(), $group);
+	}
+
+	/**
+	 * The uids in the Guests app's user backend, none without the app.
+	 *
+	 * @return list<string>
+	 */
+	private function guestUids(): array {
+		foreach ($this->userManager->getBackends() as $backend) {
+			if ($backend instanceof IUserBackend && $backend->getBackendName() === self::GUEST_BACKEND) {
+				return array_map(strval(...), $backend->getUsers());
+			}
+		}
+		return [];
 	}
 
 	private function isGuestUser(IUser $user): bool {

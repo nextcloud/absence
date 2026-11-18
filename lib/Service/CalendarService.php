@@ -28,6 +28,8 @@ use Sabre\VObject\Component\VCalendar;
  *
  * The personal calendar is not stored: {@see \OCA\Absence\DAV\PersonalCalendar}
  * builds it read-only from the leave in force, with {@see personalEvents()}.
+ * Neither is the team calendar each employee and HR member gets in their own
+ * calendar home: {@see \OCA\Absence\DAV\TeamCalendar}, with {@see teamEvents()}.
  */
 class CalendarService {
 	private const SHARED_CALENDAR_URI = 'absence-team';
@@ -41,6 +43,9 @@ class CalendarService {
 		private IUserManager $userManager,
 		private IFactory $l10nFactory,
 		private LoggerInterface $logger,
+		private PermissionService $permission,
+		private EmployeeDirectory $employees,
+		private ClockService $clock,
 	) {
 	}
 
@@ -64,7 +69,7 @@ class CalendarService {
 				self::SHARED_CALENDAR_URI,
 				$this->sharedL10n()->t('Team absences'),
 				$request,
-				$this->sharedTitle($request),
+				$this->sharedTitle($request, $this->displayName($request->getEmployeeUid()), $this->sharedL10n(), $this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL),
 			);
 		} catch (\Throwable $e) {
 			$this->logger->warning('Absence: calendar write failed', ['exception' => $e]);
@@ -102,7 +107,56 @@ class CalendarService {
 		foreach ($this->requestMapper->findInForceForEmployee($uid) as $request) {
 			$eventUid = 'absence-' . $request->getId();
 			$events[$eventUid . '.ics'] = [
-				'ics' => $this->buildIcs($request, $eventUid, $this->personalTitle($request)),
+				'ics' => $this->buildIcs($request, $eventUid, $this->personalTitle($request), 'OPAQUE'),
+				'lastModified' => $request->getUpdatedAt()?->getTimestamp(),
+			];
+		}
+		return $events;
+	}
+
+	/**
+	 * Whether the account gets the team calendar: employees and HR, while it is
+	 * switched on and the app is set up.
+	 */
+	public function hasTeamCalendar(string $uid): bool {
+		return $this->config->isCalDavSharedEnabled()
+			&& $this->config->isConfigured()
+			&& $this->permission->isEmployeeOrHr($uid);
+	}
+
+	/**
+	 * Display name of the team calendar, in the viewer's language.
+	 */
+	public function teamCalendarName(string $uid): string {
+		return $this->personalL10n($uid)->t('Team absences');
+	}
+
+	/**
+	 * The events of the viewer's team calendar, by object name: one all-day
+	 * event per leave in force of an employee that overlaps the previous, the
+	 * current or the next year. They are transparent, so they never make the
+	 * viewer busy.
+	 *
+	 * @return array<string, array{ics: string, lastModified: int|null}>
+	 */
+	public function teamEvents(string $uid): array {
+		if (!$this->hasTeamCalendar($uid)) {
+			return [];
+		}
+		$year = $this->clock->serverYear();
+		$requests = $this->requestMapper->findInForceBetween(($year - 1) . '-01-01', ($year + 1) . '-12-31');
+		$names = $this->employees->displayNames();
+		$l = $this->personalL10n($uid);
+		$reveal = $this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL;
+		$events = [];
+		foreach ($requests as $request) {
+			$name = $names[$request->getEmployeeUid()] ?? null;
+			if ($name === null) {
+				continue;
+			}
+			$eventUid = 'absence-team-' . $request->getId();
+			$events[$eventUid . '.ics'] = [
+				'ics' => $this->buildIcs($request, $eventUid, $this->sharedTitle($request, $name, $l, $reveal), 'TRANSPARENT'),
 				'lastModified' => $request->getUpdatedAt()?->getTimestamp(),
 			];
 		}
@@ -174,7 +228,7 @@ class CalendarService {
 			return null;
 		}
 		$objectUri = 'absence-' . $request->getId() . '-' . substr(md5($principalUri), 0, 8) . '.ics';
-		$ics = $this->buildIcs($request, $objectUri, $title);
+		$ics = $this->buildIcs($request, $objectUri, $title, 'OPAQUE');
 		$backend->createCalendarObject($calendarId, $objectUri, $ics);
 		return $calendarId . ':' . $objectUri;
 	}
@@ -196,14 +250,17 @@ class CalendarService {
 		}
 	}
 
-	private function buildIcs(LeaveRequest $request, string $uid, string $title): string {
+	/**
+	 * @param 'OPAQUE'|'TRANSPARENT' $transp whether the event makes its calendar's owner busy
+	 */
+	private function buildIcs(LeaveRequest $request, string $uid, string $title, string $transp): string {
 		$vcalendar = new VCalendar();
 		// All-day event: DTEND is exclusive, so add one day to the inclusive end date.
 		$end = (new \DateTimeImmutable($request->getEndDate()))->modify('+1 day');
 		$properties = [
 			'UID' => $uid,
 			'SUMMARY' => $title,
-			'TRANSP' => 'OPAQUE',
+			'TRANSP' => $transp,
 		];
 		// A stable stamp keeps the event, and so its ETag, the same until the leave changes
 		if ($request->getUpdatedAt() !== null) {
@@ -227,13 +284,12 @@ class CalendarService {
 		return $this->typeLabel($request, $l) . ' · Absence';
 	}
 
-	private function sharedTitle(LeaveRequest $request): string {
-		// The shared calendar has every colleague as its audience, so it uses the
-		// instance default language rather than any one person's.
-		$l = $this->sharedL10n();
-		$name = $this->displayName($request->getEmployeeUid());
-		// The admin's "reveal" setting does not extend to confidential types (§5.7).
-		if ($this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL && !$this->isHrOnly($request)) {
+	/**
+	 * "Name · Absent", or "Name · <type>" when the admin chose to reveal the
+	 * type. The setting does not extend to confidential types (§5.7).
+	 */
+	private function sharedTitle(LeaveRequest $request, string $name, \OCP\IL10N $l, bool $reveal): string {
+		if ($reveal && !$this->isHrOnly($request)) {
 			return $name . ' · ' . $this->typeLabel($request, $l);
 		}
 		return $name . ' · ' . $l->t('Absent');
@@ -253,6 +309,10 @@ class CalendarService {
 		return $this->l10nFactory->get(ConfigService::APP_ID, $lang);
 	}
 
+	/**
+	 * The shared calendar has every colleague as its audience, so it uses the
+	 * instance default language rather than any one person's.
+	 */
 	private function sharedL10n(): \OCP\IL10N {
 		return $this->l10nFactory->get(ConfigService::APP_ID, $this->l10nFactory->findGenericLanguage(ConfigService::APP_ID));
 	}

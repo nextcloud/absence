@@ -15,7 +15,10 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
 use OCA\Absence\Service\CalendarService;
+use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
+use OCA\Absence\Service\EmployeeDirectory;
+use OCA\Absence\Service\PermissionService;
 use OCA\Absence\Tests\Integration\Fixtures\FailingOnceCalDavBackend;
 use OCA\DAV\CalDAV\CalDavBackend;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -168,6 +171,9 @@ class CalendarSyncJobTest extends TestCase {
 			Server::get(IUserManager::class),
 			Server::get(IFactory::class),
 			Server::get(LoggerInterface::class),
+			Server::get(PermissionService::class),
+			Server::get(EmployeeDirectory::class),
+			Server::get(ClockService::class),
 		);
 	}
 

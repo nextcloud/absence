@@ -13,7 +13,9 @@ use OCA\Absence\Service\EmployeeDirectory;
 use OCP\IGroup;
 use OCP\IGroupManager;
 use OCP\IUser;
+use OCP\IUserBackend;
 use OCP\IUserManager;
+use OCP\UserInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -181,5 +183,60 @@ class EmployeeDirectoryTest extends TestCase {
 		$this->logger->expects(self::once())->method('error');
 		self::assertSame(['alice', 'bob'], $this->directory->listAll());
 		self::assertTrue($this->directory->isEmployee('alice'));
+	}
+
+	/**
+	 * The user backends of the instance, the Guests app's holding these uids.
+	 *
+	 * @param list<string>|null $guests null: the Guests app is not there
+	 */
+	private function backends(?array $guests): void {
+		$backends = [$this->namedBackend('Database', ['alice', 'bob', 'svc'])];
+		if ($guests !== null) {
+			$backends[] = $this->namedBackend('Guests', $guests);
+		}
+		$this->userManager->method('getBackends')->willReturn($backends);
+	}
+
+	/**
+	 * @param list<string> $uids
+	 */
+	private function namedBackend(string $name, array $uids): UserInterface {
+		$backend = $this->createMockForIntersectionOfInterfaces([UserInterface::class, IUserBackend::class]);
+		$backend->method('getBackendName')->willReturn($name);
+		$backend->method('getUsers')->willReturn($uids);
+		return $backend;
+	}
+
+	public function testDisplayNamesReadTheEmployeesGroupWithoutTheGuestsInIt(): void {
+		$this->employeesGroup = 'staff';
+		$this->groupManager->method('get')->with('staff')->willReturn($this->createMock(IGroup::class));
+		$this->groupManager->expects(self::once())->method('displayNamesInGroup')->with('staff')
+			->willReturn(['alice' => 'Alice A.', 'ext' => 'Ext Guest', '90817' => 'Numeric N.']);
+		$this->backends(['ext']);
+		// One read of the group, not one lookup per member
+		$this->userManager->expects(self::never())->method('get');
+
+		self::assertSame(['alice' => 'Alice A.', '90817' => 'Numeric N.'], $this->directory->displayNames());
+	}
+
+	public function testWithoutAnEmployeesGroupDisplayNamesReadEveryAccountButTheGuests(): void {
+		$users = $this->instance(['alice' => 'Database', 'ext' => 'Guests', 'bob' => 'Database']);
+		foreach ($users as $uid => $user) {
+			$user->method('getDisplayName')->willReturn(ucfirst($uid));
+		}
+		$this->userManager->method('searchDisplayName')->with('')->willReturn(array_values($users));
+		$this->backends(['ext']);
+
+		self::assertSame(['alice' => 'Alice', 'bob' => 'Bob'], $this->directory->displayNames());
+	}
+
+	public function testDisplayNamesWithoutTheGuestsApp(): void {
+		$this->employeesGroup = 'staff';
+		$this->groupManager->method('get')->willReturn($this->createMock(IGroup::class));
+		$this->groupManager->method('displayNamesInGroup')->willReturn(['alice' => 'Alice A.', 'bob' => 'Bob B.']);
+		$this->backends(null);
+
+		self::assertSame(['alice' => 'Alice A.', 'bob' => 'Bob B.'], $this->directory->displayNames());
 	}
 }
