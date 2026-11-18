@@ -21,6 +21,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setEventType(string $eventType)
  * @method string|null getDetail()
  * @method void setDetail(?string $detail)
+ * @method string|null getHrDetail()
+ * @method void setHrDetail(?string $hrDetail)
  * @method bool getConfidential()
  * @method void setConfidential(bool $confidential)
  * @method \DateTime getCreatedAt()
@@ -31,6 +33,8 @@ class RequestEvent extends Entity implements \JsonSerializable {
 	protected ?string $actorUid = null;
 	protected string $eventType = '';
 	protected ?string $detail = null;
+	/** The detail with the free text it leaves out (reasons, notes, comments), for HR alone (§3.7). Null when there is none. */
+	protected ?string $hrDetail = null;
 	/** Written while the request was confidential (§5.7): shown to HR alone, whatever the request's type is later. */
 	protected bool $confidential = false;
 	protected ?\DateTime $createdAt = null;

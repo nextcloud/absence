@@ -317,7 +317,9 @@ ids only; a purged user's rows go with their data (§17).
 
 An immutable, append-only audit trail *per request*, surfaced in the request's
 History tab (§15.1) so the employee, line manager and HR can all see exactly what
-happened and when. One row is written for every meaningful transition.
+happened and when. One row is written for every meaningful transition. The free
+text in it (reasons, import notes, decision comments and comments) is for HR
+alone: everyone else reads the entry without it.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -325,7 +327,8 @@ happened and when. One row is written for every meaningful transition.
 | `request_id` | bigint FK, indexed | The request this event belongs to. |
 | `actor_uid` | string(64), nullable | Who performed the action; the literal `system` for automated events (e.g. escalation), null for an import from occ. |
 | `event_type` | string(32) | Machine key: `request_created`, `request_updated`, `request_edited_superseding`, `request_hr_edited`, `withdrawal_requested`, `request_cancelled`, `withdrawal_approved`, `request_approved`, `request_rejected`, `withdrawal_rejected`, `request_escalated`, `comment_added`, `request_imported` (§6.5). |
-| `detail` | text, nullable | Human-readable extra. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`. Recording only the resulting state cannot answer what anybody opens the history to ask — what changed and by how much — and a day count means nothing without the number it replaced. On creation it carries the type, dates, day count and the employee's reason, since the request itself only ever shows its *current* state. |
+| `detail` | text, nullable | Human-readable extra, without free text. For an edit this is the **difference**, not the result: `Working days 3 → 5 (+2); Reason changed`. Recording only the resulting state cannot answer what anybody opens the history to ask (what changed and by how much), and a day count means nothing without the number it replaced. On creation it carries the type, dates and day count, since the request itself only ever shows its *current* state. A reason change reads `Reason added`, `Reason changed` or `Reason cleared`; a comment or a decision comment leaves it null. |
+| `hr_detail` | text, nullable | The same entry with its free text, served to HR instead of `detail`: `Working days 3 → 5 (+2); Reason “Wedding” → “Wedding (extended)”`, the reason on creation (`… · Reason: “…” · …`), the note of imported leave (`… · Note: “…” · …`), the comment or decision comment itself. Null when the entry has none. Deleting an account clears it on the `comment_added` entries the person wrote on other people's requests, whose comments go with the account (§17). |
 | `created_at` | datetime | |
 | `confidential` | boolean, nullable, default false | Set when the entry is written on a request of a confidential type, and on the edit that moves a request away from one. Such an entry is shown to HR alone, for good (§5.7). |
 
@@ -716,7 +719,7 @@ Rules, enforced server-side at every surface:
   history entry (§3.7) and comment (§3.6) carries a `confidential` flag, set
   when it is written from the request's type at that moment. An edit that
   changes the type is flagged when either the old or the new type is
-  confidential, as its text names the change and the old reason. Non-HR
+  confidential, as its text names the change. Non-HR
   viewers never get flagged rows, whatever the request's type is later, be it
   after an HR edit of the request or after the type itself stopped being
   `hr_only`. Entries and comments written after the change show as usual.
@@ -2359,3 +2362,11 @@ Recorded during the build so the spec matches the code:
 - **Emails without the text** (§11, §12): emails always quoted reasons, decision
   comments and comments in full. The `mail_quote_text` switch, on by default, leaves
   that text out of them; notifications keep their preview.
+- **Free text in the history is for HR** (§3.7): reasons, import notes, decision
+  comments and comments were copied word for word into `detail`, which the employee
+  and the manager read, so a reason HR had since cleared, or the comments of a deleted
+  account, stayed in their History tab. `detail` now holds the entry without them and
+  `hr_detail` the entry as HR reads it. The upgrade (`Version1021…`) splits the stored
+  entries along the formats the app writes. An entry whose text cannot be told apart
+  from the rest (a closing quote inside the text, a quote in a type label or a name)
+  goes to `hr_detail` whole, and the others then see the event without a detail.

@@ -73,6 +73,7 @@ class UserDeletedPurgeTest extends TestCase {
 		// What the listener keeps, and what a failed purge leaves behind
 		$this->deleteWhere('absence_requests', 'id', [$this->own->getId(), $this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_comments', 'request_id', [$this->own->getId()], IQueryBuilder::PARAM_INT_ARRAY);
+		$this->deleteWhere('absence_request_events', 'request_id', [$this->decided->getId()], IQueryBuilder::PARAM_INT_ARRAY);
 		$this->deleteWhere('absence_holidays', 'region', [self::REGION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_holiday_history', 'action', [self::HISTORY_ACTION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_emp_history', 'employee_uid', [self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
@@ -87,6 +88,16 @@ class UserDeletedPurgeTest extends TestCase {
 		self::assertSame([null], $this->column('absence_holidays', 'updated_by', 'region', self::REGION));
 		self::assertSame([null], $this->column('absence_holiday_history', 'actor_uid', 'action', self::HISTORY_ACTION));
 		self::assertSame([null], $this->column('absence_emp_history', 'actor_uid', 'employee_uid', self::OTHER));
+	}
+
+	public function testTheHistoryOfOtherRequestsKeepsTheirDecisionsButNotTheirComments(): void {
+		foreach (['comment_added' => 'itest comment', 'request_approved' => 'itest decision'] as $eventType => $text) {
+			$this->insert('absence_request_events', ['request_id' => $this->decided->getId(), 'actor_uid' => self::GONE, 'event_type' => $eventType, 'hr_detail' => $text, 'created_at' => '2026-03-01 09:00:00']);
+		}
+
+		Server::get(IUserManager::class)->get(self::GONE)->delete();
+
+		self::assertEqualsCanonicalizing([null, 'itest decision'], $this->column('absence_request_events', 'hr_detail', 'request_id', $this->decided->getId()));
 	}
 
 	public function testNotificationsAboutTheirRequestsAreTakenBackFromEveryone(): void {

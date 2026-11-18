@@ -193,7 +193,8 @@ class LeaveImportService {
 				$event->setRequestId((int)$request->getId());
 				$event->setActorUid($actorUid);
 				$event->setEventType('request_imported');
-				$event->setDetail($this->detail($row));
+				$event->setDetail($this->detail($row, false));
+				$event->setHrDetail($row['note'] !== null ? $this->detail($row, true) : null);
 				$event->setConfidential($row['type']->getHrOnly());
 				$event->setCreatedAt($now);
 				$this->eventMapper->insert($event);
@@ -293,12 +294,13 @@ class LeaveImportService {
 
 	/**
 	 * @param array{uid: string, type: LeaveType, from: string, to: string, workingDays: float, note: ?string} $row
+	 * @param bool $withNote whether to quote the note, which only HR is shown (§3.7)
 	 */
-	private function detail(array $row): string {
+	private function detail(array $row, bool $withNote): string {
 		$days = rtrim(rtrim(number_format($row['workingDays'], 1, '.', ''), '0'), '.');
 		$range = $row['from'] === $row['to'] ? $row['from'] : $row['from'] . ' – ' . $row['to'];
 		$parts = [$row['type']->getLabel() . ', ' . $range . ' (' . $days . ($days === '1' ? ' day' : ' days') . ')'];
-		if ($row['note'] !== null) {
+		if ($withNote && $row['note'] !== null) {
 			$parts[] = 'Note: “' . $row['note'] . '”';
 		}
 		$parts[] = 'Imported by HR';

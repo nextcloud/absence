@@ -1882,4 +1882,169 @@ class RequestServiceTest extends TestCase {
 
 		self::assertSame(LeaveRequest::STATUS_APPROVED, $created->getStatus());
 	}
+
+	// ---------------------------------------------- free text in the history ----
+
+	/**
+	 * @return \ArrayObject<int, RequestEvent> filled as history entries are written
+	 */
+	private function writtenHistory(): \ArrayObject {
+		$events = new \ArrayObject();
+		$this->eventMapper->method('insert')->willReturnCallback(static function (RequestEvent $event) use ($events): RequestEvent {
+			$events->append($event);
+			return $event;
+		});
+		return $events;
+	}
+
+	/**
+	 * @param \ArrayObject<int, RequestEvent> $events
+	 * @return array{0: ?string, 1: ?string} detail and HR detail of the one entry of that type
+	 */
+	private static function details(\ArrayObject $events, string $eventType): array {
+		$matching = array_values(array_filter($events->getArrayCopy(), static fn (RequestEvent $e): bool => $e->getEventType() === $eventType));
+		self::assertCount(1, $matching, $eventType);
+		return [$matching[0]->getDetail(), $matching[0]->getHrDetail()];
+	}
+
+	public function testTheReasonOfANewRequestIsInItsHistoryForHrOnly(): void {
+		$events = $this->writtenHistory();
+
+		$request = $this->hrRecordsFor('boss', $this->type(2, false));
+
+		$what = 'Type 2, ' . $request->getStartDate() . ' (1 day)';
+		self::assertSame(
+			[$what . ' · Recorded by HR', $what . ' · Reason: “Flu.” · Recorded by HR'],
+			self::details($events, 'request_created'),
+		);
+	}
+
+	public function testANewRequestWithoutAReasonHasNoHrDetail(): void {
+		$events = $this->writtenHistory();
+		$type = $this->type(1, true);
+		$this->leaveTypeMapper->method('find')->willReturn($type);
+		$this->managerResolver->method('getManagerUid')->willReturn('boss');
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnArgument(0);
+
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$this->service->create('emp', ['typeId' => 1, 'startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
+
+		self::assertSame(['Type 1, ' . $start . ' (1 day)', null], self::details($events, 'request_created'));
+	}
+
+	public static function reasonChanges(): array {
+		return [
+			'added' => ['', 'Moving house', 'Reason added', 'Reason: “Moving house”'],
+			'changed' => ['Moving', 'Moving house', 'Reason changed', 'Reason “Moving” → “Moving house”'],
+			'cleared' => ['Moving', '', 'Reason cleared', null],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('reasonChanges')]
+	public function testAnHrEditSaysTheReasonChangedAndKeepsTheTextForHr(string $was, string $now, string $detail, ?string $hrDetail): void {
+		$events = $this->writtenHistory();
+		$request = $this->pendingOwnRequest();
+		$request->setReason($was);
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+
+		$this->service->update('hr', 5, ['reason' => $now]);
+
+		self::assertSame([$detail, $hrDetail], self::details($events, 'request_hr_edited'));
+	}
+
+	public function testAnEmployeeEditSaysTheReasonChangedAndKeepsTheTextForHr(): void {
+		$events = $this->writtenHistory();
+		$start = date('Y-m-d', strtotime('+30 days'));
+		$request = $this->pendingOwnRequest();
+		$request->setStartDate($start);
+		$request->setEndDate($start);
+		$request->setWorkingDays(1.0);
+		$request->setReason('Moving');
+		$this->decidable($request);
+		$this->permission->method('isHr')->willReturn(false);
+		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$this->service->update('emp', 5, ['reason' => 'Moving house', 'workingDays' => 1.0]);
+
+		self::assertSame(['Reason changed', 'Reason “Moving” → “Moving house”'], self::details($events, 'request_updated'));
+	}
+
+	public function testARejectionCommentIsInTheHistoryForHrOnly(): void {
+		$events = $this->writtenHistory();
+		$pending = $this->pendingOwnRequest();
+		$this->decidable($pending);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$this->service->reject('mgr', 5, 'Too thin that week', self::SEEN);
+
+		self::assertSame([null, 'Too thin that week'], self::details($events, 'request_rejected'));
+	}
+
+	public function testAnApprovalCommentIsInTheHistoryForHrOnly(): void {
+		$events = $this->writtenHistory();
+		$this->decidable($this->pendingOwnRequest());
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$this->service->approve('mgr', 5, 'Enjoy', self::SEEN);
+
+		self::assertSame([null, 'Enjoy'], self::details($events, 'request_approved'));
+	}
+
+	public function testADeclinedWithdrawalKeepsItsCommentForHr(): void {
+		$events = $this->writtenHistory();
+		$request = $this->pendingOwnRequest();
+		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
+		$this->decidable($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+
+		$this->service->reject('mgr', 5, 'Nobody to cover', self::SEEN);
+
+		self::assertSame([null, 'Nobody to cover'], self::details($events, 'withdrawal_rejected'));
+	}
+
+	public function testACommentIsInTheHistoryForHrOnly(): void {
+		$events = $this->writtenHistory();
+		$this->requestMapper->method('find')->with(5)->willReturn($this->pendingOwnRequest());
+		$this->permission->method('canView')->willReturn(true);
+		$this->commentMapper->method('insert')->willReturnArgument(0);
+
+		$this->service->addComment('emp', 5, 'MRI on Monday');
+
+		self::assertSame([null, 'MRI on Monday'], self::details($events, 'comment_added'));
+	}
+
+	public function testOnlyHrReadsTheFreeTextOfTheHistory(): void {
+		$this->requestMapper->method('find')->with(5)->willReturn($this->pendingOwnRequest());
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => $uid === 'hr');
+		$this->commentMapper->method('findForRequest')->willReturn([]);
+		$created = new RequestEvent();
+		$created->setEventType('request_created');
+		$created->setDetail('Type 1, 2026-02-10 – 2026-02-12 (3 days)');
+		$created->setHrDetail('Type 1, 2026-02-10 – 2026-02-12 (3 days) · Reason: “Migraine”');
+		$comment = new RequestEvent();
+		$comment->setEventType('comment_added');
+		$comment->setHrDetail('MRI on Monday');
+		$cancelled = new RequestEvent();
+		$cancelled->setEventType('request_cancelled');
+		$this->eventMapper->method('findForRequest')->willReturn([$created, $comment, $cancelled]);
+
+		foreach (['emp', 'mgr'] as $uid) {
+			$history = $this->service->getDetail($uid, 5)['history'];
+			self::assertSame(['Type 1, 2026-02-10 – 2026-02-12 (3 days)', null, null], array_column($history, 'detail'), $uid);
+			self::assertStringNotContainsString('hrDetail', json_encode($history, JSON_THROW_ON_ERROR), $uid);
+		}
+		self::assertSame(
+			['Type 1, 2026-02-10 – 2026-02-12 (3 days) · Reason: “Migraine”', 'MRI on Monday', null],
+			array_column($this->service->getDetail('hr', 5)['history'], 'detail'),
+		);
+	}
 }

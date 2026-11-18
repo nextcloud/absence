@@ -102,6 +102,13 @@ class UserDeletedListener implements IEventListener {
 			$this->deleteWhereIn('absence_request_events', 'request_id', $requestIds, IQueryBuilder::PARAM_INT_ARRAY);
 		}
 		$this->deleteWhereEquals('absence_comments', 'author_uid', $uid);
+		// The copy of those comments that HR reads in the history (§3.7)
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('absence_request_events')
+			->set('hr_detail', $qb->createNamedParameter(null))
+			->where($qb->expr()->eq('actor_uid', $qb->createNamedParameter($uid)))
+			->andWhere($qb->expr()->eq('event_type', $qb->createNamedParameter('comment_added')));
+		$qb->executeStatement();
 		// Comment mails still waiting for the user
 		$this->deleteWhereEquals('absence_comment_mails', 'recipient_uid', $uid);
 

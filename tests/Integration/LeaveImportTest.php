@@ -171,6 +171,18 @@ class LeaveImportTest extends TestCase {
 		self::assertSame('Ski trip', $march->getReason());
 	}
 
+	public function testTheNoteIsInTheHistoryForHrOnly(): void {
+		$this->service->import(self::json([self::sampleEntries()[0]]), self::HR);
+
+		[$request] = $this->requests->findAllForEmployee(self::ROBIN);
+		[$event] = Server::get(RequestEventMapper::class)->findForRequest((int)$request->getId());
+		$what = Server::get(LeaveTypeMapper::class)->find(self::typeId('annual'))->getLabel() . ', 2025-03-03 – 2025-03-07 (5 days)';
+		self::assertSame(
+			[$what . ' · Imported by HR', $what . ' · Note: “Ski trip” · Imported by HR'],
+			[$event->getDetail(), $event->getHrDetail()],
+		);
+	}
+
 	public function testOneInvalidEntryWritesNothing(): void {
 		$entries = self::sampleEntries();
 		$entries[] = ['user' => self::SAM, 'from' => '2025-06-10', 'to' => '2025-06-09', 'workingDays' => 1];

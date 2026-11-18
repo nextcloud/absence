@@ -301,7 +301,10 @@ class RequestService {
 			)),
 		);
 		$detail['history'] = array_map(
-			static fn (RequestEvent $e) => $e->jsonSerialize(),
+			// Reasons, notes and comments in the history are for HR alone (§3.7)
+			static fn (RequestEvent $e): array => $viewerIsHr
+				? [...$e->jsonSerialize(), 'detail' => $e->getHrDetail() ?? $e->getDetail()]
+				: $e->jsonSerialize(),
 			array_values(array_filter(
 				$this->eventMapper->findForRequest($id),
 				// The disability flag and its changes are for HR alone (§5.8)
@@ -725,7 +728,8 @@ class RequestService {
 		}
 		$this->audit('request_created', $request, [
 			'actor' => $actorUid,
-			'detail' => $this->createdDetail($request, $type, $onBehalf),
+			'detail' => $this->createdDetail($request, $type, $onBehalf, false),
+			'hrDetail' => $this->createdDetail($request, $type, $onBehalf, true),
 		]);
 		if ($request->getDisability()) {
 			$this->recordDisability($request, $actorUid);
@@ -733,14 +737,17 @@ class RequestService {
 		return $request;
 	}
 
-	private function createdDetail(LeaveRequest $request, LeaveType $type, bool $onBehalf): ?string {
+	/**
+	 * @param bool $withReason whether to quote the reason, which only HR is shown (§3.7)
+	 */
+	private function createdDetail(LeaveRequest $request, LeaveType $type, bool $onBehalf, bool $withReason): ?string {
 		// Lead with what was actually asked for. The history is the one place the
 		// original ask survives: the request itself only ever shows its *current*
 		// state, so once HR corrects the dates or the reason, nothing else can say
 		// what the leave was booked for in the first place.
 		$parts = [$this->historyLabel($type) . ', ' . $this->describeRange($request) . ' (' . $this->days($request->getWorkingDays()) . ')'];
 		$reason = trim((string)$request->getReason());
-		if ($reason !== '') {
+		if ($withReason && $reason !== '') {
 			$parts[] = 'Reason: ' . $this->quote($reason);
 		}
 		$how = match (true) {
@@ -799,9 +806,10 @@ class RequestService {
 	 * means nothing without the number it replaced.
 	 *
 	 * @param array<string,mixed> $before from {@see snapshot()}
+	 * @param bool $withReason whether to quote the old and new reason, which only HR is shown (§3.7)
 	 * @return ?string null when nothing observable changed
 	 */
-	private function describeChanges(array $before, LeaveRequest $after): ?string {
+	private function describeChanges(array $before, LeaveRequest $after, bool $withReason): ?string {
 		$parts = [];
 		if ($before['typeId'] !== $after->getTypeId()) {
 			$parts[] = 'Type ' . $this->typeLabel((int)$before['typeId']) . ' → ' . $this->typeLabel($after->getTypeId());
@@ -820,10 +828,12 @@ class RequestService {
 		$wasReason = trim((string)$before['reason']);
 		$nowReason = trim((string)$after->getReason());
 		if ($wasReason !== $nowReason) {
-			$parts[] = $nowReason === ''
-				? 'Reason cleared'
-				: ($wasReason === '' ? 'Reason: ' . $this->quote($nowReason)
-					: 'Reason ' . $this->quote($wasReason) . ' → ' . $this->quote($nowReason));
+			$parts[] = match (true) {
+				$nowReason === '' => 'Reason cleared',
+				!$withReason => $wasReason === '' ? 'Reason added' : 'Reason changed',
+				$wasReason === '' => 'Reason: ' . $this->quote($nowReason),
+				default => 'Reason ' . $this->quote($wasReason) . ' → ' . $this->quote($nowReason),
+			};
 		}
 		$wasRep = (string)$before['replacementUid'];
 		$nowRep = (string)$after->getReplacementUid();
@@ -950,7 +960,7 @@ class RequestService {
 			$affected = [$request->getEmployeeUid()];
 		}
 		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), $affected, $request);
-		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request)], $before);
+		$this->audit('request_updated', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request, false), 'hrDetail' => $this->describeChanges($before, $request, true)], $before);
 		return $request;
 	}
 
@@ -1081,8 +1091,8 @@ class RequestService {
 		if ($this->shownToEmployee($before) !== $this->shownToEmployee($this->snapshot($request))) {
 			$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
 		}
-		$detail = $this->describeChanges($before, $request);
-		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $detail, 'disability' => $request->getDisability()], $before, history: $detail !== null);
+		$detail = $this->describeChanges($before, $request, false);
+		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $detail, 'hrDetail' => $this->describeChanges($before, $request, true), 'disability' => $request->getDisability()], $before, history: $detail !== null);
 		if ($request->getDisability() !== $hadDisability) {
 			$this->recordDisability($request, $actorUid);
 		}
@@ -1241,7 +1251,7 @@ class RequestService {
 			$this->notifications->notifyDecision($request, true);
 			$this->notifications->notifyReplacementAssigned($request);
 			$this->activity->publish(ActivityPublisher::SUBJECT_APPROVED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
-			$this->audit('request_approved', $request, ['actor' => $actorUid, 'detail' => $comment]);
+			$this->audit('request_approved', $request, ['actor' => $actorUid, 'hrDetail' => $comment]);
 			return $request;
 		}
 
@@ -1284,7 +1294,7 @@ class RequestService {
 			$this->notifications->dismiss($request);
 			$this->notifications->notifyDecision($request, false);
 			$this->activity->publish(ActivityPublisher::SUBJECT_REJECTED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
-			$this->audit('request_rejected', $request, ['actor' => $actorUid, 'detail' => $comment]);
+			$this->audit('request_rejected', $request, ['actor' => $actorUid, 'hrDetail' => $comment]);
 			return $request;
 		}
 
@@ -1306,7 +1316,7 @@ class RequestService {
 			// leave stands, not "your leave was approved, enjoy!".
 			$this->notifications->notifyWithdrawalRejected($request, $comment, $actorUid);
 			$this->activity->publish(ActivityPublisher::SUBJECT_APPROVED, $this->activityParams($request), [$request->getEmployeeUid(), $actorUid], $request);
-			$this->audit('withdrawal_rejected', $request, ['actor' => $actorUid, 'detail' => $comment]);
+			$this->audit('withdrawal_rejected', $request, ['actor' => $actorUid, 'hrDetail' => $comment]);
 			return $request;
 		}
 		throw new ConflictException($this->l->t('This request cannot be rejected in its current state.'));
@@ -1372,7 +1382,7 @@ class RequestService {
 		$comment->setConfidential($confidential);
 		$comment->setCreatedAt($this->clock->now());
 		$comment = $this->commentMapper->insert($comment);
-		$this->audit('comment_added', $request, ['actor' => $actorUid, 'detail' => $body]);
+		$this->audit('comment_added', $request, ['actor' => $actorUid, 'hrDetail' => $body]);
 		$this->notifications->notifyComment($request, $comment, $this->commentRecipients($request));
 		return $comment;
 	}
@@ -1424,9 +1434,10 @@ class RequestService {
 	 * Record an important action: (1) a line in the Nextcloud server log and an
 	 * entry in the admin audit log, both with ids only, and (2) an immutable entry
 	 * in the request's own history timeline shown to the employee, manager and HR
-	 * (§15.1), which is where the free text lives.
+	 * (§15.1). Its `detail` is what everyone reads; `hrDetail` is the same entry
+	 * with the free text (reasons, notes, comments), which only HR reads (§3.7).
 	 *
-	 * @param array<string,mixed> $extra `actor` and optional `detail` are consumed
+	 * @param array<string,mixed> $extra `actor` and the optional `detail` and `hrDetail` are consumed
 	 */
 	/**
 	 * @param array<string,mixed>|null $before {@see snapshot()} of an edited request, for the change event
@@ -1436,6 +1447,9 @@ class RequestService {
 		$actor = (string)($extra['actor'] ?? 'system');
 		$detail = isset($extra['detail']) && $extra['detail'] !== null && $extra['detail'] !== ''
 			? (string)$extra['detail']
+			: null;
+		$hrDetail = isset($extra['hrDetail']) && $extra['hrDetail'] !== ''
+			? (string)$extra['hrDetail']
 			: null;
 
 		$this->logger->info('Absence action: ' . $action, [
@@ -1466,6 +1480,7 @@ class RequestService {
 			$event->setActorUid($actor);
 			$event->setEventType($action);
 			$event->setDetail($detail);
+			$event->setHrDetail($hrDetail === $detail ? null : $hrDetail);
 			// An edit that leaves a confidential type (§5.7) still describes it
 			$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
 			$event->setConfidential(in_array($request->getTypeId(), $hrOnlyIds, true)
