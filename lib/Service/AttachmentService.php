@@ -105,7 +105,7 @@ class AttachmentService {
 	 * @param array{name?:string,type?:string,tmp_name?:string,size?:int,error?:int} $upload a PHP upload array
 	 * @throws ValidationException|ForbiddenException|NotFoundException
 	 */
-	public function upload(string $actorUid, int $requestId, array $upload): Attachment {
+	public function upload(string $actorUid, int $requestId, #[\SensitiveParameter] array $upload): Attachment {
 		$request = $this->loadVisibleRequest($actorUid, $requestId);
 		if (!$this->canAttach($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to attach files to this request'));
@@ -352,7 +352,7 @@ class AttachmentService {
 		}
 	}
 
-	private function sanitizeName(string $name): string {
+	private function sanitizeName(#[\SensitiveParameter] string $name): string {
 		// The client name is display-only (bytes are stored by id), but keep it sane.
 		$name = basename(str_replace('\\', '/', trim($name)));
 		$name = preg_replace('/[\x00-\x1f]/', '', $name) ?? '';

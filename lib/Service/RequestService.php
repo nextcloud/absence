@@ -474,7 +474,7 @@ class RequestService {
 	 * @param array<string,mixed> $data
 	 * @return array<string,mixed>
 	 */
-	private function withheld(array $data): array {
+	private function withheld(#[\SensitiveParameter] array $data): array {
 		$data['typeId'] = null;
 		$data['disability'] = null;
 		$data['reason'] = null;
@@ -490,7 +490,7 @@ class RequestService {
 	 * @param array<string,mixed> $data
 	 * @return array<string,mixed>
 	 */
-	private function withDisplayNames(array $data, LeaveRequest $request): array {
+	private function withDisplayNames(#[\SensitiveParameter] array $data, LeaveRequest $request): array {
 		// The employee's name is always attached: managers and HR spend most of
 		// their time in this app looking at *other people's* leave, and a raw uid
 		// is not who they are looking for.
@@ -511,7 +511,7 @@ class RequestService {
 	 * @param array<string,mixed> $detail
 	 * @return array<string,mixed>
 	 */
-	private function withAuthorNames(array $detail): array {
+	private function withAuthorNames(#[\SensitiveParameter] array $detail): array {
 		$names = [];
 		// A history entry written without a user (occ) has no actor to name
 		foreach (array_filter([...array_column($detail['comments'], 'authorUid'), ...array_column($detail['history'], 'actorUid')]) as $uid) {
@@ -627,7 +627,7 @@ class RequestService {
 	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,employeeUid?:?string,workingDays?:?float,replacementUid?:?string,disability?:?bool} $data
 	 * @throws ValidationException|ConflictException|ForbiddenException
 	 */
-	public function create(string $actorUid, array $data): LeaveRequest {
+	public function create(string $actorUid, #[\SensitiveParameter] array $data): LeaveRequest {
 		$type = $this->resolveType((int)($data['typeId'] ?? 0));
 
 		// Whose leave this is: HR may record leave on behalf of another employee.
@@ -809,7 +809,7 @@ class RequestService {
 	 * @param bool $withReason whether to quote the old and new reason, which only HR is shown (§3.7)
 	 * @return ?string null when nothing observable changed
 	 */
-	private function describeChanges(array $before, LeaveRequest $after, bool $withReason): ?string {
+	private function describeChanges(#[\SensitiveParameter] array $before, LeaveRequest $after, bool $withReason): ?string {
 		$parts = [];
 		if ($before['typeId'] !== $after->getTypeId()) {
 			$parts[] = 'Type ' . $this->typeLabel((int)$before['typeId']) . ' → ' . $this->typeLabel($after->getTypeId());
@@ -860,7 +860,7 @@ class RequestService {
 		return $formatted . ($formatted === '1' ? ' day' : ' days');
 	}
 
-	private function quote(string $text): string {
+	private function quote(#[\SensitiveParameter] string $text): string {
 		return '“' . $text . '”';
 	}
 
@@ -888,7 +888,7 @@ class RequestService {
 	 *
 	 * @param array<string,mixed> $data
 	 */
-	public function update(string $actorUid, int $id, array $data): LeaveRequest {
+	public function update(string $actorUid, int $id, #[\SensitiveParameter] array $data): LeaveRequest {
 		$request = $this->get($actorUid, $id);
 		if (!$this->permission->canModify($actorUid, $request)) {
 			throw new ForbiddenException($this->l->t('Not allowed to edit this request'));
@@ -913,7 +913,7 @@ class RequestService {
 		throw new ConflictException($this->l->t('This request can no longer be edited.'));
 	}
 
-	private function editInPlace(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
+	private function editInPlace(string $actorUid, LeaveRequest $request, #[\SensitiveParameter] array $data): LeaveRequest {
 		$type = $this->editedType($request, $data);
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $request->getStartDate()));
@@ -964,7 +964,7 @@ class RequestService {
 		return $request;
 	}
 
-	private function createSuperseding(string $actorUid, LeaveRequest $original, array $data): LeaveRequest {
+	private function createSuperseding(string $actorUid, LeaveRequest $original, #[\SensitiveParameter] array $data): LeaveRequest {
 		// Cheap up-front check so the caller gets the useful "there is already a
 		// pending edit" message rather than a complaint about whatever they changed.
 		// Authoritative re-check happens under the lock below.
@@ -1027,7 +1027,7 @@ class RequestService {
 	 * @param array<string,mixed> $data
 	 * @throws ValidationException
 	 */
-	private function applyHrChanges(LeaveRequest $request, array $data): void {
+	private function applyHrChanges(LeaveRequest $request, #[\SensitiveParameter] array $data): void {
 		if (isset($data['typeId'])) {
 			$request->setTypeId($this->resolveType((int)$data['typeId'])->getId());
 		}
@@ -1070,7 +1070,7 @@ class RequestService {
 		$this->assertWorkingDaysFitRange($request->getWorkingDays(), $request->getStartDate(), $request->getEndDate());
 	}
 
-	private function hrEdit(string $actorUid, LeaveRequest $request, array $data): LeaveRequest {
+	private function hrEdit(string $actorUid, LeaveRequest $request, #[\SensitiveParameter] array $data): LeaveRequest {
 		if (in_array($request->getStatus(), LeaveRequest::TERMINAL_STATUSES, true)) {
 			throw new ConflictException($this->l->t('This request can no longer be edited.'));
 		}
@@ -1193,7 +1193,7 @@ class RequestService {
 	 * @param ?string $updatedAt the request's `updatedAt` as the decider last saw it,
 	 *                           required: a request changed since is not decided (409)
 	 */
-	public function approve(string $actorUid, int $id, ?string $comment, ?string $updatedAt): LeaveRequest {
+	public function approve(string $actorUid, int $id, #[\SensitiveParameter] ?string $comment, ?string $updatedAt): LeaveRequest {
 		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT_LENGTH) {
 			throw new ValidationException($this->l->t('Comment is too long.'));
 		}
@@ -1265,7 +1265,7 @@ class RequestService {
 	/**
 	 * @param ?string $updatedAt see {@see approve()}
 	 */
-	public function reject(string $actorUid, int $id, string $comment, ?string $updatedAt): LeaveRequest {
+	public function reject(string $actorUid, int $id, #[\SensitiveParameter] string $comment, ?string $updatedAt): LeaveRequest {
 		if (trim($comment) === '') {
 			throw new ValidationException($this->l->t('A comment is required when rejecting.'));
 		}
@@ -1361,7 +1361,7 @@ class RequestService {
 
 	// ------------------------------------------------------------- comments ----
 
-	public function addComment(string $actorUid, int $id, string $body): RequestComment {
+	public function addComment(string $actorUid, int $id, #[\SensitiveParameter] string $body): RequestComment {
 		$request = $this->get($actorUid, $id);
 		// The thread of a confidential absence (§5.7) is read by HR alone, so only
 		// HR writes to it.
@@ -1443,7 +1443,7 @@ class RequestService {
 	 * @param array<string,mixed>|null $before {@see snapshot()} of an edited request, for the change event
 	 * @param bool $history false when the history entry would have nothing to say
 	 */
-	private function audit(string $action, LeaveRequest $request, array $extra = [], ?array $before = null, bool $history = true): void {
+	private function audit(string $action, LeaveRequest $request, #[\SensitiveParameter] array $extra = [], #[\SensitiveParameter] ?array $before = null, bool $history = true): void {
 		$actor = (string)($extra['actor'] ?? 'system');
 		$detail = isset($extra['detail']) && $extra['detail'] !== null && $extra['detail'] !== ''
 			? (string)$extra['detail']
@@ -1511,7 +1511,7 @@ class RequestService {
 		}
 	}
 
-	private function recordSystemComment(string $authorUid, LeaveRequest $request, string $body): void {
+	private function recordSystemComment(string $authorUid, LeaveRequest $request, #[\SensitiveParameter] string $body): void {
 		$comment = new RequestComment();
 		$comment->setRequestId($request->getId());
 		$comment->setAuthorUid($authorUid);
@@ -1574,7 +1574,7 @@ class RequestService {
 	 * @param array<string,mixed> $data
 	 * @throws ValidationException
 	 */
-	private function editedType(LeaveRequest $request, array $data): LeaveType {
+	private function editedType(LeaveRequest $request, #[\SensitiveParameter] array $data): LeaveType {
 		$typeId = (int)($data['typeId'] ?? $request->getTypeId());
 		if ($typeId !== $request->getTypeId()) {
 			return $this->resolveType($typeId);
@@ -1616,7 +1616,7 @@ class RequestService {
 	 * @param array<string,mixed> $data
 	 * @throws ForbiddenException|ValidationException
 	 */
-	private function assertNotOwnRequestedType(string $actorUid, LeaveRequest $request, array $data): void {
+	private function assertNotOwnRequestedType(string $actorUid, LeaveRequest $request, #[\SensitiveParameter] array $data): void {
 		if ($actorUid === $request->getEmployeeUid() && isset($data['typeId'])
 			&& $this->resolveType((int)$data['typeId'])->getEmployeeRequestable()) {
 			throw new ForbiddenException($this->l->t('Somebody else from HR has to change your own absence to this leave type.'));
@@ -1642,7 +1642,7 @@ class RequestService {
 		return $this->requestMapper->hasApprovedAbsenceCovering($managerUid, $today, $today);
 	}
 
-	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, string $reason): void {
+	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, #[\SensitiveParameter] string $reason): void {
 		$isHr = $this->permission->isHr($actorUid);
 		$this->assertValidRange($start, $end, $isHr ? self::MAX_HR_SPAN_DAYS : self::MAX_SPAN_DAYS);
 		// the employee's own today, not UTC's — see ClockService

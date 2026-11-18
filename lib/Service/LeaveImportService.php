@@ -74,7 +74,7 @@ class LeaveImportService {
 	 * @return array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>}
 	 * @throws ValidationException when the input is not a list of entries at all
 	 */
-	public function preview(string $json, ?string $actorUid = null): array {
+	public function preview(#[\SensitiveParameter] string $json, ?string $actorUid = null): array {
 		return $this->analyse($json, $actorUid)[0];
 	}
 
@@ -82,7 +82,7 @@ class LeaveImportService {
 	 * @return array{0: array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>}, 1: list<array{uid: string, type: LeaveType, from: string, to: string, workingDays: float, note: ?string}>}
 	 * @throws ValidationException
 	 */
-	private function analyse(string $json, ?string $actorUid): array {
+	private function analyse(#[\SensitiveParameter] string $json, ?string $actorUid): array {
 		$entries = $this->decode($json);
 		$types = [];
 		foreach ($this->leaveTypeMapper->findAll() as $type) {
@@ -154,7 +154,7 @@ class LeaveImportService {
 	 * @return array{entries: int, days: float, skipped: int, people: list<array{uid: string, name: string, entries: int, days: float, skipped: int}>, errors: list<array{entry: int, user: string, message: string}>} what was imported, as {@see preview()} reports it
 	 * @throws ValidationException if any entry is invalid; nothing is written then
 	 */
-	public function import(string $json, ?string $actorUid): array {
+	public function import(#[\SensitiveParameter] string $json, ?string $actorUid): array {
 		[$preview, $plan] = $this->analyse($json, $actorUid);
 		if ($preview['errors'] !== []) {
 			throw new ValidationException($this->l->n(
@@ -224,7 +224,7 @@ class LeaveImportService {
 	 * @return list<mixed>
 	 * @throws ValidationException
 	 */
-	private function decode(string $json): array {
+	private function decode(#[\SensitiveParameter] string $json): array {
 		if (strlen($json) > EmployeeJsonService::SIZE_LIMIT) {
 			throw new ValidationException($this->l->t('The list is too large: at most %d MB', [EmployeeJsonService::SIZE_LIMIT / 1024 / 1024]));
 		}
@@ -247,7 +247,7 @@ class LeaveImportService {
 	 * @return array{uid: string, type: LeaveType, from: string, to: string, workingDays: float, note: ?string}
 	 * @throws ValidationException
 	 */
-	private function validate(mixed $entry, array $types, ?string $actorUid): array {
+	private function validate(#[\SensitiveParameter] mixed $entry, array $types, ?string $actorUid): array {
 		if (!is_array($entry)) {
 			throw new ValidationException($this->l->t('Not an object'));
 		}
@@ -296,7 +296,7 @@ class LeaveImportService {
 	 * @param array{uid: string, type: LeaveType, from: string, to: string, workingDays: float, note: ?string} $row
 	 * @param bool $withNote whether to quote the note, which only HR is shown (§3.7)
 	 */
-	private function detail(array $row, bool $withNote): string {
+	private function detail(#[\SensitiveParameter] array $row, bool $withNote): string {
 		$days = rtrim(rtrim(number_format($row['workingDays'], 1, '.', ''), '0'), '.');
 		$range = $row['from'] === $row['to'] ? $row['from'] : $row['from'] . ' – ' . $row['to'];
 		$parts = [$row['type']->getLabel() . ', ' . $range . ' (' . $days . ($days === '1' ? ' day' : ' days') . ')'];

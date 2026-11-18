@@ -37,7 +37,7 @@ class ActivityPublisher {
 	 * @param string[] $affectedUsers
 	 * @param array<string,mixed> $params
 	 */
-	public function publish(string $subject, array $params, array $affectedUsers, ?LeaveRequest $request = null): void {
+	public function publish(string $subject, #[\SensitiveParameter] array $params, array $affectedUsers, ?LeaveRequest $request = null): void {
 		$affectedUsers = array_values(array_unique(array_filter($affectedUsers)));
 		if ($affectedUsers === []) {
 			return;

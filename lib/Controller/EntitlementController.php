@@ -53,7 +53,7 @@ class EntitlementController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function create(string $employeeUid, int $year, int $typeId, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?float $adjustmentDelta = null, ?string $adjustmentNote = null): DataResponse {
+	public function create(string $employeeUid, int $year, int $typeId, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?float $adjustmentDelta = null, #[\SensitiveParameter] ?string $adjustmentNote = null): DataResponse {
 		return $this->handle(function () use ($employeeUid, $year, $typeId, $baseDays, $carryOverDays, $manualAdjustment, $adjustmentDelta, $adjustmentNote) {
 			$this->permission->assertHr((string)$this->userId);
 			$data = array_filter([
@@ -69,7 +69,7 @@ class EntitlementController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function update(int $id, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?float $adjustmentDelta = null, ?string $adjustmentNote = null): DataResponse {
+	public function update(int $id, ?float $baseDays = null, ?float $carryOverDays = null, ?float $manualAdjustment = null, ?float $adjustmentDelta = null, #[\SensitiveParameter] ?string $adjustmentNote = null): DataResponse {
 		return $this->handle(function () use ($id, $baseDays, $carryOverDays, $manualAdjustment, $adjustmentDelta, $adjustmentNote) {
 			$this->permission->assertHr((string)$this->userId);
 			$data = array_filter([

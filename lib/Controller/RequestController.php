@@ -75,7 +75,7 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function create(int $typeId, string $startDate, string $endDate, ?float $workingDays = null, ?string $reason = null, ?string $employeeUid = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
+	public function create(int $typeId, string $startDate, string $endDate, ?float $workingDays = null, #[\SensitiveParameter] ?string $reason = null, ?string $employeeUid = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
 		return $this->handle(fn () => $this->service->create((string)$this->userId, [
 			'typeId' => $typeId,
 			'startDate' => $startDate,
@@ -90,7 +90,7 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function update(int $id, ?int $typeId = null, ?string $startDate = null, ?string $endDate = null, ?string $reason = null, ?float $workingDays = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
+	public function update(int $id, ?int $typeId = null, ?string $startDate = null, ?string $endDate = null, #[\SensitiveParameter] ?string $reason = null, ?float $workingDays = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
 		$data = array_filter([
 			'typeId' => $typeId,
 			'startDate' => $startDate,
@@ -118,19 +118,19 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function approve(int $id, ?string $comment = null, ?string $updatedAt = null): DataResponse {
+	public function approve(int $id, #[\SensitiveParameter] ?string $comment = null, ?string $updatedAt = null): DataResponse {
 		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->approve((string)$this->userId, $id, $comment, $updatedAt)));
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function reject(int $id, string $comment, ?string $updatedAt = null): DataResponse {
+	public function reject(int $id, #[\SensitiveParameter] string $comment, ?string $updatedAt = null): DataResponse {
 		return $this->handle(fn () => $this->service->serializeForActor((string)$this->userId, $this->service->reject((string)$this->userId, $id, $comment, $updatedAt)));
 	}
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function addComment(int $id, string $body): DataResponse {
+	public function addComment(int $id, #[\SensitiveParameter] string $body): DataResponse {
 		return $this->handle(fn () => $this->service->addComment((string)$this->userId, $id, $body)->jsonSerialize());
 	}
 }

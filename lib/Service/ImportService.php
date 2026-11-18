@@ -53,7 +53,7 @@ class ImportService {
 	 * @return list<array{uid:string,name:string,typeId:int,year:int,data:array<string,mixed>,line:int}>
 	 * @throws ValidationException listing every broken line
 	 */
-	public function plan(string $csv, int $defaultYear): array {
+	public function plan(#[\SensitiveParameter] string $csv, int $defaultYear): array {
 		[$header, $records] = $this->parseCsv($csv);
 		$typesByKey = [];
 		foreach ($this->leaveTypeMapper->findAll() as $type) {
@@ -143,7 +143,7 @@ class ImportService {
 	 * @param ?string $actorUid null from occ
 	 * @return int rows applied
 	 */
-	public function apply(array $plan, ?string $actorUid): int {
+	public function apply(#[\SensitiveParameter] array $plan, ?string $actorUid): int {
 		// All-or-nothing (see the class docstring): if any row fails part-way through
 		// — a transient DB error, or a type deleted between plan() and apply() — the
 		// whole batch rolls back rather than leaving "half the company imported".
@@ -166,7 +166,7 @@ class ImportService {
 	 * @return array{0: list<string>, 1: array<int, list<string>>} the lower-cased header, and the data rows by the line they start on
 	 * @throws ValidationException
 	 */
-	private function parseCsv(string $csv): array {
+	private function parseCsv(#[\SensitiveParameter] string $csv): array {
 		// Tolerate a UTF-8 BOM — the file usually comes straight out of Excel.
 		$csv = preg_replace('/^\xEF\xBB\xBF/', '', $csv) ?? $csv;
 		// One kind of line ending, so that counting them gives the line of a row

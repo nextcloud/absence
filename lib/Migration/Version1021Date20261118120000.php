@@ -85,7 +85,7 @@ class Version1021Date20261118120000 extends SimpleMigrationStep {
 	 *
 	 * @return array{0: ?string, 1: ?string}
 	 */
-	public static function split(string $eventType, string $detail): array {
+	public static function split(string $eventType, #[\SensitiveParameter] string $detail): array {
 		$neutral = match ($eventType) {
 			'request_created' => preg_replace('/ · Reason: “[^”]*”/u', '', $detail, 1),
 			'request_imported' => preg_replace('/ · Note: “[^”]*”/u', '', $detail, 1),

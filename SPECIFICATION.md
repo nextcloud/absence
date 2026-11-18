@@ -1367,6 +1367,11 @@ All four channels are required.
   request/approve/reject, escalate, comment), attachments, entitlement changes,
   bulk-set, carry-over rollover/expiry, leave import (§6.5), leave-type and holiday
   changes, admin-config changes, manager changes (§2.1), and GDPR user-data purge.
+  - The trace of an exception the app logs carries the arguments of each call,
+    unless PHP's `zend.exception_ignore_args` is on. The parameters that carry what
+    people wrote (reasons, notes, comments, the leave import list, attachment file
+    names) are marked `#[\SensitiveParameter]`, so the trace has a placeholder in
+    their place.
   - The app does not change the system config. Earlier versions added `absence` to
     `log.condition.apps`; a repair step removes that entry on update.
   - The same call site also writes the per-request history event (§3.7), keeping the
@@ -2431,3 +2436,7 @@ Recorded during the build so the spec matches the code:
   least that keeps an account still in the employees group from counting as a
   current employee again and getting the default days from the rollover. Once only
   that row is left, later runs and dry runs skip the person.
+- **Free text in error traces** (§11): the trace of a logged exception carried the
+  reasons, notes and comments passed down from the controllers whenever
+  `zend.exception_ignore_args` was off. Those parameters are now
+  `#[\SensitiveParameter]`.
