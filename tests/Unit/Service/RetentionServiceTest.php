@@ -236,6 +236,7 @@ class RetentionServiceTest extends TestCase {
 		$this->entitlementEventMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
 		$this->periodMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
 		$this->employeeChangeMapper->expects(self::once())->method('deleteForEmployee')->with('carol');
+		$this->notifications->expects(self::once())->method('dismissManagerChanges')->with('carol');
 		// The employment keeps carol out of balances and the year rollover
 		$this->employmentMapper->expects(self::never())->method('delete');
 

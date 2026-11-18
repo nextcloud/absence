@@ -207,6 +207,8 @@ class RetentionService {
 				$this->periodMapper->deleteForEmployee($uid);
 				$this->employeeChangeMapper->deleteForEmployee($uid);
 			}, $this->db);
+			// The manager changes those notifications point to are gone.
+			$this->notifications->dismissManagerChanges($uid);
 		}
 		return $counts;
 	}

@@ -182,6 +182,17 @@ class UserDeletedPurgeTest extends TestCase {
 		self::assertNotContains(['absence', '', 'absence_request', (string)$this->decided->getId(), ''], $taken);
 	}
 
+	public function testHrsNotificationsAboutTheirManagerChangesAreTakenBack(): void {
+		Server::get(IUserManager::class)->get(self::GONE)->delete();
+
+		$taken = array_map(
+			static fn (INotification $n): array => [$n->getApp(), $n->getUser(), $n->getObjectType(), $n->getObjectId(), $n->getSubject()],
+			RecordingNotifications::$processed,
+		);
+		self::assertContains(['absence', '', 'absence_manager', self::GONE, ''], $taken);
+		self::assertNotContains(['absence', '', 'absence_manager', self::OTHER, ''], $taken);
+	}
+
 	public function testThePurgeGoesToTheAuditLogOnceItIsDone(): void {
 		$messages = $this->auditMessages();
 
