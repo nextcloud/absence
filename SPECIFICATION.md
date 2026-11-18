@@ -1312,7 +1312,7 @@ All four channels are required.
 - **What people wrote travels with the message.** Free text on a request — the
   applicant's `reason`, the `decision_comment`, the body of a comment (§3.6) — is
   carried by the notification and the email that announce the event, attributed to
-  its author. A recipient must never have to open the app to find out what was
+  its author. By default a recipient never has to open the app to find out what was
   actually said. The email quotes the text in full; the notification, which renders
   on one line, carries a whitespace-collapsed opening of it and where a note is
   present it takes the place of boilerplate like "Review it in Absence.".
@@ -1321,6 +1321,11 @@ All four channels are required.
   On a confidential request (§5.7) only HR recipients get the text and its author;
   the employee and the manager are told what the app shows them, the dates and the
   outcome.
+  - **Emails can leave the text out** (§12). Emails may reach private inboxes, so
+    HR or an admin can switch the quoting off. A mail then keeps its heading, its
+    summary sentence (for comments, how many new ones there are), the short-notice
+    warning and the button to the request. Notifications keep their opening of the
+    text either way.
 - **Activity:** implement `OCP\Activity\IProvider` / setting so all state changes
   appear in the Activity app feed, filterable to an "Absence" activity type. Include
   activity for HR overrides and balance adjustments.
@@ -1392,6 +1397,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Calendar | CalDAV: personal read-only Absence calendar | true | §10. |
 | Calendar | CalDAV: read-only team calendar of each employee and HR member | true | §10. |
 | Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal., and to other apps (§14b). |
+| Emails | Quote reasons and comments in emails | true | §11. Off: a mail says what happened and links to the request; notifications keep their preview. |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
 | Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
 | Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
@@ -2350,3 +2356,6 @@ Recorded during the build so the spec matches the code:
   appdata, which server-side encryption skips. New uploads are encrypted with
   `ICrypto`; `Version1022…` adds the `encrypted` flag and `EncryptAttachmentsJob`
   encrypts the files stored before.
+- **Emails without the text** (§11, §12): emails always quoted reasons, decision
+  comments and comments in full. The `mail_quote_text` switch, on by default, leaves
+  that text out of them; notifications keep their preview.

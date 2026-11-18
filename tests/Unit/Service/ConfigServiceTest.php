@@ -99,6 +99,14 @@ class ConfigServiceTest extends TestCase {
 		$this->service->setAdminValue(ConfigLexicon::KEY_CALDAV_SHARED, false);
 	}
 
+	public function testTheMailQuoteSwitchIsStoredAndReadAsABool(): void {
+		$this->appConfig->expects($this->once())->method('setValueBool')
+			->with(ConfigService::APP_ID, ConfigLexicon::KEY_MAIL_QUOTE_TEXT, false);
+		$this->appConfig->method('getValueBool')->with(ConfigService::APP_ID, ConfigLexicon::KEY_MAIL_QUOTE_TEXT)->willReturn(false);
+		$this->service->setAdminValue(ConfigLexicon::KEY_MAIL_QUOTE_TEXT, false);
+		$this->assertFalse($this->service->isMailQuoteTextEnabled());
+	}
+
 	public function testExistingHrGroupIsStored(): void {
 		$this->groupManager->method('groupExists')->with('hr-team')->willReturn(true);
 		$this->appConfig->expects($this->once())->method('setValueString')
@@ -128,6 +136,7 @@ class ConfigServiceTest extends TestCase {
 			'half a vacation day' => [ConfigLexicon::KEY_DEFAULT_ENTITLEMENT, '27.5'],
 			'half a day of carry-over limit' => [ConfigLexicon::KEY_CARRYOVER_CAP, 2.5],
 			'text for a switch' => [ConfigLexicon::KEY_CALDAV_PERSONAL, 'false'],
+			'number for the mail quote switch' => [ConfigLexicon::KEY_MAIL_QUOTE_TEXT, 0],
 			'list for the expiry' => [ConfigLexicon::KEY_CARRYOVER_EXPIRY, ['03-31']],
 			'list for the employees group' => [ConfigLexicon::KEY_EMPLOYEES_GROUP, ['staff']],
 		];

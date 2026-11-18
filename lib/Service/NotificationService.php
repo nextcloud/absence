@@ -46,8 +46,9 @@ class NotificationService {
 	/**
 	 * How much of a note survives into a Nextcloud notification. The free text is
 	 * copied into every recipient's notification row and rendered on a single line
-	 * there, so the notification carries a readable opening and the email — which
-	 * has room for it — carries the whole thing.
+	 * there, so the notification carries a readable opening and the email, which
+	 * has room for it, carries the whole thing unless the admin keeps it out of
+	 * emails ({@see ConfigService::isMailQuoteTextEnabled()}).
 	 */
 	private const NOTE_PREVIEW_LENGTH = 200;
 
@@ -61,6 +62,7 @@ class NotificationService {
 		private LoggerInterface $logger,
 		private CommentMailMapper $commentMails,
 		private PermissionService $permission,
+		private ConfigService $config,
 	) {
 	}
 
@@ -259,7 +261,7 @@ class NotificationService {
 	}
 
 	/**
-	 * @param list<array{author:?string,text:string}> $notes what people wrote, quoted in full
+	 * @param list<array{author:?string,text:string}> $notes what people wrote, quoted in full where the admin allows it
 	 * @param ?array{days:int,noticePeriod:int} $notice
 	 */
 	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, array $notes, ?array $notice): void {
@@ -288,14 +290,17 @@ class NotificationService {
 			}
 			// Quote the notes verbatim under the summary, attributed. addBodyListItem
 			// escapes the text and keeps its line breaks, so a comment written as
-			// several lines still reads as several lines.
-			foreach ($notes as $note) {
-				$template->addBodyListItem(
-					$note['text'],
-					$note['author'] !== null && $note['author'] !== ''
-						? $l->t('%s wrote:', [$this->displayName($note['author'])])
-						: $l->t('Comment:'),
-				);
+			// several lines still reads as several lines. Without quoting, the summary
+			// and the button lead to the request, where the text is.
+			if ($this->config->isMailQuoteTextEnabled()) {
+				foreach ($notes as $note) {
+					$template->addBodyListItem(
+						$note['text'],
+						$note['author'] !== null && $note['author'] !== ''
+							? $l->t('%s wrote:', [$this->displayName($note['author'])])
+							: $l->t('Comment:'),
+					);
+				}
 			}
 			$template->addBodyButton(
 				$l->t('Open Absence'),

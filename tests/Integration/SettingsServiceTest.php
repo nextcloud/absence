@@ -209,6 +209,7 @@ class SettingsServiceTest extends TestCase {
 			[ConfigLexicon::KEY_HR_GROUP, 'itest-settings-ghost'],
 			[ConfigLexicon::KEY_LAST_ROLLOVER_YEAR, 1999],
 			[ConfigLexicon::KEY_HOLIDAYS_EVERYONE, 'false'],
+			[ConfigLexicon::KEY_MAIL_QUOTE_TEXT, 'false'],
 		];
 		$before = $this->config()->getAdminConfig();
 		foreach ($invalid as [$key, $value]) {
