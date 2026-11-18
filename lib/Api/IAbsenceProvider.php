@@ -19,6 +19,9 @@ namespace OCA\Absence\Api;
  *
  * Changes are announced with {@see \OCA\Absence\Event\LeaveRequestChangedEvent}.
  *
+ * Absences name their type only when the admin shows leave types on the shared
+ * calendar, and never a confidential one: see {@see Absence}.
+ *
  * @since 1.0.0
  */
 interface IAbsenceProvider {

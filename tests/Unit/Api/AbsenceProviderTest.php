@@ -14,6 +14,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PersonalDefaultsService;
@@ -23,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 class AbsenceProviderTest extends TestCase {
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private PersonalDefaultsService&MockObject $personalDefaults;
+	private ConfigService&MockObject $config;
 	private AbsenceProvider $provider;
 
 	protected function setUp(): void {
@@ -31,10 +33,16 @@ class AbsenceProviderTest extends TestCase {
 		$leaveTypeMapper = $this->createMock(LeaveTypeMapper::class);
 		$leaveTypeMapper->method('findAll')->willReturn([
 			$this->type(1, 'annual', false),
+			$this->type(2, 'sick', false),
 			$this->type(8, 'parental', true),
 		]);
 		$this->personalDefaults = $this->createMock(PersonalDefaultsService::class);
-		$this->provider = new AbsenceProvider($this->requestMapper, $leaveTypeMapper, $this->personalDefaults, $this->createMock(HolidayService::class), $this->createMock(EmployeeService::class));
+		$this->config = $this->createMock(ConfigService::class);
+		$this->provider = new AbsenceProvider($this->requestMapper, $leaveTypeMapper, $this->personalDefaults, $this->createMock(HolidayService::class), $this->createMock(EmployeeService::class), $this->config);
+	}
+
+	private function visibility(string $visibility): void {
+		$this->config->method('getSharedCalendarVisibility')->willReturn($visibility);
 	}
 
 	private function type(int $id, string $key, bool $hrOnly): LeaveType {
@@ -66,6 +74,7 @@ class AbsenceProviderTest extends TestCase {
 	}
 
 	public function testPendingOnRequest(): void {
+		$this->visibility(ConfigService::VISIBILITY_REVEAL);
 		$this->requestMapper->expects(self::once())->method('findForEmployeesInRange')
 			->with(['alice'], '2026-01-01', '2026-01-31', [...LeaveRequest::USED_STATUSES, ...LeaveRequest::PENDING_STATUSES])
 			->willReturn([$this->request(2, 1, '2026-01-12', LeaveRequest::STATUS_ESCALATED)]);
@@ -105,18 +114,48 @@ class AbsenceProviderTest extends TestCase {
 		self::assertSame(['2026-03-02', '2026-03-04', 3.0], [$absence->startDate, $absence->endDate, $absence->workingDays]);
 	}
 
-	public function testConfidentialCategoriesStayConfidential(): void {
+	public function testNeutralVisibilityNamesNoType(): void {
+		// A colleague's sick leave stays "Absent" for other apps as on the shared calendar
+		$this->visibility(ConfigService::VISIBILITY_NEUTRAL);
+		$absence = $this->provider->toAbsence($this->request(5, 2, '2026-02-02', LeaveRequest::STATUS_APPROVED));
+		self::assertNull($absence->typeKey);
+		self::assertNull($absence->typeLabel);
+		self::assertSame(['2026-02-02', Absence::STATUS_APPROVED], [$absence->startDate, $absence->status]);
+		self::assertSame([null, null], [$absence->jsonSerialize()['typeKey'], $absence->jsonSerialize()['typeLabel']]);
+	}
+
+	public function testRevealNamesTheType(): void {
+		$this->visibility(ConfigService::VISIBILITY_REVEAL);
+		$absence = $this->provider->toAbsence($this->request(5, 2, '2026-02-02', LeaveRequest::STATUS_APPROVED));
+		self::assertSame(['sick', 'Sick'], [$absence->typeKey, $absence->typeLabel]);
+	}
+
+	public function testRevealNeverNamesAConfidentialCategory(): void {
 		// §5.7: nobody outside HR learns that this is parental leave
+		$this->visibility(ConfigService::VISIBILITY_REVEAL);
 		$absence = $this->provider->toAbsence($this->request(5, 8, '2026-02-02', LeaveRequest::STATUS_APPROVED));
-		self::assertTrue($absence->confidential);
 		self::assertNull($absence->typeKey);
 		self::assertNull($absence->typeLabel);
 		self::assertSame(Absence::STATUS_APPROVED, $absence->status);
 	}
 
-	public function testUnknownTypeIsTreatedAsConfidential(): void {
+	public function testRevealNamesNoUnknownType(): void {
+		$this->visibility(ConfigService::VISIBILITY_REVEAL);
 		$absence = $this->provider->toAbsence($this->request(6, 99, '2026-02-02', LeaveRequest::STATUS_APPROVED));
-		self::assertTrue($absence->confidential);
+		self::assertNull($absence->typeKey);
+	}
+
+	public function testTheTypeBeforeAnEditFollowsTheSameRule(): void {
+		$this->visibility(ConfigService::VISIBILITY_REVEAL);
+		$request = $this->request(5, 1, '2026-02-02', LeaveRequest::STATUS_APPROVED);
+		self::assertNull($this->provider->toAbsence($request, ['typeId' => 8])->typeKey);
+		self::assertSame('sick', $this->provider->toAbsence($request, ['typeId' => 2])->typeKey);
+	}
+
+	public function testEveryoneInRangeFollowsTheVisibility(): void {
+		$this->visibility(ConfigService::VISIBILITY_NEUTRAL);
+		$this->requestMapper->method('findAllInRange')->willReturn([$this->request(9, 2, '2026-01-05', LeaveRequest::STATUS_APPROVED)]);
+		self::assertNull($this->provider->getAbsencesForEveryone('2026-01-01', '2026-01-31')[0]->typeKey);
 	}
 
 	public function testWorkSettingsComeFromThePersonalDefaults(): void {

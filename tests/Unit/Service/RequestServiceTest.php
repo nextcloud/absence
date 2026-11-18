@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace OCA\Absence\Tests\Unit\Service;
 
+use OCA\Absence\Api\Absence;
 use OCA\Absence\Api\AbsenceProvider;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
@@ -148,7 +149,7 @@ class RequestServiceTest extends TestCase {
 			$this->logger,
 			$this->db,
 			$this->lockingProvider,
-			new AbsenceProvider($this->requestMapper, $this->leaveTypeMapper, $this->createMock(PersonalDefaultsService::class), $this->createMock(HolidayService::class), $this->createMock(EmployeeService::class)),
+			new AbsenceProvider($this->requestMapper, $this->leaveTypeMapper, $this->createMock(PersonalDefaultsService::class), $this->createMock(HolidayService::class), $this->createMock(EmployeeService::class), $this->config),
 			$this->eventDispatcher,
 		);
 	}
@@ -577,6 +578,30 @@ class RequestServiceTest extends TestCase {
 		$this->service->approve('boss', 6, null, self::SEEN);
 
 		self::assertSame([['request_approved', 'approved']], $dispatched);
+	}
+
+	public function testTheChangeEventNamesNoTypeUnderTheNeutralSetting(): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->leaveTypeMapper->method('findAll')->willReturn([$this->type(1, true)]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canDecide')->willReturn(true);
+		$this->config->method('getSharedCalendarVisibility')->willReturn(ConfigService::VISIBILITY_NEUTRAL);
+		$absences = [];
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(function (object $event) use (&$absences): void {
+			if ($event instanceof LeaveRequestChangedEvent) {
+				$absences[] = $event->getAbsence();
+			}
+		});
+		$this->rebuildService();
+
+		$this->service->approve('boss', 5, null, self::SEEN);
+
+		self::assertSame([[Absence::STATUS_APPROVED, null, null]], array_map(
+			static fn (Absence $absence): array => [$absence->status, $absence->typeKey, $absence->typeLabel],
+			$absences,
+		));
 	}
 
 	public function testARolledBackChangeIsNeverAnnounced(): void {

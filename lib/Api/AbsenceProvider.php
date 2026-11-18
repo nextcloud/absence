@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
 use OCA\Absence\Db\LeaveTypeMapper;
+use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\HolidayService;
 use OCA\Absence\Service\PersonalDefaultsService;
@@ -24,6 +25,7 @@ class AbsenceProvider implements IAbsenceProvider {
 		private PersonalDefaultsService $personalDefaults,
 		private HolidayService $holidays,
 		private EmployeeService $employees,
+		private ConfigService $config,
 	) {
 	}
 
@@ -85,14 +87,13 @@ class AbsenceProvider implements IAbsenceProvider {
 	}
 
 	/**
-	 * Map a request to the public shape, withholding confidential categories (§5.7).
+	 * Map a request to the public shape, naming its type only as the shared
+	 * calendar would (§8, §14b).
 	 *
 	 * @param array<string,mixed>|null $fields overrides, e.g. the dates before an edit
 	 */
 	public function toAbsence(LeaveRequest $request, ?array $fields = null): Absence {
-		$typeId = (int)($fields['typeId'] ?? $request->getTypeId());
-		$type = $this->type($typeId);
-		$confidential = $type === null || $type->getHrOnly();
+		$type = $this->visibleType((int)($fields['typeId'] ?? $request->getTypeId()));
 		return new Absence(
 			(int)$request->getId(),
 			$request->getEmployeeUid(),
@@ -100,9 +101,8 @@ class AbsenceProvider implements IAbsenceProvider {
 			substr((string)($fields['endDate'] ?? $request->getEndDate()), 0, 10),
 			(float)($fields['workingDays'] ?? $request->getWorkingDays()),
 			self::status($request->getStatus()),
-			$confidential ? null : $type->getKey(),
-			$confidential ? null : $type->getLabel(),
-			$confidential,
+			$type?->getKey(),
+			$type?->getLabel(),
 		);
 	}
 
@@ -132,10 +132,17 @@ class AbsenceProvider implements IAbsenceProvider {
 		};
 	}
 
-	private function type(int $typeId): ?LeaveType {
+	/**
+	 * The type when the admin reveals leave types on the shared calendar and it
+	 * is not a confidential category (§5.7), null otherwise.
+	 */
+	private function visibleType(int $typeId): ?LeaveType {
+		if ($this->config->getSharedCalendarVisibility() !== ConfigService::VISIBILITY_REVEAL) {
+			return null;
+		}
 		foreach ($this->leaveTypeMapper->findAll() as $type) {
 			if ($type->getId() === $typeId) {
-				return $type;
+				return $type->getHrOnly() ? null : $type;
 			}
 		}
 		return null;
