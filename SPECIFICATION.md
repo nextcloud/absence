@@ -67,6 +67,22 @@ There are four effective roles. A single user may hold several simultaneously
   and it can also be set directly on the account for non-LDAP setups.
   (Note: there is no `IAccountManager::PROPERTY_MANAGER` constant in NC 34 — the
   manager relationship lives on `IUser`, not in the account-properties list.)
+- **Who can change it, and what the app keeps of it.** Core lets admins, delegated
+  admins and the subadmins of any group the person is in set the manager (Accounts
+  page, provisioning API `editUser`), and the new manager then reads the person's
+  requests, balances and profile. The app does not restrict that, it records it:
+  `IUser::setManagerUids()` dispatches a `UserChangedEvent` with the feature
+  `managers` and the uids before and after, and `ManagerChangedListener` keeps every
+  change of an employee's configured managers in their history (`absence_emp_history`,
+  field `manager`, the uid lists before and after, and the signed-in user as author,
+  §6.4) and in the admin audit log (ids only, §11). Setting the same list again
+  records nothing; another order is a change, as the first valid manager counts.
+  When a signed-in user made the change, the employee and HR are notified (§11),
+  except whoever made it. A change without a signed-in user (occ, a background job,
+  an account sync) is recorded with no author and notifies nobody, so a first sync
+  does not notify HR once per employee. A value written straight into the
+  `settings/manager` preference (`occ user:setting`, or an app writing the
+  preference itself) dispatches no event and is not recorded.
 - Resolution is cached per-request. The resolved manager user id is denormalized
   onto each leave request at submission time (`manager_uid`) as a record of who
   the manager was then. Who lists, decides and is notified about a request, and
@@ -878,8 +894,9 @@ part time, and other apps get them through `getContracts()` (§14b). The end dat
 with the person, their manager and HR: it can tell that someone leaves before it is
 announced. Every change goes to the person's
 history (`absence_emp_history`, with the values before and after and the author)
-and to the admin audit log; the region code people set themselves (§7.2) goes to the
-same history. The weekdays drive the working-days prefill (§7.1); the percentage is
+and to the admin audit log; the region code people set themselves (§7.2) and every
+change of their manager (§2.1) go to the same history. When an account is deleted,
+its uid in other people's manager changes becomes `null`, shown as a deleted account. The weekdays drive the working-days prefill (§7.1); the percentage is
 not used for leave yet.
 
 Before HR kept contracts, people set their own working weekdays. The upgrade
@@ -1249,6 +1266,12 @@ All four channels are required.
 - **Carry-over about to expire** (→ the employee, §6.2): how many carried-over
   days expire and on which date, as a notification and an email that link to My
   leave. It names no leave type and carries no buttons.
+- **Manager changed** (→ the employee and HR, never the person who made the change,
+  §2.1): only for a change a signed-in user made. A notification without email and
+  without buttons: "Your manager was changed" for the employee, "The manager of
+  {name} was changed" for HR, and "{actor} changed it from {before} to {after}." It
+  stores uids only, and the names are read when it is shown. It links to the
+  employee's profile, where the change is in the history.
 - **Actionable where the recipient owes an answer.** The four notifications that ask
   for a decision — new request, escalation, reminder, withdrawal — carry three
   buttons: **Approve**, **Decline** and **Review**.
@@ -1306,7 +1329,7 @@ All four channels are required.
   edit, superseding edit, HR edit, approve, reject, cancel, withdrawal
   request/approve/reject, escalate, comment), attachments, entitlement changes,
   bulk-set, carry-over rollover/expiry, leave import (§6.5), leave-type and holiday
-  changes, admin-config changes, and GDPR user-data purge.
+  changes, admin-config changes, manager changes (§2.1), and GDPR user-data purge.
   - The app does not change the system config. Earlier versions added `absence` to
     `log.condition.apps`; a repair step removes that entry on update.
   - The same call site also writes the per-request history event (§3.7), keeping the
@@ -2293,3 +2316,9 @@ Recorded during the build so the spec matches the code:
   Both columns and their API fields are gone. The note HR gives with an adjustment
   stays in the entitlement history (§3.7b) and the activity entry. A client that
   still sends `attachmentNote` is not refused: the parameter is ignored.
+- **Manager changes are recorded** (§2.1, §11): core lets subadmins of any group an
+  employee is in set the employee's manager, which gives the new manager the
+  employee's requests, balances and profile. The app keeps every change in the
+  employee's history and the admin audit log, and notifies the employee and HR when
+  a signed-in user made it; changes without one are recorded only. The profile's
+  history shows them, with "System" as the author of an unattended change.

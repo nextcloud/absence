@@ -36,6 +36,7 @@ use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use OCP\L10N\IFactory;
 use OCP\Notification\IApp;
 use OCP\Notification\IManager as INotificationManager;
@@ -409,6 +410,8 @@ class LeaveImportTest extends TestCase {
 	public function testImportDoesNotTellTheLineManager(): void {
 		// A normal HR booking tells the line manager (§5.6); bulk past leave must not.
 		Server::get(INotificationManager::class)->registerApp(SpyNotificationApp::class);
+		// Set without anyone signed in, as a directory sync would: that tells nobody
+		Server::get(IUserSession::class)->setUser(null);
 		$this->users->get(self::SAM)?->setManagerUids([self::ROBIN]);
 		// The shared resolver may remember Sam from an earlier test, without a manager.
 		$directory = Server::get(EmployeeDirectory::class);

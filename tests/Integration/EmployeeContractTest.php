@@ -248,14 +248,15 @@ class EmployeeContractTest extends TestCase {
 
 		$profiles = Server::get(ProfileService::class);
 		$history = $profiles->get(self::HR, self::EMPLOYEE)['history'];
-		self::assertSame(['region', 'contract'], array_column($history, 'field'));
+		// The manager set in setUp() is the oldest change
+		self::assertSame(['region', 'contract', 'manager'], array_column($history, 'field'));
 		self::assertSame(['', 'ZZ-T1'], [$history[0]['before'], $history[0]['after']]);
 		self::assertSame(self::EMPLOYEE, $history[0]['actor']);
 		self::assertSame([], $history[1]['before']['periods']);
 		self::assertSame(80, $history[1]['after']['periods'][0]['percent']);
 		self::assertSame(self::HR, $history[1]['actor']);
 
-		self::assertCount(2, $profiles->get(self::EMPLOYEE, self::EMPLOYEE)['history']);
+		self::assertCount(3, $profiles->get(self::EMPLOYEE, self::EMPLOYEE)['history']);
 		self::assertNull($profiles->get(self::MANAGER, self::EMPLOYEE)['history']);
 	}
 
@@ -270,7 +271,7 @@ class EmployeeContractTest extends TestCase {
 		}
 
 		self::assertSame(['holiday_country' => '', 'holiday_region' => ''], Server::get(ConfigService::class)->getPersonalConfig(self::EMPLOYEE));
-		self::assertSame([], $this->service->history(self::EMPLOYEE));
+		self::assertSame(['manager'], array_column($this->service->history(self::EMPLOYEE), 'field'));
 	}
 
 	public function testPeopleNoLongerSetTheirOwnWeekdays(): void {

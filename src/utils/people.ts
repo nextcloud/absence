@@ -4,7 +4,7 @@
  */
 import type { UserRef } from '../types/index.ts'
 
-import { n } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 
 /**
  * The first few names of a group of people, then "and N more" for the rest.
@@ -21,6 +21,16 @@ export function namesAndMore({ count, names }: { count: number, names: string[] 
 		return listed
 	}
 	return n('absence', '{names} and {count} more', '{names} and {count} more', rest, { names: listed, count: rest }, { escape: false, sanitize: false })
+}
+
+/**
+ * The names of a list of people, or "nobody" when it is empty.
+ * Names are user-provided and rendered as text by Vue, so they are not escaped here.
+ *
+ * @param people the people
+ */
+export function namesOrNobody(people: UserRef[]): string {
+	return people.length ? people.map((person) => person.displayName).join(', ') : t('absence', 'nobody')
 }
 
 /**

@@ -18,6 +18,7 @@ use OCA\Absence\Db\Employment;
 use OCA\Absence\Db\EmploymentMapper;
 use OCA\Absence\Exception\NotFoundException;
 use OCA\Absence\Exception\ValidationException;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 use OCP\IL10N;
@@ -26,7 +27,8 @@ use OCP\Log\Audit\CriticalActionPerformedEvent;
 /**
  * The contract data HR keeps per employee (§6.4): start and end date, and the
  * working weekdays and contract percentage from a date on. Every change is kept
- * in the employee's history and sent to the admin audit log.
+ * in the employee's history and sent to the admin audit log, and so is every
+ * change of their manager (§2.1).
  *
  * @psalm-type Period = array{from: string, weekdays: list<int>, percent: ?int}
  * @psalm-type Contract = array{start: ?string, end: ?string, periods: list<Period>}
@@ -47,6 +49,7 @@ class EmployeeService {
 		private IEventDispatcher $dispatcher,
 		private NotificationService $notifications,
 		private HolidayService $holidays,
+		private PermissionService $permission,
 		private IL10N $l,
 	) {
 	}
@@ -82,13 +85,33 @@ class EmployeeService {
 	}
 
 	/**
-	 * Removes someone's contract data and its history, when their account goes.
+	 * Removes someone's contract data and its history when their account goes,
+	 * and their uid from the manager changes of other people: those keep null
+	 * in its place.
 	 */
 	public function purge(string $uid): void {
 		unset($this->contracts[$uid]);
 		foreach (['absence_employments', 'absence_periods', 'absence_emp_history'] as $table) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete($table)->where($qb->expr()->eq('employee_uid', $qb->createNamedParameter($uid)))->executeStatement();
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'detail')->from('absence_emp_history')
+			->where($qb->expr()->eq('field', $qb->createNamedParameter(EmployeeChange::MANAGER)))
+			->andWhere($qb->expr()->like('detail', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter(json_encode($uid, JSON_THROW_ON_ERROR)) . '%')));
+		$result = $qb->executeQuery();
+		$rows = $result->fetchAll();
+		$result->closeCursor();
+		$forget = static fn (array $uids): array => array_map(static fn (?string $manager): ?string => $manager === $uid ? null : $manager, $uids);
+		foreach ($rows as $row) {
+			/** @var array{before: list<?string>, after: list<?string>} $detail */
+			$detail = json_decode((string)$row['detail'], true, 512, JSON_THROW_ON_ERROR);
+			$update = $this->db->getQueryBuilder();
+			$update->update('absence_emp_history')
+				->set('detail', $update->createNamedParameter(json_encode(['before' => $forget($detail['before']), 'after' => $forget($detail['after'])], JSON_THROW_ON_ERROR)))
+				->where($update->expr()->eq('id', $update->createNamedParameter((int)$row['id'], IQueryBuilder::PARAM_INT)))
+				->executeStatement();
 		}
 	}
 
@@ -197,6 +220,45 @@ class EmployeeService {
 		if (!$this->holidays->needsRegion($after)) {
 			$this->notifications->dismissMissingRegion($uid);
 		}
+	}
+
+	/**
+	 * Keeps a change of someone's managers (§2.1) in their history and the admin
+	 * audit log. A change a signed-in person made is also told to the employee
+	 * and HR; one without, from occ, a background job or an account sync, is
+	 * only kept, so that a first sync does not notify HR of every employee.
+	 *
+	 * @param array<array-key, mixed> $before the configured manager uids
+	 * @param array<array-key, mixed> $after
+	 */
+	public function recordManagerChange(string $uid, array $before, array $after, ?string $actor): void {
+		$before = self::managerUids($before);
+		$after = self::managerUids($after);
+		if ($before === $after || !$this->directory->isEmployee($uid)) {
+			return;
+		}
+		$this->record($uid, EmployeeChange::MANAGER, $before, $after, $actor);
+		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent(
+			'Manager of %s changed from "%s" to "%s" by %s', [$uid, implode(',', $before), implode(',', $after), $actor ?? 'system'],
+		));
+		if ($actor !== null) {
+			$this->notifications->notifyManagerChanged($uid, $before, $after, $actor, $this->permission->getHrUids());
+		}
+	}
+
+	/**
+	 * @param array<array-key, mixed> $uids
+	 * @return list<string> trimmed, in their order, without blanks or repeats
+	 */
+	private static function managerUids(array $uids): array {
+		$clean = [];
+		foreach ($uids as $uid) {
+			$uid = is_string($uid) ? trim($uid) : '';
+			if ($uid !== '' && !in_array($uid, $clean, true)) {
+				$clean[] = $uid;
+			}
+		}
+		return $clean;
 	}
 
 	/**

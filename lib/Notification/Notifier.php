@@ -66,6 +66,9 @@ class Notifier implements INotifier {
 				->setIcon($this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(ConfigService::APP_ID, 'app-dark.svg')))
 				->setLink($this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/my');
 		}
+		if ($notification->getSubject() === NotificationService::SUBJECT_MANAGER_CHANGED) {
+			return $this->prepareManagerChange($notification, $l);
+		}
 		$params = $notification->getSubjectParameters();
 		$employee = $this->displayName((string)($params['employee'] ?? ''));
 		$requestId = (string)($params['requestId'] ?? $notification->getObjectId());
@@ -213,6 +216,34 @@ class Notifier implements INotifier {
 			->setLink($link, 'WEB')
 			->setPrimary(false);
 		$notification->addParsedAction($open);
+	}
+
+	/**
+	 * The employee reads that their manager changed, HR whose manager changed;
+	 * both read who changed it, from whom to whom.
+	 */
+	private function prepareManagerChange(INotification $notification, IL10N $l): INotification {
+		$params = $notification->getSubjectParameters();
+		$employeeUid = (string)($params['employee'] ?? '');
+		if ($employeeUid === '') {
+			throw new UnknownNotificationException('Incomplete manager change');
+		}
+		$own = $notification->getUser() === $employeeUid;
+		return $notification->setParsedSubject($own
+			? $l->t('Your manager was changed')
+			: $l->t('The manager of %s was changed', [$this->displayName($employeeUid)]))
+			->setParsedMessage($l->t('%1$s changed it from %2$s to %3$s.', [
+				$this->displayName((string)($params['actor'] ?? '')),
+				$this->names($l, $params['before'] ?? []),
+				$this->names($l, $params['after'] ?? []),
+			]))
+			->setIcon($this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(ConfigService::APP_ID, 'app-dark.svg')))
+			->setLink($this->urlGenerator->linkToRouteAbsolute('absence.page.index') . '#/profile' . ($own ? '' : '/' . rawurlencode($employeeUid)));
+	}
+
+	private function names(IL10N $l, mixed $uids): string {
+		$names = array_map(fn (mixed $uid): string => $this->displayName((string)$uid), is_array($uids) ? $uids : []);
+		return $names === [] ? $l->t('nobody') : implode(', ', $names);
 	}
 
 	private function absentSubject(IL10N $l, string $employee, string $start, string $end): string {

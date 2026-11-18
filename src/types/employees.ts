@@ -78,7 +78,7 @@ export interface ProfileNextLeave {
 }
 
 interface ProfileChangeBase {
-	/** Uid of who made the change, null for a change made from occ. */
+	/** Uid of who made the change, null for a change made from occ or, for a manager, without anyone signed in. */
 	actor: string | null
 	actorName: string | null
 	/** ISO 8601 timestamp. */
@@ -98,8 +98,15 @@ export interface ProfileRegionChange extends ProfileChangeBase {
 	after: string
 }
 
-/** One entry of someone's contract and region code history, from EmployeeService::history(). */
-export type ProfileChange = ProfileContractChange | ProfileRegionChange
+export interface ProfileManagerChange extends ProfileChangeBase {
+	field: 'manager'
+	/** The configured managers, the first one valid counts; a deleted account has an empty uid. */
+	before: UserRef[]
+	after: UserRef[]
+}
+
+/** One entry of someone's contract, region code and manager history, from ProfileService::history(). */
+export type ProfileChange = ProfileContractChange | ProfileRegionChange | ProfileManagerChange
 
 export type ProfileChangeField = ProfileChange['field']
 
