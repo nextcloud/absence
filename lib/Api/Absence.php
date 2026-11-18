@@ -11,9 +11,14 @@ namespace OCA\Absence\Api;
 /**
  * Read-only view of a leave request for other apps.
  *
- * Confidential categories (§5.7) stay confidential here too: for an HR-only
- * leave type `typeKey` and `typeLabel` are null and `confidential` is true, so
- * a consumer can only ever learn that the person is away.
+ * The type follows the shared-calendar visibility setting: `typeKey` and
+ * `typeLabel` are only set when the admin chose to show leave types there
+ * (`reveal`) and the type is not a confidential category (§5.7). Otherwise both
+ * are null and the consumer only learns that the person is away: show that as
+ * a neutral "Absent", never as a guess at the reason.
+ *
+ * Since 1.0.0-beta.3 the type is null unless the setting reveals it, and the
+ * `confidential` property is gone.
  *
  * @since 1.0.0
  */
@@ -36,7 +41,6 @@ final class Absence implements \JsonSerializable {
 		public readonly string $status,
 		public readonly ?string $typeKey,
 		public readonly ?string $typeLabel,
-		public readonly bool $confidential,
 	) {
 	}
 
@@ -51,7 +55,6 @@ final class Absence implements \JsonSerializable {
 			'status' => $this->status,
 			'typeKey' => $this->typeKey,
 			'typeLabel' => $this->typeLabel,
-			'confidential' => $this->confidential,
 		];
 	}
 }

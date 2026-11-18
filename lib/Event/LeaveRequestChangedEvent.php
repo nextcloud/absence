@@ -24,6 +24,10 @@ use OCP\EventDispatcher\Event;
  * Comments do not change the absence and are not announced. When a user is deleted
  * their requests are removed without an event: listen to core's UserDeletedEvent.
  *
+ * Both absences name their type under the same rule as IAbsenceProvider: only
+ * when the admin shows leave types on the shared calendar, and never a
+ * confidential one (see {@see Absence}).
+ *
  * @since 1.0.0
  */
 class LeaveRequestChangedEvent extends Event {

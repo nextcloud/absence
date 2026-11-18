@@ -1323,7 +1323,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Approvals | Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
 | Calendar | CalDAV: personal read-only Absence calendar | true | §10. |
 | Calendar | CalDAV: write shared team calendar | true | §10. |
-| Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal. |
+| Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal., and to other apps (§14b). |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
 | Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
 | Leave types | Leave types | seeded (§3.2) | Add/edit/enable/disable, colors, flags. HR only, since the list includes the confidential types (§5.7). |
@@ -1591,8 +1591,12 @@ not HTTP:
 - **`getContracts($userIds)`** returns each person's start date and working pattern
   (§6.4): the dated periods of weekdays and contract percentage, oldest first. The end
   date is left out.
-- **Confidentiality holds (§5.7):** for an `hr_only` type the type key and label are
-  null and `confidential` is true. A consumer learns the dates and nothing else.
+- **The type follows the shared-calendar visibility (§8, §12):** the type key and label
+  are only set when the admin chose `reveal` and the type is not `hr_only` (§5.7).
+  Otherwise both are null, in the provider's answers and in the change event alike, and
+  a consumer learns the dates and nothing else. Consumers show such an absence as a
+  neutral "Absent". Other apps show their own users what they get here, so they get
+  no more than a colleague sees on the shared calendar.
 
 ---
 
@@ -2152,6 +2156,11 @@ Recorded during the build so the spec matches the code:
 - **Integration API** (§14b): `IAbsenceProvider` and `LeaveRequestChangedEvent` let
   other apps plan around absences without reading the tables. Events are queued while
   `RequestService` runs a transaction and dispatched after the outermost commit.
+  The type first came for every type that wasn't `hr_only`, sick leave included,
+  whatever the visibility setting, with a `confidential` flag on the HR-only ones. It
+  now follows the shared-calendar visibility (null unless `reveal`), and the flag is
+  gone: a breaking change for consumers of `Absence::$confidential` and of the type
+  under the neutral default.
 - **Public holidays are back as a hand-kept list** (§7.2). The removed feature computed
   working days from them; this one does not: a plain list per region code in the
   existing `absence_holidays` table (plus `created_by`/`updated_by`), with a JSON import
