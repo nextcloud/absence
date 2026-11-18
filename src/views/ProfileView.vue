@@ -159,7 +159,7 @@
 				<h3>{{ t('absence', 'History') }}</h3>
 				<ul v-if="profile.history.length" class="profile__history">
 					<li v-for="(change, index) in profile.history" :key="index">
-						<span class="profile__note">{{ formatDate(change.createdAt.slice(0, 10)) }} · {{ change.actorName || t('absence', 'Import') }}</span>
+						<span class="profile__note">{{ formatDate(change.createdAt.slice(0, 10)) }} · {{ change.actorName || (change.field === 'manager' ? t('absence', 'System') : t('absence', 'Import')) }}</span>
 						{{ describe(change) }}
 					</li>
 				</ul>
@@ -195,6 +195,7 @@ import { formatDate, formatRange, toIso } from '../utils/dates.ts'
 import { displayNameOf } from '../utils/displayName.ts'
 import { isForbidden, serverMessage } from '../utils/errors.ts'
 import { latestOnly } from '../utils/latest.ts'
+import { namesOrNobody } from '../utils/people.ts'
 import { regionFlag } from '../utils/regions.ts'
 import { dayNames } from '../utils/weekdays.ts'
 
@@ -294,9 +295,12 @@ function weekdayNames(weekdays: number[]): string {
 /**
  * One line of the history, in words
  *
- * @param change the change to the contract or the region code
+ * @param change the change to the contract, the region code or the manager
  */
 function describe(change: ProfileChange): string {
+	if (change.field === 'manager') {
+		return t('absence', 'Manager {before} → {after}', { before: namesOrNobody(change.before), after: namesOrNobody(change.after) }, undefined, { escape: false, sanitize: false })
+	}
 	if (change.field === 'region') {
 		return t('absence', 'Region code {before} → {after}', { before: change.before || t('absence', 'none'), after: change.after || t('absence', 'none') })
 	}

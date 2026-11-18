@@ -28,9 +28,10 @@ vi.mock('@nextcloud/l10n', () => ({
 		const text = (count === 1 ? singular : plural).replace(/{(\w+)}/g, (_, key: string) => options.escape === false ? String(vars[key]) : escapeHtml(String(vars[key])))
 		return options.sanitize === false ? text : sanitize(text)
 	},
+	t: (app: string, text: string) => text,
 }))
 
-const { namesAndMore, replacementSuggestions } = await import('./people.js')
+const { namesAndMore, namesOrNobody, replacementSuggestions } = await import('./people.js')
 
 describe('namesAndMore', () => {
 	it('lists everyone when all names are known', () => {
@@ -43,6 +44,16 @@ describe('namesAndMore', () => {
 
 	it('keeps names as typed: Vue renders the text, so nothing is stripped or escaped', () => {
 		expect(namesAndMore({ count: 3, names: ['R&D Team', 'Ann <Lee>'] })).toBe('R&D Team, Ann <Lee> and 1 more')
+	})
+})
+
+describe('namesOrNobody', () => {
+	it('lists the names in their order', () => {
+		expect(namesOrNobody([{ uid: 'pat', displayName: 'Pat Moreau' }, { uid: 'lee', displayName: 'Lee Novak' }])).toBe('Pat Moreau, Lee Novak')
+	})
+
+	it('says nobody for an empty list', () => {
+		expect(namesOrNobody([])).toBe('nobody')
 	})
 })
 
