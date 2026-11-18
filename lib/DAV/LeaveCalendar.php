@@ -23,7 +23,7 @@ use Sabre\VObject\Reader;
  * such as colour and visibility, which the server stores per user.
  */
 abstract class LeaveCalendar extends ExternalCalendar {
-	private const COLOR = '#0082c9';
+	private const COLOR = '#ff6f59';
 	private const CTAG = '{http://calendarserver.org/ns/}getctag';
 
 	/** @var array<string, array{ics: string, lastModified: int|null}>|null */
