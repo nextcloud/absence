@@ -86,6 +86,7 @@ properly. Every rule and design decision is documented in the
 		<job>OCA\Absence\BackgroundJob\YearRolloverJob</job>
 		<job>OCA\Absence\BackgroundJob\CalendarSyncJob</job>
 		<job>OCA\Absence\BackgroundJob\CommentMailJob</job>
+		<job>OCA\Absence\BackgroundJob\EncryptAttachmentsJob</job>
 	</background-jobs>
 	<repair-steps>
 		<post-migration>

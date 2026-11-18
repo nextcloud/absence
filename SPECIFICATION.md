@@ -383,6 +383,31 @@ Attachments never appear in the request-history timeline (it is
 manager-visible); adds and removals go to the admin audit log (§11). The GDPR
 purge removes rows and bytes. API: §14.
 
+**Encrypted at rest.** Server-side encryption never covers appdata
+(`server/lib/private/Encryption/Util.php`), so the app encrypts the bytes with
+`OCP\Security\ICrypto` without a password: keyed on the `secret` of
+`config.php`, AES-CBC with an HMAC-SHA512, stored hex-encoded under
+`<id>.enc`, about twice the size. The limits above count the size of the
+upload, not of what is stored. Only the ciphertext is passed to the storage
+calls, so a trace of their exceptions never holds the document. A download
+decrypts it; a file that fails the HMAC (changed on disk, or a changed
+`secret`) is refused with a 404 "This attachment can no longer be read" and
+an error in the log, with the attachment id. Changing the `secret` makes every
+attachment unreadable. It protects storage and backups without `config.php`,
+not against whoever can read `config.php` too.
+
+A column `encrypted` (`Version1022…`) tells the two kinds of rows apart:
+files stored before are plaintext under `<id>` until `EncryptAttachmentsJob`
+(every 5 minutes, up to 1000 files a run, in id order) encrypts them. Per
+file it writes `<id>.enc`, reads it back and compares, deletes `<id>`, then
+sets the flag. An interrupted run loses nothing: the next one starts again
+from the plaintext, or only sets the flag when the plaintext is already gone
+(until then a download of that file answers 404).
+A file that fails is logged and tried again on the next run. The flag, rather
+than a header in the file, decides how a file is read, so no plaintext file
+can pass for an encrypted one, and the job finds its work with one query.
+Deleting an attachment removes both names.
+
 ### 3.9 Which "today" applies (`ClockService`)
 
 Leave is stored as **dates**, not instants: `start_date` and `end_date` are the days
@@ -2016,6 +2041,8 @@ under `prefers-reduced-motion: reduce`.
 - An employee may only read their own data; a manager only their reports; HR all.
 - Sick-leave reasons/notes are sensitive: never expose reason/note text to peers;
   restrict shared-calendar titles per the type-visibility setting (§10/§12).
+- Attachments are encrypted at rest with the instance secret (§3.8), as
+  server-side encryption does not reach appdata.
 - Full audit trail on three levels: per-request history (§3.7), the Activity feed,
   and an admin audit log entry per action (§11) for all decisions, overrides, and
   balance edits.
@@ -2331,3 +2358,7 @@ Recorded during the build so the spec matches the code:
   employee's history and the admin audit log, and notifies the employee and HR when
   a signed-in user made it; changes without one are recorded only. The profile's
   history shows them, with "System" as the author of an unattended change.
+- **Attachments are encrypted at rest** (§3.8, §17): they were stored as plaintext in
+  appdata, which server-side encryption skips. New uploads are encrypted with
+  `ICrypto`; `Version1022…` adds the `encrypted` flag and `EncryptAttachmentsJob`
+  encrypts the files stored before.

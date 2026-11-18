@@ -49,7 +49,7 @@ class AttachmentCapTest extends TestCase {
 		unlink($this->tmp);
 		foreach ($this->attachments->findForRequests([$this->alices->getId(), $this->bobs->getId()]) as $attachment) {
 			try {
-				($this->stored()[(string)$attachment->getId()] ?? null)?->delete();
+				($this->stored()[$attachment->getId() . '.enc'] ?? null)?->delete();
 			} finally {
 				$this->attachments->delete($attachment);
 			}
@@ -113,7 +113,7 @@ class AttachmentCapTest extends TestCase {
 
 		$attachment = $this->service->upload(self::ALICE, $this->alices->getId(), $this->upload());
 
-		self::assertArrayHasKey((string)$attachment->getId(), $this->stored());
+		self::assertArrayHasKey($attachment->getId() . '.enc', $this->stored());
 		$files = array_keys($this->stored());
 		try {
 			$this->service->upload(self::ALICE, $this->alices->getId(), $this->upload());

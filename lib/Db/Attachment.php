@@ -23,6 +23,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setSize(int $size)
  * @method \DateTime getCreatedAt()
  * @method void setCreatedAt(\DateTime $createdAt)
+ * @method bool getEncrypted()
+ * @method void setEncrypted(bool $encrypted)
  */
 class Attachment extends Entity implements \JsonSerializable {
 	protected int $requestId = 0;
@@ -31,11 +33,14 @@ class Attachment extends Entity implements \JsonSerializable {
 	protected string $mime = 'application/octet-stream';
 	protected int $size = 0;
 	protected ?\DateTime $createdAt = null;
+	/** Whether the stored file is encrypted, or plaintext from before (§3.8) */
+	protected bool $encrypted = false;
 
 	public function __construct() {
 		$this->addType('requestId', 'integer');
 		$this->addType('size', 'integer');
 		$this->addType('createdAt', 'datetime');
+		$this->addType('encrypted', 'boolean');
 	}
 
 	#[\Override]

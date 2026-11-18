@@ -73,6 +73,34 @@ class AttachmentMapper extends QBMapper {
 	}
 
 	/**
+	 * Attachments whose stored file is still plaintext, by id from after $afterId.
+	 *
+	 * @return list<Attachment>
+	 */
+	public function findUnencrypted(int $afterId, int $limit): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('encrypted', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)))
+			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
+			->orderBy('id', 'ASC')
+			->setMaxResults($limit);
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * Records that an attachment's file is now stored encrypted; false when the
+	 * row is gone.
+	 */
+	public function markEncrypted(int $id): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('encrypted', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		return $qb->executeStatement() > 0;
+	}
+
+	/**
 	 * All attachment rows on a set of requests — the GDPR purge path.
 	 *
 	 * @param int[] $requestIds

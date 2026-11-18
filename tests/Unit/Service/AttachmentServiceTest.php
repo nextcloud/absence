@@ -23,8 +23,11 @@ use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
+use OCP\Files\NotFoundException as FilesNotFoundException;
+use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
+use OCP\Security\ICrypto;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -33,7 +36,8 @@ use Psr\Log\LoggerInterface;
 /**
  * Attachments carry medical documents, so the permission matrix is the test
  * that matters: HR and the employee, never the manager; nothing at all on
- * confidential requests.
+ * confidential requests. The stored bytes are encrypted, and the files stored
+ * before that are encrypted later without losing one.
  */
 class AttachmentServiceTest extends TestCase {
 	use ClockMockTrait;
@@ -46,6 +50,8 @@ class AttachmentServiceTest extends TestCase {
 	private LoggerInterface&MockObject $logger;
 	private IEventDispatcher&MockObject $dispatcher;
 	private AttachmentService $service;
+	/** @var array<string, string> the stored files by name, once {@see storeInMemory()} is called */
+	private array $files = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -59,6 +65,17 @@ class AttachmentServiceTest extends TestCase {
 		$factory->method('get')->willReturn($appData);
 		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->dispatcher = $this->createMock(IEventDispatcher::class);
+		// Stands in for the instance secret: what it seals carries no plaintext,
+		// and anything it did not seal is refused.
+		$crypto = $this->createMock(ICrypto::class);
+		$crypto->method('encrypt')->willReturnCallback(static fn (string $plaintext): string => 'sealed:' . base64_encode(strrev($plaintext)));
+		$crypto->method('decrypt')->willReturnCallback(static function (string $sealed): string {
+			$plaintext = str_starts_with($sealed, 'sealed:') ? base64_decode(substr($sealed, 7), true) : false;
+			if ($plaintext === false) {
+				throw new \RuntimeException('HMAC does not match.');
+			}
+			return strrev($plaintext);
+		});
 		$this->service = new AttachmentService(
 			$this->attachmentMapper,
 			$this->requestMapper,
@@ -68,7 +85,27 @@ class AttachmentServiceTest extends TestCase {
 			$this->l10nMock(),
 			$this->logger,
 			$this->dispatcher,
+			$crypto,
 		);
+	}
+
+	/** Makes the storage keep files in {@see $files}. */
+	private function storeInMemory(): void {
+		$this->folder->method('newFile')->willReturnCallback(function (string $name, string $content): ISimpleFile {
+			$this->files[$name] = $content;
+			return $this->createMock(ISimpleFile::class);
+		});
+		$this->folder->method('getFile')->willReturnCallback(function (string $name): ISimpleFile {
+			if (!isset($this->files[$name])) {
+				throw new FilesNotFoundException();
+			}
+			$file = $this->createMock(ISimpleFile::class);
+			$file->method('getContent')->willReturnCallback(fn (): string => $this->files[$name]);
+			$file->method('delete')->willReturnCallback(function () use ($name): void {
+				unset($this->files[$name]);
+			});
+			return $file;
+		});
 	}
 
 	private function request(string $status = LeaveRequest::STATUS_APPROVED, bool $hrOnly = false): LeaveRequest {
@@ -97,12 +134,111 @@ class AttachmentServiceTest extends TestCase {
 			$a->setId(77);
 			return $a;
 		});
-		$this->folder->expects(self::once())->method('newFile')->with('77', 'doctor says rest');
+		$this->folder->expects(self::once())->method('newFile')->with('77.enc', 'sealed:' . base64_encode('tser syas rotcod'));
 
 		$attachment = $this->service->upload('emp', 5, $this->upload());
 
 		self::assertSame('note.pdf', $attachment->getName());
 		self::assertSame('emp', $attachment->getUploaderUid());
+		self::assertTrue($attachment->getEncrypted());
+	}
+
+	public function testWhatIsUploadedIsStoredEncryptedAndDownloadsAsItWas(): void {
+		$this->request();
+		$this->permission->method('isHr')->willReturn(true);
+		$this->storeInMemory();
+		$this->attachmentMapper->method('insert')->willReturnCallback(static function (Attachment $a): Attachment {
+			$a->setId(77);
+			return $a;
+		});
+
+		$attachment = $this->service->upload('hr', 5, $this->upload());
+		$this->attachmentMapper->method('find')->willReturn($attachment);
+
+		self::assertSame(['77.enc'], array_keys($this->files));
+		self::assertStringNotContainsString('doctor says rest', $this->files['77.enc']);
+		// The limits count what was uploaded, not what is stored
+		self::assertSame(16, $attachment->getSize());
+		self::assertSame('doctor says rest', $this->service->download('hr', 77)['content']);
+	}
+
+	public function testAFileStoredBeforeEncryptionStillDownloads(): void {
+		$this->request();
+		$this->permission->method('isHr')->willReturn(true);
+		$this->storeInMemory();
+		$this->files['9'] = 'doctor says rest';
+		$this->attachment('emp');
+
+		self::assertSame('doctor says rest', $this->service->download('hr', 9)['content']);
+	}
+
+	public function testAFileChangedOnDiskIsRefusedAndLogged(): void {
+		$this->request();
+		$this->permission->method('isHr')->willReturn(true);
+		$this->storeInMemory();
+		$this->files['9.enc'] = 'doctor says rest, signed: Dr. Nobody';
+		$this->attachment('emp')->setEncrypted(true);
+		$this->logger->expects(self::once())->method('error')
+			->with(self::anything(), self::callback(static fn (array $context): bool => $context['attachmentId'] === 9));
+
+		$this->expectException(NotFoundException::class);
+		$this->expectExceptionMessage('This attachment can no longer be read');
+		$this->service->download('hr', 9);
+	}
+
+	public function testEncryptingAnOldFileReplacesItBeforeTheRowIsSwitched(): void {
+		$this->storeInMemory();
+		$this->files['9'] = 'doctor says rest';
+		$filesWhenSwitched = null;
+		$this->attachmentMapper->expects(self::once())->method('markEncrypted')->with(9)
+			->willReturnCallback(function () use (&$filesWhenSwitched): bool {
+				$filesWhenSwitched = array_keys($this->files);
+				return true;
+			});
+
+		$this->service->encryptStored($this->attachment('emp'));
+
+		self::assertSame(['9.enc'], $filesWhenSwitched);
+		self::assertSame('sealed:' . base64_encode('tser syas rotcod'), $this->files['9.enc']);
+	}
+
+	public function testAnInterruptedEncryptionLosesNothingAndTheNextRunFinishesIt(): void {
+		$this->storeInMemory();
+		$this->files['9'] = 'doctor says rest';
+		// Stopped after writing the encrypted file, before deleting the plaintext
+		$this->files['9.enc'] = 'sealed:' . base64_encode('tser syas rotcod');
+		$this->attachmentMapper->expects(self::exactly(2))->method('markEncrypted')->willReturn(true);
+
+		$this->service->encryptStored($this->attachment('emp'));
+		self::assertSame(['9.enc' => 'sealed:' . base64_encode('tser syas rotcod')], $this->files);
+
+		// Stopped after deleting the plaintext, before switching the row
+		$this->service->encryptStored($this->attachment('emp'));
+		self::assertSame(['9.enc' => 'sealed:' . base64_encode('tser syas rotcod')], $this->files);
+	}
+
+	public function testAnEncryptedFileThatDoesNotReadBackKeepsThePlaintext(): void {
+		$this->folder->method('newFile')->willReturn($this->createMock(ISimpleFile::class));
+		$written = $this->createMock(ISimpleFile::class);
+		$written->method('getContent')->willReturn('sealed:' . base64_encode('tser'));
+		$plain = $this->createMock(ISimpleFile::class);
+		$plain->method('getContent')->willReturn('doctor says rest');
+		$plain->expects(self::never())->method('delete');
+		$this->folder->method('getFile')->willReturnMap([['9', $plain], ['9.enc', $written]]);
+		$this->attachmentMapper->expects(self::never())->method('markEncrypted');
+
+		$this->expectException(\RuntimeException::class);
+		$this->service->encryptStored($this->attachment('emp'));
+	}
+
+	public function testAnAttachmentRemovedWhileBeingEncryptedLeavesNoFile(): void {
+		$this->storeInMemory();
+		$this->files['9'] = 'doctor says rest';
+		$this->attachmentMapper->method('markEncrypted')->willReturn(false);
+
+		$this->service->encryptStored($this->attachment('emp'));
+
+		self::assertSame([], $this->files);
 	}
 
 	public function testTheManagerMayNeitherSeeNorAttach(): void {
