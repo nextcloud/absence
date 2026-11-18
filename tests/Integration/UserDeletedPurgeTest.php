@@ -45,6 +45,8 @@ class UserDeletedPurgeTest extends TestCase {
 	private const HISTORY_ACTION = 'itest_purge';
 	/** No entitlement has this id: the history row stands alone */
 	private const ENTITLEMENT = 990017;
+	/** Named by a row, never an account */
+	private const ORPHAN = 'itest-purge-orphan';
 	private static bool $registered = false;
 
 	private IDBConnection $db;
@@ -91,7 +93,7 @@ class UserDeletedPurgeTest extends TestCase {
 		$this->deleteWhere('absence_holidays', 'region', [self::REGION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_holiday_history', 'action', [self::HISTORY_ACTION], IQueryBuilder::PARAM_STR_ARRAY);
 		$this->deleteWhere('absence_emp_history', 'employee_uid', [self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
-		$this->deleteWhere('absence_purge_retry', 'uid', [self::GONE, self::OTHER], IQueryBuilder::PARAM_STR_ARRAY);
+		$this->deleteWhere('absence_purge_retry', 'uid', [self::GONE, self::ORPHAN], IQueryBuilder::PARAM_STR_ARRAY);
 		parent::tearDown();
 	}
 
@@ -135,6 +137,17 @@ class UserDeletedPurgeTest extends TestCase {
 		$details = $this->column('absence_request_events', 'hr_detail', 'request_id', $this->decided->getId());
 		self::assertContains('itest decision', $details);
 		self::assertNotContains('itest comment', $details);
+	}
+
+	public function testTheUidsNoAccountHasAreFoundButNotTheJobs(): void {
+		$this->insert('absence_request_events', ['request_id' => $this->decided->getId(), 'actor_uid' => self::ORPHAN, 'event_type' => 'request_approved', 'created_at' => '2026-03-01 09:00:00']);
+
+		$orphans = Server::get(UserPurgeService::class)->findOrphanUids();
+
+		self::assertContains(self::ORPHAN, $orphans);
+		self::assertNotContains(RequestEvent::ACTOR_SYSTEM, $orphans);
+		self::assertNotContains(self::GONE, $orphans);
+		self::assertNotContains(self::OTHER, $orphans);
 	}
 
 	public function testAFailedPurgeIsRetriedByTheJob(): void {
@@ -190,6 +203,7 @@ class UserDeletedPurgeTest extends TestCase {
 			Server::get(RequestService::class),
 			Server::get(NotificationService::class),
 			Server::get(IEventDispatcher::class),
+			Server::get(IUserManager::class),
 		);
 
 		try {

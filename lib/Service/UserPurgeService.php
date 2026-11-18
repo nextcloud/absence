@@ -16,6 +16,7 @@ use OCP\AppFramework\Db\TTransactional;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
+use OCP\IUserManager;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
 use Psr\Log\LoggerInterface;
 
@@ -26,6 +27,21 @@ use Psr\Log\LoggerInterface;
 class UserPurgeService {
 	use TTransactional;
 
+	/** The columns that name somebody, per table, for {@see findOrphanUids()}. */
+	private const UID_COLUMNS = [
+		'absence_requests' => ['employee_uid', 'manager_uid', 'replacement_uid', 'decided_by'],
+		'absence_comments' => ['author_uid'],
+		'absence_comment_mails' => ['recipient_uid'],
+		'absence_request_events' => ['actor_uid'],
+		'absence_entitlements' => ['employee_uid'],
+		'absence_ent_events' => ['employee_uid', 'actor_uid'],
+		'absence_attachments' => ['uploader_uid'],
+		'absence_employments' => ['employee_uid'],
+		'absence_periods' => ['employee_uid'],
+		'absence_emp_history' => ['employee_uid', 'actor_uid'],
+		'absence_holidays' => ['created_by', 'updated_by'],
+		'absence_holiday_history' => ['actor_uid'],
+	];
 	/** The actor columns that also hold the jobs' own actor, which is no account. */
 	private const JOB_ACTORS = [
 		'absence_request_events' => RequestEvent::ACTOR_SYSTEM,
@@ -41,6 +57,7 @@ class UserPurgeService {
 		private RequestService $requests,
 		private NotificationService $notifications,
 		private IEventDispatcher $dispatcher,
+		private IUserManager $userManager,
 	) {
 	}
 
@@ -85,6 +102,34 @@ class UserPurgeService {
 			}
 		}
 		$this->dispatcher->dispatchTyped(new CriticalActionPerformedEvent('Absence data of %s purged', [$uid]));
+	}
+
+	/**
+	 * The uids the Absence tables name that no account has, sorted.
+	 *
+	 * @return list<string>
+	 */
+	public function findOrphanUids(): array {
+		$uids = [];
+		foreach (self::UID_COLUMNS as $table => $columns) {
+			foreach ($columns as $column) {
+				$qb = $this->db->getQueryBuilder();
+				$qb->selectDistinct($column)
+					->from($table)
+					->where($qb->expr()->isNotNull($column));
+				if ($column === 'actor_uid' && isset(self::JOB_ACTORS[$table])) {
+					$qb->andWhere($qb->expr()->neq($column, $qb->createNamedParameter(self::JOB_ACTORS[$table])));
+				}
+				$result = $qb->executeQuery();
+				foreach ($result->fetchFirstColumn() as $uid) {
+					$uids[(string)$uid] = true;
+				}
+				$result->closeCursor();
+			}
+		}
+		$orphans = array_values(array_filter(array_map(strval(...), array_keys($uids)), fn (string $uid): bool => !$this->userManager->userExists($uid)));
+		sort($orphans);
+		return $orphans;
 	}
 
 	/**

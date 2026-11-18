@@ -2080,7 +2080,10 @@ under `prefers-reduced-motion: reduce`.
   notifications that quote them, and nulls them where they acted on other people's
   records; names are then shown as *Deleted account*. A purge that fails is kept in
   `absence_purge_retry` and run again daily until it goes through, unless an account
-  has that uid again.
+  has that uid again. `occ absence:purge-deleted-users` lists the uids the tables
+  still name that no account has (an account deleted while the app was disabled) and
+  purges them with `--force`. It never runs on its own: while a user backend such as
+  LDAP cannot be reached, every account it holds looks deleted.
 - Personal data export: a user migrator (`OCP\UserMigration\IMigrator`, id `absence`)
   adds the person's own Absence data to the export of the *User migration* app
   (`occ user:export`, or *Data migration* in the personal settings), as JSON under
@@ -2461,4 +2464,5 @@ Recorded during the build so the spec matches the code:
   account, and purging an account with that uid leaves the jobs' history rows alone.
   Comment notifications are taken back per request: the notifications app matches app,
   user, object and subject, not who wrote the comment, so the other comment
-  notifications on those requests go too.
+  notifications on those requests go too. `occ absence:purge-deleted-users` finds what
+  accounts deleted while the app was disabled left behind.

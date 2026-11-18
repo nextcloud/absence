@@ -372,7 +372,9 @@ Built for a European works council to be comfortable with:
   and an entry per action in the admin audit log.
 - **GDPR deletion.** When a user account is deleted, their leave is gone from both
   calendars at once, they are detached as anybody's replacement, and their personal
-  data is purged, with the purge itself recorded.
+  data is purged, with the purge itself recorded. A purge that fails is retried
+  daily, and `occ absence:purge-deleted-users` finds the data of accounts deleted
+  while the app was disabled.
 - **Personal data export.** With the *User migration* app, a person's export holds
   their Absence data in an `absence/` folder: their requests with the comments,
   history and attachments they see, their days per year, their contract and their

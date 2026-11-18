@@ -109,6 +109,7 @@ properly. Every rule and design decision is documented in the
 		<command>OCA\Absence\Command\ImportLeave</command>
 		<command>OCA\Absence\Command\Rollover</command>
 		<command>OCA\Absence\Command\Retention</command>
+		<command>OCA\Absence\Command\PurgeDeletedUsers</command>
 	</commands>
 	<activity>
 		<settings>
