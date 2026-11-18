@@ -727,13 +727,9 @@ class RequestService {
 			$this->notifications->notifyNewRequest($request, (string)$managerUid);
 			$this->activity->publish(ActivityPublisher::SUBJECT_CREATED, $this->activityParams($request), [$employeeUid, (string)$managerUid], $request);
 		}
-		// `reason` is the employee's own note on the request; the log entry is the one
-		// place it can be reconstructed later, so it goes into the context rather than
-		// into `detail` (the Details tab already shows it in the request's history).
 		$this->audit('request_created', $request, [
 			'actor' => $actorUid,
 			'detail' => $this->createdDetail($request, $type, $onBehalf),
-			'reason' => $request->getReason(),
 		]);
 		if ($request->getDisability()) {
 			$this->recordDisability($request, $actorUid);
