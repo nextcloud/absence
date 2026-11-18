@@ -384,7 +384,9 @@ past 200 MB is refused with a validation error naming the limit. The cap is a
 constant, not a setting: the bytes sit in app data, outside any user quota.
 Attachments never appear in the request-history timeline (it is
 manager-visible); adds and removals go to the admin audit log (§11). The GDPR
-purge removes rows and bytes. API: §14.
+purge removes rows and bytes, each file before its row: a file that cannot be
+deleted keeps its row and stops the purge, which is retried (§17). Removing one
+attachment keeps it the same way. API: §14.
 
 **Encrypted at rest.** Server-side encryption never covers appdata
 (`server/lib/private/Encryption/Util.php`), so the app encrypts the bytes with
@@ -2446,4 +2448,5 @@ Recorded during the build so the spec matches the code:
   `#[\SensitiveParameter]`.
 - **Purge of deleted accounts** (§17): the purge moved from the listener into
   `UserPurgeService`. It ran once; now a failed purge is kept in `absence_purge_retry`
-  (`Version1020…`) and retried daily.
+  (`Version1020…`) and retried daily. A file that cannot be deleted keeps its row, and
+  the purge waits for it instead of leaving the file behind.

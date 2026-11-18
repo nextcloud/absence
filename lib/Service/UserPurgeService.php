@@ -40,7 +40,8 @@ class UserPurgeService {
 	}
 
 	/**
-	 * @throws \Throwable when the rows could not be removed; none of them is then
+	 * @throws \Throwable when the attachments or the rows could not be removed;
+	 *                    nothing of the rows is removed then
 	 */
 	public function purge(string $uid): void {
 		$this->logger->info('Absence action: user_data_purged', [
@@ -54,16 +55,12 @@ class UserPurgeService {
 			$this->notifications->dismiss($request);
 		}
 
-		// Attachments carry the most sensitive payload of all (§3.8): purge the
-		// stored bytes along with the rows. Files cannot be rolled back, so this
-		// stays outside the transaction.
+		// Attachments carry the most sensitive payload of all (§3.8). Files cannot be
+		// rolled back, so they go first and outside the transaction: one that cannot
+		// be deleted stops the purge while the request rows still lead to it.
 		$requestIds = $this->requestIdsForEmployee($uid);
 		if ($requestIds !== []) {
-			try {
-				$this->attachments->purgeForRequests($requestIds);
-			} catch (\Throwable $e) {
-				$this->logger->warning('Absence: could not purge attachments for deleted user', ['exception' => $e]);
-			}
+			$this->attachments->purgeForRequests($requestIds);
 		}
 
 		$awaitingDecision = $this->atomic(fn (): array => $this->purgeRows($uid, $requestIds), $this->db);

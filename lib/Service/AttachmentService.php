@@ -223,7 +223,8 @@ class AttachmentService {
 
 	/**
 	 * HR may remove anything; the uploader may remove their own file while they
-	 * can still see the request and it is not closed.
+	 * can still see the request and it is not closed. The attachment stays when
+	 * its file could not be deleted.
 	 *
 	 * @throws NotFoundException|ForbiddenException
 	 */
@@ -252,9 +253,11 @@ class AttachmentService {
 
 	/**
 	 * GDPR purge (§17): drop every attachment on the given requests, bytes and
-	 * rows both. Best-effort on the bytes — a missing file must not stop a purge.
+	 * rows both.
 	 *
 	 * @param int[] $requestIds
+	 * @throws \Throwable when a file could not be deleted; its row and those
+	 *                    not reached yet are kept for the next try
 	 */
 	public function purgeForRequests(array $requestIds): void {
 		foreach ($this->attachmentMapper->findForRequests($requestIds) as $attachment) {
@@ -264,8 +267,12 @@ class AttachmentService {
 	}
 
 	/**
-	 * Deletes both names an attachment may be stored under: an attachment
-	 * being encrypted has the two files for a moment.
+	 * Delete the files of an attachment before its row, so that no file is left
+	 * without one. Both names it may be stored under go: an attachment being
+	 * encrypted has the two files for a moment. A file that is already gone counts
+	 * as deleted.
+	 *
+	 * @throws \Throwable when a file is there and could not be deleted
 	 */
 	private function removeStored(Attachment $attachment): void {
 		foreach ([(string)$attachment->getId(), $attachment->getId() . self::ENCRYPTED_SUFFIX] as $name) {
@@ -273,8 +280,6 @@ class AttachmentService {
 				$this->storage()->getFile($name)->delete();
 			} catch (FilesNotFoundException) {
 				continue;
-			} catch (\Throwable $e) {
-				$this->logger->warning('Absence: could not delete stored attachment file', ['exception' => $e]);
 			}
 		}
 	}
