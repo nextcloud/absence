@@ -13,6 +13,7 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\RequestComment;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
+use OCA\Absence\Service\PermissionService;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -23,6 +24,7 @@ use OCP\Mail\IMailer;
 use OCP\Mail\IMessage;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\Notification\INotification;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -51,6 +53,8 @@ class NotificationServiceTest extends TestCase {
 	private string $emailSubject = '';
 	/** Recipients whose comment email was queued. */
 	private array $queued = [];
+	/** Whether the request is of a confidential type (§5.7). */
+	private bool $confidential = false;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -118,6 +122,11 @@ class NotificationServiceTest extends TestCase {
 			},
 		);
 
+		// HR are the uids starting with `hr`.
+		$permission = $this->createMock(PermissionService::class);
+		$permission->method('isHrOnlyRequest')->willReturnCallback(fn (): bool => $this->confidential);
+		$permission->method('isHr')->willReturnCallback(static fn (string $uid): bool => str_starts_with($uid, 'hr'));
+
 		$this->service = new NotificationService(
 			$this->notificationManager,
 			$this->mailer,
@@ -127,6 +136,7 @@ class NotificationServiceTest extends TestCase {
 			$this->notice,
 			$logger,
 			$commentMails,
+			$permission,
 		);
 	}
 
@@ -413,6 +423,56 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame('Emp is absent', $this->emailSubject);
 		self::assertSame(['HR recorded an absence for Emp for 2026-02-10 – 2026-02-12.'], $this->emailBody);
 		self::assertSame([], $this->emailNotes);
+	}
+
+	/**
+	 * @return array<string,array{0:\Closure(NotificationService,LeaveRequest):void}>
+	 */
+	public static function messagesToSomeoneOutsideHr(): array {
+		return [
+			'approval' => [static fn (NotificationService $service, LeaveRequest $request) => $service->notifyDecision($request, true)],
+			'rejection' => [static fn (NotificationService $service, LeaveRequest $request) => $service->notifyDecision($request, false)],
+			'declined withdrawal' => [static fn (NotificationService $service, LeaveRequest $request) => $service->notifyWithdrawalRejected($request, 'Itest written note.', 'hr1')],
+			'reminder' => [static fn (NotificationService $service, LeaveRequest $request) => $service->notifyReminder($request, 'boss')],
+		];
+	}
+
+	/**
+	 * The employee and the manager see the dates and the status of a confidential
+	 * request (§5.7), not what was written on it or who wrote it.
+	 *
+	 * @param \Closure(NotificationService,LeaveRequest):void $send
+	 */
+	#[DataProvider('messagesToSomeoneOutsideHr')]
+	public function testAConfidentialRequestReachesSomeoneOutsideHrWithoutWhatWasWritten(\Closure $send): void {
+		$this->withUsers('emp', 'boss', 'hr1');
+		$this->confidential = true;
+		$this->mailer->expects(self::once())->method('send');
+		$request = $this->request();
+		$request->setReason('Itest written note.');
+		$request->setDecidedBy('hr1');
+		$request->setDecisionComment('Itest written note.');
+
+		$send($this->service, $request);
+
+		self::assertCount(1, $this->pushed);
+		self::assertSame('', $this->pushed[0]['note']);
+		self::assertSame('', $this->pushed[0]['noteAuthor']);
+		self::assertSame([], $this->emailNotes);
+		self::assertStringNotContainsString('Itest written note', json_encode([$this->pushed, $this->emailBody], JSON_THROW_ON_ERROR));
+	}
+
+	public function testHrReadWhatWasWrittenOnAConfidentialRequest(): void {
+		$this->withUsers('emp', 'hr1');
+		$this->confidential = true;
+		$request = $this->request();
+		$request->setReason('Itest written note.');
+
+		$this->service->notifyEscalation($request, ['hr1']);
+
+		self::assertSame('Itest written note.', $this->pushed[0]['note']);
+		self::assertSame('emp', $this->pushed[0]['noteAuthor']);
+		self::assertSame([['Itest written note.', 'Emp wrote:']], $this->emailNotes);
 	}
 
 	public function testCarryOverReminderGoesOutAsNotificationAndEmail(): void {

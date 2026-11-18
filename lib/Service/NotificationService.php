@@ -58,6 +58,7 @@ class NotificationService {
 		private NoticeService $notice,
 		private LoggerInterface $logger,
 		private CommentMailMapper $commentMails,
+		private PermissionService $permission,
 	) {
 	}
 
@@ -199,11 +200,17 @@ class NotificationService {
 	 * Only the messages that ask somebody to decide carry a $notice, and they carry
 	 * the numbers rather than a finished sentence: the notification is phrased later,
 	 * in whatever language the person who opens it reads.
+	 *
+	 * On a confidential request (§5.7) only HR gets $note and its author, as in the app.
 	 */
 	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null, ?array $notice = null): void {
 		// A disabled account cannot act on any of this.
 		if ($this->userManager->get($recipientUid)?->isEnabled() === false) {
 			return;
+		}
+		if ($this->permission->isHrOnlyRequest($request) && !$this->permission->isHr($recipientUid)) {
+			$note = null;
+			$noteAuthorUid = null;
 		}
 		$note = trim((string)$note);
 		$this->sendNotification($recipientUid, $subject, $request, $actionable, $note, $noteAuthorUid, $notice);

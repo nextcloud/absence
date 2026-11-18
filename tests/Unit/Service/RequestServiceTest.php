@@ -1338,6 +1338,72 @@ class RequestServiceTest extends TestCase {
 		self::assertNotContains('disability_changed', $types);
 	}
 
+	public function testAnHrEditOfTheDisabilityFlagAloneLeavesNothingTheEmployeeOrManagerReads(): void {
+		// The whole form comes back unchanged with the flag set, as the dialog sends it
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$types = [];
+		$this->eventMapper->method('insert')->willReturnCallback(function (RequestEvent $event) use (&$types): RequestEvent {
+			$types[] = $event->getEventType();
+			return $event;
+		});
+		$this->activity->expects(self::never())->method('publish');
+
+		$this->service->update('hr', 5, [
+			'startDate' => '2026-02-10',
+			'endDate' => '2026-02-12',
+			'workingDays' => 3,
+			'reason' => '',
+			'replacementUid' => '',
+			'disability' => true,
+		]);
+
+		self::assertSame(['disability_changed'], $types);
+	}
+
+	/**
+	 * @return array<string,array{0:array<string,mixed>,1:int}>
+	 */
+	public static function confidentialHrEdits(): array {
+		return [
+			'reason' => [['reason' => 'Itest new reason'], 0],
+			'dates' => [['startDate' => '2026-02-11', 'endDate' => '2026-02-12', 'workingDays' => 2], 1],
+		];
+	}
+
+	/**
+	 * The employee of a confidential request (§5.7) sees its dates, not its reason.
+	 *
+	 * @param array<string,mixed> $changes
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('confidentialHrEdits')]
+	public function testAnHrEditOfAConfidentialRequestIsAnnouncedOnlyWhenTheEmployeeSeesIt(array $changes, int $announced): void {
+		$request = $this->pendingOwnRequest();
+		$this->requestMapper->method('find')->with(5)->willReturn($request);
+		$this->requestMapper->method('update')->willReturnArgument(0);
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->leaveTypeMapper->method('hrOnlyTypeIds')->willReturn([1]);
+		$this->permission->method('canView')->willReturn(true);
+		$this->permission->method('canModify')->willReturn(true);
+		$this->permission->method('isHr')->with('hr')->willReturn(true);
+		$recorded = [];
+		$this->eventMapper->method('insert')->willReturnCallback(function (RequestEvent $event) use (&$recorded): RequestEvent {
+			$recorded[$event->getEventType()] = $event->getConfidential();
+			return $event;
+		});
+		$this->activity->expects(self::exactly($announced))->method('publish');
+
+		$this->service->update('hr', 5, $changes);
+
+		// HR's own record of the edit stays
+		self::assertSame(['request_hr_edited' => true], $recorded);
+	}
+
 	public function testTheDisabilityFlagHistoryIsShownToHrOnly(): void {
 		$request = $this->pendingOwnRequest();
 		$this->requestMapper->method('find')->with(5)->willReturn($request);

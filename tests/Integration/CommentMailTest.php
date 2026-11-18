@@ -93,7 +93,7 @@ class CommentMailTest extends TestCase {
 		});
 		$this->notifications = new NotificationService(Server::get(INotificationManager::class), $mailer, $users,
 			Server::get(IURLGenerator::class), Server::get(IFactory::class), Server::get(NoticeService::class),
-			Server::get(LoggerInterface::class), Server::get(CommentMailMapper::class));
+			Server::get(LoggerInterface::class), Server::get(CommentMailMapper::class), Server::get(PermissionService::class));
 	}
 
 	protected function tearDown(): void {

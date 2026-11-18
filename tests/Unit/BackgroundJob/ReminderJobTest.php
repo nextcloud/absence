@@ -16,6 +16,7 @@ use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
+use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -36,6 +37,8 @@ class ReminderJobTest extends TestCase {
 	/** @var int[] ids of the reminded requests, in order */
 	private array $reminded = [];
 	private CarryOverReminderService&MockObject $carryOverReminder;
+	/** @var int[] ids of the requests the manager may not decide */
+	private array $undecidable = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -70,6 +73,11 @@ class ReminderJobTest extends TestCase {
 		$managers = $this->createMock(ManagerResolver::class);
 		$managers->method('getManagerUid')->willReturn('itest-manager');
 
+		$permission = $this->createMock(PermissionService::class);
+		$permission->method('canDecide')->willReturnCallback(
+			fn (string $uid, LeaveRequest $request): bool => !in_array($request->getId(), $this->undecidable, true),
+		);
+
 		$this->job = new ReminderJob(
 			$this->createMock(ITimeFactory::class),
 			$clock,
@@ -80,7 +88,19 @@ class ReminderJobTest extends TestCase {
 			$this->createMock(LoggerInterface::class),
 			$managers,
 			$this->carryOverReminder = $this->createMock(CarryOverReminderService::class),
+			$permission,
 		);
+	}
+
+	public function testAManagerIsOnlyRemindedOfWhatTheyCanDecide(): void {
+		// A request HR made confidential (§5.7) while it waited
+		$this->pendingSince(1, '2026-03-05');
+		$this->pendingSince(2, '2026-03-05');
+		$this->undecidable = [2];
+
+		$this->runOn('2026-03-10');
+
+		self::assertSame([1], $this->reminded);
 	}
 
 	public function testCarryOverReminderRunsEveryDayAndItsFailureKeepsTheManagerReminders(): void {

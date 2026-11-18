@@ -173,8 +173,9 @@ class ManagerChangeTest extends TestCase {
 
 		$appConfig = Server::get(IAppConfig::class);
 		$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF);
+		$resolver = $this->resolver();
 		$job = new ReminderJob(Server::get(ITimeFactory::class), $clock, $this->mapper, Server::get(NotificationService::class),
-			$config, $appConfig, Server::get(LoggerInterface::class), $this->resolver(), Server::get(CarryOverReminderService::class));
+			$config, $appConfig, Server::get(LoggerInterface::class), $resolver, Server::get(CarryOverReminderService::class), $this->permission($resolver));
 		(new \ReflectionMethod($job, 'run'))->invoke($job, null);
 		$appConfig->deleteKey(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF);
 
