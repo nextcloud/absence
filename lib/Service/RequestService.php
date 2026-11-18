@@ -783,6 +783,21 @@ class RequestService {
 	}
 
 	/**
+	 * The part of a {@see snapshot()} that the employee and the manager are shown:
+	 * no type and no reason while the request is confidential (§5.7).
+	 *
+	 * @param array<string,mixed> $snapshot
+	 * @return array<string,mixed>
+	 */
+	private function shownToEmployee(array $snapshot): array {
+		if (in_array($snapshot['typeId'], $this->leaveTypeMapper->hrOnlyTypeIds(), true)) {
+			$snapshot['typeId'] = null;
+			$snapshot['reason'] = null;
+		}
+		return $snapshot;
+	}
+
+	/**
 	 * What actually changed, field by field, as a sentence for the history timeline.
 	 *
 	 * Recording the resulting state instead — "adjusted to 2 – 6 March (5 days)" —
@@ -1088,8 +1103,13 @@ class RequestService {
 			$this->calendar->onRemoved($request);
 			$this->applyCalendar($request);
 		}
-		$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
-		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $this->describeChanges($before, $request), 'disability' => $request->getDisability()], $before);
+		// The disability flag alone, or what a confidential request (§5.7) withholds,
+		// leaves no trace the employee or the manager could read.
+		if ($this->shownToEmployee($before) !== $this->shownToEmployee($this->snapshot($request))) {
+			$this->activity->publish(ActivityPublisher::SUBJECT_UPDATED, $this->activityParams($request), [$request->getEmployeeUid()], $request);
+		}
+		$detail = $this->describeChanges($before, $request);
+		$this->audit('request_hr_edited', $request, ['actor' => $actorUid, 'detail' => $detail, 'disability' => $request->getDisability()], $before, history: $detail !== null);
 		if ($request->getDisability() !== $hadDisability) {
 			$this->recordDisability($request, $actorUid);
 		}
@@ -1441,8 +1461,9 @@ class RequestService {
 	 */
 	/**
 	 * @param array<string,mixed>|null $before {@see snapshot()} of an edited request, for the change event
+	 * @param bool $history false when the history entry would have nothing to say
 	 */
-	private function audit(string $action, LeaveRequest $request, array $extra = [], ?array $before = null): void {
+	private function audit(string $action, LeaveRequest $request, array $extra = [], ?array $before = null, bool $history = true): void {
 		$actor = (string)($extra['actor'] ?? 'system');
 		$detail = isset($extra['detail']) && $extra['detail'] !== null && $extra['detail'] !== ''
 			? (string)$extra['detail']
@@ -1467,6 +1488,9 @@ class RequestService {
 			}
 		}
 
+		if (!$history) {
+			return;
+		}
 		try {
 			$event = new RequestEvent();
 			$event->setRequestId((int)$request->getId());

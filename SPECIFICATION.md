@@ -711,7 +711,8 @@ Rules, enforced server-side at every surface:
   outside HR carries no reason, decision comment or comment of a declined
   withdrawal of a confidential request, and not who wrote it (§11). A manager
   is not reminded of a pending request that became confidential, as only HR
-  decides it (§9).
+  decides it (§9). An HR edit that changes only what the employee does not
+  see, the reason or one confidential type for another, publishes no activity.
 - HR-only surfaces (absences list, statistics, sick-leave report with its type
   picker, exports) show confidential types in full.
 
@@ -728,8 +729,10 @@ statutory entitlement for employees with a recognised disability. Rules:
 - **Seen by HR alone**: serialization nulls the flag for every non-HR viewer —
   the employee's own views included. Setting or clearing it adds an entry to
   the request's history that only HR is shown; the entries the employee and
-  manager read never mention it (`describeChanges()` excludes it). The logs
-  (§11) record that HR edited the request, not the flag.
+  manager read never mention it (`describeChanges()` excludes it). An HR edit
+  that changes the flag and nothing else writes no other history entry and no
+  activity, so neither tells them the request was edited. The logs (§11)
+  record that HR edited the request, not the flag.
 - The flag rides on the request row (`disability`, boolean); it does not alter
   balances or workflows.
 
@@ -2241,3 +2244,7 @@ Recorded during the build so the spec matches the code:
 - **Reminders** (§9) went to the employee's current manager even when they could
   no longer decide the request, as once HR made it confidential (§5.7). They go only
   to someone who can decide it now.
+- **HR edits nobody else sees** (§5.7, §5.8): an HR edit of the disability flag
+  alone wrote an empty "HR edited" history entry the employee and manager read, and
+  an activity for the employee. An HR edit now writes a history entry only when it
+  has something to say, and an activity only when the employee sees a change.
