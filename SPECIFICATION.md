@@ -709,7 +709,9 @@ Rules, enforced server-side at every surface:
   not the reason.
 - **Messages say no more than the app**: a notification or e-mail to anyone
   outside HR carries no reason, decision comment or comment of a declined
-  withdrawal of a confidential request, and not who wrote it (§11).
+  withdrawal of a confidential request, and not who wrote it (§11). A manager
+  is not reminded of a pending request that became confidential, as only HR
+  decides it (§9).
 - HR-only surfaces (absences list, statistics, sick-leave report with its type
   picker, exports) show confidential types in full.
 
@@ -1146,7 +1148,10 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
 
 1. **EscalationJob** (hourly): finds overdue `PENDING` requests and escalates (§5.4).
 2. **ReminderJob** (daily): sends reminder notifications to managers with pending
-   requests approaching the escalation window. Each request once: the job stores the
+   requests approaching the escalation window: to the employee's current manager,
+   and only when they can decide the request (`canDecide()`). A request that became
+   confidential while pending (§5.7) is left to HR, who hear of it when it escalates
+   (§5.4). Each request once: the job stores the
    cut-off it last processed, so a second run on the same day sends nothing and a
    missed day is caught up on the next run (at most 7 days back).
    It also sends the yearly carry-over expiry reminder to employees (§6.2).
@@ -2233,3 +2238,6 @@ Recorded during the build so the spec matches the code:
   withdrawal carried the decision comment or the refusal, and who wrote it, to an
   employee who doesn't see them in the app, and the reminder carried the reason to
   the manager. Messages now carry only what the recipient reads in the app.
+- **Reminders** (§9) went to the employee's current manager even when they could
+  no longer decide the request, as once HR made it confidential (§5.7). They go only
+  to someone who can decide it now.

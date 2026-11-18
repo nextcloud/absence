@@ -15,6 +15,7 @@ use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\ManagerResolver;
 use OCA\Absence\Service\NotificationService;
+use OCA\Absence\Service\PermissionService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
 use OCP\IAppConfig;
@@ -41,6 +42,7 @@ class ReminderJob extends TimedJob {
 		private LoggerInterface $logger,
 		private ManagerResolver $managerResolver,
 		private CarryOverReminderService $carryOverReminder,
+		private PermissionService $permission,
 	) {
 		parent::__construct($time);
 		$this->setInterval(24 * 3600);
@@ -91,9 +93,11 @@ class ReminderJob extends TimedJob {
 		// first half again.
 		$this->appConfig->setValueInt(ConfigService::APP_ID, ConfigLexicon::KEY_REMINDER_CUTOFF, $before->getTimestamp());
 		foreach ($requests as $request) {
-			// The employee's manager today, not the one the request was made under
+			// The employee's manager today, not the one the request was made under,
+			// and only when they can decide it: a confidential request (§5.7) waits
+			// for HR, who are told when it escalates.
 			$managerUid = $this->managerResolver->getManagerUid($request->getEmployeeUid());
-			if ($managerUid === null) {
+			if ($managerUid === null || !$this->permission->canDecide($managerUid, $request)) {
 				continue;
 			}
 			// One failed reminder must not abort the run: this cohort is reminded
