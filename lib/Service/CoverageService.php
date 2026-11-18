@@ -251,11 +251,12 @@ class CoverageService {
 	}
 
 	/**
-	 * Whether an employee has leave in force or asked for on any day of a
-	 * range, for the warning under the replacement picker. Says nothing about
-	 * the type or the days. Null, no answer, unless the caller may see that
-	 * person's absences anyway: HR, their teammates, or everyone while the
-	 * shared team calendar shows all absences.
+	 * Whether an employee is off on any day of a range, for the warning under
+	 * the replacement picker. Says nothing about the type or the days. Counts
+	 * only what the caller sees elsewhere: for HR and the person's teammates,
+	 * leave in force or asked for, as on their timeline; for everyone else,
+	 * while the team calendar is shared, leave in force, as on that calendar.
+	 * Null, no answer, otherwise and for anybody who is no employee.
 	 *
 	 * @throws ForbiddenException
 	 * @throws ValidationException
@@ -264,14 +265,18 @@ class CoverageService {
 		if (!$this->permission->isEmployeeOrHr($actorUid)) {
 			throw new ForbiddenException($this->l->t('Only employees and HR can see this.'));
 		}
-		if (!$this->employees->isEmployee($uid)) {
-			throw new ValidationException($this->l->t('Unknown employee.'));
-		}
 		[$from, $to] = $this->assertValidRange($from, $to, self::MAX_AWAY_SPAN_DAYS);
-		if (!$this->permission->isHr($actorUid) && !$this->config->isCalDavSharedEnabled() && !in_array($uid, $this->teammateUids($actorUid), true)) {
+		if (!$this->employees->isEmployee($uid)) {
 			return null;
 		}
-		return $this->requestMapper->findForEmployeesInRange([$uid], $from, $to, LeaveRequest::ACTIVE_STATUSES) !== [];
+		if ($this->permission->isHr($actorUid) || in_array($uid, $this->teammateUids($actorUid), true)) {
+			$statuses = LeaveRequest::ACTIVE_STATUSES;
+		} elseif ($this->config->isCalDavSharedEnabled() && $this->config->isConfigured()) {
+			$statuses = LeaveRequest::USED_STATUSES;
+		} else {
+			return null;
+		}
+		return $this->requestMapper->findForEmployeesInRange([$uid], $from, $to, $statuses) !== [];
 	}
 
 	/**

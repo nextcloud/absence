@@ -459,13 +459,15 @@ HR** on an employee's behalf (§5.6) — employees don't self-record it.
    reports, by name. Employees only, never the person themselves, nobody twice.
    Anybody may ask for their own teammates, HR for any employee's (HR mode).
    Once a replacement and both dates are set, the dialog asks whether that colleague
-   has leave pending, escalated, approved or awaiting withdrawal on any of those days
-   (`GET /api/employees/{uid}/away`, debounced like the coverage note) and if so warns
-   "*{name} is off on some of these days.*" without saying which days or what leave.
-   It answers only who may see that colleague's absences anyway: HR, their teammates
-   as above, or every employee while the shared team calendar is on (§10). Anybody
-   else gets `{away: null}` and no warning. It is a warning only: saving is never
-   blocked by it.
+   is off on any of those days (`GET /api/employees/{uid}/away`, debounced like the
+   coverage note) and if so warns "*{name} is off on some of these days.*" without
+   saying which days or what leave. It counts only what the caller sees elsewhere:
+   HR and the colleague's teammates as above are told of leave pending, escalated,
+   approved or awaiting withdrawal, as on their timeline (§8); every other employee
+   only of leave in force (approved or awaiting withdrawal), and only while the team
+   calendar is shared, that is switched on and the app set up (§10, §12). Anybody
+   else, and anybody asking about somebody who is no employee, gets `{away: null}`
+   and no warning. It is a warning only: saving is never blocked by it.
 
    **The requirement is on the employee, not on the record.** It exists because somebody
    arranging their own leave knows who can cover and is asked to sort it out before
@@ -1522,9 +1524,10 @@ the SPA). All list endpoints paginate and accept filters.
 - `GET  /api/employees/teammates?uid`: the replacement picker's suggestions (§5.1):
   `[{uid, displayName}]`. `uid` defaults to the caller; only HR may name somebody else.
 - `GET  /api/employees/{uid}/away?from&to`: `{away: bool|null}`, whether that employee
-  has leave in force or asked for on any day of the range, at most 366 days (§5.1).
-  Employees and HR only; `null` unless the caller is HR, a teammate, or the shared
-  team calendar is on.
+  is off on any day of the range, at most 366 days (§5.1). Employees and HR only. HR
+  and teammates count leave in force or asked for; other employees, while the team
+  calendar is shared and the app set up, leave in force only. `null` otherwise, and
+  for a uid that is no employee.
 - `GET  /api/calendar?from&to&scope` — events for the in-app calendar/timeline, and
   the public holidays of the people in them (`holidays`, by uid).
 
@@ -2208,3 +2211,9 @@ Recorded during the build so the spec matches the code:
   so it no longer sees personal leave; scheduling free/busy does.
 - **Handbooks are links** (§13.1): the built-in handbook pages and their 8.7 MB of
   screenshots are gone; HR links handbooks kept elsewhere (Collectives) in the settings.
+- **Replacement away check** (§5.1, §14): it answered every employee about every
+  colleague while the team calendar switch was on, counting leave still asked for,
+  and refused a uid that is no employee with an error. HR and teammates still get
+  leave in force or asked for. Everyone else gets leave in force only, what the team
+  calendar carries, and only while that calendar is shared (switched on and the app
+  set up). A uid that is no employee gets `null`, like any question left unanswered.

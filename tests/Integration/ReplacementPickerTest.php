@@ -172,6 +172,25 @@ class ReplacementPickerTest extends TestCase {
 		self::assertTrue($this->service()->isAway(self::EVE, self::BOB, '2027-03-08', '2027-03-12'));
 	}
 
+	public function testTheSharedCalendarOnlyTellsOfLeaveInForce(): void {
+		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, true);
+		$this->seed(self::BOB, LeaveRequest::STATUS_PENDING, '2027-03-08', '2027-03-10');
+		$this->seed(self::BOB, LeaveRequest::STATUS_WITHDRAWAL_PENDING, '2027-04-08', '2027-04-10');
+
+		self::assertFalse($this->service()->isAway(self::EVE, self::BOB, '2027-03-08', '2027-03-12'));
+		self::assertTrue($this->service()->isAway(self::EVE, self::BOB, '2027-04-08', '2027-04-12'));
+		// Alice is Bob's teammate
+		self::assertTrue($this->service()->isAway(self::ALICE, self::BOB, '2027-03-08', '2027-03-12'));
+	}
+
+	public function testNoSharedCalendarUntilTheAppIsSetUp(): void {
+		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, true);
+		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, '');
+		$this->seed(self::BOB, LeaveRequest::STATUS_APPROVED, '2027-03-08', '2027-03-10');
+
+		self::assertNull($this->service()->isAway(self::EVE, self::BOB, '2027-03-08', '2027-03-12'));
+	}
+
 	public function testARangeOverAYearIsRefused(): void {
 		$this->expectException(ValidationException::class);
 		$this->service()->isAway(self::ALICE, self::BOB, '2027-01-01', '2028-01-03');
@@ -182,9 +201,11 @@ class ReplacementPickerTest extends TestCase {
 		$this->service()->isAway(self::FRANK, self::BOB, '2027-03-08', '2027-03-12');
 	}
 
-	public function testOnlyAnEmployeeCanBeAway(): void {
-		$this->expectException(ValidationException::class);
-		$this->service()->isAway(self::HR, self::FRANK, '2027-03-08', '2027-03-12');
+	public function testSomebodyWhoIsNoEmployeeGetsNoAnswer(): void {
+		$this->seed(self::FRANK, LeaveRequest::STATUS_APPROVED, '2027-03-08', '2027-03-10');
+
+		self::assertNull($this->service()->isAway(self::HR, self::FRANK, '2027-03-08', '2027-03-12'));
+		self::assertNull($this->service()->isAway(self::HR, self::PREFIX . 'nobody', '2027-03-08', '2027-03-12'));
 	}
 
 	/**
