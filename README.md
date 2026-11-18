@@ -304,6 +304,19 @@ with `occ user:setting` is not seen.
 re-run: escalation (hourly), reminders (daily) and the year rollover (daily, acting
 once per year).
 
+**Attachments are encrypted at rest.** Server-side encryption never covers app data,
+where the app keeps attachments, so the app encrypts each file itself with Nextcloud's
+`ICrypto` (AES in CBC mode with an HMAC), keyed on the `secret` in `config.php`. Files
+uploaded before this version are encrypted by a background job, up to 1000 every five
+minutes, and download as before in the meantime. Stored files take about twice their
+size. Keep in mind:
+
+- This protects the storage and backups that don't include `config.php`. It doesn't
+  protect against anyone who can read `config.php` along with the data, such as a
+  server admin.
+- Changing the `secret` in `config.php` makes every stored attachment unreadable.
+  Don't rotate it, or download the attachments you need first.
+
 **Personal settings** are deliberately tiny: a small section appended to the built-in
 **Availability** page that feeds the working-day prefill (working weekdays, and a
 country/region for public holidays). Notification preferences defer to Nextcloud's own.

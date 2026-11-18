@@ -22,6 +22,7 @@ use OCP\Files\NotFoundException as FilesNotFoundException;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IL10N;
 use OCP\Log\Audit\CriticalActionPerformedEvent;
+use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -41,6 +42,12 @@ use Psr\Log\LoggerInterface;
  * medical document is a step further than a sentence the employee chose to
  * write. Attachments never appear in the request history either — the
  * timeline is manager-visible, and "a file was added" already says too much.
+ *
+ * Server-side encryption never covers appdata, so the bytes are encrypted
+ * here with {@see ICrypto}, keyed on the instance secret, and stored as
+ * `<id>.enc`. Files stored before that are plaintext under `<id>` until
+ * {@see \OCA\Absence\BackgroundJob\EncryptAttachmentsJob} encrypts them; the
+ * row's `encrypted` flag says which of the two a row has.
  */
 class AttachmentService {
 	/** Uploads are documents, not media libraries. */
@@ -48,6 +55,7 @@ class AttachmentService {
 	public const MAX_PER_REQUEST = 10;
 	/** Stored bytes on all requests of one employee: the files sit outside any user quota. */
 	public const MAX_PER_EMPLOYEE_BYTES = 200 * 1024 * 1024;
+	private const ENCRYPTED_SUFFIX = '.enc';
 
 	public function __construct(
 		private AttachmentMapper $attachmentMapper,
@@ -58,6 +66,7 @@ class AttachmentService {
 		private IL10N $l,
 		private LoggerInterface $logger,
 		private IEventDispatcher $dispatcher,
+		private ICrypto $crypto,
 	) {
 	}
 
@@ -127,12 +136,14 @@ class AttachmentService {
 		$attachment->setMime($this->sanitizeMime((string)($upload['type'] ?? '')));
 		$attachment->setSize($size);
 		$attachment->setCreatedAt($this->clock->now());
+		$attachment->setEncrypted(true);
 		$attachment = $this->attachmentMapper->insert($attachment);
 
 		try {
 			// Stored under the row id, not the client's filename: ids cannot
-			// collide and cannot traverse anywhere.
-			$this->storage()->newFile((string)$attachment->getId(), $content);
+			// collide and cannot traverse anywhere. Only the ciphertext reaches
+			// the storage calls, and so any trace of their exceptions.
+			$this->storage()->newFile($this->storedName($attachment), $this->crypto->encrypt($content));
 		} catch (\Throwable $e) {
 			$this->attachmentMapper->delete($attachment);
 			$this->logger->error('Absence: storing an attachment failed', ['exception' => $e]);
@@ -160,11 +171,54 @@ class AttachmentService {
 		$attachment = $this->loadAttachment($attachmentId);
 		$this->loadVisibleAttachmentRequest($actorUid, $attachment);
 		try {
-			$content = $this->storage()->getFile((string)$attachment->getId())->getContent();
+			$stored = $this->storage()->getFile($this->storedName($attachment))->getContent();
 		} catch (FilesNotFoundException) {
 			throw new NotFoundException($this->l->t('Attachment not found'));
 		}
+		if (!$attachment->getEncrypted()) {
+			return ['attachment' => $attachment, 'content' => $stored];
+		}
+		try {
+			$content = $this->crypto->decrypt($stored);
+		} catch (\Exception $e) {
+			// Changed on disk, or the instance secret changed since it was stored
+			$this->logger->error('Absence: a stored attachment could not be decrypted', [
+				'app' => 'absence',
+				'attachmentId' => $attachment->getId(),
+				'exception' => $e,
+			]);
+			throw new NotFoundException($this->l->t('This attachment can no longer be read'));
+		}
 		return ['attachment' => $attachment, 'content' => $content];
+	}
+
+	/**
+	 * Encrypts the plaintext file of an attachment stored before attachments
+	 * were encrypted. The encrypted file is written next to it and read back
+	 * before the plaintext one is deleted, and the row is switched last, so an
+	 * interrupted run loses nothing and the next one finishes the job: a row
+	 * whose plaintext file is gone already has its encrypted one.
+	 */
+	public function encryptStored(Attachment $attachment): void {
+		$folder = $this->storage();
+		$plainName = (string)$attachment->getId();
+		$encryptedName = $plainName . self::ENCRYPTED_SUFFIX;
+		try {
+			$plaintext = $folder->getFile($plainName)->getContent();
+		} catch (FilesNotFoundException) {
+			$plaintext = null;
+		}
+		if ($plaintext !== null) {
+			$folder->newFile($encryptedName, $this->crypto->encrypt($plaintext));
+			if (!hash_equals($plaintext, $this->crypto->decrypt($folder->getFile($encryptedName)->getContent()))) {
+				throw new \RuntimeException('The encrypted file does not read back the same');
+			}
+			$folder->getFile($plainName)->delete();
+		}
+		if (!$this->attachmentMapper->markEncrypted($attachment->getId())) {
+			// Removed while it was being encrypted
+			$this->removeStored($attachment);
+		}
 	}
 
 	/**
@@ -209,12 +263,24 @@ class AttachmentService {
 		}
 	}
 
+	/**
+	 * Deletes both names an attachment may be stored under: an attachment
+	 * being encrypted has the two files for a moment.
+	 */
 	private function removeStored(Attachment $attachment): void {
-		try {
-			$this->storage()->getFile((string)$attachment->getId())->delete();
-		} catch (\Throwable $e) {
-			$this->logger->warning('Absence: could not delete stored attachment file', ['exception' => $e]);
+		foreach ([(string)$attachment->getId(), $attachment->getId() . self::ENCRYPTED_SUFFIX] as $name) {
+			try {
+				$this->storage()->getFile($name)->delete();
+			} catch (FilesNotFoundException) {
+				continue;
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: could not delete stored attachment file', ['exception' => $e]);
+			}
 		}
+	}
+
+	private function storedName(Attachment $attachment): string {
+		return $attachment->getId() . ($attachment->getEncrypted() ? self::ENCRYPTED_SUFFIX : '');
 	}
 
 	/**
