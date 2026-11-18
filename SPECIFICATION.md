@@ -707,6 +707,9 @@ Rules, enforced server-side at every surface:
   counts, the who's-off timelines and the team calendar all treat a
   confidential absence like any other — colleagues plan around the absence,
   not the reason.
+- **Messages say no more than the app**: a notification or e-mail to anyone
+  outside HR carries no reason, decision comment or comment of a declined
+  withdrawal of a confidential request, and not who wrote it (§11).
 - HR-only surfaces (absences list, statistics, sick-leave report with its type
   picker, exports) show confidential types in full.
 
@@ -1255,6 +1258,9 @@ All four channels are required.
   present it takes the place of boilerplate like "Review it in Absence.".
   One deliberate exception: the replacement (§5.1) is told the dates only, never the
   reason — cover duty does not come with a right to read it.
+  On a confidential request (§5.7) only HR recipients get the text and its author;
+  the employee and the manager are told what the app shows them, the dates and the
+  outcome.
 - **Activity:** implement `OCP\Activity\IProvider` / setting so all state changes
   appear in the Activity app feed, filterable to an "Absence" activity type. Include
   activity for HR overrides and balance adjustments.
@@ -2223,3 +2229,7 @@ Recorded during the build so the spec matches the code:
 - **Hidden attachments are not found** (§14): downloading or deleting an attachment
   the caller may not see answered 403 while an unknown id answered 404, which told
   how many attachments exist. Both are now a 404 "Attachment not found".
+- **Confidential requests in messages** (§5.7, §11): the decision and a declined
+  withdrawal carried the decision comment or the refusal, and who wrote it, to an
+  employee who doesn't see them in the app, and the reminder carried the reason to
+  the manager. Messages now carry only what the recipient reads in the app.
