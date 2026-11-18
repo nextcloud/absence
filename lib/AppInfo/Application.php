@@ -12,12 +12,14 @@ use OCA\Absence\Api\AbsenceProvider;
 use OCA\Absence\Api\IAbsenceProvider;
 use OCA\Absence\ConfigLexicon;
 use OCA\Absence\Dashboard\AbsenceWidget;
+use OCA\Absence\Listener\ManagerChangedListener;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Notification\Notifier;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\User\Events\UserChangedEvent;
 use OCP\User\Events\UserDeletedEvent;
 
 class Application extends App implements IBootstrap {
@@ -33,6 +35,7 @@ class Application extends App implements IBootstrap {
 		$context->registerNotifierService(Notifier::class);
 		$context->registerDashboardWidget(AbsenceWidget::class);
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
+		$context->registerEventListener(UserChangedEvent::class, ManagerChangedListener::class);
 		// Integration API for other apps (§14b)
 		$context->registerServiceAlias(IAbsenceProvider::class, AbsenceProvider::class);
 	}

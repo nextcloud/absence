@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Absence\Service;
 
 use OCA\Absence\ConfigLexicon;
+use OCA\Absence\Db\EmployeeChange;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveTypeMapper;
@@ -142,16 +143,28 @@ class ProfileService {
 	}
 
 	/**
+	 * The history with names for its uids. A manager change lists the managers
+	 * before and after as people; a deleted account among them has an empty uid.
+	 *
 	 * @return list<array<string, mixed>>
 	 */
 	private function history(string $uid): array {
 		$names = [];
-		return array_map(function (array $change) use (&$names): array {
+		$name = function (string $uid) use (&$names): string {
+			return $names[$uid] ??= $this->displayName($uid);
+		};
+		$people = fn (array $uids): array => array_map(fn (?string $uid): array => [
+			'uid' => $uid ?? '',
+			'displayName' => $uid === null ? $this->l->t('Deleted account') : $name($uid),
+		], $uids);
+		return array_map(static function (array $change) use ($name, $people): array {
 			$actor = $change['actor'];
-			if ($actor !== null && !isset($names[$actor])) {
-				$names[$actor] = $this->displayName($actor);
+			$change['actorName'] = $actor === null ? null : $name($actor);
+			if ($change['field'] === EmployeeChange::MANAGER) {
+				$change['before'] = $people($change['before']);
+				$change['after'] = $people($change['after']);
 			}
-			return [...$change, 'actorName' => $actor === null ? null : $names[$actor]];
+			return $change;
 		}, $this->employees->history($uid));
 	}
 

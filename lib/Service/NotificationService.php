@@ -38,8 +38,10 @@ class NotificationService {
 	public const SUBJECT_ABSENCE_RECORDED = 'absence_recorded';
 	public const SUBJECT_MISSING_REGION = 'missing_region';
 	public const SUBJECT_CARRYOVER_EXPIRING = 'carryover_expiring';
+	public const SUBJECT_MANAGER_CHANGED = 'manager_changed';
 	private const OBJECT_REGION = 'absence_region';
 	private const OBJECT_CARRYOVER = 'absence_carryover';
+	private const OBJECT_MANAGER = 'absence_manager';
 
 	/**
 	 * How much of a note survives into a Nextcloud notification. The free text is
@@ -470,6 +472,34 @@ class NotificationService {
 			$this->mailer->send($message);
 		} catch (\Throwable $e) {
 			$this->logger->warning('Absence: email failed', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Tells an employee and HR that the employee's manager changed (§2.1), and
+	 * who changed it. The notification carries uids only; the names are read
+	 * when it is shown. Nobody is told about their own change.
+	 *
+	 * @param list<string> $before
+	 * @param list<string> $after
+	 * @param string[] $hrUids
+	 */
+	public function notifyManagerChanged(string $employeeUid, array $before, array $after, string $actorUid, array $hrUids): void {
+		foreach (array_unique([$employeeUid, ...$hrUids]) as $uid) {
+			if ($uid === $actorUid || $this->userManager->get($uid)?->isEnabled() !== true) {
+				continue;
+			}
+			try {
+				$notification = $this->notificationManager->createNotification();
+				$notification->setApp(ConfigService::APP_ID)
+					->setUser($uid)
+					->setDateTime(new \DateTime())
+					->setObject(self::OBJECT_MANAGER, $employeeUid)
+					->setSubject(self::SUBJECT_MANAGER_CHANGED, ['employee' => $employeeUid, 'actor' => $actorUid, 'before' => $before, 'after' => $after]);
+				$this->notificationManager->notify($notification);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Absence: notification failed', ['exception' => $e]);
+			}
 		}
 	}
 

@@ -28,6 +28,7 @@ class NotifierTest extends TestCase {
 	private Notifier $notifier;
 	private string $parsedSubject = '';
 	private string $parsedMessage = '';
+	private string $link = '';
 	/** @var list<array{label:string,link:string,verb:string,primary:bool}> */
 	private array $actions = [];
 
@@ -79,11 +80,19 @@ class NotifierTest extends TestCase {
 	}
 
 	/** @param array<string,mixed> $parameters */
-	private function prepare(string $subject, array $parameters): void {
+	private function prepare(string $subject, array $parameters, string $recipient = 'someone'): void {
 		// Tests that prepare more than one notification assert on the last of them.
 		$this->actions = [];
 		$notification = $this->createMock(INotification::class);
 		$notification->method('getApp')->willReturn(ConfigService::APP_ID);
+		$notification->method('getUser')->willReturn($recipient);
+		$notification->method('setIcon')->willReturnSelf();
+		$notification->method('setLink')->willReturnCallback(
+			function (string $link) use ($notification): INotification {
+				$this->link = $link;
+				return $notification;
+			},
+		);
 		$notification->method('getSubject')->willReturn($subject);
 		$notification->method('getSubjectParameters')->willReturn($parameters);
 		$notification->method('getObjectId')->willReturn('7');
@@ -310,5 +319,32 @@ class NotifierTest extends TestCase {
 		]);
 
 		self::assertSame('Emp is absent on 2026-02-10', $this->parsedSubject);
+	}
+
+	public function testTheEmployeeReadsThatTheirManagerChangedAndWhoChangedIt(): void {
+		$this->prepare(NotificationService::SUBJECT_MANAGER_CHANGED, [
+			'employee' => 'emp',
+			'actor' => 'carol',
+			'before' => ['boss'],
+			'after' => ['carol'],
+		], 'emp');
+
+		self::assertSame('Your manager was changed', $this->parsedSubject);
+		self::assertSame('Carol changed it from Boss to Carol.', $this->parsedMessage);
+		self::assertSame('https://cloud.example/apps/absence/#/profile', $this->link);
+		self::assertSame([], $this->actions);
+	}
+
+	public function testHrReadsWhoseManagerChangedAndOpensTheirProfile(): void {
+		$this->prepare(NotificationService::SUBJECT_MANAGER_CHANGED, [
+			'employee' => 'emp',
+			'actor' => 'admin',
+			'before' => [],
+			'after' => ['carol', 'boss'],
+		], 'hr1');
+
+		self::assertSame('The manager of Emp was changed', $this->parsedSubject);
+		self::assertSame('Admin changed it from nobody to Carol, Boss.', $this->parsedMessage);
+		self::assertSame('https://cloud.example/apps/absence/#/profile/emp', $this->link);
 	}
 }

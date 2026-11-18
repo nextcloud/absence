@@ -11,7 +11,8 @@ namespace OCA\Absence\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * One change to someone's contract data or region code, with its author (§6.4).
+ * One change to someone's contract data, region code or manager, with its author
+ * (§2.1, §6.4).
  *
  * @method string getEmployeeUid()
  * @method void setEmployeeUid(string $uid)
@@ -27,6 +28,7 @@ use OCP\AppFramework\Db\Entity;
 class EmployeeChange extends Entity {
 	public const CONTRACT = 'contract';
 	public const REGION = 'region';
+	public const MANAGER = 'manager';
 
 	protected string $employeeUid = '';
 	protected ?string $actorUid = null;

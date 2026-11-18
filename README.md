@@ -291,6 +291,15 @@ group, so on a fresh install an admin picks it first.
 | Shared calendar type-visibility | neutral | Whether colleagues see *"Absent"* or *"Sick leave"* |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |
 
+**Who can change a manager.** The manager is the account's `manager` property, and
+Nextcloud lets admins, delegated admins and the subadmins of any group the person is
+in change it on the Accounts page or through the provisioning API. The new manager then
+sees that person's requests, balances and profile. The app records every change in the
+person's history and the admin audit log. When a signed-in user made it, the employee
+and HR get a notification. Changes made without one (occ, background jobs, an account
+sync) are recorded but notify nobody. A value written straight into the preference
+with `occ user:setting` is not seen.
+
 **Three background jobs** keep it running unattended, all idempotent and safe to
 re-run: escalation (hourly), reminders (daily) and the year rollover (daily, acting
 once per year).
@@ -395,7 +404,7 @@ the employee decides, and the manager verifies.
 Every important action (request created / edited / approved / rejected / cancelled,
 withdrawal requested/approved/rejected, escalation, comments, attachments, entitlement
 changes, carry-over rollover and expiry, leave-type and holiday changes, admin-config
-changes, and GDPR user-data purge) goes to the **admin audit log** when the
+changes, manager changes, and GDPR user-data purge) goes to the **admin audit log** when the
 *Auditing / Logging* app (`admin_audit`) is enabled. The entry names the action, who
 did it and the id of the request or entitlement. Reasons, comments, leave types and
 file names are not logged: they stay in the app, where access is controlled.

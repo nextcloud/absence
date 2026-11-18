@@ -45,6 +45,8 @@ class NotificationServiceTest extends TestCase {
 
 	/** Subject parameters of every notification the service pushed. */
 	private array $pushed = [];
+	/** Recipient of every notification the service built. */
+	private array $recipients = [];
 	/** Quoted note blocks added to the email, as [text, metaInfo] pairs. */
 	private array $emailNotes = [];
 	/** Paragraphs added to the email body. */
@@ -70,6 +72,12 @@ class NotificationServiceTest extends TestCase {
 		$notification->method('setSubject')->willReturnCallback(
 			function (string $subject, array $parameters) use ($notification): INotification {
 				$this->pushed[] = $parameters;
+				return $notification;
+			},
+		);
+		$notification->method('setUser')->willReturnCallback(
+			function (string $uid) use ($notification): INotification {
+				$this->recipients[] = $uid;
 				return $notification;
 			},
 		);
@@ -491,5 +499,15 @@ class NotificationServiceTest extends TestCase {
 		$this->service->notifyCarryOverExpiring('robin-disabled', 3.0, '2032-03-31');
 
 		self::assertSame([], $this->pushed);
+	}
+
+	public function testAManagerChangeIsToldToTheEmployeeAndHrButNotToWhoeverMadeIt(): void {
+		$this->withUsers('emp', 'hr1', 'hr2', 'hr3-disabled', 'carol');
+		$this->mailer->expects(self::never())->method('send');
+
+		$this->service->notifyManagerChanged('emp', ['boss'], ['carol'], 'hr2', ['hr1', 'hr2', 'hr3-disabled', 'emp']);
+
+		self::assertSame(['emp', 'hr1'], $this->recipients);
+		self::assertSame(['employee' => 'emp', 'actor' => 'hr2', 'before' => ['boss'], 'after' => ['carol']], $this->pushed[0]);
 	}
 }
