@@ -1208,7 +1208,7 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
    and seeds next-year entitlements (§6.2); expires unused carry-over.
 4. **CommentMailJob** (every 5 minutes): mails the queued comments of every request
    nobody has commented on for 10 minutes, one mail per recipient (§11).
-6. **RetentionJob** (daily): deletes what the two retention settings (§12) no longer
+5. **RetentionJob** (daily): deletes what the two retention settings (§12) no longer
    keep. Both are 0 (never) by default, and the job does nothing while they are.
    - **Leave** goes once the set number of full years have passed since its last day:
      with 3 years, on 2026-11-18 everything that ended before 2023-11-18, in any
@@ -1230,8 +1230,11 @@ Registered in `appinfo/info.xml` `<background-jobs>` and/or via `IJobList`, usin
      entitlements and former employees.
    - A run that deletes something writes one admin audit log entry and one
      `nextcloud.log` line (`retention_applied`) with the counts only.
-7. **PurgeRetryJob** (daily): runs the purges of deleted accounts that failed again
+6. **PurgeRetryJob** (daily): runs the purges of deleted accounts that failed again
    (§17).
+7. **EncryptAttachmentsJob** (every 5 minutes): encrypts the attachments stored before
+   attachments were encrypted, up to 1000 a run (§3.8). Once all are, a run is one
+   query.
 
 All jobs must be idempotent and safe to run repeatedly.
 

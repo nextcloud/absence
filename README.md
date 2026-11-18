@@ -305,7 +305,9 @@ with `occ user:setting` is not seen.
 
 **Background jobs** keep it running unattended, all idempotent and safe to re-run:
 escalation (hourly), reminders (daily), the year rollover (daily, acting once per
-year) and retention (daily, doing nothing while both periods are 0).
+year), retention (daily, doing nothing while both periods are 0), attachment
+encryption (every five minutes, until every older file is encrypted) and the purge
+retry (daily, for a deleted account whose purge failed).
 
 `occ absence:retention --dry-run` counts what the retention periods would delete
 right now; without `--dry-run` it deletes all of it at once instead of a few
@@ -363,6 +365,13 @@ Built for a European works council to be comfortable with:
   with a right to read why they are away. Whether a colleague's leave *type* is
   visible on the team calendar and the who's-off timeline is an admin decision, and
   the default is a neutral *"Absent"*.
+- **Managers read what they decide on.** For every type that isn't HR-only, sick
+  leave included, the line manager sees the type and the reason of their reports'
+  requests. Medical detail belongs in the HR-only categories.
+- **Emails go to the account's address**, which may be a private one. Turn off
+  *Quote text in emails* to keep reasons and comments out of them.
+- **Account names in links.** API routes and profile links carry the account's uid
+  (`#/profile/<uid>`), so it shows up in web server logs and browser history.
 - **No stored copy of the team calendar.** Each employee and HR member gets their
   own, built from the leave whenever it is read, and nobody else can read it, not
   even their calendar delegates. A visibility change, a cancellation or a deleted
@@ -397,6 +406,22 @@ Built for a European works council to be comfortable with:
 - **Tested.** 17 unit-test suites covering the state machine, balances, entitlements,
   permissions, notifications and reporting, plus frontend unit tests — run in CI
   alongside Psalm static analysis, PHP-CS, ESLint, Stylelint and a REUSE licence check.
+
+**Before going live.** Absence processes health data, so a data protection impact
+assessment and your works council will want to look at:
+
+- the health data it holds (Art. 9 GDPR): sick leave, doctor's notes, maternity and
+  parental leave, child sick leave and the disability flag;
+- the **Bradford Factor** on the *Insights* page, which scores named people's sick
+  leave for HR. There is no setting to hide it;
+- who sees whose leave: the team calendar shows every employee's approved leave to
+  all employees and HR and is on by default, and the leave-type setting decides
+  whether they see the type;
+- the retention periods, both "never" until someone sets them;
+- the roles: the HR group, Nextcloud admins, and group admins, who can change a
+  person's manager;
+- emails, possibly to private addresses;
+- other apps that read absences through the integration API.
 
 ---
 
@@ -448,7 +473,9 @@ changes, manager changes, GDPR user-data purge, and what retention deleted, as c
 goes to the **admin audit log** when the *Auditing / Logging* app (`admin_audit`) is
 enabled. The entry names the action, who did it and the id of the request or
 entitlement. Reasons, comments, leave types and file names are not logged: they stay
-in the app, where access is controlled.
+in the app, where access is controlled. The parameters that carry free text are marked
+`#[\SensitiveParameter]`, so an exception trace in `nextcloud.log` shows a placeholder
+instead of the text.
 
 The same actions are written to **`nextcloud.log`** at info level, tagged
 `"app":"absence"` with a machine-readable `action`, so they show up when your log level
