@@ -10,6 +10,7 @@ namespace OCA\Absence\Tests\Unit\Service;
 
 use OCA\Absence\Api\Absence;
 use OCA\Absence\Api\AbsenceProvider;
+use OCA\Absence\Controller\RequestController;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Db\LeaveType;
@@ -38,8 +39,10 @@ use OCA\Absence\Service\PersonalDefaultsService;
 use OCA\Absence\Service\RequestService;
 use OCA\Absence\Tests\Unit\ClockMockTrait;
 use OCA\Absence\Tests\Unit\L10nMockTrait;
+use OCA\Absence\Tests\Unit\TraceArgumentsTrait;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
+use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\Lock\ILockingProvider;
@@ -53,6 +56,7 @@ class RequestServiceTest extends TestCase {
 	private const SEEN = '2026-02-01T10:05:00+00:00';
 	use ClockMockTrait;
 	use L10nMockTrait;
+	use TraceArgumentsTrait;
 
 	private LeaveRequestMapper&MockObject $requestMapper;
 	private RequestCommentMapper&MockObject $commentMapper;
@@ -1406,6 +1410,30 @@ class RequestServiceTest extends TestCase {
 
 		self::assertSame(['request_created'], $forEmployee);
 		self::assertSame(['request_created', 'disability_changed'], $forHr);
+	}
+
+	public function testARequestThatFailsToSaveLogsATraceWithoutWhatWasWritten(): void {
+		$this->keepTraceArguments();
+		$this->leaveTypeMapper->method('find')->with(1)->willReturn($this->type(1, true));
+		$this->permission->method('isHr')->with('emp')->willReturn(false);
+		$this->managerResolver->method('getManagerUid')->willReturn('boss');
+		$this->requestMapper->method('findOverlapping')->willReturn([]);
+		$this->requestMapper->method('insert')->willReturnCallback(static function (): never {
+			throw new \RuntimeException('Itest database gone');
+		});
+		$logged = null;
+		$this->logger->method('error')->willReturnCallback(function (string $message, array $context) use (&$logged): void {
+			$logged = $context['exception'] ?? null;
+		});
+		$controller = new RequestController('absence', $this->createMock(IRequest::class), 'emp', $this->service, $this->l10nMock(), $this->logger);
+		$start = date('Y-m-d', strtotime('+30 days'));
+
+		$controller->create(1, $start, $start, 1.0, 'Itest private reason');
+
+		self::assertInstanceOf(\RuntimeException::class, $logged);
+		$arguments = $this->traceArguments($logged);
+		self::assertContains('emp', $arguments);
+		self::assertSame([], array_filter($arguments, static fn ($value): bool => is_string($value) && str_contains($value, 'Itest private')));
 	}
 
 	public function testARequestRoutesToHrWhileTheManagerIsAway(): void {

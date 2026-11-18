@@ -68,7 +68,7 @@ class EntitlementService {
 	 *
 	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentDelta?:float,adjustmentNote?:string} $data
 	 */
-	public function update(?string $actorUid, int $id, array $data): Entitlement {
+	public function update(?string $actorUid, int $id, #[\SensitiveParameter] array $data): Entitlement {
 		if (array_key_exists('adjustmentDelta', $data) && array_key_exists('manualAdjustment', $data)) {
 			throw new ValidationException($this->l->t('Send either an adjustment to apply or an absolute adjustment, not both.'));
 		}
@@ -160,7 +160,7 @@ class EntitlementService {
 	 *
 	 * @param array{baseDays?:float,carryOverDays?:float,manualAdjustment?:float,adjustmentNote?:string} $data
 	 */
-	public function setForEmployee(?string $actorUid, string $employeeUid, int $year, int $typeId, array $data): Entitlement {
+	public function setForEmployee(?string $actorUid, string $employeeUid, int $year, int $typeId, #[\SensitiveParameter] array $data): Entitlement {
 		// Also rejects guests: they have no entitlement to set (§2.2).
 		$employeeUid = $this->employees->canonicalUid($employeeUid);
 		if ($employeeUid === null || !$this->employees->isEmployee($employeeUid)) {
@@ -548,7 +548,7 @@ class EntitlementService {
 	 * @param array<string,float> $before figure => value before the save
 	 * @return EntitlementEvent[] the events actually written
 	 */
-	private function recordChanges(?string $actorUid, Entitlement $ent, array $before, string $note): array {
+	private function recordChanges(?string $actorUid, Entitlement $ent, array $before, #[\SensitiveParameter] string $note): array {
 		$after = [
 			EntitlementEvent::FIELD_BASE_DAYS => $ent->getBaseDays(),
 			EntitlementEvent::FIELD_CARRY_OVER_DAYS => $ent->getCarryOverDays(),

@@ -39,7 +39,7 @@ class EntitlementValidator {
 	 * @param array<string,mixed> $data the figures by name, other keys are ignored
 	 * @throws ValidationException
 	 */
-	public function assertFigures(array $data): void {
+	public function assertFigures(#[\SensitiveParameter] array $data): void {
 		foreach (['baseDays', 'carryOverDays', 'manualAdjustment', 'adjustmentDelta'] as $key) {
 			if (!array_key_exists($key, $data)) {
 				continue;

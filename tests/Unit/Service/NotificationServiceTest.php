@@ -15,6 +15,7 @@ use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
+use OCA\Absence\Tests\Unit\TraceArgumentsTrait;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -37,11 +38,14 @@ use Psr\Log\LoggerInterface;
  * living behind the request's Comments tab.
  */
 class NotificationServiceTest extends TestCase {
+	use TraceArgumentsTrait;
+
 	private INotificationManager&MockObject $notificationManager;
 	private IMailer&MockObject $mailer;
 	private IUserManager&MockObject $userManager;
 	private IEMailTemplate&MockObject $template;
 	private NoticeService&MockObject $notice;
+	private LoggerInterface&MockObject $logger;
 	private NotificationService $service;
 
 	/** Subject parameters of every notification the service pushed. */
@@ -71,7 +75,7 @@ class NotificationServiceTest extends TestCase {
 		$urlGenerator = $this->createMock(IURLGenerator::class);
 		$urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example.com/apps/absence/');
 		$l10nFactory = $this->createMock(IFactory::class);
-		$logger = $this->createMock(LoggerInterface::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$notification = $this->createMock(INotification::class);
 		$notification->method(self::anything())->willReturnSelf();
@@ -156,7 +160,7 @@ class NotificationServiceTest extends TestCase {
 			$urlGenerator,
 			$l10nFactory,
 			$this->notice,
-			$logger,
+			$this->logger,
 			$commentMails,
 			$permission,
 			$config,
@@ -565,6 +569,25 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame('Itest written note.', $this->pushed[0]['note']);
 		self::assertSame('emp', $this->pushed[0]['noteAuthor']);
 		self::assertSame([['Itest written note.', 'Emp wrote:']], $this->emailNotes);
+	}
+
+	public function testAMailThatFailsLogsATraceWithoutTheComment(): void {
+		$this->keepTraceArguments();
+		$this->withUsers('emp', 'boss');
+		$this->mailer->method('send')->willReturnCallback(static function (): never {
+			throw new \RuntimeException('Itest mail server unreachable');
+		});
+		$logged = null;
+		$this->logger->method('warning')->willReturnCallback(function (string $message, array $context) use (&$logged): void {
+			$logged = $context['exception'] ?? null;
+		});
+
+		$this->service->notifyWithdrawalRejected($this->request(), 'Itest private refusal', 'boss');
+
+		self::assertInstanceOf(\RuntimeException::class, $logged);
+		$arguments = $this->traceArguments($logged);
+		self::assertContains('emp', $arguments);
+		self::assertSame([], array_filter($arguments, static fn ($value): bool => is_string($value) && str_contains($value, 'Itest private')));
 	}
 
 	public function testCarryOverReminderGoesOutAsNotificationAndEmail(): void {

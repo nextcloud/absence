@@ -118,7 +118,7 @@ class NotificationService {
 	 * The reason lives in a comment rather than on the request (see
 	 * {@see RequestService::reject()}), so the caller has to hand it over.
 	 */
-	public function notifyWithdrawalRejected(LeaveRequest $request, ?string $comment = null, ?string $actorUid = null): void {
+	public function notifyWithdrawalRejected(LeaveRequest $request, #[\SensitiveParameter] ?string $comment = null, ?string $actorUid = null): void {
 		$this->send($request->getEmployeeUid(), self::SUBJECT_WITHDRAWAL_REJECTED, $request, false, $comment, $actorUid);
 	}
 
@@ -133,7 +133,7 @@ class NotificationService {
 	 *
 	 * @param string[] $recipientUids
 	 */
-	public function notifyComment(LeaveRequest $request, RequestComment $comment, array $recipientUids): void {
+	public function notifyComment(LeaveRequest $request, #[\SensitiveParameter] RequestComment $comment, array $recipientUids): void {
 		$authorUid = $comment->getAuthorUid();
 		$queued = [];
 		foreach (array_unique(array_filter($recipientUids)) as $uid) {
@@ -156,7 +156,7 @@ class NotificationService {
 	 *
 	 * @param list<RequestComment> $comments oldest first
 	 */
-	public function sendCommentMail(LeaveRequest $request, string $recipientUid, array $comments): void {
+	public function sendCommentMail(LeaveRequest $request, string $recipientUid, #[\SensitiveParameter] array $comments): void {
 		if ($comments === [] || $this->userManager->get($recipientUid)?->isEnabled() === false) {
 			return;
 		}
@@ -207,7 +207,7 @@ class NotificationService {
 	 *
 	 * On a confidential request (§5.7) only HR gets $note and its author, as in the app.
 	 */
-	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, ?string $note = null, ?string $noteAuthorUid = null, ?array $notice = null): void {
+	private function send(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, #[\SensitiveParameter] ?string $note = null, ?string $noteAuthorUid = null, ?array $notice = null): void {
 		// A disabled account cannot act on any of this.
 		if ($this->userManager->get($recipientUid)?->isEnabled() === false) {
 			return;
@@ -222,7 +222,7 @@ class NotificationService {
 	}
 
 	/** @param ?array{days:int,noticePeriod:int} $notice */
-	private function sendNotification(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, string $note, ?string $noteAuthorUid, ?array $notice): void {
+	private function sendNotification(string $recipientUid, string $subject, LeaveRequest $request, bool $actionable, #[\SensitiveParameter] string $note, ?string $noteAuthorUid, ?array $notice): void {
 		try {
 			$notification = $this->notificationManager->createNotification();
 			$notification->setApp(ConfigService::APP_ID)
@@ -252,7 +252,7 @@ class NotificationService {
 	 * Squeeze a note onto the single line a notification gives it: collapse the
 	 * line breaks it may contain and cut it to length. The email carries the rest.
 	 */
-	private function preview(string $note): string {
+	private function preview(#[\SensitiveParameter] string $note): string {
 		$note = trim((string)preg_replace('/\s+/u', ' ', $note));
 		if (mb_strlen($note) <= self::NOTE_PREVIEW_LENGTH) {
 			return $note;
@@ -264,7 +264,7 @@ class NotificationService {
 	 * @param list<array{author:?string,text:string}> $notes what people wrote, quoted in full where the admin allows it
 	 * @param ?array{days:int,noticePeriod:int} $notice
 	 */
-	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, array $notes, ?array $notice): void {
+	private function sendEmail(string $recipientUid, string $subject, LeaveRequest $request, #[\SensitiveParameter] array $notes, ?array $notice): void {
 		$user = $this->userManager->get($recipientUid);
 		if (!$user instanceof IUser) {
 			return;
@@ -321,7 +321,7 @@ class NotificationService {
 	 * @param list<array{author:?string,text:string}> $notes
 	 * @return array{0:string,1:string} heading and body
 	 */
-	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, array $notes, bool $shortNotice): array {
+	private function emailContent(\OCP\IL10N $l, string $subject, LeaveRequest $request, #[\SensitiveParameter] array $notes, bool $shortNotice): array {
 		$employee = $this->displayName($request->getEmployeeUid());
 		$noteAuthorUid = $notes[0]['author'] ?? null;
 		$author = $noteAuthorUid !== null && $noteAuthorUid !== '' ? $this->displayName($noteAuthorUid) : '';

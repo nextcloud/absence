@@ -92,7 +92,7 @@ class AbsenceProvider implements IAbsenceProvider {
 	 *
 	 * @param array<string,mixed>|null $fields overrides, e.g. the dates before an edit
 	 */
-	public function toAbsence(LeaveRequest $request, ?array $fields = null): Absence {
+	public function toAbsence(LeaveRequest $request, #[\SensitiveParameter] ?array $fields = null): Absence {
 		$type = $this->visibleType((int)($fields['typeId'] ?? $request->getTypeId()));
 		return new Absence(
 			(int)$request->getId(),

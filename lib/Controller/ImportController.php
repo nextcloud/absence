@@ -41,7 +41,7 @@ class ImportController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 20, period: 60)]
-	public function leave(string $json, bool $dryRun = false): DataResponse {
+	public function leave(#[\SensitiveParameter] string $json, bool $dryRun = false): DataResponse {
 		return $this->handle(function () use ($json, $dryRun) {
 			$this->permission->assertHr((string)$this->userId);
 			return $dryRun ? $this->service->preview($json, (string)$this->userId) : $this->service->import($json, (string)$this->userId);
