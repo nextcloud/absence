@@ -1432,7 +1432,7 @@ Each change is logged as `admin_config_updated` with the changed keys.
 | Approvals | Expected notice period | 14 calendar days | Short-notice threshold (§8); `0` disables. |
 | Calendar | CalDAV: personal read-only Absence calendar | true | §10. |
 | Calendar | CalDAV: read-only team calendar of each employee and HR member | true | §10. |
-| Calendar | Show the leave type on the shared calendar | off (neutral) | Reveal type vs "Absent" on shared cal., and to other apps (§14b). |
+| Calendar | Show colleagues and other apps the leave type | off (neutral) | Reveal type vs "Absent" on the team calendar, the who's-off timeline and coverage (§8), and to other apps (§14b). Works with the team calendar off too. |
 | Emails | Quote reasons and comments in emails | true | §11. Off: a mail says what happened and links to the request; notifications keep their preview. |
 | Public holidays | Everyone can add and edit public holidays | off | §7.2. Importing a whole list stays with HR. Each switch is also written to the holiday history. |
 | Handbooks | Handbook for everyone, Handbook for HR | empty | §13.1. An `http(s)://` link that parses and names a host, or a path on this server (`/` followed by anything but `/` or `\`); empty hides the entry. |
