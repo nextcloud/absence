@@ -84,9 +84,11 @@ class AccessMatrixTest extends TestCase {
 	 * not get 401 or 403; the others get 403 (401 when not logged in) before
 	 * anything is read or written, or, for a list, an empty one. On the routes
 	 * of one request ('hidden'), whoever may not see the request gets 404 as
-	 * for an unknown id, and allowed roles must not get 404 either.
+	 * for an unknown id, and allowed roles must not get 404 either. On the
+	 * routes of one attachment ('not-found'), everybody turned away gets 404
+	 * as for an unknown id.
 	 *
-	 * @return array<string, array{0: list<string>, 1: array<string,mixed>, 2?: 'empty'|'hidden'|'hidden-empty'}>
+	 * @return array<string, array{0: list<string>, 1: array<string,mixed>, 2?: 'empty'|'hidden'|'hidden-empty'|'not-found'}>
 	 */
 	private static function matrix(): array {
 		$hr = [self::HR];
@@ -109,8 +111,8 @@ class AccessMatrixTest extends TestCase {
 
 			'attachment#index' => [[self::OWNER, self::HR], ['id' => '{request}'], 'hidden-empty'],
 			'attachment#create' => [[self::OWNER, self::HR], ['id' => '{request}', 'file' => '{upload}'], 'hidden'],
-			'attachment#download' => [[self::OWNER, self::HR], ['id' => '{attachment}']],
-			'attachment#destroy' => [[self::OWNER, self::HR], ['id' => '{attachment}']],
+			'attachment#download' => [[self::OWNER, self::HR], ['id' => '{attachment}'], 'not-found'],
+			'attachment#destroy' => [[self::OWNER, self::HR], ['id' => '{attachment}'], 'not-found'],
 
 			'employee#index' => [$hr, []],
 			'employee#search' => [[self::COLLEAGUE, self::OWNER, self::MANAGER, self::HR], ['search' => 'itest'], 'empty'],
@@ -353,6 +355,7 @@ class AccessMatrixTest extends TestCase {
 					default => in_array($status, $hidden ? [401, 403, 404] : [401, 403], true) ? 'allowed' : $status,
 				},
 				$role === self::ANON => 401,
+				$turnedAway === 'not-found' => 404,
 				$hidden && !in_array($role, self::VIEWERS, true) => 404,
 				$lists => 'empty',
 				default => 403,
