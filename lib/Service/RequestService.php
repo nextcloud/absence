@@ -1197,7 +1197,8 @@ class RequestService {
 		if ($wasApproved) {
 			$this->notifications->notifyReplacementCancelled($request);
 		}
-		$this->activity->publish(ActivityPublisher::SUBJECT_CANCELLED, $this->activityParams($request), [$request->getEmployeeUid(), (string)$request->getManagerUid()], $request);
+		// The current line manager: manager_uid keeps who was asked at the time
+		$this->activity->publish(ActivityPublisher::SUBJECT_CANCELLED, $this->activityParams($request), [$request->getEmployeeUid(), (string)$this->managerResolver->getManagerUid($request->getEmployeeUid())], $request);
 		$this->audit($action, $request, ['actor' => $actorUid]);
 		return $request;
 	}

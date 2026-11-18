@@ -84,9 +84,10 @@ class CoverageServiceTest extends TestCase {
 	}
 
 	public function testOthersOffForNamesTheTeamMatesOffDuringEachRequestOfAQueue(): void {
-		$this->managerResolver->method('getDirectReports')->willReturnMap([
-			['dave', ['alice', 'bob', 'charlie']],
-			['eve', ['frank', 'grace']],
+		$this->managerResolver->method('getPeers')->willReturnMap([
+			['alice', ['bob', 'charlie']],
+			['charlie', ['alice', 'bob']],
+			['frank', ['grace']],
 		]);
 		$this->userManager->method('get')->willReturnCallback(function (string $uid): IUser {
 			$user = $this->createMock(IUser::class);
@@ -118,6 +119,29 @@ class CoverageServiceTest extends TestCase {
 			2 => [],
 			3 => ['Grace Test'],
 		], $result);
+	}
+
+	public function testTheTeamOfARequestIsTheCurrentOneNotTheManagerAskedAtTheTime(): void {
+		// The request was made under dave, the employee has moved to eve's team since.
+		$this->managerResolver->method('getDirectReports')->with('dave')->willReturn(['alice', 'bob']);
+		$this->managerResolver->method('getPeers')->with('alice')->willReturn(['grace']);
+		$this->userManager->method('get')->willReturnCallback(function (string $uid): IUser {
+			$user = $this->createMock(IUser::class);
+			$user->method('getDisplayName')->willReturn(ucfirst($uid) . ' Test');
+			return $user;
+		});
+		$alice = $this->leave(1, 'alice', '2026-12-21', '2026-12-24', 'dave');
+		$read = [];
+		$this->requestMapper->method('findForEmployeesInRange')->willReturnCallback(
+			function (array $uids) use (&$read): array {
+				$read[] = $uids;
+				return [$this->leave(10, 'bob', '2026-12-21', '2026-12-23'), $this->leave(12, 'grace', '2026-12-22', '2026-12-22')];
+			},
+		);
+
+		self::assertSame([1 => ['Grace Test']], $this->service->othersOffFor([$alice]));
+		$this->service->getRequestCoverage($alice);
+		self::assertSame([['grace'], ['grace']], $read);
 	}
 
 	public function testOthersOffForAnEmptyQueueReadsNothing(): void {

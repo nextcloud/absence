@@ -150,13 +150,13 @@ class CoverageService {
 	/**
 	 * Coverage summary for reviewing a specific request: counts *other* team members
 	 * off during the request's dates and flags a conflict if approving would meet the
-	 * configured threshold.
+	 * configured threshold. The team is the employee's current one, whoever was their
+	 * manager when they asked.
 	 *
 	 * @return array<string,mixed>
 	 */
 	public function getRequestCoverage(LeaveRequest $request, ?string $viewerUid = null): array {
-		$team = $this->teamOf($request->getEmployeeUid(), $request->getManagerUid());
-		$others = array_values(array_filter($team, static fn (string $uid): bool => $uid !== $request->getEmployeeUid()));
+		$others = $this->managerResolver->getPeers($request->getEmployeeUid());
 		$coverage = $this->getCoverage($others, $request->getStartDate(), $request->getEndDate(), $request->getId(), $viewerUid);
 
 		$threshold = $this->config->getMaxConcurrentAbsences();
@@ -181,11 +181,7 @@ class CoverageService {
 		$from = null;
 		$to = null;
 		foreach ($requests as $request) {
-			$employeeUid = $request->getEmployeeUid();
-			$teams[$request->getId()] = array_values(array_filter(
-				$this->teamOf($employeeUid, $request->getManagerUid()),
-				static fn (string $uid): bool => $uid !== $employeeUid,
-			));
+			$teams[$request->getId()] = $this->managerResolver->getPeers($request->getEmployeeUid());
 			$from = $from === null ? $request->getStartDate() : min($from, $request->getStartDate());
 			$to = $to === null ? $request->getEndDate() : max($to, $request->getEndDate());
 		}
@@ -277,22 +273,6 @@ class CoverageService {
 			return null;
 		}
 		return $this->requestMapper->findForEmployeesInRange([$uid], $from, $to, $statuses) !== [];
-	}
-
-	/**
-	 * The team relevant to a request: the manager's direct reports, or (no manager)
-	 * the employee's peers.
-	 *
-	 * @return string[]
-	 */
-	private function teamOf(string $employeeUid, ?string $managerUid): array {
-		if ($managerUid !== null) {
-			$reports = $this->managerResolver->getDirectReports($managerUid);
-			if ($reports !== []) {
-				return $reports;
-			}
-		}
-		return array_values(array_unique([...$this->managerResolver->getPeers($employeeUid), $employeeUid]));
 	}
 
 	/**

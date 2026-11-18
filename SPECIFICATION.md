@@ -69,9 +69,9 @@ There are four effective roles. A single user may hold several simultaneously
   manager relationship lives on `IUser`, not in the account-properties list.)
 - Resolution is cached per-request. The resolved manager user id is denormalized
   onto each leave request at submission time (`manager_uid`) as a record of who
-  the manager was then. Who lists, decides and is notified about a request is
-  always the employee's manager today: after a change of manager the open
-  requests move to the new one.
+  the manager was then. Who lists, decides and is notified about a request, and
+  whose team its coverage counts (§8), is always the employee's manager today:
+  after a change of manager the open requests move to the new one.
 - A disabled account is not a valid manager, like a guest: the next configured
   manager is used, or none. Disabled accounts get no notification or email.
 - **The inverse direction never enumerates the user backend.** `isManagerOf()`
@@ -1079,7 +1079,7 @@ admins' to fill, so they remind nobody.
 
 - **Team calendar / who's-off:** managers see their direct reports; HR sees the
   whole company; every employee sees their own team (peers who share the same
-  `manager_uid`) and their own manager, so they see when the manager is away. A
+  manager) and their own manager, so they see when the manager is away. A
   month/timeline view rendered from approved + pending requests.
   - The manager's leave follows the same type rules as a colleague's (below). A
     manager's own timeline stays their reports and themselves, without their own
@@ -1109,10 +1109,10 @@ admins' to fill, so they remind nobody.
       somebody is away and then implying a cheerful reason is worse than either
       revealing it or saying nothing.
 - **Conflict warning:** when a manager reviews a request, compute the maximum number
-  of concurrently-absent team members on any day in the requested range. If it meets
-  or exceeds a configurable threshold (admin setting **max concurrent absences per
-  team**, default e.g. 2, or a percentage), show a prominent warning in the review
-  panel. It is a warning, not a hard block.
+  of concurrently-absent members of the employee's current team on any day in the
+  requested range. If it meets or exceeds a configurable threshold (admin setting
+  **max concurrent absences per team**, default e.g. 2, or a percentage), show a
+  prominent warning in the review panel. It is a warning, not a hard block.
 - **Short-notice warning:** a request whose leave starts sooner than the admin's
   **expected notice period** (calendar days, default 14; `0` switches the check off)
   is flagged to the line manager and to HR. Like the conflict warning it informs a
@@ -2284,3 +2284,8 @@ Recorded during the build so the spec matches the code:
   gets a read-only team calendar in their own calendar home, built from the leave on
   every read like the personal calendar: three calendar years, current titles,
   transparent, and read by its owner only.
+- **Coverage counts the current team** (§8): the coverage of a request and the
+  decision queue's list of who else is off counted the team of the manager stored on
+  the request, and its cancellation showed in that manager's activity. After a change
+  of manager, the new one saw the old team's names and dates. Both follow the
+  employee's current manager now; `manager_uid` stays the record of who was asked.
