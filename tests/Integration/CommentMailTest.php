@@ -55,6 +55,7 @@ class CommentMailTest extends TestCase {
 	private NotificationService $notifications;
 	private LeaveRequest $request;
 	private string $hrGroupBefore = '';
+	private bool $quoteTextBefore = true;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -67,6 +68,7 @@ class CommentMailTest extends TestCase {
 		Server::get(IGroupManager::class)->createGroup(self::HR_GROUP)->addUser($users->get(self::HR));
 		$appConfig = Server::get(IAppConfig::class);
 		$this->hrGroupBefore = Server::get(ConfigService::class)->getHrGroup();
+		$this->quoteTextBefore = Server::get(ConfigService::class)->isMailQuoteTextEnabled();
 		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, self::HR_GROUP);
 
 		$request = new LeaveRequest();
@@ -93,7 +95,7 @@ class CommentMailTest extends TestCase {
 		});
 		$this->notifications = new NotificationService(Server::get(INotificationManager::class), $mailer, $users,
 			Server::get(IURLGenerator::class), Server::get(IFactory::class), Server::get(NoticeService::class),
-			Server::get(LoggerInterface::class), Server::get(CommentMailMapper::class), Server::get(PermissionService::class));
+			Server::get(LoggerInterface::class), Server::get(CommentMailMapper::class), Server::get(PermissionService::class), Server::get(ConfigService::class));
 	}
 
 	protected function tearDown(): void {
@@ -108,6 +110,7 @@ class CommentMailTest extends TestCase {
 		}
 		Server::get(IGroupManager::class)->get(self::HR_GROUP)?->delete();
 		Server::get(IAppConfig::class)->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, $this->hrGroupBefore);
+		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_MAIL_QUOTE_TEXT, $this->quoteTextBefore);
 		parent::tearDown();
 	}
 
@@ -129,6 +132,20 @@ class CommentMailTest extends TestCase {
 
 		$this->runJob('09:30');
 		self::assertCount(1, $this->mails);
+	}
+
+	public function testWithoutQuotingTheMailCountsTheCommentsAndLeavesThemOut(): void {
+		Server::get(IAppConfig::class)->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_MAIL_QUOTE_TEXT, false);
+		$this->comment(self::MANAGER, 'Can you move this a day later?', '09:00');
+		$this->comment(self::MANAGER, 'Or two days, if that suits you better.', '09:03');
+
+		$this->runJob('09:14');
+
+		self::assertCount(1, $this->mails);
+		self::assertStringContainsString('There are 2 new comments on the leave request of', $this->mails[0]['text']);
+		self::assertStringContainsString('#/requests/' . $this->request->getId(), $this->mails[0]['text']);
+		self::assertStringNotContainsString('Can you move this a day later?', $this->mails[0]['text']);
+		self::assertStringNotContainsString('Or two days', $this->mails[0]['text']);
 	}
 
 	public function testNobodyIsMailedTheirOwnComments(): void {

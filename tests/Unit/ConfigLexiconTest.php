@@ -50,6 +50,7 @@ class ConfigLexiconTest extends TestCase {
 			ConfigLexicon::KEY_HR_GROUP,
 			ConfigLexicon::KEY_HR_HANDBOOK_URL,
 			ConfigLexicon::KEY_LAST_ROLLOVER_YEAR,
+			ConfigLexicon::KEY_MAIL_QUOTE_TEXT,
 			ConfigLexicon::KEY_MAX_CONCURRENT,
 			ConfigLexicon::KEY_NOTICE_PERIOD,
 			ConfigLexicon::KEY_REMINDER_CUTOFF,
@@ -92,5 +93,9 @@ class ConfigLexiconTest extends TestCase {
 
 		$this->assertSame(ValueType::BOOL, $entries[ConfigLexicon::KEY_CALDAV_PERSONAL]->getValueType());
 		$this->assertSame('1', $entries[ConfigLexicon::KEY_CALDAV_PERSONAL]->getDefault(Preset::NONE));
+
+		// E-mails keep quoting what people wrote until an admin turns it off.
+		$this->assertSame(ValueType::BOOL, $entries[ConfigLexicon::KEY_MAIL_QUOTE_TEXT]->getValueType());
+		$this->assertSame('1', $entries[ConfigLexicon::KEY_MAIL_QUOTE_TEXT]->getDefault(Preset::NONE));
 	}
 }

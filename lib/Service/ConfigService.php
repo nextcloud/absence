@@ -125,6 +125,11 @@ class ConfigService {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_SHARED_VISIBILITY);
 	}
 
+	/** Whether emails quote what people wrote on a request: reasons, decision comments, comments (§11). */
+	public function isMailQuoteTextEnabled(): bool {
+		return $this->appConfig->getValueBool(self::APP_ID, ConfigLexicon::KEY_MAIL_QUOTE_TEXT);
+	}
+
 	/** Where the handbook for everyone lives, '' when there is none. */
 	public function getHandbookUrl(): string {
 		return $this->appConfig->getValueString(self::APP_ID, ConfigLexicon::KEY_HANDBOOK_URL);
@@ -156,6 +161,7 @@ class ConfigService {
 			ConfigLexicon::KEY_CALDAV_SHARED => $this->isCalDavSharedEnabled(),
 			ConfigLexicon::KEY_HOLIDAYS_EVERYONE => $this->canEveryoneEditHolidays(),
 			ConfigLexicon::KEY_SHARED_VISIBILITY => $this->getSharedCalendarVisibility(),
+			ConfigLexicon::KEY_MAIL_QUOTE_TEXT => $this->isMailQuoteTextEnabled(),
 			ConfigLexicon::KEY_HANDBOOK_URL => $this->getHandbookUrl(),
 			ConfigLexicon::KEY_HR_HANDBOOK_URL => $this->getHrHandbookUrl(),
 		];
@@ -294,6 +300,7 @@ class ConfigService {
 			case ConfigLexicon::KEY_CALDAV_PERSONAL:
 			case ConfigLexicon::KEY_CALDAV_SHARED:
 			case ConfigLexicon::KEY_HOLIDAYS_EVERYONE:
+			case ConfigLexicon::KEY_MAIL_QUOTE_TEXT:
 				if (!is_bool($value)) {
 					throw new ValidationException($this->l->t('This setting must be on or off.'));
 				}

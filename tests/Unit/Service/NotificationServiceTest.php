@@ -11,6 +11,7 @@ namespace OCA\Absence\Tests\Unit\Service;
 use OCA\Absence\Db\CommentMailMapper;
 use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\RequestComment;
+use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\NoticeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\PermissionService;
@@ -57,6 +58,10 @@ class NotificationServiceTest extends TestCase {
 	private array $queued = [];
 	/** Whether the request is of a confidential type (§5.7). */
 	private bool $confidential = false;
+	/** Links of the buttons added to the email. */
+	private array $emailButtons = [];
+	/** The setting that lets emails quote what people wrote. */
+	private bool $quoteText = true;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -64,6 +69,7 @@ class NotificationServiceTest extends TestCase {
 		$this->mailer = $this->createMock(IMailer::class);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example.com/apps/absence/');
 		$l10nFactory = $this->createMock(IFactory::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
@@ -115,6 +121,11 @@ class NotificationServiceTest extends TestCase {
 				$this->emailNotes[] = [$text, $metaInfo];
 			},
 		);
+		$this->template->method('addBodyButton')->willReturnCallback(
+			function (string $text, string $url): void {
+				$this->emailButtons[] = $url;
+			},
+		);
 		$this->mailer->method('createEMailTemplate')->willReturn($this->template);
 		$this->mailer->method('createMessage')->willReturn($this->createMock(IMessage::class));
 
@@ -122,6 +133,9 @@ class NotificationServiceTest extends TestCase {
 		// the real static NoticeService::sentence(), so these tests check the message a
 		// recipient actually gets rather than a stub of it.
 		$this->notice = $this->createMock(NoticeService::class);
+
+		$config = $this->createMock(ConfigService::class);
+		$config->method('isMailQuoteTextEnabled')->willReturnCallback(fn (): bool => $this->quoteText);
 
 		$commentMails = $this->createMock(CommentMailMapper::class);
 		$commentMails->method('queue')->willReturnCallback(
@@ -145,6 +159,7 @@ class NotificationServiceTest extends TestCase {
 			$logger,
 			$commentMails,
 			$permission,
+			$config,
 		);
 	}
 
@@ -236,6 +251,43 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame("First line.\n\nSecond line.", $this->emailNotes[0][0]);
 	}
 
+	public function testWithoutQuotingTheCommentMailCountsTheCommentsAndLinksToThem(): void {
+		$this->quoteText = false;
+		$this->withUsers('emp', 'boss', 'hr');
+
+		$this->service->sendCommentMail($this->request(), 'emp', [
+			$this->comment('boss', 'Can you move this a day later?'),
+			$this->comment('hr', 'Or split it in two.'),
+		]);
+
+		self::assertSame('New comments on the leave request of Emp', $this->emailSubject);
+		self::assertSame(['There are 2 new comments on the leave request of Emp for 2026-02-10 – 2026-02-12.'], $this->emailBody);
+		self::assertSame([], $this->emailNotes);
+		self::assertSame(['https://cloud.example.com/apps/absence/#/requests/7'], $this->emailButtons);
+	}
+
+	public function testWithoutQuotingASingleCommentMailSaysThereIsOne(): void {
+		$this->quoteText = false;
+		$this->withUsers('emp', 'boss');
+
+		$this->service->sendCommentMail($this->request(), 'emp', [$this->comment('boss', 'Can you move this a day later?')]);
+
+		self::assertSame('New comment from Boss', $this->emailSubject);
+		self::assertSame(['There is a new comment on the leave request of Emp for 2026-02-10 – 2026-02-12.'], $this->emailBody);
+		self::assertSame([], $this->emailNotes);
+	}
+
+	public function testWithoutQuotingTheNotificationKeepsItsPreview(): void {
+		$this->quoteText = false;
+		$this->withUsers('emp', 'boss');
+		$comment = $this->comment('boss', str_repeat('a', 500));
+
+		$this->service->notifyComment($this->request(), $comment, ['emp']);
+
+		self::assertSame(str_repeat('a', 199) . '…', $this->pushed[0]['note']);
+		self::assertSame('boss', $this->pushed[0]['noteAuthor']);
+	}
+
 	public function testADecisionNotificationRemembersTheVersionItAsksAbout(): void {
 		$this->withUsers('emp', 'boss');
 		$request = $this->request();
@@ -296,6 +348,40 @@ class NotificationServiceTest extends TestCase {
 
 		self::assertSame(['Your leave request for 2026-02-10 – 2026-02-12 was declined.'], $this->emailBody);
 		self::assertSame([['Too many people out that week.', 'Boss wrote:']], $this->emailNotes);
+	}
+
+	public function testWithoutQuotingADeclineMailKeepsItsSummaryButNotTheReason(): void {
+		$this->quoteText = false;
+		$this->withUsers('emp', 'boss');
+		$request = $this->request();
+		$request->setStatus(LeaveRequest::STATUS_REJECTED);
+		$request->setDecidedBy('boss');
+		$request->setDecisionComment('Too many people out that week.');
+
+		$this->service->notifyDecision($request, false);
+
+		self::assertSame('Your leave was declined', $this->emailSubject);
+		self::assertSame(['Your leave request for 2026-02-10 – 2026-02-12 was declined.'], $this->emailBody);
+		self::assertSame([], $this->emailNotes);
+		self::assertSame(['https://cloud.example.com/apps/absence/#/requests/7'], $this->emailButtons);
+		self::assertSame('Too many people out that week.', $this->pushed[0]['note']);
+	}
+
+	public function testWithoutQuotingTheShortNoticeWarningStaysButTheReasonGoes(): void {
+		$this->quoteText = false;
+		$this->withUsers('emp', 'boss');
+		$request = $this->request();
+		$request->setReason('Family wedding abroad.');
+		$this->notice->method('warningFor')->willReturn(['days' => 5, 'noticePeriod' => 14]);
+
+		$this->service->notifyNewRequest($request, 'boss');
+
+		self::assertSame([
+			'Emp requested leave for 2026-02-10 – 2026-02-12. Please review it in Absence.',
+			'The leave starts in 5 days, less than the 14 days of notice expected.',
+		], $this->emailBody);
+		self::assertSame([], $this->emailNotes);
+		self::assertSame('Family wedding abroad.', $this->pushed[0]['note']);
 	}
 
 	public function testADeclinedWithdrawalCarriesTheReasonItRecordedAsAComment(): void {

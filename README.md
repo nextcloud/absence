@@ -289,6 +289,7 @@ group, so on a fresh install an admin picks it first.
 | CalDAV: personal events | on | Show approved leave in a read-only Absence calendar of the employee's own |
 | CalDAV: team calendar | on | A read-only calendar of everybody's approved leave for each employee and HR member |
 | Shared calendar type-visibility | neutral | Whether colleagues see *"Absent"* or *"Sick leave"* |
+| Quote text in emails | on | Off: emails say what happened and link to the request; notifications keep a short preview |
 | Leave types | seeded | Add, edit, enable or disable types, with colours and flags |
 
 **Who can change a manager.** The manager is the account's `manager` property, and

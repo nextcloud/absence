@@ -35,6 +35,8 @@ export interface SettingsValues {
 	caldav_shared: boolean
 	holidays_everyone_edits: boolean
 	shared_calendar_visibility: SharedCalendarVisibility
+	/** Whether emails quote reasons and comments; otherwise they say what happened and link to the request. */
+	mail_quote_text: boolean
 	/** A link starting with http(s):// or /, '' for none. */
 	handbook_url: string
 	hr_handbook_url: string

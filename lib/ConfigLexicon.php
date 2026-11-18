@@ -40,6 +40,7 @@ class ConfigLexicon implements ILexicon {
 	public const KEY_HOLIDAYS_EVERYONE = 'holidays_everyone_edits';
 	public const KEY_HANDBOOK_URL = 'handbook_url';
 	public const KEY_HR_HANDBOOK_URL = 'hr_handbook_url';
+	public const KEY_MAIL_QUOTE_TEXT = 'mail_quote_text';
 
 	// Internal state.
 	public const KEY_LAST_ROLLOVER_YEAR = 'last_rollover_year';
@@ -91,6 +92,8 @@ class ConfigLexicon implements ILexicon {
 				'Link to the handbook for HR; empty hides it', lazy: true),
 			new Entry(self::KEY_SHARED_VISIBILITY, ValueType::STRING, ConfigService::VISIBILITY_NEUTRAL,
 				'Shared-calendar event titles: neutral ("Absent") or reveal the leave type', lazy: true),
+			new Entry(self::KEY_MAIL_QUOTE_TEXT, ValueType::BOOL, true,
+				'Quote reasons, decision comments and comments in emails; off sends the summary and the link to the request only', lazy: true),
 			new Entry(self::KEY_LAST_ROLLOVER_YEAR, ValueType::INT, 0,
 				'Internal marker: last year already processed by the rollover job', lazy: true),
 			new Entry(self::KEY_REMINDER_CUTOFF, ValueType::INT, 0,
