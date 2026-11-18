@@ -113,7 +113,7 @@ export interface RequestEvent {
 	actorUid: string | null
 	actorName: string | null
 	eventType: RequestEventType
-	/** English text written by the server, not translated. */
+	/** English text written by the server, not translated. Reasons, notes and comments are only in HR's copy. */
 	detail: string | null
 	createdAt: string | null
 }

@@ -219,7 +219,7 @@ class ConfidentialTypesTest extends TestCase {
 		foreach ([self::MANAGER, self::EMPLOYEE] as $uid) {
 			$detail = $service->getDetail($uid, $request->getId());
 			self::assertSame([
-				'itest open comment',
+				null,
 				'Dates 2027-05-03 – 2027-05-04 → 2027-05-03 – 2027-05-05; Working days 2 days → 3 days (+1 day)',
 			], array_column($detail['history'], 'detail'), $uid);
 			self::assertSame(['itest open comment'], array_column($detail['comments'], 'body'), $uid);
