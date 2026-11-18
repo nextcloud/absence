@@ -20,7 +20,6 @@ use OCA\Absence\Exception\ConflictException;
 use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\RequestService;
-use OCA\DAV\CalDAV\CalDavBackend;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IAppConfig;
 use OCP\IDBConnection;
@@ -69,8 +68,6 @@ class RequestRulesTest extends TestCase {
 		$this->snapshot = Server::get(ConfigService::class)->getAdminConfig();
 		$appConfig = Server::get(IAppConfig::class);
 		$appConfig->setValueString(ConfigService::APP_ID, ConfigLexicon::KEY_HR_GROUP, self::HR_GROUP);
-		$appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_PERSONAL, false);
-		$appConfig->setValueBool(ConfigService::APP_ID, ConfigLexicon::KEY_CALDAV_SHARED, true);
 
 		$type = new LeaveType();
 		$type->setKey(self::TYPE_KEY);
@@ -89,11 +86,6 @@ class RequestRulesTest extends TestCase {
 			$qb->delete($table)->where($qb->expr()->in('request_id', $qb->createNamedParameter($requestIds, IQueryBuilder::PARAM_INT_ARRAY)))->executeStatement();
 		}
 		foreach ($requests as $request) {
-			// The team calendar outlives the test users
-			foreach (array_filter(explode(';', (string)$request->getCalendarEventUri())) as $ref) {
-				[$calendarId, $objectUri] = explode(':', $ref);
-				Server::get(CalDavBackend::class)->deleteCalendarObject((int)$calendarId, $objectUri, CalDavBackend::CALENDAR_TYPE_CALENDAR, true);
-			}
 			$this->mapper->delete($request);
 		}
 		Server::get(LeaveTypeMapper::class)->delete($this->noteType);
@@ -219,9 +211,8 @@ class RequestRulesTest extends TestCase {
 		];
 	}
 
-	public function testHrEditingApprovedLeaveMovesItsCalendarEvent(): void {
+	public function testHrEditingApprovedLeaveMovesIt(): void {
 		$request = $this->service->create(self::HR, $this->week(['employeeUid' => self::EMPLOYEE, 'reason' => 'Moving house']));
-		self::assertStringContainsString('DTSTART;VALUE=DATE:20270607', $this->calendarEvent($request->getId()));
 
 		$edited = $this->service->update(self::HR, $request->getId(), [
 			'startDate' => '2027-06-14',
@@ -235,9 +226,6 @@ class RequestRulesTest extends TestCase {
 			[LeaveRequest::STATUS_APPROVED, '2027-06-14', '2027-06-16', 3.0, 'Moving house'],
 			[$stored->getStatus(), $stored->getStartDate(), $stored->getEndDate(), $stored->getWorkingDays(), $stored->getReason()],
 		);
-		$event = $this->calendarEvent($request->getId());
-		self::assertStringContainsString('DTSTART;VALUE=DATE:20270614', $event);
-		self::assertStringContainsString('DTEND;VALUE=DATE:20270617', $event);
 		$history = array_map(
 			static fn (RequestEvent $entry): array => [$entry->getEventType(), $entry->getActorUid(), $entry->getDetail()],
 			Server::get(RequestEventMapper::class)->findForRequest($request->getId()),
@@ -293,11 +281,5 @@ class RequestRulesTest extends TestCase {
 		$request->setCreatedAt(new \DateTime('2027-01-04 09:00:00'));
 		$request->setUpdatedAt(new \DateTime('2027-01-04 09:00:00'));
 		return $this->mapper->insert($request);
-	}
-
-	/** The team calendar event of a request, as stored */
-	private function calendarEvent(int $requestId): string {
-		[$calendarId, $objectUri] = explode(':', (string)$this->mapper->find($requestId)->getCalendarEventUri());
-		return (string)Server::get(CalDavBackend::class)->getCalendarObject((int)$calendarId, $objectUri)['calendardata'];
 	}
 }

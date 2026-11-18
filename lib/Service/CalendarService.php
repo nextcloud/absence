@@ -14,67 +14,27 @@ use OCA\Absence\Db\LeaveTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
-use Psr\Container\ContainerInterface;
-use Psr\Log\LoggerInterface;
 use Sabre\VObject\Component\VCalendar;
 
 /**
- * Approved leave in Nextcloud Calendar (spec §10).
- *
- * The shared team calendar is written via the CalDAV backend. Everything there is
- * best-effort and lazily resolved: the dav app's CalDavBackend is fetched from the
- * container inside try/catch so a calendar problem can never block an approval or
- * cancellation.
- *
- * The personal calendar is not stored: {@see \OCA\Absence\DAV\PersonalCalendar}
- * builds it read-only from the leave in force, with {@see personalEvents()}.
- * Neither is the team calendar each employee and HR member gets in their own
- * calendar home: {@see \OCA\Absence\DAV\TeamCalendar}, with {@see teamEvents()}.
+ * Leave in force in Nextcloud Calendar (spec §10). Nothing is stored: the DAV
+ * calendars build their events from the requests on every read, the personal
+ * calendar ({@see \OCA\Absence\DAV\PersonalCalendar}) with
+ * {@see personalEvents()} and the team calendar each employee and HR member gets
+ * in their own calendar home ({@see \OCA\Absence\DAV\TeamCalendar}) with
+ * {@see teamEvents()}.
  */
 class CalendarService {
-	private const SHARED_CALENDAR_URI = 'absence-team';
-	private const SHARED_PRINCIPAL = 'principals/system/absence';
-
 	public function __construct(
-		private ContainerInterface $container,
 		private ConfigService $config,
 		private LeaveRequestMapper $requestMapper,
 		private LeaveTypeMapper $leaveTypeMapper,
 		private IUserManager $userManager,
 		private IFactory $l10nFactory,
-		private LoggerInterface $logger,
 		private PermissionService $permission,
 		private EmployeeDirectory $employees,
 		private ClockService $clock,
 	) {
-	}
-
-	/**
-	 * Create the team calendar event for an approved request and return the stored
-	 * reference ("calendarId:objectUri"), or null when disabled/unavailable. Without
-	 * a reference the calendar sync job tries again later.
-	 */
-	public function onApproved(LeaveRequest $request): ?string {
-		if (!$this->config->isCalDavSharedEnabled()) {
-			return null;
-		}
-		$backend = $this->backend();
-		if ($backend === null) {
-			return null;
-		}
-		try {
-			return $this->writeEvent(
-				$backend,
-				self::SHARED_PRINCIPAL,
-				self::SHARED_CALENDAR_URI,
-				$this->sharedL10n()->t('Team absences'),
-				$request,
-				$this->sharedTitle($request, $this->displayName($request->getEmployeeUid()), $this->sharedL10n(), $this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL),
-			);
-		} catch (\Throwable $e) {
-			$this->logger->warning('Absence: calendar write failed', ['exception' => $e]);
-			return null;
-		}
 	}
 
 	/**
@@ -156,98 +116,11 @@ class CalendarService {
 			}
 			$eventUid = 'absence-team-' . $request->getId();
 			$events[$eventUid . '.ics'] = [
-				'ics' => $this->buildIcs($request, $eventUid, $this->sharedTitle($request, $name, $l, $reveal), 'TRANSPARENT'),
+				'ics' => $this->buildIcs($request, $eventUid, $this->teamTitle($request, $name, $l, $reveal), 'TRANSPARENT'),
 				'lastModified' => $request->getUpdatedAt()?->getTimestamp(),
 			];
 		}
 		return $events;
-	}
-
-	/**
-	 * Shares the team calendar read-only with the employees group and the HR
-	 * group, and with nobody else (§10), creating the calendar if needed. Safe
-	 * to run again; does nothing while the team calendar is off or the app is
-	 * not set up.
-	 */
-	public function shareTeamCalendar(): void {
-		$backend = $this->backend();
-		if ($backend === null || !$this->config->isCalDavSharedEnabled() || !$this->config->isConfigured()) {
-			return;
-		}
-		try {
-			$calendarId = $this->ensureCalendar($backend, self::SHARED_PRINCIPAL, self::SHARED_CALENDAR_URI, $this->sharedL10n()->t('Team absences'));
-			if ($calendarId === null) {
-				return;
-			}
-			$wanted = array_values(array_unique(array_map(
-				static fn (string $gid): string => 'principal:principals/groups/' . $gid,
-				[$this->config->getEmployeesGroup(), $this->config->getHrGroup()],
-			)));
-			$current = array_column($backend->getShares($calendarId), 'href');
-			$add = array_map(static fn (string $href): array => ['href' => $href, 'readOnly' => true], array_values(array_diff($wanted, $current)));
-			$remove = array_values(array_diff($current, $wanted));
-			if ($add === [] && $remove === []) {
-				return;
-			}
-			$calendar = new \OCA\DAV\CalDAV\Calendar($backend, $backend->getCalendarById($calendarId), $this->sharedL10n(), $this->container->get(\OCP\IConfig::class), $this->logger);
-			$backend->updateShares($calendar, $add, $remove);
-		} catch (\Throwable $e) {
-			$this->logger->warning('Absence: sharing the team calendar failed', ['exception' => $e]);
-		}
-	}
-
-	/**
-	 * Remove any calendar events previously created for a request.
-	 */
-	public function onRemoved(LeaveRequest $request): void {
-		$backend = $this->backend();
-		$ref = $request->getCalendarEventUri();
-		if ($backend === null || $ref === null || $ref === '') {
-			return;
-		}
-		$this->deleteEvents($backend, $ref);
-	}
-
-	private function deleteEvents($backend, string $ref): void {
-		foreach (explode(';', $ref) as $entry) {
-			[$calendarId, $objectUri] = array_pad(explode(':', $entry, 2), 2, null);
-			if ($calendarId === null || $objectUri === null) {
-				continue;
-			}
-			try {
-				$backend->deleteCalendarObject((int)$calendarId, $objectUri, \OCA\DAV\CalDAV\CalDavBackend::CALENDAR_TYPE_CALENDAR);
-			} catch (\Throwable $e) {
-				$this->logger->debug('Absence: calendar delete failed', ['exception' => $e]);
-			}
-		}
-	}
-
-	private function writeEvent($backend, string $principalUri, string $calendarUri, string $displayName, LeaveRequest $request, string $title): ?string {
-		$calendarId = $this->ensureCalendar($backend, $principalUri, $calendarUri, $displayName);
-		if ($calendarId === null) {
-			return null;
-		}
-		$objectUri = 'absence-' . $request->getId() . '-' . substr(md5($principalUri), 0, 8) . '.ics';
-		$ics = $this->buildIcs($request, $objectUri, $title, 'OPAQUE');
-		$backend->createCalendarObject($calendarId, $objectUri, $ics);
-		return $calendarId . ':' . $objectUri;
-	}
-
-	private function ensureCalendar($backend, string $principalUri, string $uri, string $displayName): ?int {
-		try {
-			foreach ($backend->getCalendarsForUser($principalUri) as $calendar) {
-				if (($calendar['uri'] ?? null) === $uri) {
-					return (int)$calendar['id'];
-				}
-			}
-			return (int)$backend->createCalendar($principalUri, $uri, [
-				'{DAV:}displayname' => $displayName,
-				'{http://apple.com/ns/ical/}calendar-color' => '#0082c9',
-			]);
-		} catch (\Throwable $e) {
-			$this->logger->debug('Absence: ensureCalendar failed', ['exception' => $e]);
-			return null;
-		}
 	}
 
 	/**
@@ -288,7 +161,7 @@ class CalendarService {
 	 * "Name · Absent", or "Name · <type>" when the admin chose to reveal the
 	 * type. The setting does not extend to confidential types (§5.7).
 	 */
-	private function sharedTitle(LeaveRequest $request, string $name, \OCP\IL10N $l, bool $reveal): string {
+	private function teamTitle(LeaveRequest $request, string $name, \OCP\IL10N $l, bool $reveal): string {
 		if ($reveal && !$this->isHrOnly($request)) {
 			return $name . ' · ' . $this->typeLabel($request, $l);
 		}
@@ -309,33 +182,11 @@ class CalendarService {
 		return $this->l10nFactory->get(ConfigService::APP_ID, $lang);
 	}
 
-	/**
-	 * The shared calendar has every colleague as its audience, so it uses the
-	 * instance default language rather than any one person's.
-	 */
-	private function sharedL10n(): \OCP\IL10N {
-		return $this->l10nFactory->get(ConfigService::APP_ID, $this->l10nFactory->findGenericLanguage(ConfigService::APP_ID));
-	}
-
 	private function typeLabel(LeaveRequest $request, \OCP\IL10N $l): string {
 		try {
 			return $this->leaveTypeMapper->find($request->getTypeId())->getLabel();
 		} catch (DoesNotExistException) {
 			return $l->t('Leave');
-		}
-	}
-
-	private function displayName(string $uid): string {
-		$user = $this->userManager->get($uid);
-		return $user !== null ? $user->getDisplayName() : $uid;
-	}
-
-	private function backend(): mixed {
-		try {
-			return $this->container->get(\OCA\DAV\CalDAV\CalDavBackend::class);
-		} catch (\Throwable $e) {
-			$this->logger->debug('Absence: CalDavBackend unavailable', ['exception' => $e]);
-			return null;
 		}
 	}
 }

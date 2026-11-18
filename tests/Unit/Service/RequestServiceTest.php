@@ -25,7 +25,6 @@ use OCA\Absence\Exception\ValidationException;
 use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\BalanceService;
-use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\ConfigService;
 use OCA\Absence\Service\CoverageService;
 use OCA\Absence\Service\EmployeeDirectory;
@@ -67,7 +66,6 @@ class RequestServiceTest extends TestCase {
 	private CoverageService&MockObject $coverage;
 	private BalanceService&MockObject $balances;
 	private NoticeService&MockObject $notice;
-	private CalendarService&MockObject $calendar;
 	private NotificationService&MockObject $notifications;
 	private ActivityPublisher&MockObject $activity;
 	private ConfigService&MockObject $config;
@@ -100,7 +98,6 @@ class RequestServiceTest extends TestCase {
 		$this->balances = $this->createMock(BalanceService::class);
 		$this->balances->method('getBalance')->willReturn(['balances' => []]);
 		$this->notice = $this->createMock(NoticeService::class);
-		$this->calendar = $this->createMock(CalendarService::class);
 		$this->notifications = $this->createMock(NotificationService::class);
 		$this->activity = $this->createMock(ActivityPublisher::class);
 		$this->config = $this->createMock(ConfigService::class);
@@ -138,7 +135,6 @@ class RequestServiceTest extends TestCase {
 			$this->coverage,
 			$this->balances,
 			$this->notice,
-			$this->calendar,
 			$this->notifications,
 			$this->activity,
 			$this->config,
@@ -422,7 +418,6 @@ class RequestServiceTest extends TestCase {
 
 		// The replacement was told they cover (§5.1) — withdrawing must tell them to stop.
 		$this->notifications->expects(self::once())->method('notifyReplacementCancelled');
-		$this->calendar->expects(self::once())->method('onRemoved');
 
 		$result = $this->service->approve('mgr', 5, null, self::SEEN);
 		self::assertSame(LeaveRequest::STATUS_CANCELLED, $result->getStatus());
@@ -1208,25 +1203,6 @@ class RequestServiceTest extends TestCase {
 		$this->service->addComment('hr1', 5, 'Keep on file.');
 	}
 
-	public function testHrEditingAWithdrawalPendingRequestRebuildsTheCalendar(): void {
-		// A WITHDRAWAL_PENDING request is still in force and already carries a
-		// calendar event, so an HR date edit must rebuild it — it used to fire only
-		// for STATUS_APPROVED, leaving the calendar (and, if the withdrawal was later
-		// rejected, the standing leave) on the old dates.
-		$request = $this->pendingOwnRequest();
-		$request->setStatus(LeaveRequest::STATUS_WITHDRAWAL_PENDING);
-		$this->requestMapper->method('find')->with(5)->willReturn($request);
-		$this->requestMapper->method('update')->willReturnArgument(0);
-		$this->requestMapper->method('findOverlapping')->willReturn([]);
-		$this->permission->method('canView')->willReturn(true);
-		$this->permission->method('canModify')->willReturn(true);
-		$this->permission->method('isHr')->with('hr')->willReturn(true);
-		$this->calendar->expects(self::once())->method('onRemoved')->with($request);
-		$this->calendar->expects(self::once())->method('onApproved')->with($request);
-
-		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
-	}
-
 	public function testAnEditAnnouncesTheDatesItReplaced(): void {
 		// A rota listening to the event must be able to free the old days.
 		$request = $this->pendingOwnRequest();
@@ -1307,22 +1283,6 @@ class RequestServiceTest extends TestCase {
 			'requestId' => 5,
 			'employee' => 'emp',
 		]]], $logged);
-	}
-
-	public function testHrEditingAStillPendingRequestDoesNotTouchTheCalendar(): void {
-		// A PENDING request has no calendar event yet, so an HR edit must not try to
-		// rebuild one — the guard is "was there an event", not "is HR editing".
-		$request = $this->pendingOwnRequest();
-		$this->requestMapper->method('find')->with(5)->willReturn($request);
-		$this->requestMapper->method('update')->willReturnArgument(0);
-		$this->requestMapper->method('findOverlapping')->willReturn([]);
-		$this->permission->method('canView')->willReturn(true);
-		$this->permission->method('canModify')->willReturn(true);
-		$this->permission->method('isHr')->with('hr')->willReturn(true);
-		$this->calendar->expects(self::never())->method('onRemoved');
-		$this->calendar->expects(self::never())->method('onApproved');
-
-		$this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12', 'workingDays' => 3.0]);
 	}
 
 	public function testHrSettingTheDisabilityFlagIsRecordedInTheHistory(): void {
@@ -1497,7 +1457,6 @@ class RequestServiceTest extends TestCase {
 		$this->changedTo($request, LeaveRequest::STATUS_CANCELLED);
 
 		$this->requestMapper->expects(self::never())->method('update');
-		$this->calendar->expects(self::never())->method('onApproved');
 		$this->notifications->expects(self::never())->method('notifyDecision');
 
 		$this->expectException(ConflictException::class);
@@ -1525,7 +1484,6 @@ class RequestServiceTest extends TestCase {
 		$this->changedTo($request, LeaveRequest::STATUS_APPROVED);
 
 		$this->requestMapper->expects(self::never())->method('update');
-		$this->calendar->expects(self::never())->method('onRemoved');
 		$this->notifications->expects(self::never())->method('dismiss');
 
 		$this->expectException(ConflictException::class);
@@ -1555,7 +1513,6 @@ class RequestServiceTest extends TestCase {
 		$this->changedTo($request, LeaveRequest::STATUS_APPROVED);
 
 		$this->requestMapper->expects(self::never())->method('update');
-		$this->calendar->expects(self::never())->method('onRemoved');
 
 		$this->expectException(ConflictException::class);
 		$this->service->approve('mgr', 5, null, self::SEEN);
@@ -1635,15 +1592,13 @@ class RequestServiceTest extends TestCase {
 	}
 
 	public function testAnHrEditLandsOnTheRequestAsItIsNow(): void {
-		// Approved while HR had it open: by now the leave has a calendar event.
+		// Approved while HR had it open
 		$request = $this->pendingOwnRequest();
 		$this->decidable($request);
 		$this->permission->method('isHr')->willReturn(true);
 		$this->requestMapper->method('update')->willReturnArgument(0);
 		$this->requestMapper->method('findOverlapping')->willReturn([]);
 		$approved = $this->changedTo($request, LeaveRequest::STATUS_APPROVED);
-		$this->calendar->expects(self::once())->method('onRemoved')->with($approved);
-		$this->calendar->expects(self::once())->method('onApproved')->with($approved);
 
 		$edited = $this->service->update('hr', 5, ['startDate' => '2026-03-10', 'endDate' => '2026-03-12']);
 
@@ -1708,7 +1663,6 @@ class RequestServiceTest extends TestCase {
 		$this->decidable($request);
 
 		$this->requestMapper->expects(self::never())->method('update');
-		$this->calendar->expects(self::never())->method('onApproved');
 
 		$this->expectException(ConflictException::class);
 		$this->service->approve('mgr', 5, null, '2026-02-01T09:00:00+00:00');

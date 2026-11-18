@@ -34,7 +34,7 @@ use Psr\Log\LoggerInterface;
 /**
  * The workflow orchestrator: enforces the request state machine (§4) and the
  * apply / review / edit / withdraw / escalate flows (§5), coordinating balances,
- * calendar, notifications and activity.
+ * notifications and activity.
  *
  * Two rules hold throughout:
  *
@@ -48,7 +48,7 @@ use Psr\Log\LoggerInterface;
  *    employee, because the check and the write are otherwise two steps that a
  *    concurrent request can interleave.
  *
- * External side effects (calendar, notifications, activity) deliberately happen
+ * External side effects (notifications, activity) deliberately happen
  * *after* the transaction commits: they are not rollback-able, so firing them
  * from inside would announce leave that the database then refused.
  */
@@ -87,7 +87,6 @@ class RequestService {
 		private CoverageService $coverage,
 		private BalanceService $balances,
 		private NoticeService $notice,
-		private CalendarService $calendar,
 		private NotificationService $notifications,
 		private ActivityPublisher $activity,
 		private ConfigService $config,
@@ -709,7 +708,6 @@ class RequestService {
 
 		// Side effects by resulting status. After the commit — see the class docblock.
 		if ($request->getStatus() === LeaveRequest::STATUS_APPROVED) {
-			$this->applyCalendar($request);
 			$this->notifications->notifyReplacementAssigned($request);
 			// HR recorded it for somebody else (§5.6): their line manager was never
 			// asked, so tell them. Not when the manager is the one who recorded it.
@@ -887,7 +885,7 @@ class RequestService {
 		}
 		$isHr = $this->permission->isHr($actorUid);
 
-		// HR override: edit in place on any open status, keeping calendar in sync. This is
+		// HR override: edit in place on any open status. This is
 		// also the only edit path for HR-recorded leave (e.g. sick), even the HR
 		// member's own record — the employee path below would reject it (§5.6).
 		if ($isHr && ($actorUid !== $request->getEmployeeUid() || $this->isHrRecordedType($request))) {
@@ -1078,20 +1076,6 @@ class RequestService {
 			return [$this->requestMapper->update($request), $before, $hadDisability];
 		}, $this->db));
 
-		// A WITHDRAWAL_PENDING request is still in force and already carries a
-		// calendar event (written when it was approved), so an HR date/type edit
-		// must rebuild it too, not only for a plain APPROVED request. Otherwise the
-		// calendar keeps the old dates and, if the withdrawal is later rejected, the
-		// leave stands on the wrong days.
-		$hadCalendarEvent = in_array($request->getStatus(), [
-			LeaveRequest::STATUS_APPROVED,
-			LeaveRequest::STATUS_WITHDRAWAL_PENDING,
-		], true);
-		if ($hadCalendarEvent) {
-			// Rebuild the calendar entry for the new dates.
-			$this->calendar->onRemoved($request);
-			$this->applyCalendar($request);
-		}
 		// The disability flag alone, or what a confidential request (§5.7) withholds,
 		// leaves no trace the employee or the manager could read.
 		if ($this->shownToEmployee($before) !== $this->shownToEmployee($this->snapshot($request))) {
@@ -1183,9 +1167,6 @@ class RequestService {
 			$request->setUpdatedAt($now);
 			return [$this->requestMapper->update($request), $wasApproved];
 		}, $this->db));
-		// Only drop the calendar entry once the cancellation is durably committed —
-		// removing it first would strand the employee's calendar if the update failed.
-		$this->calendar->onRemoved($request);
 		$this->notifications->dismiss($request);
 		if ($wasApproved) {
 			$this->notifications->notifyReplacementCancelled($request);
@@ -1235,9 +1216,8 @@ class RequestService {
 				}, $this->db),
 			);
 
-			// Calendar work follows the commit; see the class docblock.
+			// Side effects follow the commit; see the class docblock.
 			if ($retired !== null) {
-				$this->calendar->onRemoved($retired);
 				// The retired request is closed now, so any decision it was still
 				// waiting on is moot — a withdrawal request against it above all,
 				// which would otherwise sit in the manager's notifications offering
@@ -1255,7 +1235,6 @@ class RequestService {
 					$this->notifications->notifyReplacementCancelled($retired);
 				}
 			}
-			$this->applyCalendar($request);
 			// Clear the now-stale "needs a decision" notifications other deciders
 			// (e.g. the rest of the HR group) still have, then notify the outcome.
 			$this->notifications->dismiss($request);
@@ -1529,8 +1508,7 @@ class RequestService {
 
 	/**
 	 * Cancel the request this one supersedes (§5.3). Database only: the caller
-	 * removes the retired request's calendar entry once the transaction commits,
-	 * so a rollback cannot leave the calendar out of step with the database.
+	 * handles the side effects once the transaction commits.
 	 *
 	 * @return ?LeaveRequest the retired request, or null if there was nothing to retire
 	 */
@@ -1560,18 +1538,6 @@ class RequestService {
 		$original->setDecidedAt($now);
 		$original->setUpdatedAt($now);
 		return $this->requestMapper->update($original);
-	}
-
-	private function applyCalendar(LeaveRequest $request): void {
-		try {
-			$uri = $this->calendar->onApproved($request);
-			if ($uri !== null) {
-				$request->setCalendarEventUri($uri);
-				$this->requestMapper->update($request);
-			}
-		} catch (\Throwable $e) {
-			$this->logger->warning('Absence: applyCalendar failed', ['exception' => $e]);
-		}
 	}
 
 	private function resolveType(int $typeId): LeaveType {

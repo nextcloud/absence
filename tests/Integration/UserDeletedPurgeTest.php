@@ -13,7 +13,6 @@ use OCA\Absence\Db\LeaveRequest;
 use OCA\Absence\Db\LeaveRequestMapper;
 use OCA\Absence\Listener\UserDeletedListener;
 use OCA\Absence\Service\AttachmentService;
-use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\EmployeeService;
 use OCA\Absence\Service\NotificationService;
 use OCA\Absence\Service\RequestService;
@@ -116,7 +115,6 @@ class UserDeletedPurgeTest extends TestCase {
 		$listener = new UserDeletedListener(
 			$this->db,
 			Server::get(LeaveRequestMapper::class),
-			Server::get(CalendarService::class),
 			Server::get(AttachmentService::class),
 			Server::get(LoggerInterface::class),
 			$employees,

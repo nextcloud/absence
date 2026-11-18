@@ -84,7 +84,6 @@ properly. Every rule and design decision is documented in the
 		<job>OCA\Absence\BackgroundJob\EscalationJob</job>
 		<job>OCA\Absence\BackgroundJob\ReminderJob</job>
 		<job>OCA\Absence\BackgroundJob\YearRolloverJob</job>
-		<job>OCA\Absence\BackgroundJob\CalendarSyncJob</job>
 		<job>OCA\Absence\BackgroundJob\CommentMailJob</job>
 		<job>OCA\Absence\BackgroundJob\EncryptAttachmentsJob</job>
 	</background-jobs>
@@ -93,7 +92,6 @@ properly. Every rule and design decision is documented in the
 			<step>OCA\Absence\Migration\SeedConfidentialLeaveTypes</step>
 			<step>OCA\Absence\Migration\RemoveAuditLogCondition</step>
 			<step>OCA\Absence\Migration\ConvertConfigTypes</step>
-			<step>OCA\Absence\Migration\ShareTeamCalendar</step>
 		</post-migration>
 		<install>
 			<step>OCA\Absence\Migration\SeedLeaveTypes</step>

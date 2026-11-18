@@ -23,7 +23,6 @@ use OCA\Absence\Db\RequestEventMapper;
 use OCA\Absence\Service\ActivityPublisher;
 use OCA\Absence\Service\AttachmentService;
 use OCA\Absence\Service\BalanceService;
-use OCA\Absence\Service\CalendarService;
 use OCA\Absence\Service\CarryOverReminderService;
 use OCA\Absence\Service\ClockService;
 use OCA\Absence\Service\ConfigService;
@@ -266,7 +265,7 @@ class ManagerChangeTest extends TestCase {
 		return new RequestService($this->mapper, Server::get(RequestCommentMapper::class), Server::get(RequestEventMapper::class),
 			Server::get(LeaveTypeMapper::class), $resolver, $this->permission($resolver), Server::get(ClockService::class),
 			Server::get(CoverageService::class), Server::get(BalanceService::class), Server::get(NoticeService::class),
-			Server::get(CalendarService::class), Server::get(NotificationService::class), Server::get(ActivityPublisher::class),
+			Server::get(NotificationService::class), Server::get(ActivityPublisher::class),
 			Server::get(ConfigService::class), $this->directory(), Server::get(AttachmentService::class), Server::get(IUserManager::class),
 			Server::get(IFactory::class)->get('absence'), Server::get(LoggerInterface::class), Server::get(IDBConnection::class),
 			Server::get(ILockingProvider::class), Server::get(AbsenceProvider::class), Server::get(IEventDispatcher::class));

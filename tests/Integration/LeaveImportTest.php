@@ -162,7 +162,6 @@ class LeaveImportTest extends TestCase {
 		foreach ($robin as $request) {
 			self::assertSame(LeaveRequest::STATUS_APPROVED, $request->getStatus());
 			self::assertSame(self::HR, $request->getDecidedBy());
-			self::assertNull($request->getCalendarEventUri());
 			$history = Server::get(RequestEventMapper::class)->findForRequest((int)$request->getId());
 			self::assertCount(1, $history);
 			self::assertSame('request_imported', $history[0]->getEventType());
