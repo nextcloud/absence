@@ -111,9 +111,9 @@ class RequestRulesTest extends TestCase {
 		parent::tearDown();
 	}
 
-	public function testAnAttachmentNoteDoesNotStandInForTheRequiredReason(): void {
+	public function testTheRequiredReasonCannotBeLeftOutOrCleared(): void {
 		try {
-			$this->service->create(self::EMPLOYEE, $this->week(['reason' => '', 'attachmentNote' => 'x']));
+			$this->service->create(self::EMPLOYEE, $this->week(['reason' => '']));
 			self::fail('Created without a reason');
 		} catch (ValidationException) {
 		}
@@ -121,7 +121,7 @@ class RequestRulesTest extends TestCase {
 
 		$request = $this->service->create(self::EMPLOYEE, $this->week(['reason' => 'Moving house']));
 		try {
-			$this->service->update(self::EMPLOYEE, $request->getId(), ['reason' => ' ', 'attachmentNote' => 'x']);
+			$this->service->update(self::EMPLOYEE, $request->getId(), ['reason' => ' ']);
 			self::fail('Reason cleared by its owner');
 		} catch (ValidationException) {
 		}

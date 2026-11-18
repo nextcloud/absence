@@ -29,8 +29,6 @@ use OCP\AppFramework\Db\Entity;
  * @method void setReason(?string $reason)
  * @method string|null getReplacementUid()
  * @method void setReplacementUid(?string $replacementUid)
- * @method string|null getAttachmentNote()
- * @method void setAttachmentNote(?string $attachmentNote)
  * @method string|null getDecidedBy()
  * @method void setDecidedBy(?string $decidedBy)
  * @method \DateTime|null getDecidedAt()
@@ -86,7 +84,6 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 	protected string $status = self::STATUS_PENDING;
 	protected ?string $reason = null;
 	protected ?string $replacementUid = null;
-	protected ?string $attachmentNote = null;
 	protected ?string $decidedBy = null;
 	protected ?\DateTime $decidedAt = null;
 	protected ?string $decisionComment = null;
@@ -122,7 +119,6 @@ class LeaveRequest extends Entity implements \JsonSerializable {
 			'status' => $this->status,
 			'reason' => $this->reason,
 			'replacementUid' => $this->replacementUid,
-			'attachmentNote' => $this->attachmentNote,
 			'decidedBy' => $this->decidedBy,
 			'decidedAt' => $this->decidedAt?->format(\DateTimeInterface::ATOM),
 			'decisionComment' => $this->decisionComment,

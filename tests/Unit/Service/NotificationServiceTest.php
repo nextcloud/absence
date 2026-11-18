@@ -405,7 +405,6 @@ class NotificationServiceTest extends TestCase {
 		$request->setTypeId(9);
 		$request->setStatus(LeaveRequest::STATUS_APPROVED);
 		$request->setReason('Parental leave, second child.');
-		$request->setAttachmentNote('Certificate handed in.');
 
 		$this->service->notifyAbsenceRecorded($request, 'boss');
 
@@ -418,7 +417,6 @@ class NotificationServiceTest extends TestCase {
 		self::assertArrayNotHasKey('typeId', $this->pushed[0]);
 		$stored = json_encode($this->pushed[0], JSON_THROW_ON_ERROR);
 		self::assertStringNotContainsString('Parental', $stored);
-		self::assertStringNotContainsString('Certificate', $stored);
 
 		self::assertSame('Emp is absent', $this->emailSubject);
 		self::assertSame(['HR recorded an absence for Emp for 2026-02-10 – 2026-02-12.'], $this->emailBody);

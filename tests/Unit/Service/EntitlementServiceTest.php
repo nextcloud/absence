@@ -44,6 +44,7 @@ class EntitlementServiceTest extends TestCase {
 	private ConfigService&MockObject $config;
 	private LoggerInterface&MockObject $logger;
 	private IEventDispatcher&MockObject $dispatcher;
+	private ActivityPublisher&MockObject $activity;
 	private EntitlementService $service;
 
 	protected function setUp(): void {
@@ -57,6 +58,7 @@ class EntitlementServiceTest extends TestCase {
 		$this->eventMapper->method('insert')->willReturnArgument(0);
 		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->dispatcher = $this->createMock(IEventDispatcher::class);
+		$this->activity = $this->createMock(ActivityPublisher::class);
 		$this->service = new EntitlementService(
 			$this->entitlementMapper,
 			$this->eventMapper,
@@ -65,7 +67,7 @@ class EntitlementServiceTest extends TestCase {
 			$this->balanceService,
 			$this->config,
 			$this->clockAtRealTime(),
-			$this->createMock(ActivityPublisher::class),
+			$this->activity,
 			new EmployeeDirectory(
 				$this->createMock(IUserManager::class),
 				$this->createMock(IGroupManager::class),
@@ -187,6 +189,26 @@ class EntitlementServiceTest extends TestCase {
 		self::assertSame('Wedding', $recorded[0]->getNote());
 		self::assertSame('hr', $recorded[0]->getActorUid());
 		self::assertSame('bob', $recorded[0]->getEmployeeUid());
+	}
+
+	public function testTheNoteOfACorrectionGoesToTheHistoryAndTheActivity(): void {
+		$ent = $this->priorEntitlement(25.0);
+		$this->entitlementMapper->method('find')->with(1)->willReturn($ent);
+		$this->entitlementMapper->method('update')->willReturnArgument(0);
+		$this->entitlementMapper->method('addToManualAdjustment')->willReturnCallback(
+			static fn (int $id, float $delta) => $ent->setManualAdjustment($ent->getManualAdjustment() + $delta),
+		);
+		$notes = [];
+		$this->eventMapper->method('insert')->willReturnCallback(static function (EntitlementEvent $e) use (&$notes) {
+			$notes[] = $e->getNote();
+			return $e;
+		});
+		$this->activity->expects(self::once())->method('publish')
+			->with(ActivityPublisher::SUBJECT_BALANCE_ADJUSTED, self::callback(static fn (array $params): bool => $params['note'] === 'Wedding'));
+
+		$this->service->update('hr', 1, ['adjustmentDelta' => 2.0, 'adjustmentNote' => 'Wedding']);
+
+		self::assertSame(['Wedding'], $notes);
 	}
 
 	public function testAnEntitlementChangeGoesToTheLogsWithIdsOnly(): void {

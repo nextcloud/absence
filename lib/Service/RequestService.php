@@ -277,7 +277,7 @@ class RequestService {
 		$request = $this->get($actorUid, $id);
 		// A confidential absence (§5.7): the employee may see that it exists —
 		// dates and status — but the category and every piece of content that
-		// could reveal it (reason, note, comments, the history with its type
+		// could reveal it (reason, comments, the history with its type
 		// labels) belong to HR alone.
 		$viewerIsHr = $this->permission->isHr($actorUid);
 		if ($this->permission->isHrOnlyRequest($request) && !$viewerIsHr) {
@@ -476,7 +476,6 @@ class RequestService {
 		$data['typeId'] = null;
 		$data['disability'] = null;
 		$data['reason'] = null;
-		$data['attachmentNote'] = null;
 		$data['decisionComment'] = null;
 		$data['decidedBy'] = null;
 		return $data;
@@ -623,7 +622,7 @@ class RequestService {
 	/**
 	 * Apply for leave (§5.1).
 	 *
-	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,attachmentNote?:?string,employeeUid?:?string,workingDays?:?float,replacementUid?:?string,disability?:?bool} $data
+	 * @param array{typeId:int,startDate:string,endDate:string,reason?:?string,employeeUid?:?string,workingDays?:?float,replacementUid?:?string,disability?:?bool} $data
 	 * @throws ValidationException|ConflictException|ForbiddenException
 	 */
 	public function create(string $actorUid, array $data): LeaveRequest {
@@ -649,7 +648,7 @@ class RequestService {
 
 		$start = $this->normaliseDate((string)($data['startDate'] ?? ''));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? ''));
-		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''), (string)($data['attachmentNote'] ?? ''));
+		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? ''));
 		// Not demanded when HR is recording for somebody else — see resolveReplacement().
 		$replacementUid = $this->resolveReplacement($employeeUid, $type, $data['replacementUid'] ?? null, required: !$onBehalf);
 
@@ -679,7 +678,6 @@ class RequestService {
 			$request->setWorkingDays($workingDays);
 			$request->setReason($data['reason'] ?? null);
 			$request->setReplacementUid($replacementUid);
-			$request->setAttachmentNote($data['attachmentNote'] ?? null);
 			$request->setDisability($disability);
 			$request->setCreatedAt($now);
 			$request->setUpdatedAt($now);
@@ -912,7 +910,7 @@ class RequestService {
 		$this->assertSelfRequestable($type);
 		$start = $this->normaliseDate((string)($data['startDate'] ?? $request->getStartDate()));
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $request->getEndDate()));
-		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? $request->getReason() ?? ''), (string)($data['attachmentNote'] ?? $request->getAttachmentNote() ?? ''));
+		$this->validateRange($actorUid, $start, $end, $type, (string)($data['reason'] ?? $request->getReason() ?? ''));
 
 		$replacementUid = $this->resolveReplacement($request->getEmployeeUid(), $type, $data['replacementUid'] ?? $request->getReplacementUid());
 		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $request->getWorkingDays(), $request->getWorkingDays());
@@ -935,9 +933,6 @@ class RequestService {
 			$request->setReplacementUid($replacementUid);
 			if (array_key_exists('reason', $data)) {
 				$request->setReason($data['reason']);
-			}
-			if (array_key_exists('attachmentNote', $data)) {
-				$request->setAttachmentNote($data['attachmentNote']);
 			}
 			$request->setUpdatedAt($this->clock->now());
 			return $this->requestMapper->update($request);
@@ -973,8 +968,7 @@ class RequestService {
 		$end = $this->normaliseDate((string)($data['endDate'] ?? $original->getEndDate()));
 		// Like an edit in place, what the caller did not send stays as it was.
 		$reason = array_key_exists('reason', $data) ? $data['reason'] : $original->getReason();
-		$note = array_key_exists('attachmentNote', $data) ? $data['attachmentNote'] : $original->getAttachmentNote();
-		$this->validateRange($actorUid, $start, $end, $type, (string)$reason, (string)$note);
+		$this->validateRange($actorUid, $start, $end, $type, (string)$reason);
 		$replacementUid = $this->resolveReplacement($actorUid, $type, $data['replacementUid'] ?? $original->getReplacementUid());
 		$workingDays = $this->normaliseWorkingDays($data['workingDays'] ?? $original->getWorkingDays(), $original->getWorkingDays());
 		$this->assertWorkingDaysFitRange($workingDays, $start, $end);
@@ -983,7 +977,7 @@ class RequestService {
 		$managerUid = $this->managerResolver->getManagerUid($actorUid);
 
 		$new = $this->withEmployeeLock($actorUid, fn (): LeaveRequest => $this->atomic(function () use (
-			$actorUid, $original, $type, $start, $end, $replacementUid, $workingDays, $managerUid, $now, $reason, $note,
+			$actorUid, $original, $type, $start, $end, $replacementUid, $workingDays, $managerUid, $now, $reason,
 		): LeaveRequest {
 			$original = $this->freshForTransition((int)$original->getId(), [LeaveRequest::STATUS_APPROVED], $original->getUpdatedAt());
 			// Re-checked under the lock: two concurrent edits would otherwise both
@@ -1001,7 +995,6 @@ class RequestService {
 			$new->setWorkingDays($workingDays);
 			$new->setReason($reason);
 			$new->setReplacementUid($replacementUid);
-			$new->setAttachmentNote($note);
 			$new->setSupersedesId($original->getId());
 			$new->setStatus($managerUid === null ? LeaveRequest::STATUS_ESCALATED : LeaveRequest::STATUS_PENDING);
 			$new->setEscalated($managerUid === null);
@@ -1668,7 +1661,7 @@ class RequestService {
 		return $this->requestMapper->hasApprovedAbsenceCovering($managerUid, $today, $today);
 	}
 
-	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, string $reason, string $note): void {
+	private function validateRange(string $actorUid, string $start, string $end, LeaveType $type, string $reason): void {
 		$isHr = $this->permission->isHr($actorUid);
 		$this->assertValidRange($start, $end, $isHr ? self::MAX_HR_SPAN_DAYS : self::MAX_SPAN_DAYS);
 		// the employee's own today, not UTC's — see ClockService
@@ -1681,9 +1674,6 @@ class RequestService {
 		}
 		if (mb_strlen($reason) > self::MAX_REASON_LENGTH) {
 			throw new ValidationException($this->l->t('The reason is too long.'));
-		}
-		if (mb_strlen($note) > self::MAX_REASON_LENGTH) {
-			throw new ValidationException($this->l->t('The note is too long.'));
 		}
 	}
 

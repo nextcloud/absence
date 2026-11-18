@@ -1813,11 +1813,10 @@ class RequestServiceTest extends TestCase {
 
 	// ----------------------------------------- editing approved leave ----
 
-	public function testEditingApprovedLeaveKeepsTheReasonAndNoteThatWereNotResent(): void {
+	public function testEditingApprovedLeaveKeepsTheReasonThatWasNotResent(): void {
 		$original = $this->pendingOwnRequest();
 		$original->setStatus(LeaveRequest::STATUS_APPROVED);
 		$original->setReason('Family wedding abroad.');
-		$original->setAttachmentNote('Invitation attached.');
 		$this->decidable($original);
 		$this->permission->method('isHr')->willReturn(false);
 		$this->leaveTypeMapper->method('find')->willReturn($this->type(1, true));
@@ -1829,7 +1828,6 @@ class RequestServiceTest extends TestCase {
 		$edit = $this->service->update('emp', 5, ['startDate' => $start, 'endDate' => $start, 'workingDays' => 1.0]);
 
 		self::assertSame('Family wedding abroad.', $edit->getReason());
-		self::assertSame('Invitation attached.', $edit->getAttachmentNote());
 	}
 
 	public function testEditingApprovedLeaveCanStillClearTheReason(): void {

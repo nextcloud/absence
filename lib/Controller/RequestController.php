@@ -75,14 +75,13 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function create(int $typeId, string $startDate, string $endDate, ?float $workingDays = null, ?string $reason = null, ?string $attachmentNote = null, ?string $employeeUid = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
+	public function create(int $typeId, string $startDate, string $endDate, ?float $workingDays = null, ?string $reason = null, ?string $employeeUid = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
 		return $this->handle(fn () => $this->service->create((string)$this->userId, [
 			'typeId' => $typeId,
 			'startDate' => $startDate,
 			'endDate' => $endDate,
 			'workingDays' => $workingDays,
 			'reason' => $reason,
-			'attachmentNote' => $attachmentNote,
 			'employeeUid' => $employeeUid,
 			'replacementUid' => $replacementUid,
 			'disability' => $disability,
@@ -91,19 +90,16 @@ class RequestController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function update(int $id, ?int $typeId = null, ?string $startDate = null, ?string $endDate = null, ?string $reason = null, ?string $attachmentNote = null, ?float $workingDays = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
+	public function update(int $id, ?int $typeId = null, ?string $startDate = null, ?string $endDate = null, ?string $reason = null, ?float $workingDays = null, ?string $replacementUid = null, ?bool $disability = null): DataResponse {
 		$data = array_filter([
 			'typeId' => $typeId,
 			'startDate' => $startDate,
 			'endDate' => $endDate,
 			'workingDays' => $workingDays,
 		], static fn ($v) => $v !== null);
-		// reason/attachmentNote/replacementUid may be intentionally cleared, so pass explicitly.
+		// reason/replacementUid may be intentionally cleared, so pass explicitly.
 		if ($reason !== null) {
 			$data['reason'] = $reason;
-		}
-		if ($attachmentNote !== null) {
-			$data['attachmentNote'] = $attachmentNote;
 		}
 		if ($replacementUid !== null) {
 			$data['replacementUid'] = $replacementUid;
