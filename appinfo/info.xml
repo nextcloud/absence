@@ -56,7 +56,7 @@ time-tracking or shift-planning. This app manages leave and does that one thing
 properly. Every rule and design decision is documented in the
 [specification](https://github.com/nextcloud/absence/blob/main/SPECIFICATION.md).
 	]]></description>
-	<version>1.0.0-beta.2</version>
+	<version>1.0.0-beta.3</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author mail="frank@nextcloud.com">Frank Karlitschek</author>
 	<namespace>Absence</namespace>

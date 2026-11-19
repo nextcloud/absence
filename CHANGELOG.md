@@ -7,6 +7,52 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 1.0.0-beta.3 – 2026-11-19
+
+> [!IMPORTANT]
+> Attachments are now encrypted with the instance secret. A background job
+> encrypts the existing ones after the upgrade. Changing `secret` in
+> `config.php` makes them unreadable.
+>
+> The shared team calendar is deleted on upgrade. Each employee and HR member
+> now gets their own read-only "Team absences" calendar instead, as long as
+> the team calendar is on.
+>
+> Other apps reading absences through the integration API only get the leave
+> type when the visibility setting shows it, and no longer get the
+> `confidential` flag.
+
+### Added
+* feat(notifications): setting to leave the text out of emails by @skjnldsv in [#257](https://github.com/nextcloud/absence/pull/257)
+* feat(retention): delete old leave and former employees after set years by @skjnldsv in [#260](https://github.com/nextcloud/absence/pull/260)
+* feat(gdpr): add Absence data to the personal data export by @skjnldsv in [#261](https://github.com/nextcloud/absence/pull/261)
+
+### Changed
+* fix(calendar): serve the team calendar in each viewer's calendar home by @skjnldsv in [#252](https://github.com/nextcloud/absence/pull/252)
+* fix(calendar): delete the stored team calendar by @skjnldsv in [#253](https://github.com/nextcloud/absence/pull/253)
+* fix(privacy): drop two note columns that no screen reads by @skjnldsv in [#255](https://github.com/nextcloud/absence/pull/255)
+* fix(api)!: name leave types to other apps only under reveal by @skjnldsv in [#256](https://github.com/nextcloud/absence/pull/256)
+* feat(calendar): use #ff6f59 as the default calendar colour by @skjnldsv in [#266](https://github.com/nextcloud/absence/pull/266)
+
+### Fixed
+* fix(ui): no scrollbar on the Settings entry of the navigation by @skjnldsv in [#244](https://github.com/nextcloud/absence/pull/244)
+* fix(privacy): answer away only for leave in force by @skjnldsv in [#245](https://github.com/nextcloud/absence/pull/245)
+* fix(attachments): 404 for attachments you may not see by @skjnldsv in [#246](https://github.com/nextcloud/absence/pull/246)
+* fix(privacy): keep confidential content out of messages and history by @skjnldsv in [#247](https://github.com/nextcloud/absence/pull/247)
+* fix(logging): mark free-text parameters sensitive by @skjnldsv in [#248](https://github.com/nextcloud/absence/pull/248)
+* fix(gdpr): retry and complete the purge of deleted accounts by @skjnldsv in [#249](https://github.com/nextcloud/absence/pull/249)
+* fix(coverage): count the employee's current team by @skjnldsv in [#250](https://github.com/nextcloud/absence/pull/250)
+* fix(privacy): small logging and browser storage cleanups by @skjnldsv in [#251](https://github.com/nextcloud/absence/pull/251)
+* fix(privacy): keep the free text of the request history for HR by @skjnldsv in [#254](https://github.com/nextcloud/absence/pull/254)
+* fix(privacy): record every change of an employee's manager by @skjnldsv in [#258](https://github.com/nextcloud/absence/pull/258)
+* fix(attachments): encrypt the stored files by @skjnldsv in [#259](https://github.com/nextcloud/absence/pull/259)
+* fix(settings): leave-type switch also works with the team calendar off by @skjnldsv in [#263](https://github.com/nextcloud/absence/pull/263)
+* fix(gdpr): take back manager-change notifications with the person's data by @skjnldsv in [#264](https://github.com/nextcloud/absence/pull/264)
+
+### Other
+* docs: retake the screenshots for 1.0.0-beta.2 by @skjnldsv in [#243](https://github.com/nextcloud/absence/pull/243)
+* docs: privacy notes for admins and works councils by @skjnldsv in [#265](https://github.com/nextcloud/absence/pull/265)
+
 ## 1.0.0-beta.2 – 2026-11-17
 
 > [!IMPORTANT]
