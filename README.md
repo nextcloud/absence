@@ -237,10 +237,10 @@ down to the individual days.
 
 Where *Statistics* describes what happened, **Insights** is diagnostic. **Approval
 health** shows the median (and 95th-percentile) time from request to decision and
-which managers hold requests up or keep escalating. The **Bradford Factor** scores
-recorded sick leave as spells² × days — the long-standing HR measure that weights
-frequent short absences more heavily than one long illness — as a prompt for a
-supportive conversation. **Leave utilisation** shows how much of their entitlement
+which managers hold requests up or keep escalating. **Most sick days** lists the ten
+people with the most recorded sick days and how many absences they came in, so HR
+can see who could use some support.
+**Leave utilisation** shows how much of their entitlement
 people actually take, per team, with a watchlist of anyone who has not been off in a
 while (an early burnout signal). **Leave liability** totals the accrued-but-untaken
 leave carried on the books and the carry-over about to expire. HR-only, like every
@@ -412,8 +412,8 @@ assessment and your works council will want to look at:
 
 - the health data it holds (Art. 9 GDPR): sick leave, doctor's notes, maternity and
   parental leave, child sick leave and the disability flag;
-- the **Bradford Factor** on the *Insights* page, which scores named people's sick
-  leave for HR. There is no setting to hide it;
+- the **Most sick days** list on the *Insights* page, which shows HR the people with
+  the most sick days by name. There is no setting to hide it;
 - who sees whose leave: the team calendar shows every employee's approved leave to
   all employees and HR and is on by default, and the leave-type setting decides
   whether they see the type;

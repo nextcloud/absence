@@ -1514,12 +1514,10 @@ The HR area (visible only to HR-group members) provides:
      that went to a manager is counted, so HR-recorded absences (booked without a
      decision) never flatter the figure. Escalation rate = escalated ÷ requests that
      needed a decision. Durations under one hour read *under an hour*, not *0 hours*.
-   - **Bradford Factor** — recorded sick leave scored per employee as
-     *spells² × days*, ranked, against the conventional review thresholds: 500
-     (amber, *Review due*) and 900 (red, *Serious*). Each bar is scaled to 900, so
-     it fills at the serious threshold whatever the other scores are, and the level
-     is written next to the score, not shown by colour alone. A well-being prompt,
-     deliberately not shown to line managers.
+   - **Most sick days**: the ten employees with the most recorded sick days in
+     the year, with how many absences those days came in, most days first. Plain
+     totals: no score, weighting or threshold. Each bar is scaled to the first row.
+     Meant to show HR who could use some support, and not shown to line managers.
    - **Leave utilisation** — annual `used ÷ entitlement`, company-wide and per team,
      plus a watchlist of employees with no non-sick leave in the last ~90 days
      (computed from a rolling one-year window), longest-neglected first.
@@ -2469,3 +2467,7 @@ Recorded during the build so the spec matches the code:
   user, object and subject, not who wrote the comment, so the other comment
   notifications on those requests go too. `occ absence:purge-deleted-users` finds what
   accounts deleted while the app was disabled left behind.
+- **Most sick days** (§13, Insights): the Insights tab first ranked sick leave by the
+  Bradford Factor (*spells² × days*, flagged at 500 and 900). It weighs frequent
+  short absences far above one long illness, so it put people with a chronic
+  condition at the top as "serious" cases. It now shows plain totals.

@@ -16,9 +16,9 @@ use OCP\IUserManager;
 
 /**
  * The HR "Insights" tab (spec §15.7): diagnostic and forward-looking figures that
- * go beyond the descriptive reports — how well approval is working, disruptive
- * absence patterns (Bradford Factor), how much of their leave people actually
- * take, and the outstanding leave liability on the books.
+ * go beyond the descriptive reports: how well approval is working, who was off
+ * sick the most, how much of their leave people actually take, and the
+ * outstanding leave liability on the books.
  *
  * Everything is HR-only and computed from data the app already stores; the
  * controller gates it with {@see PermissionService::assertHr()}.
@@ -61,7 +61,7 @@ class InsightsService {
 		return [
 			'year' => $year,
 			'approval' => $this->approvalHealth($yearRequests),
-			'bradford' => $this->bradford($yearRequests),
+			'sickLeave' => $this->sickLeave($yearRequests),
 			'utilization' => $this->utilization($balances, $teams),
 			'liability' => $this->liability($balances, $teams),
 		];
@@ -136,22 +136,21 @@ class InsightsService {
 		return max(0.0, round($hours, 1));
 	}
 
-	// --------------------------------------------------------- Bradford ----
+	// ------------------------------------------------------- sick leave ----
 
 	/**
-	 * The Bradford Factor (spells² × days) per employee over the year, from
-	 * recorded sick leave. It weights frequent short absences far more heavily
-	 * than a single long illness — the standard flag for a supportive check-in.
+	 * The employees with the most recorded sick days over the year, and how many
+	 * absences those days came in. Plain totals, most days first.
 	 *
 	 * @param LeaveRequest[] $requests
-	 * @return list<array<string,mixed>>
+	 * @return list<array{employeeUid: string, name: string, absences: int, days: float}>
 	 */
-	private function bradford(array $requests): array {
+	private function sickLeave(array $requests): array {
 		$sickIds = $this->sickTypeIds();
 		if ($sickIds === []) {
 			return [];
 		}
-		/** @var array<string,array{spells:int,days:float}> $byEmployee */
+		/** @var array<string,array{absences:int,days:float}> $byEmployee */
 		$byEmployee = [];
 		foreach ($requests as $r) {
 			if (!in_array($r->getStatus(), LeaveRequest::USED_STATUSES, true)) {
@@ -161,24 +160,22 @@ class InsightsService {
 				continue;
 			}
 			$uid = $r->getEmployeeUid();
-			$byEmployee[$uid] ??= ['spells' => 0, 'days' => 0.0];
-			$byEmployee[$uid]['spells']++;
+			$byEmployee[$uid] ??= ['absences' => 0, 'days' => 0.0];
+			$byEmployee[$uid]['absences']++;
 			$byEmployee[$uid]['days'] += (float)$r->getWorkingDays();
 		}
 
 		$rows = [];
 		foreach ($byEmployee as $uid => $b) {
 			$uid = (string)$uid;
-			$spells = (float)$b['spells'];
 			$rows[] = [
 				'employeeUid' => $uid,
 				'name' => $this->displayName($uid),
-				'spells' => $b['spells'],
+				'absences' => $b['absences'],
 				'days' => round($b['days'], 1),
-				'score' => (int)round($spells * $spells * $b['days']),
 			];
 		}
-		usort($rows, static fn (array $a, array $b): int => [$b['score'], $b['spells']] <=> [$a['score'], $a['spells']]);
+		usort($rows, static fn (array $a, array $b): int => [$b['days'], $a['name']] <=> [$a['days'], $b['name']]);
 		return array_slice($rows, 0, self::TOP_N);
 	}
 

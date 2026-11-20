@@ -117,7 +117,7 @@ class InsightsServiceTest extends TestCase {
 			// Two manager-approved annual requests with different turnarounds.
 			$this->req(['emp' => 'alice', 'manager' => 'mgr1', 'type' => 1, 'status' => 'APPROVED', 'start' => '2026-03-01', 'created' => '2026-03-01 09:00:00', 'decided' => '2026-03-01 15:00:00', 'days' => 1.0]),
 			$this->req(['emp' => 'bob', 'manager' => 'mgr1', 'type' => 1, 'status' => 'APPROVED', 'start' => '2026-03-02', 'end' => '2026-03-04', 'created' => '2026-03-02 09:00:00', 'decided' => '2026-03-04 09:00:00', 'escalated' => true, 'days' => 3.0]),
-			// HR-recorded sick leave (no manager): counts for Bradford, not approval.
+			// HR-recorded sick leave (no manager): counts as sick leave, not for approval.
 			$this->req(['emp' => 'alice', 'type' => 2, 'status' => 'APPROVED', 'start' => '2026-01-05', 'days' => 1.0]),
 			$this->req(['emp' => 'alice', 'type' => 2, 'status' => 'APPROVED', 'start' => '2026-02-10', 'days' => 2.0]),
 			$this->req(['emp' => 'bob', 'type' => 2, 'status' => 'APPROVED', 'start' => '2026-03-01', 'days' => 5.0]),
@@ -142,20 +142,17 @@ class InsightsServiceTest extends TestCase {
 		self::assertSame(27.0, $approval['perManager'][0]['medianHours']);
 	}
 
-	public function testBradfordScoresSpellsSquaredTimesDays(): void {
+	public function testSickLeaveListsTheMostDaysFirst(): void {
 		$this->withRequests();
 		$this->balances(['alice' => ['used' => 5.0, 'entitlement' => 28.0, 'remaining' => 23.0, 'carryOverDays' => 3.0]]);
 
-		$bradford = $this->service->getInsights(2026)['bradford'];
+		$sick = $this->service->getInsights(2026)['sickLeave'];
 
-		self::assertCount(2, $bradford);
-		// alice: 2 spells, 3 days → 2² × 3 = 12; bob: 1 spell, 5 days → 5.
-		self::assertSame('alice', $bradford[0]['employeeUid']);
-		self::assertSame(2, $bradford[0]['spells']);
-		self::assertSame(3.0, $bradford[0]['days']);
-		self::assertSame(12, $bradford[0]['score']);
-		self::assertSame('bob', $bradford[1]['employeeUid']);
-		self::assertSame(5, $bradford[1]['score']);
+		// bob: 5 days in one absence, ahead of alice: 3 days in two.
+		self::assertSame([
+			['employeeUid' => 'bob', 'name' => 'bob', 'absences' => 1, 'days' => 5.0],
+			['employeeUid' => 'alice', 'name' => 'alice', 'absences' => 2, 'days' => 3.0],
+		], $sick);
 	}
 
 	public function testUtilizationAggregatesAndFlagsTheNeglected(): void {

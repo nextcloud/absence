@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
   -
   - HR Insights (§15.7): diagnostic figures beyond the descriptive reports —
-  - approval health, the Bradford Factor, leave utilisation and the outstanding
+  - approval health, the most sick days, leave utilisation and the outstanding
   - leave liability. HR-only; the endpoint enforces it server-side.
 -->
 <template>
@@ -103,62 +103,39 @@
 				</p>
 			</section>
 
-			<!-- Bradford Factor -->
+			<!-- Sick leave -->
 			<section class="surface">
 				<h3 class="surface__title">
-					<PuzzleOutline :size="20" />
-					{{ t('absence', 'Bradford Factor') }}
+					<Thermometer :size="20" />
+					{{ t('absence', 'Most sick days') }}
 				</h3>
 				<p class="surface__lead">
-					{{ t('absence', 'Recorded sick leave scored as spells² × days, so frequent short absences weigh more heavily than one long illness. A prompt for a supportive conversation, not a verdict.') }}
-					{{ t('absence', 'A bar fills at {serious}: from {review} a review is due, from {serious} the case is serious.', { review: BRADFORD_REVIEW, serious: BRADFORD_SERIOUS }) }}
+					{{ t('absence', 'The ten employees with the most recorded sick days in {year}, to see who could use some support.', { year: data.year }) }}
 				</p>
-				<table v-if="data.bradford.length" class="grid">
+				<table v-if="data.sickLeave.length" class="grid">
 					<thead>
 						<tr>
 							<th>{{ t('absence', 'Employee') }}</th>
 							<th class="num">
-								{{ t('absence', 'Spells') }}
+								{{ t('absence', 'Absences') }}
 							</th>
 							<th class="num">
 								{{ t('absence', 'Days') }}
-							</th>
-							<th class="num">
-								{{ t('absence', 'Score') }}
 							</th>
 							<th class="bar" />
 						</tr>
 					</thead>
 					<tbody>
-						<tr v-for="r in data.bradford" :key="r.employeeUid">
+						<tr v-for="r in data.sickLeave" :key="r.employeeUid">
 							<td>{{ r.name }}</td>
 							<td class="num">
-								{{ r.spells }}
+								{{ r.absences }}
 							</td>
 							<td class="num">
 								{{ fmtDays(r.days) }}
 							</td>
-							<td class="num">
-								<span class="score">
-									<NcChip
-										v-if="bradfordLevel(r.score) === 'serious'"
-										variant="error"
-										noClose
-										:text="t('absence', 'Serious')" />
-									<NcChip
-										v-else-if="bradfordLevel(r.score) === 'review'"
-										variant="warning"
-										noClose
-										:text="t('absence', 'Review due')" />
-									<strong>{{ r.score }}</strong>
-								</span>
-							</td>
 							<td class="bar">
-								<MeterBar
-									:value="r.score"
-									:max="BRADFORD_SERIOUS"
-									:color="scoreColor(r.score)"
-									:ariaLabel="t('absence', 'Score {score} of {serious}', { score: r.score, serious: BRADFORD_SERIOUS })" />
+								<MeterBar :value="r.days" :max="sickDaysMax" />
 							</td>
 						</tr>
 					</tbody>
@@ -246,17 +223,15 @@ import type { Insights, NeglectedRow } from '../../types/index.ts'
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import NcChip from '@nextcloud/vue/components/NcChip'
 import ArrowUpBoldCircleOutline from 'vue-material-design-icons/ArrowUpBoldCircleOutline.vue'
 import CashMultiple from 'vue-material-design-icons/CashMultiple.vue'
 import Leaf from 'vue-material-design-icons/Leaf.vue'
-import PuzzleOutline from 'vue-material-design-icons/PuzzleOutline.vue'
+import Thermometer from 'vue-material-design-icons/Thermometer.vue'
 import TimerOutline from 'vue-material-design-icons/TimerOutline.vue'
 import MeterBar from '../../components/MeterBar.vue'
 import SkeletonList from '../../components/SkeletonList.vue'
 import StatTile from '../../components/StatTile.vue'
 import api from '../../services/api.ts'
-import { BRADFORD_REVIEW, BRADFORD_SERIOUS, bradfordLevel } from '../../utils/bradford.ts'
 import { formatHours } from '../../utils/duration.ts'
 import { formatNumber, locale } from '../../utils/locale.ts'
 
@@ -268,6 +243,7 @@ const year = ref(now)
 const yearOptions = [now + 1, now, now - 1, now - 2, now - 3]
 const data = ref<Insights | null>(null)
 
+const sickDaysMax = computed<number>(() => Math.max(1, ...(data.value?.sickLeave ?? []).map((r) => r.days)))
 const liabilityMax = computed<number>(() => Math.max(1, ...(data.value?.liability.perTeam ?? []).map((r) => r.outstanding)))
 
 const expiryCaption = computed<string>(() => {
@@ -341,22 +317,6 @@ function neglectedLabel(p: NeglectedRow): string {
 		return t('absence', 'not in the last year')
 	}
 	return n('absence', '%n day', '%n days', p.daysSince)
-}
-
-/**
- * The colour of a Bradford score.
- *
- * @param score the score
- */
-function scoreColor(score: number): string {
-	switch (bradfordLevel(score)) {
-		case 'serious':
-			return 'var(--color-element-error)'
-		case 'review':
-			return 'var(--color-element-warning)'
-		default:
-			return 'var(--color-primary-element)'
-	}
 }
 
 /**
@@ -466,12 +426,6 @@ function rateColor(rate: number): string {
 
 .muted {
 	color: var(--color-text-maxcontrast);
-}
-
-.score {
-	display: inline-flex;
-	align-items: center;
-	gap: calc(var(--default-grid-baseline) * 2);
 }
 
 .watchlist {

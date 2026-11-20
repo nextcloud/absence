@@ -40,7 +40,7 @@ class ReportController extends Controller {
 	}
 
 	/**
-	 * The HR Insights tab: approval health, Bradford Factor, leave utilization and
+	 * The HR Insights tab: approval health, most sick days, leave utilization and
 	 * outstanding liability. HR only — diagnostic data about named people.
 	 */
 	#[NoAdminRequired]
