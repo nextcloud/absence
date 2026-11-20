@@ -113,13 +113,12 @@ export interface ApprovalHealth {
 	perManager: ManagerApprovalStats[]
 }
 
-export interface BradfordRow {
+export interface SickLeaveRow {
 	employeeUid: string
 	name: string
-	spells: number
+	/** Separate sick leave absences in the year. */
+	absences: number
 	days: number
-	/** spells² × days. */
-	score: number
 }
 
 export interface UtilizationRate {
@@ -166,7 +165,8 @@ export interface Liability {
 export interface Insights {
 	year: number
 	approval: ApprovalHealth
-	bradford: BradfordRow[]
+	/** Most days first, top 10. */
+	sickLeave: SickLeaveRow[]
 	utilization: Utilization
 	liability: Liability
 }
