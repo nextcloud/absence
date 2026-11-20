@@ -12,6 +12,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 * feat(insights): list the most sick days instead of the Bradford Factor by @skjnldsv in [#268](https://github.com/nextcloud/absence/pull/268)
 
+### Fixed
+* fix(notifications): no error on a carry-over reminder to a deleted account by @skjnldsv in [#269](https://github.com/nextcloud/absence/pull/269)
+
+### Other
+* ci: sync workflow templates by @skjnldsv in [#271](https://github.com/nextcloud/absence/pull/271)
+* Bump php-cs-fixer/shim from 3.95.17 to 3.95.32
+* Bump phpunit/phpunit from 11.5.56 to 11.5.58
+* Bump sass from 1.108.1 to 1.108.2
+* Bump vimeo/psalm from 7.0.2 to 7.12.0
+* Bump vitest from 5.1.0 to 5.1.1
+* Bump vue from 3.5.45 to 3.5.46
+* Bump vue-router from 5.4.0 to 5.5.1
+
 ## 1.0.0-beta.3 – 2026-11-19
 
 > [!IMPORTANT]
