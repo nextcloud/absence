@@ -452,8 +452,11 @@ class NotificationService {
 		} catch (\Throwable $e) {
 			$this->logger->warning('Absence: notification failed', ['exception' => $e]);
 		}
-		$email = $user?->getEMailAddress();
-		if (!$user instanceof IUser || !$email) {
+		if (!$user instanceof IUser) {
+			return;
+		}
+		$email = $user->getEMailAddress();
+		if (!$email) {
 			return;
 		}
 		try {
