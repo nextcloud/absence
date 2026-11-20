@@ -7,6 +7,11 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 1.0.0-beta.4 – 2026-11-20
+
+### Changed
+* feat(insights): list the most sick days instead of the Bradford Factor by @skjnldsv in [#268](https://github.com/nextcloud/absence/pull/268)
+
 ## 1.0.0-beta.3 – 2026-11-19
 
 > [!IMPORTANT]
