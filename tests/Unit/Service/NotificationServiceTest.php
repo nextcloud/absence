@@ -660,6 +660,13 @@ class NotificationServiceTest extends TestCase {
 		self::assertSame([], $this->pushed);
 	}
 
+	public function testCarryOverReminderSendsNoEmailForAnAccountThatIsGone(): void {
+		$this->withUsers();
+		$this->mailer->expects(self::never())->method('send');
+
+		$this->service->notifyCarryOverExpiring('robin', 3.0, '2032-03-31');
+	}
+
 	public function testAManagerChangeIsToldToTheEmployeeAndHrButNotToWhoeverMadeIt(): void {
 		$this->withUsers('emp', 'hr1', 'hr2', 'hr3-disabled', 'carol');
 		$this->mailer->expects(self::never())->method('send');
