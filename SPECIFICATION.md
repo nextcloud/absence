@@ -1722,7 +1722,7 @@ not HTTP:
 Single-page app mounted from the app's main navigation entry, including the HR/admin
 Settings page (§12). Build with Vite (the tree already uses Vite, see `build/frontend`). Use
 `@nextcloud/vue`, `@nextcloud/axios`, `@nextcloud/router`, `@nextcloud/l10n`,
-`@nextcloud/dialogs`, and `@mdi/svg` / `vue-material-design-icons` for icons.
+`@nextcloud/dialogs`, and `vue-material-design-icons` for icons.
 
 ### 15.0 Design principles
 
@@ -1948,7 +1948,7 @@ Build exclusively from these (extend only for a genuine gap):
 `NcCounterBubble` (nav badges), `NcActions`/`NcActionButton` (row menus),
 `NcChip`/status pills, `NcListItem`, `NcSettingsSection`,
 `NcDateTimePickerNative` (From/To in the dialog + HR filters), `NcTextField` (manual
-working days). Icons from `@mdi/svg`. (The Dashboard widget is an API widget, §15.6, not
+working days). Icons from `vue-material-design-icons`. (The Dashboard widget is an API widget, §15.6, not
 `NcDashboardWidget`.)
 
 App-specific components built on top of the above (see §15.7): `BalanceRing`,

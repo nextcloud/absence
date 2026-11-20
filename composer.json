@@ -31,7 +31,7 @@
 		"lint": "find . -name \\*.php -not -path './vendor/*' -not -path './vendor-bin/*' -not -path './tests/Integration/vendor/*' -not -path './build/*' -print0 | xargs -0 -n200 php -l",
 		"cs:check": "php-cs-fixer fix --dry-run --diff",
 		"cs:fix": "php-cs-fixer fix",
-		"psalm": "psalm --no-cache --threads=$(nproc)",
+		"psalm": "psalm --no-cache",
 		"psalm:update-baseline": "psalm --threads=1 --update-baseline",
 		"test:unit": "phpunit -c tests/phpunit.xml --colors=always --fail-on-warning --fail-on-risky --display-deprecations --display-phpunit-deprecations",
 		"test:integration": "phpunit -c tests/phpunit.integration.xml --colors=always --fail-on-warning --fail-on-risky"

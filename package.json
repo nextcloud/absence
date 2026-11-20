@@ -22,7 +22,6 @@
 		"extends @nextcloud/browserslist-config"
 	],
 	"dependencies": {
-		"@mdi/svg": "^7.4.47",
 		"@nextcloud/axios": "^2.6.0",
 		"@nextcloud/dialogs": "^8.0.0",
 		"@nextcloud/initial-state": "^3.0.0",
@@ -31,9 +30,9 @@
 		"@nextcloud/router": "^3.2.0",
 		"@nextcloud/vue": "^9.14.0",
 		"pinia": "^4.1.0",
-		"vue": "^3.5.45",
+		"vue": "^3.5.46",
 		"vue-material-design-icons": "^5.4.0",
-		"vue-router": "^5.4.0"
+		"vue-router": "^5.5.1"
 	},
 	"devDependencies": {
 		"@nextcloud/browserslist-config": "^3.1.2",
@@ -41,10 +40,10 @@
 		"@nextcloud/stylelint-config": "^3.2.2",
 		"@nextcloud/vite-config": "^3.0.0-beta.1",
 		"@vue/tsconfig": "^0.9.1",
-		"sass": "^1.108.1",
+		"sass": "^1.108.2",
 		"typescript": "^6.0.3",
 		"vite": "^8.3.8",
-		"vitest": "^5.1.0",
+		"vitest": "^5.1.1",
 		"vue-tsc": "^3.3.14"
 	},
 	"engines": {
