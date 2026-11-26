@@ -120,14 +120,14 @@
 								</router-link>
 							</td>
 							<td>
-								<template v-if="row.regionCode">
-									<span aria-hidden="true">{{ regionFlag(row.regionCode) }}</span> {{ row.regionCode }}
+								<span v-if="row.regionCode" class="employees__cell">
+									<span><span aria-hidden="true">{{ regionFlag(row.regionCode) }}</span> {{ row.regionCode }}</span>
 									<NcChip
 										v-if="row.regionIncomplete"
 										variant="warning"
 										noClose
 										:text="t('absence', 'Region needed')" />
-								</template>
+								</span>
 								<NcChip
 									v-else
 									variant="warning"
@@ -439,13 +439,30 @@ async function onSaved(): Promise<void> {
 	&__table.tbl {
 		th, td {
 			padding-inline: 8px;
+			vertical-align: middle;
 		}
+	}
+
+	// Compact warning chips: at full size one chip widened its column enough to
+	// push the last columns off the page
+	&__table.tbl :deep(.nc-chip) {
+		--chip-size: 20px;
+		font-size: var(--font-size-small);
+	}
+
+	// A value and its warning chip side by side, wrapping with space between
+	&__cell {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 8px;
 	}
 
 	&__name {
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
+		vertical-align: middle;
 	}
 
 	&__none {
