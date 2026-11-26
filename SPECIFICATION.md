@@ -1287,6 +1287,14 @@ refused.
   bin and its shares, clears `calendar_event_uri`, and removes `CalendarSyncJob` and
   its `calendar_sync_cursor`. It marks the calendar as in the trash bin first, so the
   dav app deletes it without an activity for every member of those groups.
+- **The stored personal calendars of 1.0.12** lived in each employee's calendar
+  home under the uri `absence`, with one event per approval named
+  `absence-<request id>-<8 hex>.ics`. The built-in personal calendar does not replace
+  them (the server lists it as `app-generated--absence--absence`), so they would show
+  every leave twice and never follow a cancellation. The `Version1024…` migration
+  deletes each of them for good when it holds only such events, those in the trash
+  bin included; a calendar with events of the person's own keeps them and loses only
+  the leave. An empty one goes only when it still has the name `Absence`.
 
 ---
 

@@ -181,6 +181,12 @@ function seed(IDBConnection $db): void {
 		'created_at' => [new DateTime('2026-03-04 08:00:00'), IQueryBuilder::PARAM_DATETIME_MUTABLE],
 	]);
 	attachmentFolder()->newFile((string)$attachment, $content);
+
+	if ($before1013) {
+		// The personal calendars 1.0.12 wrote approved leave into, one with an event of the person's own
+		storedCalendar($db, 'upgrade-alice', ['absence-' . $ids[0] . '-0a1b2c3d.ics']);
+		storedCalendar($db, 'upgrade-bob', ['absence-' . $ids[1] . '-0a1b2c3d.ics', 'invented-dentist.ics']);
+	}
 	echo 'seeded the data of ' . ($before1013 ? '1.0.12' : 'a beta') . "\n";
 }
 
@@ -194,6 +200,42 @@ function insert(IDBConnection $db, string $table, array $values): int {
 	}
 	$qb->executeStatement();
 	return $qb->getLastInsertId();
+}
+
+/** @param list<string> $events */
+function storedCalendar(IDBConnection $db, string $uid, array $events): void {
+	$calendar = insert($db, 'calendars', [
+		'principaluri' => 'principals/users/' . $uid, 'uri' => 'absence', 'displayname' => 'Absence',
+		'synctoken' => [1, IQueryBuilder::PARAM_INT], 'components' => 'VEVENT',
+	]);
+	foreach ($events as $uri) {
+		$ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:$uri\r\nSUMMARY:Vacation\r\nDTSTART;VALUE=DATE:20260706\r\nDTEND;VALUE=DATE:20260707\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+		insert($db, 'calendarobjects', [
+			'calendarid' => [$calendar, IQueryBuilder::PARAM_INT], 'uri' => $uri, 'uid' => $uri,
+			'calendardata' => [$ics, IQueryBuilder::PARAM_LOB], 'lastmodified' => [time(), IQueryBuilder::PARAM_INT],
+			'etag' => md5($ics), 'size' => [strlen($ics), IQueryBuilder::PARAM_INT], 'componenttype' => 'VEVENT',
+			'firstoccurence' => [1783296000, IQueryBuilder::PARAM_INT], 'lastoccurence' => [1783382400, IQueryBuilder::PARAM_INT],
+		]);
+	}
+}
+
+/** @return list<string> "<principal> <event uri>" of the events in stored calendars under the uri `absence` */
+function storedCalendarEvents(IDBConnection $db): array {
+	if (!$db->tableExists('calendars')) {
+		return [];
+	}
+	$qb = $db->getQueryBuilder();
+	$qb->select('c.principaluri', 'o.uri')
+		->from('calendars', 'c')
+		->innerJoin('c', 'calendarobjects', 'o', $qb->expr()->eq('o.calendarid', 'c.id'))
+		->where($qb->expr()->eq('c.uri', $qb->createNamedParameter('absence')))
+		->andWhere($qb->expr()->like('c.principaluri', $qb->createNamedParameter('principals/users/%')))
+		->andWhere($qb->expr()->eq('o.calendartype', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+	$result = $qb->executeQuery();
+	$events = array_map(static fn (array $r): string => $r['principaluri'] . ' ' . $r['uri'], $result->fetchAll());
+	$result->closeCursor();
+	sort($events);
+	return $events;
 }
 
 /** @return array<string, int> leave type key => id */
@@ -403,6 +445,7 @@ function before(IDBConnection $db): array {
 		'contracts' => $periods === null ? [] : contracts($db, $periods),
 		'hrGroup' => $appConfig->hasKey(APP, 'hr_group') ? $appConfig->getValueString(APP, 'hr_group') : null,
 		'hrGroupExists' => Server::get(IGroupManager::class)->groupExists('hr'),
+		'calendarEvents' => storedCalendarEvents($db),
 	];
 }
 
@@ -457,6 +500,10 @@ function verify(IDBConnection $db, array $before): int {
 	$appConfig = Server::get(IAppConfig::class);
 	$hrGroup = $before['hrGroup'] ?? ($before['hrGroupExists'] ? 'hr' : '');
 	$check($appConfig->getValueString(APP, 'hr_group') === $hrGroup, "HR group: still \"$hrGroup\"", $hrGroup, $appConfig->getValueString(APP, 'hr_group'));
+
+	// The stored personal calendars of 1.0.12 lose the leave and keep the events of their own
+	$own = array_values(array_filter($before['calendarEvents'] ?? [], static fn (string $e): bool => preg_match('/ absence-\d+-[0-9a-f]{8}(-deleted)?\.ics$/', $e) !== 1));
+	$check(storedCalendarEvents($db) === $own, 'stored personal calendars of 1.0.12: only the events of their own left', $own, storedCalendarEvents($db));
 
 	$wrong = [];
 	foreach (rows($db, 'absence_comments', ['id', 'request_id', 'confidential']) as $i => $row) {
