@@ -87,6 +87,22 @@ export function formatRange(startIso: string | null | undefined, endIso: string 
 }
 
 /**
+ * A short range like "Nov 30 – Dec 4", with the year only when it is not the
+ * current one: "Dec 22, 2026 – Jan 5, 2027".
+ *
+ * @param startIso 'YYYY-MM-DD'
+ * @param endIso 'YYYY-MM-DD'
+ * @param currentYear the year that goes without saying
+ */
+export function formatShortRange(startIso: string, endIso: string, currentYear: number): string {
+	const start = new Date(startIso + 'T00:00:00')
+	const end = new Date(endIso + 'T00:00:00')
+	const withYear = start.getFullYear() !== currentYear || end.getFullYear() !== currentYear
+	const format = new Intl.DateTimeFormat(locale(), withYear ? { year: 'numeric', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' })
+	return startIso === endIso ? format.format(start) : format.formatRange(start, end)
+}
+
+/**
  * A duration as `H:MM:SS`, for the final stretch before a break starts. Hours are
  * not padded (and run past 24) because "47:59:12" reads as a countdown while
  * "01:23:45" reads as a clock. Never negative: a lapsed deadline shows 0:00:00.
