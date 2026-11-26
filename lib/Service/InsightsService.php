@@ -47,7 +47,7 @@ class InsightsService {
 	 * @return array<string,mixed>
 	 */
 	public function getInsights(int $year): array {
-		$uids = $this->employees->listInGroup(null);
+		$uids = $this->employees->listActiveInGroup(null);
 		$uidSet = array_fill_keys($uids, true);
 		$teams = $this->buildTeams($uids);
 		$balances = $this->balanceService->getBalancesForEmployees($uids, $year);

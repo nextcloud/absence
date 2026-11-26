@@ -50,7 +50,7 @@ class CalendarServiceTest extends TestCase {
 		$this->permission = $this->createMock(PermissionService::class);
 		$this->permission->method('isEmployeeOrHr')->willReturn(true);
 		$this->employees = $this->createMock(EmployeeDirectory::class);
-		$this->employees->method('displayNames')->willReturn(['alice' => 'Alice Example', 'bob' => 'Bob Example', '90817' => 'Numeric Example']);
+		$this->employees->method('activeDisplayNames')->willReturn(['alice' => 'Alice Example', 'bob' => 'Bob Example', '90817' => 'Numeric Example']);
 		$this->clock = $this->createMock(ClockService::class);
 		$this->clock->method('serverYear')->willReturn(2026);
 		$this->l10nFactory = $this->createMock(IFactory::class);

@@ -173,6 +173,18 @@ calendar forever, with an empty allowance and nothing to show.
   deleted later, the app **fails open** (every non-guest account counts again) and
   logs an error — failing closed would silently freeze leave booking for the whole
   company.
+- **Disabled accounts are people who left.** They stay employees for their records:
+  HR still sees them on the Employees page (marked *Account disabled*, with a
+  filter), can open, correct and record their leave, finds them in the people
+  picker, and exports them with the requests. Nothing about the people working here
+  now counts them: they are left out of Insights and every report (balances
+  included), coverage, the team calendar, the pickers of everyone but HR, the
+  region and carry-over reminders, a change of the default vacation days, the bulk
+  entitlement edit and the year rollover. Their row never shows missing data.
+  `EmployeeDirectory::listActive()` and friends read the disabled accounts once per
+  request (`IUserManager::getDisabledUsers()`), not account by account. Retention
+  still counts from the contract end date only, so disabling an account by mistake
+  starts no deletion. Enabling the account again brings the person back everywhere.
 
 ---
 

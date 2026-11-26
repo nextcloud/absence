@@ -66,7 +66,7 @@ class CarryOverReminderService {
 		// Confidential types (§5.7) are not on the employee's own balance either.
 		$hrOnlyIds = $this->leaveTypeMapper->hrOnlyTypeIds();
 		$reminded = 0;
-		foreach ($this->balanceService->getBalancesForEmployees($this->employees->listAll(), $year) as $uid => $rows) {
+		foreach ($this->balanceService->getBalancesForEmployees($this->employees->listActive(), $year) as $uid => $rows) {
 			$days = 0.0;
 			foreach ($rows as $row) {
 				if (!in_array($row['typeId'], $hrOnlyIds, true)) {

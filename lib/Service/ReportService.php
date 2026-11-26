@@ -67,7 +67,7 @@ class ReportService {
 	 * @return list<array<string,mixed>>
 	 */
 	public function teamBalances(string $managerUid, int $year): array {
-		$uids = $this->employees->filter($this->managerResolver->getDirectReports($managerUid));
+		$uids = $this->employees->filterActive($this->managerResolver->getDirectReports($managerUid));
 		$balances = $this->balanceService->getBalancesForEmployees($uids, $year);
 		$report = [];
 		foreach ($uids as $uid) {
@@ -266,7 +266,7 @@ class ReportService {
 	 * @return string[]
 	 */
 	private function employeeUids(?string $group): array {
-		return $this->employees->listInGroup($group);
+		return $this->employees->listActiveInGroup($group);
 	}
 
 	private function displayName(string $uid): string {

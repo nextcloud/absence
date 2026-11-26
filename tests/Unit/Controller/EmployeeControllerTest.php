@@ -73,6 +73,7 @@ class EmployeeControllerTest extends TestCase {
 		$this->collaboratorSearchReturns([]);
 		$this->selfIs('Frank Karlitschek');
 		$this->employees->method('isEmployee')->willReturn(true);
+		$this->employees->method('isActive')->willReturn(true);
 
 		$data = $this->controller->search('frank')->getData();
 
@@ -83,6 +84,7 @@ class EmployeeControllerTest extends TestCase {
 		$this->collaboratorSearchReturns([]);
 		$this->selfIs('Frank Karlitschek');
 		$this->employees->method('isEmployee')->willReturn(true);
+		$this->employees->method('isActive')->willReturn(true);
 
 		self::assertSame('hr-user', $this->controller->search('hr-us')->getData()[0]['uid']);
 	}
@@ -93,6 +95,7 @@ class EmployeeControllerTest extends TestCase {
 		]);
 		$this->selfIs('Frank Karlitschek');
 		$this->employees->method('isEmployee')->willReturn(true);
+		$this->employees->method('isActive')->willReturn(true);
 
 		$data = $this->controller->search('lea')->getData();
 
@@ -104,6 +107,7 @@ class EmployeeControllerTest extends TestCase {
 		$this->selfIs('Guest Person');
 		// Guests hold no entitlement and take no leave, their own account included.
 		$this->employees->method('isEmployee')->willReturn(false);
+		$this->employees->method('isActive')->willReturn(false);
 
 		self::assertSame([], $this->controller->search('guest')->getData());
 	}
@@ -115,6 +119,7 @@ class EmployeeControllerTest extends TestCase {
 		]);
 		$this->selfIs('Frank Karlitschek');
 		$this->employees->method('isEmployee')->willReturn(true);
+		$this->employees->method('isActive')->willReturn(true);
 
 		self::assertCount(1, $this->controller->search('frank')->getData());
 	}

@@ -118,6 +118,11 @@
 										hideStatus />
 									{{ row.displayName }}
 								</router-link>
+								<NcChip
+									v-if="row.disabled"
+									class="employees__left"
+									noClose
+									:text="t('absence', 'Account disabled')" />
 							</td>
 							<td>
 								<span v-if="row.regionCode" class="employees__cell">
@@ -129,7 +134,7 @@
 										:text="t('absence', 'Region needed')" />
 								</span>
 								<NcChip
-									v-else
+									v-else-if="!row.disabled"
 									variant="warning"
 									noClose
 									:text="t('absence', 'No region code')" />
@@ -154,7 +159,7 @@
 									{{ formatDate(row.contract.start) }}
 								</template>
 								<NcChip
-									v-else
+									v-else-if="!row.disabled"
 									variant="warning"
 									noClose
 									:text="t('absence', 'No start date')" />
@@ -283,7 +288,7 @@ import { formatNumber } from '../../utils/locale.ts'
 import { regionFlag } from '../../utils/regions.ts'
 import { formatWeekdays } from '../../utils/weekdays.ts'
 
-type FilterId = 'all' | 'missing' | 'partTime' | 'startsOrLeaves'
+type FilterId = 'all' | 'missing' | 'partTime' | 'startsOrLeaves' | 'disabled'
 
 /** A chip of the filter row */
 interface FilterOption {
@@ -307,6 +312,7 @@ const matches: Record<FilterId, (row: EmployeeRow) => boolean> = {
 	missing: (row) => row.missing.length > 0,
 	partTime: (row) => row.partTime,
 	startsOrLeaves: (row) => row.startsOrLeaves,
+	disabled: (row) => row.disabled,
 }
 
 const currentYear = new Date().getFullYear()
@@ -337,6 +343,7 @@ const filters = computed<FilterOption[]>(() => {
 		{ id: 'missing', label: `⚠️ ${n('absence', 'Missing data {count}', 'Missing data {count}', count(matches.missing), { count: count(matches.missing) })}` },
 		{ id: 'partTime', label: n('absence', 'Part-time {count}', 'Part-time {count}', count(matches.partTime), { count: count(matches.partTime) }) },
 		{ id: 'startsOrLeaves', label: n('absence', 'Starts or leaves in {year} {count}', 'Starts or leaves in {year} {count}', count(matches.startsOrLeaves), { year: year.value, count: count(matches.startsOrLeaves) }) },
+		...(count(matches.disabled) > 0 ? [{ id: 'disabled' as const, label: n('absence', 'Account disabled {count}', 'Account disabled {count}', count(matches.disabled), { count: count(matches.disabled) }) }] : []),
 	]
 })
 
@@ -464,6 +471,11 @@ async function onSaved(): Promise<void> {
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
+		vertical-align: middle;
+	}
+
+	&__left {
+		margin-inline-start: 8px;
 		vertical-align: middle;
 	}
 

@@ -93,7 +93,10 @@ class EmployeeListService {
 				}
 			}
 			$current = self::currentPeriod($contract, $today);
-			$missing = array_keys(array_filter([
+			// Somebody who left keeps their records here, but nothing is missing
+			// any more: their row never counts towards the data HR has to fill in.
+			$disabled = $this->directory->isDisabled($uid);
+			$missing = $disabled ? [] : array_keys(array_filter([
 				self::MISSING_REGION => $this->holidays->needsRegion($region),
 				self::MISSING_CONTRACT => $contract['periods'] === [],
 				self::MISSING_START => $contract['start'] === null,
@@ -102,7 +105,8 @@ class EmployeeListService {
 				'uid' => $uid,
 				'displayName' => $this->displayName($uid),
 				'regionCode' => $region,
-				'regionIncomplete' => $region !== '' && $this->holidays->needsRegion($region),
+				'regionIncomplete' => !$disabled && $region !== '' && $this->holidays->needsRegion($region),
+				'disabled' => $disabled,
 				'contract' => $contract,
 				'current' => $current,
 				'manager' => $managerUid === null ? null : ['uid' => $managerUid, 'displayName' => $this->displayName($managerUid)],

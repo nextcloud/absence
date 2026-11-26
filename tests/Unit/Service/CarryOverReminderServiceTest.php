@@ -48,7 +48,7 @@ class CarryOverReminderServiceTest extends TestCase {
 		$this->balances->method('getBalancesForEmployees')->willReturnCallback(fn (): array => $this->rows);
 
 		$employees = $this->createMock(EmployeeDirectory::class);
-		$employees->method('listAll')->willReturnCallback(fn (): array => array_keys($this->rows));
+		$employees->method('listActive')->willReturnCallback(fn (): array => array_keys($this->rows));
 
 		$types = $this->createMock(LeaveTypeMapper::class);
 		$types->method('hrOnlyTypeIds')->willReturn([9]);

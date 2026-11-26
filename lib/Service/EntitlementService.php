@@ -241,7 +241,7 @@ class EntitlementService {
 		if ($annualTypeId === null) {
 			return [];
 		}
-		$employees = array_fill_keys($this->employees->listAll(), true);
+		$employees = array_fill_keys($this->employees->listActive(), true);
 		return array_values(array_filter(
 			$this->entitlementMapper->findForYear($this->clock->serverYear()),
 			static fn (Entitlement $ent): bool => $ent->getTypeId() === $annualTypeId
@@ -364,7 +364,7 @@ class EntitlementService {
 		$annualTypeId = $this->annualTypeId();
 		if ($annualTypeId !== null) {
 			$default = $this->config->getDefaultEntitlement();
-			foreach ($this->employees->listAll() as $uid) {
+			foreach ($this->employees->listActive() as $uid) {
 				$targets[$uid][$annualTypeId] ??= $default;
 			}
 		}
@@ -380,8 +380,8 @@ class EntitlementService {
 		foreach ($targets as $uid => $perType) {
 			$uid = (string)$uid;
 			// No entitlement for a year outside the contract (§6.4), and no carry-over
-			// from one
-			if (!$this->balanceService->isEmployedIn($uid, $toYear)) {
+			// from one. Nor for somebody whose account is disabled: they left.
+			if (!$this->balanceService->isEmployedIn($uid, $toYear) || $this->employees->isDisabled($uid)) {
 				continue;
 			}
 			$carriesOver = $this->balanceService->isEmployedIn($uid, $fromYear);
@@ -642,6 +642,6 @@ class EntitlementService {
 	 * @return string[]
 	 */
 	private function targetUids(?string $group): array {
-		return $this->employees->listInGroup($group);
+		return $this->employees->listActiveInGroup($group);
 	}
 }
