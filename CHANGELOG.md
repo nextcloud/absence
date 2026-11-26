@@ -7,6 +7,16 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 1.0.0-beta.5 – 2026-11-26
+
+> [!IMPORTANT]
+> Upgrading from 1.0.12 deletes the personal "Absence" calendars that version
+> wrote leave into. The built-in calendar shows the same leave and follows every
+> change. Events people added to that calendar themselves are kept.
+
+### Fixed
+* fix(migration): remove the personal calendars 1.0.12 stored by @skjnldsv in [#275](https://github.com/nextcloud/absence/pull/275)
+
 ## 1.0.0-beta.4 – 2026-11-20
 
 ### Changed
