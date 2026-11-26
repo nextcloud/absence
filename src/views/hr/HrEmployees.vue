@@ -297,7 +297,9 @@ interface EditedEntitlement {
 	balance: BalanceRow
 }
 
-/** Rows shown at first and added by "Load more" */
+/** Rows shown at first: the whole company on most installs */
+const FIRST_PAGE = 200
+/** Rows "Load more" adds */
 const PAGE = 50
 
 const matches: Record<FilterId, (row: EmployeeRow) => boolean> = {
@@ -315,7 +317,7 @@ const employeesGroupName = ref('')
 const contacts = ref(false)
 const search = ref('')
 const filter = ref<FilterId>('all')
-const limit = ref(PAGE)
+const limit = ref(FIRST_PAGE)
 const year = ref(currentYear)
 const years = [currentYear - 1, currentYear, currentYear + 1]
 const sessionStore = useSessionStore()
@@ -355,11 +357,11 @@ watch(year, () => {
 })
 
 watch(search, () => {
-	limit.value = PAGE
+	limit.value = FIRST_PAGE
 })
 
 watch(filter, () => {
-	limit.value = PAGE
+	limit.value = FIRST_PAGE
 })
 
 onMounted(() => {
