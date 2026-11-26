@@ -322,8 +322,8 @@ const mine = computed<RegionOption | null>(() => (ownCode.value
 	? { id: 'mine', label: t('absence', 'Your holidays ({code})', { code: ownCode.value }), code: ownCode.value, mine: true }
 	: null))
 
-// HR keeps the list for every region; everyone else opens on their own days
-const region = shallowRef<RegionOption>((!session.value.isHr && mine.value) || all)
+// Opens on one's own days when a region is set, HR included: "All regions" is one pick away
+const region = shallowRef<RegionOption>(mine.value ?? all)
 const form = ref<HolidayForm | null>(null)
 const saving = ref(false)
 // The holiday whose deletion waits for a confirmation
