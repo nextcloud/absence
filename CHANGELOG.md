@@ -7,6 +7,27 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 1.0.0-beta.6 – 2026-11-26
+
+> [!IMPORTANT]
+> Disabled accounts now count as people who left. HR still sees them on the
+> Employees page, marked, and keeps their records and exports, but they are left
+> out of Insights, the reports, coverage, the pickers, the team calendar, the
+> reminders and the year rollover.
+
+### Added
+* feat(profile): pick the holiday region from a list by @skjnldsv in [#277](https://github.com/nextcloud/absence/pull/277)
+* feat(profile): show what one's vacation days are made of by @skjnldsv in [#279](https://github.com/nextcloud/absence/pull/279)
+* feat(employees): show 200 people before "Load more" by @skjnldsv in [#283](https://github.com/nextcloud/absence/pull/283)
+
+### Changed
+* fix(employees): treat disabled accounts as people who left by @skjnldsv in [#280](https://github.com/nextcloud/absence/pull/280)
+
+### Fixed
+* fix(ui): same status chips, centred in the request rows by @skjnldsv in [#278](https://github.com/nextcloud/absence/pull/278)
+* fix(holidays): open on one's own region for HR too by @skjnldsv in [#281](https://github.com/nextcloud/absence/pull/281)
+* fix(employees): room around the warning chips in the list by @skjnldsv in [#282](https://github.com/nextcloud/absence/pull/282)
+
 ## 1.0.0-beta.5 – 2026-11-26
 
 > [!IMPORTANT]
