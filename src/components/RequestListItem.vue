@@ -167,6 +167,12 @@ function select(event?: MouseEvent) {
 		background: var(--color-background-hover);
 	}
 
+	// The list item pins its details column to the bottom: the chips sat lower in
+	// a row without a waiting time than in one with it.
+	:deep(.list-item-content__details) {
+		justify-content: center;
+	}
+
 	// Round the list item so the stripe + hover background clip nicely.
 	:deep(.list-item),
 	:deep(.list-item__wrapper) {
