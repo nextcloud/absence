@@ -32,10 +32,11 @@ const meta = computed(() => statusMeta(props.status))
 	font-size: var(--font-size-small);
 	font-weight: 600;
 	// Contrast-optimised text on a solid tinted background (not transparent), so
-	// readability doesn't depend on whatever surface sits behind the chip.
+	// readability doesn't depend on whatever surface sits behind the chip. No
+	// border: tinted from each status colour, it stood out on the grey chips and
+	// vanished on the coloured ones.
 	color: var(--chip-text);
 	background: color-mix(in srgb, var(--chip-tint) 18%, var(--color-main-background));
-	border: 1px solid color-mix(in srgb, var(--chip-tint) 35%, transparent);
 	white-space: nowrap;
 
 	&__dot {

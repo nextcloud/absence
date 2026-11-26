@@ -34,7 +34,7 @@ export function statusMeta(status: ChipStatus | string): StatusMeta {
 		case 'CANCELLED':
 			return { label: t('absence', 'Cancelled'), text: 'var(--color-text-maxcontrast)', tint: 'var(--color-text-maxcontrast)', icon: '🚫' }
 		case 'RECORDED':
-			return { label: t('absence', 'Recorded'), text: 'var(--color-text-maxcontrast)', tint: 'var(--color-text-maxcontrast)', icon: '🗂️' }
+			return { label: t('absence', 'Recorded'), text: 'var(--color-info-text, var(--color-main-text))', tint: 'var(--color-info, var(--color-primary-element))', icon: '🗂️' }
 		case 'WITHDRAWAL_PENDING':
 			return { label: t('absence', 'Withdrawal pending'), text: 'var(--color-warning-text)', tint: 'var(--color-warning)', icon: '↩️' }
 		default:
