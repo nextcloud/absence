@@ -105,7 +105,7 @@ class CalendarService {
 		}
 		$year = $this->clock->serverYear();
 		$requests = $this->requestMapper->findInForceBetween(($year - 1) . '-01-01', ($year + 1) . '-12-31');
-		$names = $this->employees->displayNames();
+		$names = $this->employees->activeDisplayNames();
 		$l = $this->personalL10n($uid);
 		$reveal = $this->config->getSharedCalendarVisibility() === ConfigService::VISIBILITY_REVEAL;
 		$events = [];

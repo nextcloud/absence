@@ -145,6 +145,8 @@ export interface EmployeeRow {
 	regionCode: string
 	/** A country-only code while that country has regional holidays in the list. */
 	regionIncomplete: boolean
+	/** The account is disabled: somebody who left, kept for the records */
+	disabled: boolean
 	contract: Contract
 	/** The working pattern in force today, or the first one while none has started; null without any. */
 	current: ContractPeriod | null

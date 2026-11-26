@@ -151,6 +151,9 @@ class EmployeeController extends Controller {
 				$results['users'] ?? [],
 			);
 
+			// HR may still record or correct the leave of somebody who left; for
+			// everyone else a disabled account is nobody to pick.
+			$isHr = $this->permission->isHr((string)$this->userId);
 			$employees = [];
 			// First, because somebody typing their own name has matched it exactly and
 			// should not be pushed below looser matches on it.
@@ -164,7 +167,7 @@ class EmployeeController extends Controller {
 				if ($uid === '' || isset($employees[$uid])) {
 					continue;
 				}
-				if (!$this->employees->isEmployee($uid)) {
+				if (!($isHr ? $this->employees->isEmployee($uid) : $this->employees->isActive($uid))) {
 					continue;
 				}
 				$employees[$uid] = [

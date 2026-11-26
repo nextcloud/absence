@@ -36,6 +36,12 @@ use Psr\Log\LoggerInterface;
  *    it also bounds what {@see listAll()} has to enumerate: reading one group
  *    beats walking the whole user backend on a large LDAP instance.
  *
+ * A **disabled account** is still an employee here: HR keeps the records of
+ * people who left, can correct them and exports them. Everything about the
+ * people who work here now (reports, coverage, pickers, the team calendar,
+ * reminders and the rollover) asks for the *active* employees instead
+ * ({@see listActive()}, {@see isActive()}), which leave disabled accounts out.
+ *
  * A guest is a user in the Guests app's own user backend, which is what
  * `OCA\Guests\GuestManager::isGuest()` checks too. Reading the backend name
  * keeps this app free of a hard dependency on the Guests app: with the app
@@ -53,6 +59,8 @@ class EmployeeDirectory {
 	private array $guestCache = [];
 	/** Employees-group id resolved once per request; null = not resolved yet. */
 	private ?string $employeesGroup = null;
+	/** @var array<string,true>|null uid => disabled, read once per request */
+	private ?array $disabled = null;
 
 	public function __construct(
 		private IUserManager $userManager,
@@ -191,6 +199,78 @@ class EmployeeDirectory {
 	public function isGuest(string $uid): bool {
 		$user = $this->userManager->get($uid);
 		return $user !== null && $this->isGuestUser($user);
+	}
+
+	/**
+	 * Every employee whose account is enabled: the people who work here now.
+	 *
+	 * @return string[]
+	 */
+	public function listActive(): array {
+		return $this->withoutDisabled($this->listAll());
+	}
+
+	/**
+	 * {@see listInGroup()}, without the disabled accounts.
+	 *
+	 * @return string[]
+	 */
+	public function listActiveInGroup(?string $group): array {
+		return $this->withoutDisabled($this->listInGroup($group));
+	}
+
+	/**
+	 * {@see displayNames()}, without the disabled accounts.
+	 *
+	 * @return array<string, string>
+	 */
+	public function activeDisplayNames(): array {
+		return array_diff_key($this->displayNames(), $this->disabledUids());
+	}
+
+	/** Whether this uid is an employee whose account is enabled. */
+	public function isActive(string $uid): bool {
+		return $this->isEmployee($uid) && !isset($this->disabledUids()[$uid]);
+	}
+
+	/** Whether this uid's account is disabled, false for an unknown uid. */
+	public function isDisabled(string $uid): bool {
+		return isset($this->disabledUids()[$uid]);
+	}
+
+	/**
+	 * {@see filter()}, without the disabled accounts.
+	 *
+	 * @param string[] $uids
+	 * @return string[]
+	 */
+	public function filterActive(array $uids): array {
+		return $this->withoutDisabled($this->filter($uids));
+	}
+
+	/**
+	 * @param string[] $uids
+	 * @return string[]
+	 */
+	private function withoutDisabled(array $uids): array {
+		$disabled = $this->disabledUids();
+		return array_values(array_filter($uids, static fn (string $uid): bool => !isset($disabled[$uid])));
+	}
+
+	/**
+	 * The disabled accounts, read in one call rather than account by account,
+	 * which on LDAP would cost a lookup per person.
+	 *
+	 * @return array<string,true>
+	 */
+	private function disabledUids(): array {
+		if ($this->disabled === null) {
+			$this->disabled = [];
+			foreach ($this->userManager->getDisabledUsers() as $user) {
+				$this->disabled[$user->getUID()] = true;
+			}
+		}
+		return $this->disabled;
 	}
 
 	/**

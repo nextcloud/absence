@@ -49,7 +49,7 @@ class RegionReminderService {
 		$since = $this->clock->now()->getTimestamp() - self::QUIET_SECONDS;
 		$remindedAt = $this->userConfig->getValuesByUsers(ConfigService::APP_ID, ConfigLexicon::KEY_REGION_REMINDED_AT, ValueType::INT);
 		$plan = ['send' => [], 'recent' => []];
-		foreach ($this->employees->listAll() as $uid) {
+		foreach ($this->employees->listActive() as $uid) {
 			$uid = (string)$uid;
 			$code = $codes[$uid] ?? '';
 			if (!$this->holidays->needsRegion($code)) {

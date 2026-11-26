@@ -46,7 +46,7 @@ class InsightsServiceTest extends TestCase {
 		// can key on the uid without standing up fake user objects.
 		$userManager->method('get')->willReturn(null);
 
-		$this->employees->method('listInGroup')->willReturn(['alice', 'bob', 'carol']);
+		$this->employees->method('listActiveInGroup')->willReturn(['alice', 'bob', 'carol']);
 		$this->managerResolver->method('getManagerUidsOf')->willReturnCallback(
 			static fn (array $uids): array => array_combine($uids, array_map(static fn (string $uid): ?string => $uid === 'carol' ? null : 'mgr1', $uids)),
 		);

@@ -55,7 +55,7 @@ class CoverageService {
 			return [];
 		}
 		if ($scope === self::SCOPE_COMPANY && $this->permission->isHr($actorUid)) {
-			return $this->employees->listAll();
+			return $this->employees->listActive();
 		}
 		// Team scope: the actor's reports if they manage, otherwise their peers + self.
 		$reports = $this->managerResolver->getDirectReports($actorUid);
@@ -243,7 +243,7 @@ class CoverageService {
 			...($managerUid !== null ? [$managerUid] : []),
 			...$this->managerResolver->getDirectReports($uid),
 		]);
-		return $this->employees->filter(array_values(array_filter($uids, static fn (string $other): bool => $other !== $uid)));
+		return $this->employees->filterActive(array_values(array_filter($uids, static fn (string $other): bool => $other !== $uid)));
 	}
 
 	/**
