@@ -47,17 +47,6 @@ export function formatRegionCode(country: string, region: string): string {
 }
 
 /**
- * Whether HR entered any holiday for this code or its country.
- *
- * @param code a valid, non-empty region code
- * @param regions the codes that have holidays
- */
-export function hasHolidays(code: string, regions: string[]): boolean {
-	const parsed = parseRegionCode(code)
-	return parsed !== null && (regions.includes(formatRegionCode(parsed.country, parsed.region)) || regions.includes(parsed.country))
-}
-
-/**
  * What changes for someone moving from one region code to another.
  *
  * @param before holidays of the old code

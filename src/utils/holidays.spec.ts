@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { compareHolidays, groupByYear, hasHolidays, labelsByDate, makeHolidayChecker, parseRegionCode } from './holidays.ts'
+import { compareHolidays, groupByYear, labelsByDate, makeHolidayChecker, parseRegionCode } from './holidays.ts'
 
 describe('parseRegionCode', () => {
 	it('splits and uppercases a code', () => {
@@ -17,14 +17,6 @@ describe('parseRegionCode', () => {
 		expect(parseRegionCode('Bavaria')).toBeNull()
 		expect(parseRegionCode('DE-BAVARIA')).toBeNull()
 		expect(parseRegionCode('*')).toBeNull()
-	})
-})
-
-describe('hasHolidays', () => {
-	it('counts holidays entered for the country of a region', () => {
-		expect(hasHolidays('DE-BY', ['*', 'DE'])).toBe(true)
-		expect(hasHolidays('DE-BY', ['*', 'DE-BY'])).toBe(true)
-		expect(hasHolidays('IN', ['*', 'DE'])).toBe(false)
 	})
 })
 

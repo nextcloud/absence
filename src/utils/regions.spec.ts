@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it, vi } from 'vitest'
-import { holidayAppliesTo, holidaySources, regionCountryName, regionFlag } from './regions.ts'
+import { filterRegionPickerItems, holidayAppliesTo, holidaySources, regionCountryName, regionFlag, regionName, regionPickerItems } from './regions.ts'
 
 vi.mock('@nextcloud/l10n', () => ({
 	getLanguage: () => 'en',
@@ -60,5 +60,53 @@ describe('holidaySources', () => {
 
 	it('says nothing without a code', () => {
 		expect(holidaySources('')).toBe('')
+	})
+})
+
+describe('regionName', () => {
+	it('names countries and German states, and keeps other codes as they are', () => {
+		expect(regionName('FR')).toBe('France')
+		expect(regionName('DE-BY')).toBe('Bavaria')
+		expect(regionName('ES-CT')).toBe('ES-CT')
+		expect(regionName('*')).toBe('*')
+	})
+})
+
+describe('regionPickerItems', () => {
+	const labels = (codes: string[], current = '') => regionPickerItems(codes, current).map((item) => (item.heading ? `# ${item.label}` : item.code))
+
+	it('lists the countries by name, then the regions of each country under a heading', () => {
+		expect(labels(['*', 'GB', 'DE-BY', 'FR', 'DE', 'DE-BE', 'AT'])).toEqual([
+			'# Countries',
+			'AT',
+			'FR',
+			'DE',
+			'GB',
+			'# Germany, by region',
+			'DE-BY',
+			'DE-BE',
+		])
+	})
+
+	it('lists the person\'s own code even when it has no holidays', () => {
+		expect(labels(['FR'], 'it')).toEqual(['# Countries', 'FR', 'IT'])
+		expect(labels(['FR'], '')).toEqual(['# Countries', 'FR'])
+	})
+})
+
+describe('filterRegionPickerItems', () => {
+	const items = regionPickerItems(['FR', 'DE', 'DE-BY', 'DE-BW'], '')
+	const codes = (search: string) => filterRegionPickerItems(items, search).map((item) => (item.heading ? `# ${item.label}` : item.code))
+
+	it('finds an entry by its name, its country or its code, accents and case aside', () => {
+		expect(codes('bav')).toEqual(['# Germany, by region', 'DE-BY'])
+		expect(codes('de-bw')).toEqual(['# Germany, by region', 'DE-BW'])
+		expect(codes('wurttemberg')).toEqual(['# Germany, by region', 'DE-BW'])
+		expect(codes('germ')).toEqual(['# Countries', 'DE', '# Germany, by region', 'DE-BW', 'DE-BY'])
+	})
+
+	it('keeps everything for an empty search and nothing without a match', () => {
+		expect(filterRegionPickerItems(items, ' ')).toBe(items)
+		expect(codes('zz')).toEqual([])
 	})
 })

@@ -7,31 +7,46 @@
 -->
 <template>
 	<div class="region-code">
-		<div class="region-code__row">
-			<NcTextField
-				:modelValue="code"
-				:label="t('absence', 'My region code')"
-				:error="code !== '' && !codeValid"
-				:helperText="code !== '' && !codeValid ? t('absence', 'Use a country like DE or a region like DE-BY') : t('absence', 'Sets your public holidays')"
-				@update:modelValue="code = String($event)" />
-			<NcButton :disabled="saving || !codeValid || code === savedCode" @click="save">
-				{{ t('absence', 'Save') }}
-			</NcButton>
-		</div>
-		<p v-if="knownCodes.length" class="region-code__hint">
-			{{ t('absence', 'Codes with holidays: {codes}', { codes: knownCodes.map((known) => `${regionFlag(known)} ${known}`).join(', ') }, undefined, { escape: false, sanitize: false }) }}
-		</p>
+		<NcSelect
+			class="region-code__select"
+			:modelValue="selected"
+			:options="items"
+			:filter="filterRegionPickerItems"
+			:selectable="(item: RegionPickerItem) => !item.heading"
+			:inputLabel="t('absence', 'My country or region')"
+			:placeholder="t('absence', 'Choose your country or region')"
+			:helperText="t('absence', 'Sets your public holidays. Not listed? Ask HR to add your country.')"
+			:loading="saving"
+			:disabled="saving"
+			label="label"
+			@update:modelValue="pick">
+			<template #option="item">
+				<span v-if="item.heading" class="region-code__heading">{{ item.label }}</span>
+				<span v-else class="region-code__option">
+					<span class="region-code__flag" aria-hidden="true">{{ item.flag }}</span>
+					<span class="region-code__name">
+						{{ item.label }}
+						<span v-if="item.country" class="region-code__country">{{ item.country }}</span>
+					</span>
+					<span class="region-code__code">{{ item.code }}</span>
+				</span>
+			</template>
+			<template #selected-option="item">
+				<span class="region-code__option">
+					<span class="region-code__flag" aria-hidden="true">{{ item.flag }}</span>
+					<span class="region-code__name">{{ item.label }}</span>
+					<span class="region-code__code">{{ item.code }}</span>
+				</span>
+			</template>
+		</NcSelect>
 
 		<NcDialog
 			:open="change !== null"
 			size="normal"
 			:name="t('absence', 'Change your holiday region?')"
 			:buttons="changeButtons"
-			@update:open="change = null">
+			@update:open="onDialogClosed">
 			<template v-if="change">
-				<NcNoteCard v-if="change.noHolidays" type="warning">
-					{{ t('absence', 'No public holidays are defined for {code}: only the days for everywhere apply. Check the code, or get its holidays added on the Public holidays page.', { code: change.code }) }}
-				</NcNoteCard>
 				<p class="change__switch">
 					<span class="change__code">{{ describeCode(change.before) }}</span>
 					<span aria-hidden="true">→</span>
@@ -78,21 +93,20 @@
 <script setup lang="ts">
 import type { ButtonVariant } from '@nextcloud/vue/components/NcButton'
 import type { HolidayRecord } from '../types/index.ts'
+import type { RegionPickerItem } from '../utils/regions.ts'
 
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, onMounted, ref, watch } from 'vue'
-import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
-import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import NcTextField from '@nextcloud/vue/components/NcTextField'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
 import api from '../services/api.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { parseWeekdays } from '../utils/dates.ts'
 import { serverMessage } from '../utils/errors.ts'
-import { compareHolidays, formatRegionCode, groupByYear, hasHolidays, parseRegionCode } from '../utils/holidays.ts'
+import { compareHolidays, formatRegionCode, groupByYear, parseRegionCode } from '../utils/holidays.ts'
 import { locale } from '../utils/locale.ts'
-import { regionCountryName, regionFlag } from '../utils/regions.ts'
+import { filterRegionPickerItems, regionFlag, regionName, regionPickerItems } from '../utils/regions.ts'
 
 const props = defineProps<{
 	/** The saved code, e.g. `DE-BY`, empty when none */
@@ -105,11 +119,10 @@ const emit = defineEmits<{
 
 const sessionStore = useSessionStore()
 
-/** What moving from the saved code to the typed one changes */
+/** What moving from the saved code to the picked one changes */
 interface RegionChange {
 	before: string
 	code: string
-	noHolidays: boolean
 	lost: HolidayRecord[]
 	gained: HolidayRecord[]
 	kept: number
@@ -136,7 +149,8 @@ const knownCodes = ref<string[]>([])
 const change = ref<RegionChange | null>(null)
 const saving = ref(false)
 
-const codeValid = computed(() => parseRegionCode(code.value) !== null)
+const items = computed(() => regionPickerItems(knownCodes.value, props.savedCode))
+const selected = computed(() => items.value.find((item) => !item.heading && item.code === code.value) ?? null)
 
 /** The days lost and gained, each split by year */
 const changeColumns = computed<ChangeColumn[]>(() => {
@@ -163,22 +177,22 @@ watch(() => props.savedCode, (saved) => {
 
 onMounted(async () => {
 	try {
-		knownCodes.value = (await api.listHolidayRegions()).filter((known) => known !== '*')
+		knownCodes.value = await api.listHolidayRegions()
 	} catch {
-		// Only the hint is missing
+		showError(t('absence', 'Could not load the countries and regions with public holidays'))
 	}
 })
 
 /**
  * @param regionCode a region code, '' for none
- * @return the code with its flag and country, as far as they are known
+ * @return the code with its flag and name, as far as they are known
  */
 function describeCode(regionCode: string): string {
 	if (!regionCode) {
 		return t('absence', 'No region code')
 	}
-	const country = regionCountryName(regionCode)
-	return country ? `${regionFlag(regionCode)} ${regionCode} · ${country}` : regionCode
+	const name = regionName(regionCode)
+	return name === regionCode ? `${regionFlag(regionCode)} ${regionCode}`.trim() : `${regionFlag(regionCode)} ${name} · ${regionCode}`
 }
 
 /**
@@ -197,36 +211,44 @@ function isWorkingDay(iso: string): boolean {
 }
 
 /**
- * Loads what the typed code changes and shows it, for the person to confirm.
+ * Shows what the picked code changes, for the person to confirm.
+ *
+ * @param item the picked entry, null when cleared
  */
-async function save() {
-	const parsed = parseRegionCode(code.value)
-	if (!parsed) {
+async function pick(item: RegionPickerItem | null) {
+	const picked = item?.code ?? ''
+	if (picked === props.savedCode) {
 		return
 	}
-	const typed = formatRegionCode(parsed.country, parsed.region)
+	code.value = picked
 	saving.value = true
 	try {
 		const year = new Date().getFullYear()
 		const [before, after] = await Promise.all([
 			api.listApplyingHolidays(props.savedCode, `${year}-01-01`, `${year + 1}-12-31`),
-			api.listApplyingHolidays(typed, `${year}-01-01`, `${year + 1}-12-31`),
+			api.listApplyingHolidays(picked, `${year}-01-01`, `${year + 1}-12-31`),
 		])
-		change.value = {
-			before: props.savedCode,
-			code: typed,
-			noHolidays: typed !== '' && !hasHolidays(typed, knownCodes.value),
-			...compareHolidays(before, after),
-		}
+		change.value = { before: props.savedCode, code: picked, ...compareHolidays(before, after) }
 	} catch {
-		showError(t('absence', 'Could not load the holidays of {code}', { code: typed }))
+		code.value = props.savedCode
+		showError(t('absence', 'Could not load the holidays of {code}', { code: picked }))
 	} finally {
 		saving.value = false
 	}
 }
 
 /**
- * Saves the typed code, once confirmed.
+ * Goes back to the saved code when the change is cancelled, not while it is saved.
+ */
+function onDialogClosed() {
+	change.value = null
+	if (!saving.value) {
+		code.value = props.savedCode
+	}
+}
+
+/**
+ * Saves the picked code, once confirmed.
  */
 function storeCode() {
 	const parsed = parseRegionCode(code.value)
@@ -239,7 +261,10 @@ function storeCode() {
 			emit('saved', formatRegionCode(updated.holidayCountry, updated.holidayRegion))
 			showSuccess(t('absence', 'Region code saved'))
 		})
-		.catch((e: unknown) => showError(serverMessage(e) || t('absence', 'Could not save the region code')))
+		.catch((e: unknown) => {
+			code.value = props.savedCode
+			showError(serverMessage(e) || t('absence', 'Could not save the region code'))
+		})
 		.finally(() => {
 			saving.value = false
 		})
@@ -248,15 +273,47 @@ function storeCode() {
 
 <style scoped lang="scss">
 .region-code {
-	&__row {
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
+	&__select {
 		max-width: 420px;
+	}
 
-		> :last-child {
-			flex-shrink: 0;
-		}
+	&__heading {
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small);
+		font-weight: 600;
+	}
+
+	&__option {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	&__flag {
+		font-size: 1.2em;
+	}
+
+	&__name {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	&__country {
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small);
+	}
+
+	&__code {
+		padding: 0 8px;
+		border-radius: var(--border-radius-pill);
+		background: var(--color-background-dark);
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small);
 	}
 
 	&__hint {
@@ -354,5 +411,14 @@ function storeCode() {
 		color: var(--color-text-maxcontrast);
 		font-size: var(--font-size-small);
 	}
+}
+</style>
+
+<style lang="scss">
+// The menu is appended to the body, out of reach of the scoped styles:
+// a group heading is not an entry, so it gets no highlight
+.vs__dropdown-option--disabled:has(.region-code__heading) {
+	background: transparent !important;
+	cursor: default;
 }
 </style>
