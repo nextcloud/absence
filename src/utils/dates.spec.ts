@@ -8,6 +8,7 @@ import {
 	countWorkingDays,
 	formatCountdown,
 	formatRange,
+	formatShortRange,
 	parseWeekdays,
 	seasonOf,
 	toIso,
@@ -80,6 +81,18 @@ describe('formatRange', () => {
 
 	it('renders a multi-day range with both ends', () => {
 		expect(formatRange('2026-03-02', '2026-03-04')).toContain('–')
+	})
+})
+
+describe('formatShortRange', () => {
+	it('leaves the current year out', () => {
+		expect(formatShortRange('2026-11-30', '2026-12-04', 2026)).not.toContain('2026')
+		expect(formatShortRange('2026-11-30', '2026-11-30', 2026)).not.toContain('2026')
+	})
+
+	it('shows the year of a range that leaves the current year', () => {
+		expect(formatShortRange('2026-12-22', '2027-01-05', 2026)).toContain('2027')
+		expect(formatShortRange('2027-03-01', '2027-03-05', 2026)).toContain('2027')
 	})
 })
 

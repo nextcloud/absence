@@ -68,12 +68,17 @@
 		<div v-else-if="profile" class="profile__grid">
 			<section class="profile__card">
 				<h3>{{ t('absence', 'Vacation {year}', { year: profile.holidays.year }) }}</h3>
-				<div v-if="profile.self" class="profile__balance">
-					<BalanceRing v-for="row in balances" :key="row.typeId" :row="row" />
-					<RouterLink class="profile__link" :to="{ name: 'my' }">
-						{{ t('absence', 'Details in My leave') }}
-					</RouterLink>
-				</div>
+				<template v-if="profile.self">
+					<VacationOverview
+						v-for="row in balances"
+						:key="row.typeId"
+						:row="row"
+						:requests="ownRequests">
+						<RouterLink class="profile__link" :to="{ name: 'my' }">
+							{{ t('absence', 'Details in My leave') }} →
+						</RouterLink>
+					</VacationOverview>
+				</template>
 				<template v-else>
 					<BalanceCard v-for="row in balances" :key="row.typeId" :row="row" />
 				</template>
@@ -91,7 +96,7 @@
 						{{ t('absence', 'Somebody else from HR changes your own days.') }}
 					</p>
 				</template>
-				<p v-if="profile.nextLeave" class="profile__note">
+				<p v-if="profile.nextLeave && !profile.self" class="profile__note">
 					{{ n('absence', 'Next leave: {range}, {count} working day', 'Next leave: {range}, {count} working days', profile.nextLeave.workingDays, { range: formatRange(profile.nextLeave.startDate, profile.nextLeave.endDate), count: profile.nextLeave.workingDays }) }}
 				</p>
 			</section>
@@ -172,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import type { BalanceRow, ContractPeriod, Profile, ProfileChange } from '../types/index.ts'
+import type { BalanceRow, ContractPeriod, LeaveRequest, Profile, ProfileChange } from '../types/index.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
@@ -182,11 +187,11 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import BalanceCard from '../components/BalanceCard.vue'
-import BalanceRing from '../components/BalanceRing.vue'
 import ContractEditor from '../components/ContractEditor.vue'
 import EntitlementDialog from '../components/EntitlementDialog.vue'
 import RegionCodeField from '../components/RegionCodeField.vue'
 import SkeletonList from '../components/SkeletonList.vue'
+import VacationOverview from '../components/VacationOverview.vue'
 import api from '../services/api.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { canEditEntitlementOf } from '../utils/access.ts'
@@ -215,6 +220,8 @@ const startLoad = latestOnly()
 
 const profile = ref<Profile | null>(null)
 const balances = ref<BalanceRow[]>([])
+// One's own requests of this year on, to split the vacation days
+const ownRequests = ref<LeaveRequest[]>([])
 const error = ref<string | null>(null)
 // The name of the person whose profile the viewer may not see
 const refusedName = ref<string | null>(null)
@@ -258,14 +265,17 @@ async function load(): Promise<void> {
 	error.value = null
 	refusedName.value = null
 	try {
-		const [loaded, balance] = await Promise.all([
+		const own = props.uid === undefined || props.uid === sessionStore.session.uid
+		const [loaded, balance, requests] = await Promise.all([
 			api.getProfile(profileUid.value),
 			api.getEmployeeBalance(profileUid.value, year),
+			own ? api.listRequests({ scope: 'mine', from: `${year}-01-01`, limit: 500 }) : [],
 		])
 		if (!isLatest()) {
 			return
 		}
 		balances.value = balance.balances.filter((row) => row.countsAgainstBalance && row.typeKey === 'annual')
+		ownRequests.value = requests
 		profile.value = loaded
 	} catch (e) {
 		if (!isLatest()) {
@@ -391,13 +401,6 @@ function onContractSaved(): void {
 	&__figure {
 		font-size: var(--default-font-size);
 		margin: 12px 0 4px;
-	}
-
-	&__balance {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: calc(4 * var(--default-grid-baseline));
 	}
 
 	&__link {
